@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -50,8 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -209,7 +210,8 @@ func TestGenerateCredentials(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
-			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
+			genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
+				AD:                                true,
 				Username:                          user,
 				Domain:                            domain,
 				TTL:                               5 * time.Minute,
@@ -217,6 +219,8 @@ func TestGenerateCredentials(t *testing.T) {
 				ActiveDirectorySID:                test.activeDirectorySID,
 				DisableWindowsCASupportForTesting: test.disableWindowsCASupport,
 			})
+			certb := genResp.CertDER
+			keyb := genResp.KeyDER
 			require.NoError(t, err)
 			require.NotNil(t, certb)
 			require.NotNil(t, keyb)
@@ -226,7 +230,7 @@ func TestGenerateCredentials(t *testing.T) {
 			require.NotNil(t, cert)
 
 			require.Equal(t, test.wantSerialNumber, cert.Issuer.SerialNumber, "Issuer.SerialNumber")
-			require.Equal(t, user, cert.Subject.CommonName, "Subject.CommonName")
+			require.Equal(t, user+"@"+domain, cert.Subject.CommonName, "Subject.CommonName")
 			require.Contains(t,
 				cert.CRLDistributionPoints,
 				`ldap:///CN=`+test.wantCRLCommonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
@@ -315,12 +319,12 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := makeTDPSendAuditor(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
 	encoded, err := msg.Encode()
 	require.NoError(t, err)
-	handler(msg, encoded)
+	require.NoError(t, handler(msg))
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)
@@ -344,13 +348,10 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	maliciousPNG := make([]byte, constants.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	png := &tdpb.PNGFrame{Data: maliciousPNG}
-	encoded, err := png.Encode()
-	require.NoError(t, err)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
-
-	handler(png, encoded)
+	handler := makeTDPSendAuditor(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* auditor */)
+	require.NoError(t, handler(png))
 
 	require.Nil(t, emitter.LastEvent())
 }
@@ -366,7 +367,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
+	handler := makeTDPReceiveAuditor(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.MouseButton{
 		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
@@ -393,11 +394,13 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPReceiveHandler(
+	handler := makeTDPReceiveAuditor(
 		context.Background(),
+		s,
+		s.cfg.Clock,
+		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdp.Conn{},
 		audit,
 	)
 
@@ -416,7 +419,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
 	require.Equal(t, audit.sessionID, cs.SessionID)
-	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
+	require.Equal(t, audit.windowsDesktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
@@ -431,11 +434,13 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPSendHandler(
+	handler := makeTDPSendAuditor(
 		context.Background(),
+		s,
+		s.cfg.Clock,
+		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdp.Conn{},
 		audit,
 	)
 
@@ -444,9 +449,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 
 	start := s.cfg.Clock.Now().UTC()
 	msg := &tdpb.ClipboardData{Data: fakeClipboardData}
-	encoded, err := msg.Encode()
-	require.NoError(t, err)
-	handler(msg, encoded)
+	require.NoError(t, handler(msg))
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)
@@ -454,7 +457,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.True(t, ok, "expected DesktopClipboardReceive, got %T", e)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
 	require.Equal(t, audit.sessionID, cs.SessionID)
-	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
+	require.Equal(t, audit.windowsDesktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
@@ -481,7 +484,16 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
+	mustSelfSignedCA := func() *x509.Certificate {
+		ca, err := subcaenv.NewSelfSignedCA(&subcaenv.CAParams{})
+		if err != nil {
+			panic(err)
+		}
+		return ca.Cert
+	}
+
 	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+
 		return &WindowsService{
 			cfg: WindowsServiceConfig{
 				Clock:      clock,
@@ -491,11 +503,23 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 					Domain:   "test.example.com",
 					Username: "test-user",
 					Addr:     "ldap.example.com:389",
+					CAs:      []*x509.Certificate{mustSelfSignedCA(), mustSelfSignedCA()},
 				},
 			},
 			closeCtx: context.Background(),
 		}
 	}
+
+	t.Run("issued cert supports multiple CAs", func(t *testing.T) {
+		s := newWindowsService(clockwork.NewFakeClock(), client)
+
+		config, err := s.issueNewTLSConfigForLDAP()
+		require.NoError(t, err)
+		// Validate that both configured CAs made it into
+		// the TLS config's cert pool.
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[0])
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[1])
+	})
 
 	t.Run("returns cached config when not expired", func(t *testing.T) {
 		clock := clockwork.NewFakeClock()
@@ -641,6 +665,12 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		waitForNextCRLUpdate(t)
 	})
 
+	caID := types.CertAuthID{
+		Type:       types.WindowsCA,
+		DomainName: clusterName,
+	}
+	const loadKeys = true
+
 	t.Run("update by CA event", func(t *testing.T) {
 		// Don't t.Parallel().
 
@@ -648,11 +678,7 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		authServer := testAuth.AuthServer
 
 		// Fetch current WindowsCA.
-		id := types.CertAuthID{
-			Type:       types.WindowsCA,
-			DomainName: clusterName,
-		}
-		ca, err := authServer.GetCertAuthority(ctx, id, true /* loadKeys */)
+		ca, err := authServer.GetCertAuthority(ctx, caID, loadKeys)
 		require.NoError(t, err)
 
 		// Simulate a rotation by addding an entry to AdditionalTrustedKeys.
@@ -676,6 +702,94 @@ func TestCRLUpdateSchedule(t *testing.T) {
 
 		waitForNextCRLUpdate(t)
 	})
+
+	upsertOverrideForCA := func(
+		t *testing.T,
+		caID types.CertAuthID,
+		modifyOverride func(caOverride *subcav1.CertAuthorityOverride),
+	) {
+		ctx := t.Context()
+		authServer := testAuth.AuthServer
+
+		// Fetch CA to override.
+		ca, err := authServer.GetCertAuthority(ctx, caID, loadKeys)
+		require.NoError(t, err)
+
+		// Prepare CA override env.
+		externalCA, err := subcaenv.NewSelfSignedCA(&subcaenv.CAParams{
+			Clock: clock,
+		})
+		require.NoError(t, err)
+		env := subcaenv.Env{
+			Clock:       clock,
+			ClusterName: clusterName,
+		}
+
+		// Prepare an override with CRLs.
+		// If targeting the Windows CA, without modifications, this should trigger
+		// a CRL update.
+		caOverride := env.NewOverrideForCA(t, ca, externalCA)
+		caOverride.SetStatus(subcav1.CertAuthorityOverrideStatus_builder{
+			PublicKeyHashToCrl: make(map[string]*subcav1.CertificateRevocationList),
+		}.Build())
+		for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+			caOverride.GetStatus().GetPublicKeyHashToCrl()[co.GetPublicKey()] = subcav1.CertificateRevocationList_builder{
+				Pem: "<insert PEM here>",
+			}.Build()
+		}
+
+		if modifyOverride != nil {
+			modifyOverride(caOverride)
+		}
+
+		_, err = authServer.UpsertCertAuthorityOverride(ctx, caOverride)
+		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
+	}
+
+	t.Run("update by CA override event", func(t *testing.T) {
+		// Don't t.Parallel().
+
+		upsertOverrideForCA(t, caID, nil)
+		waitForNextCRLUpdate(t)
+	})
+
+	waitForEvent := func(t *testing.T) {
+		t.Helper()
+		select {
+		case <-accessPoint.EventReceived():
+			// OK.
+		case <-t.Context().Done():
+			t.Fatal("Test timed out")
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timed out waiting for next event")
+		}
+	}
+
+	t.Run("skips unrelated CA override events", func(t *testing.T) {
+		// Don't t.Parallel().
+
+		// Drain events channel.
+		waitForEvent(t)
+
+		// Create an empty Windows CA override.
+		// It should not trigger a CRL update, as the resource itself lacks CRLs.
+		upsertOverrideForCA(t, caID, func(caOverride *subcav1.CertAuthorityOverride) {
+			caOverride.GetSpec().SetCertificateOverrides(nil)
+			caOverride.ClearStatus()
+		})
+		waitForEvent(t)
+
+		// Create an unrelated override.
+		// It should not trigger an update.
+		upsertOverrideForCA(t, types.CertAuthID{
+			Type:       types.DatabaseClientCA,
+			DomainName: clusterName,
+		}, nil)
+		waitForEvent(t)
+
+		// Verify no updates.
+		caClient.WaitForUpdate(t, wantUpdates)
+	})
 }
 
 // watcherAwareAccessPoint is a WindowsDesktopAccessPoint wrapper that
@@ -688,6 +802,7 @@ type watcherAwareAccessPoint struct {
 
 	initReceived      chan struct{}
 	initReceivedClose func()
+	eventReceived     chan struct{}
 
 	done <-chan struct{} // signals end of test
 	wg   sync.WaitGroup
@@ -699,6 +814,7 @@ func newWatcherAwareAccessPoint(t *testing.T, ap authclient.WindowsDesktopAccess
 	watcherAP := &watcherAwareAccessPoint{
 		WindowsDesktopAccessPoint: ap,
 		initReceived:              make(chan struct{}),
+		eventReceived:             make(chan struct{}, 1),
 		done:                      ctx.Done(),
 	}
 	watcherAP.initReceivedClose = sync.OnceFunc(func() { close(watcherAP.initReceived) })
@@ -720,6 +836,7 @@ func (a *watcherAwareAccessPoint) NewWatcher(ctx context.Context, watch types.Wa
 	ww := &watcherInitWrapper{
 		Watcher:          w,
 		markInitReceived: a.initReceivedClose,
+		eventReceived:    a.eventReceived,
 		done:             a.done,
 		events:           make(chan types.Event),
 	}
@@ -736,6 +853,13 @@ func (a *watcherAwareAccessPoint) InitReceived() <-chan struct{} {
 	return a.initReceived
 }
 
+// EventReceived signals that a new event was received.
+// The channel has a buffer of 1 so it must be drained before new events can
+// truly be distinguished. Includes the OpInit event.
+func (a *watcherAwareAccessPoint) EventReceived() <-chan struct{} {
+	return a.eventReceived
+}
+
 // watcherInitWrapper wraps a types.Watcher so it can wait for its first init
 // event.
 //
@@ -744,6 +868,7 @@ type watcherInitWrapper struct {
 	types.Watcher
 
 	markInitReceived func()
+	eventReceived    chan struct{}
 
 	done   <-chan struct{} // signals end of test
 	events chan types.Event
@@ -763,9 +888,17 @@ func (w *watcherInitWrapper) forwardEvents(ctx context.Context, other types.Watc
 		case <-other.Done():
 			return
 		case e := <-other.Events():
+			// Optimistically signal a new event.
+			select {
+			case w.eventReceived <- struct{}{}:
+			default:
+			}
+
+			// Record OpInit.
 			if e.Type == types.OpInit {
 				w.markInitReceived()
 			}
+
 			// Forward event.
 			select {
 			case <-w.done:
@@ -827,5 +960,12 @@ func (c *mockCertificateStoreClient) WaitForUpdate(t *testing.T, wantCalls int) 
 		case <-ch:
 			continue
 		}
+	}
+}
+
+func assertCertInPool(t *testing.T, pool *x509.CertPool, cert x509.Certificate) {
+	t.Helper()
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
+		t.Fatalf("cert not found/trusted in pool: %v", err)
 	}
 }

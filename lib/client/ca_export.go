@@ -220,6 +220,13 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "app-client":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.AppClientCA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	}
 
 	// If none of the above auth-types was requested, means we are dealing with SSH HostCA or SSH UserCA.
@@ -478,13 +485,13 @@ func ExportIntegrationAuthorities(ctx context.Context, client authclient.ClientI
 }
 
 func fetchIntegrationCAKeySet(ctx context.Context, client authclient.ClientI, integration string) (*types.CAKeySet, error) {
-	resp, err := client.IntegrationsClient().ExportIntegrationCertAuthorities(ctx, &integrationpb.ExportIntegrationCertAuthoritiesRequest{
+	resp, err := client.IntegrationsClient().ExportIntegrationCertAuthorities(ctx, integrationpb.ExportIntegrationCertAuthoritiesRequest_builder{
 		Integration: integration,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.CertAuthorities, nil
+	return resp.GetCertAuthorities(), nil
 }
 
 func exportGitHubCAs(keySet *types.CAKeySet, req ExportIntegrationAuthoritiesRequest) (string, error) {

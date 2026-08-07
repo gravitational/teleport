@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
@@ -36,20 +37,6 @@ import (
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentBPF)
 
-const (
-	// CommMax is the maximum length of a command from linux/sched.h.
-	CommMax = 16
-
-	// PathMax is the maximum length of a path from linux/limits.h.
-	PathMax = 255
-
-	// eventArg is an exec event that holds the arguments to a function.
-	eventArg = 0
-
-	// eventRet holds the return value and other data about an event.
-	eventRet = 1
-)
-
 // Counter allows a BPF program to increment a Prometheus counter.
 // The counter value is stored in a one element BPF array (map).
 // When it's incremented, the BPF program also rings the doorbell
@@ -61,7 +48,7 @@ type Counter struct {
 	// arr is a one element array containing the value
 	arr *ebpf.Map
 	// lastCnt keeps the last read counter value
-	lastCnt uint64
+	lastCnt atomic.Uint64
 
 	// wg is used to wait for the loop goroutine to finish
 	wg sync.WaitGroup
@@ -96,6 +83,10 @@ func (c *Counter) Close() error {
 	return err
 }
 
+func (c *Counter) Count() uint64 {
+	return c.lastCnt.Load()
+}
+
 func (c *Counter) loop() {
 	for {
 		_, err := c.doorbellBuf.Read()
@@ -113,9 +104,11 @@ func (c *Counter) loop() {
 			logger.ErrorContext(context.Background(), "Error reading array value at index 0", "error", err)
 			continue
 		}
-		if delta := count - c.lastCnt; delta > 0 {
+		delta := count - c.lastCnt.Load()
+		if delta > 0 {
 			c.counter.Add(float64(delta))
+			c.lastCnt.Add(delta)
+			logger.DebugContext(context.Background(), "BPF events lost", "lost_events", delta)
 		}
-		c.lastCnt = count
 	}
 }

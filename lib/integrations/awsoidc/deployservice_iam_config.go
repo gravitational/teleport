@@ -23,12 +23,13 @@ import (
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
@@ -141,7 +142,7 @@ func NewDeployServiceIAMConfigureClient(ctx context.Context, region string) (Dep
 		return nil, trace.BadParameter("region is required")
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

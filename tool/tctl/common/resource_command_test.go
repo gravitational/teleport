@@ -23,9 +23,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,15 +42,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -59,13 +66,41 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func TestListKindsStructuredOutput(t *testing.T) {
+	rows := resourceKindRows()
+	require.NotEmpty(t, rows)
+
+	var jsonBuf bytes.Buffer
+	rc := ResourceCommand{
+		Stdout: &jsonBuf,
+		format: "json",
+	}
+	require.NoError(t, rc.listKinds())
+	gotJSON := mustDecodeJSON[[]resourceKindRow](t, &jsonBuf)
+	require.Equal(t, rows, gotJSON)
+
+	var yamlBuf bytes.Buffer
+	rc = ResourceCommand{
+		Stdout: &yamlBuf,
+		format: "yaml",
+	}
+	require.NoError(t, rc.listKinds())
+	yamlJSON, err := utils.ToJSON(yamlBuf.Bytes())
+	require.NoError(t, err)
+	gotYAML := mustDecodeJSON[[]resourceKindRow](t, bytes.NewReader(yamlJSON))
+	require.Equal(t, rows, gotYAML)
+}
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
@@ -331,6 +366,8 @@ func TestDatabaseServiceResource(t *testing.T) {
 }
 
 func TestScopedRoleAndAssignmentResource(t *testing.T) {
+	t.Parallel()
+
 	const scopedRoleYAML = `kind: scoped_role
 metadata:
   name: some-role
@@ -340,16 +377,15 @@ spec:
 version: v1
 `
 	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
+sub_kind: dynamic
 scope: "/"
 spec:
   user: "bob"
   assignments:
-    - role: some-role
+    - role: /::some-role
       scope: /foo
 version: v1
 `
-
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
@@ -372,7 +408,7 @@ version: v1
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -389,7 +425,7 @@ version: v1
 	var raw []byte
 	for {
 		// Get the scoped role
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role", "/::some-role", "--format=json"})
 		if err == nil {
 			raw = buff.Bytes()
 			break
@@ -410,25 +446,62 @@ version: v1
 	require.Len(t, rs, 1)
 
 	// Compare with expected value
-	expected := &scopedaccessv1.ScopedRole{
+	expected := scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "some-role",
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo"},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// now that a role exists, test commands for assignment creation
-	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
-	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
+	// list-all for scoped_role (no SQN)
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role", "--format=json"})
+	require.NoError(t, err)
+	allRoles, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, allRoles, 1)
+	require.Equal(t, "some-role", allRoles[0].GetMetadata().GetName())
 
-	// Create the scoped role assignment
+	// bare name without SQN separator should require a scope-qualified name
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role", "some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for bare name, got %v", err)
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on get
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/badsubkind", "/::some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on get, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on delete
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/badsubkind", "/::some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on delete, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// scope mismatch on delete should return NotFound (role lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role", "/wrong::some-role"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on delete, got %v", err)
+
+	// now that a role exists, test commands for assignment creation
+
+	// Can't create an assignment without a subkind.
+	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
+	require.NoError(t, os.WriteFile(
+		scopedRoleAssignmentYAMLPath,
+		[]byte(strings.ReplaceAll(scopedRoleAssignmentYAML, "sub_kind: dynamic\n", "")),
+		0644,
+	))
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	require.ErrorContains(t, err, "has empty sub_kind")
+
+	// Create the valid scoped role assignment
+	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
 	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
 	require.NoError(t, err)
 
@@ -459,8 +532,25 @@ version: v1
 	require.Len(t, as, 1)
 	assignmentName := as[0].GetMetadata().GetName()
 
-	// Ensure that retrieving the scoped role assignment by name works
-	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
+	require.ErrorContains(t, err, "requires a sub-kind")
+
+	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
 	require.NoError(t, err)
 	var asByName []*scopedaccessv1.ScopedRoleAssignment
 	err = json.Unmarshal(buff.Bytes(), &asByName)
@@ -469,35 +559,69 @@ version: v1
 	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
-	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
-		Metadata: &headerv1.Metadata{
+	expectedAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
+		Metadata: headerv1.Metadata_builder{
 			Name: assignmentName,
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "some-role",
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::some-role",
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
+	// a bare segment for a scoped-only resource (previously treated as a name)
+	// should now be an explicit error rather than silently returning all resources.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for old-format subkind filter, got %v", err)
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// scope mismatch on delete should return NotFound (assignment lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/wrong",
+		Name:  assignmentName,
+	}.String()})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on assignment delete, got %v", err)
+
+	// verify delete of assignment fails without subkind
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
+	require.ErrorContains(t, err, "requires a sub-kind")
+
+	// verify delete of assignment fails without materialized subkind.
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
+	require.ErrorContains(t, err, "cannot be deleted")
+
 	// verify delete of assignment
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+			Scope: "/",
+			Name:  assignmentName,
+		}.String(), "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break
@@ -511,14 +635,14 @@ version: v1
 	}
 
 	// verify delete of role
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/some-role"})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role", "/::some-role"})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify role is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role", "/::some-role", "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break
@@ -533,6 +657,8 @@ version: v1
 }
 
 func TestScopedToken(t *testing.T) {
+	t.Parallel()
+
 	const scopedTokenYAML = `kind: scoped_token
 version: v1
 metadata:
@@ -546,7 +672,26 @@ spec:
   usage_mode: "unlimited"
 `
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	const gcpScopedTokenYAML = `kind: scoped_token
+version: v1
+metadata:
+  name: gcp-test-token
+scope: "/"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/foo"
+  join_method: "gcp"
+  usage_mode: "unlimited"
+  gcp:
+    allow:
+      - project_ids:
+          - example-project-123456
+        locations:
+          - us-west1
+        service_accounts:
+          - 123456789-compute@developer.gserviceaccount.com
+`
 
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
@@ -569,7 +714,7 @@ spec:
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -585,7 +730,7 @@ spec:
 	var raw []byte
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Get the scoped token by name
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
 		require.NoError(t, err)
 		raw = buff.Bytes()
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
@@ -603,8 +748,28 @@ spec:
 	require.Equal(t, "/foo", token.GetSpec().GetAssignedScope())
 	require.Equal(t, "token", token.GetSpec().GetJoinMethod())
 	require.Equal(t, "unlimited", token.GetSpec().GetUsageMode())
-	// Secret should be populated
-	require.Equal(t, "******", token.GetStatus().GetSecret())
+	// Secret is stripped server-side when not requested with --with-secrets.
+	require.Empty(t, token.GetStatus().GetSecret())
+
+	// A bare name (no :: separator) should produce a helpful "scope-qualified name" error.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "test-token"})
+	require.ErrorContains(t, err, "scope-qualified name")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "test-token"})
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on get
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/badsubkind", "/::test-token"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on get, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on delete
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token/badsubkind", "/::test-token"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on delete, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// scope mismatch on delete should return NotFound (token lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "/wrong::test-token"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on delete, got %v", err)
 
 	// Get all scoped tokens
 	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json", "--with-secrets"})
@@ -629,8 +794,8 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Using --force should succeed and act as an upsert
-	allTokens[0].Metadata.Labels = map[string]string{"env": "staging"}
-	allTokens[0].Spec.AssignedScope = "/bar"
+	allTokens[0].GetMetadata().SetLabels(map[string]string{"env": "staging"})
+	allTokens[0].GetSpec().SetAssignedScope("/bar")
 	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, updatedBytes, 0644))
@@ -640,7 +805,7 @@ spec:
 
 	// Wait for cache propagation and verify the update took effect
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
 		require.NoError(t, err)
 		updated, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
 		require.NoError(t, err)
@@ -651,14 +816,661 @@ spec:
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for upserted scoped token cache propagation")
 
 	// verify delete of token
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token/test-token"})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "/::test-token"})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
 		require.True(ct, trace.IsNotFound(err))
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
+
+	// Create a GCP scoped token and verify it appears in listings.
+	gcpScopedTokenYAMLPath := filepath.Join(t.TempDir(), "gcp-test-token.yaml")
+	require.NoError(t, os.WriteFile(gcpScopedTokenYAMLPath, []byte(gcpScopedTokenYAML), 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", gcpScopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::gcp-test-token", "--format=json"})
+		require.NoError(ct, err)
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for GCP scoped token cache propagation")
+
+	// Verify GCP token fields outside the retry loop.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json"})
+	require.NoError(t, err)
+	gcpTokens, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, gcpTokens, 1)
+	require.Equal(t, "gcp-test-token", gcpTokens[0].GetMetadata().GetName())
+	require.Equal(t, "gcp", gcpTokens[0].GetSpec().GetJoinMethod())
+	require.Len(t, gcpTokens[0].GetSpec().GetGcp().GetAllow(), 1)
+	require.Equal(t, []string{"example-project-123456"}, gcpTokens[0].GetSpec().GetGcp().GetAllow()[0].GetProjectIds())
+
+	// Verify scope mismatch: name exists at "/" but a different scope is requested. Must produce
+	// a NotFound error to comply with namespacing behavior. Future iterations may not be able
+	// to provide hints as namespacing may prevent it.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/other-scope::gcp-test-token", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch, got: %v", err)
+	require.ErrorContains(t, err, `scoped_token "gcp-test-token" doesn't exist`)
+}
+
+// TestScopedAndUnscopedNodeResource exercises tctl get/rm on nodes which are double
+// registered as both a scoped and unscoped resource handler in order to support a
+// mix of scope and classic style interactions. This test is intended specifically
+// to help verify that we are handling double-registration sensibly.
+func TestScopedAndUnscopedNodeResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Proxy: config.Proxy{
+			Service: config.Service{EnabledFlag: "true"},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	// classicNode has no explicit scope (scope == "").
+	classicNode, err := types.NewServer("unscoped-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "unscoped-host",
+		Addr:     "127.0.0.1:22",
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertNode(ctx, classicNode)
+	require.NoError(t, err)
+
+	// scopedNode has scope "/" so SQN lookups with "/::scoped-node" succeed.
+	scopedNode, err := types.NewServer("scoped-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "scoped-host",
+		Addr:     "127.0.0.1:23",
+	})
+	require.NoError(t, err)
+	scopedNode.(*types.ServerV2).Scope = "/staging"
+	_, err = clt.UpsertNode(ctx, scopedNode)
+	require.NoError(t, err)
+
+	// Poll until both nodes appear via the unified-resource list (cache propagation).
+	timeout := time.After(30 * time.Second)
+	for {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "--format=json"})
+		if err == nil && strings.Contains(buf.String(), "scoped-node") && strings.Contains(buf.String(), "unscoped-node") {
+			break
+		}
+		select {
+		case <-timeout:
+			require.FailNow(t, "timed out waiting for nodes to appear in list")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("list all", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, "unscoped-node")
+		require.Contains(t, out, "scoped-node")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node/unscoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "unscoped-node")
+	})
+
+	t.Run("two-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "unscoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "unscoped-node")
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "/staging::scoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "scoped-node")
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", "node", "/prod::scoped-node", "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified delete with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/prod::scoped-node"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch delete, got: %v", err)
+	})
+
+	t.Run("edit via single-arg classic form", func(t *testing.T) {
+		editor := func(name string) error {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			data = bytes.ReplaceAll(data, []byte("unscoped-host"), []byte("unscoped-host-edited"))
+			return os.WriteFile(name, data, 0600)
+		}
+		_, err := runEditCommand(t, clt, []string{"edit", "node/unscoped-node"}, withEditor(editor))
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			if err == nil && node.GetHostname() == "unscoped-host-edited" {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for unscoped-node edit")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for unscoped-node hostname edit")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("edit via two-arg SQN form", func(t *testing.T) {
+		editor := func(name string) error {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			data = bytes.ReplaceAll(data, []byte("scoped-host"), []byte("scoped-host-edited"))
+			return os.WriteFile(name, data, 0600)
+		}
+		_, err := runEditCommand(t, clt, []string{"edit", "node", "/staging::scoped-node"}, withEditor(editor))
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			if err == nil && node.GetHostname() == "scoped-host-edited" {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for scoped-node edit")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for scoped-node hostname edit")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("scope-qualified delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/staging::scoped-node"})
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			if trace.IsNotFound(err) {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for scoped-node deletion")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for scoped-node to be deleted")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("two-arg unscoped delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "unscoped-node"})
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			if trace.IsNotFound(err) {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for unscoped-node deletion")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for unscoped-node to be deleted")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+}
+
+// TestScopedAndUnscopedWorkloadIdentityResource exercises tctl get/rm on workload
+// identities, which are double-registered as both a scoped and unscoped resource
+// handler to support a mix of scope-qualified and classic interactions.
+func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Proxy: config.Proxy{
+			Service: config.Service{EnabledFlag: "true"},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	wiClient := clt.WorkloadIdentityResourceServiceClient()
+
+	// unscopedWI has no scope (classic behavior).
+	_, err = wiClient.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+		WorkloadIdentity: workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "classic-wi"}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/unscoped"}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// scopedWI lives in scope "/staging" so SQN lookups with "/staging::staging-wi" succeed.
+	_, err = wiClient.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+		WorkloadIdentity: workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "staging-wi"}.Build(),
+			Scope:    "/staging",
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/staging/_/svc"}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait until both workload identities appear via the list (cache propagation).
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+		require.Contains(t, buf.String(), "staging-wi")
+	}, 30*time.Second, 100*time.Millisecond)
+
+	t.Run("list all shows scope-qualified name for scoped identities", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=text"})
+		require.NoError(t, err)
+		out := buf.String()
+		// Scoped identities are shown as a scope-qualified name; unscoped ones
+		// keep their bare name.
+		require.Contains(t, out, "/staging::staging-wi")
+		require.Contains(t, out, "classic-wi")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "workload_identity/classic-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+	})
+
+	t.Run("two-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "classic-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "staging-wi")
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/prod::staging-wi", "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", types.KindWorkloadIdentity, "/staging::staging-wi"})
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected NotFound waiting for staging-wi deletion, got: %v", err)
+		}, 30*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("unscoped delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "workload_identity/classic-wi"})
+		require.NoError(t, err)
+	})
+}
+
+// TestScopedAndUnscopedBotInstanceResource exercises tctl get on bot instances,
+// which are double-registered as both a scoped and unscoped resource handler to
+// support a mix of scope-qualified and classic interactions. An instance of a
+// scoped bot is addressed as <scope>::<bot name>/<instance id>; a bare
+// <scope>::<bot name> lists the scoped bot's instances.
+func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	// Bot instances are created server-side on join and have no create RPC, so
+	// seed them directly through the auth server's backend service.
+	makeInstance := func(scope, botName string) *machineidv1pb.BotInstance {
+		instance, err := auth.GetAuthServer().CreateBotInstance(t.Context(), machineidv1pb.BotInstance_builder{
+			Scope: scope,
+			Spec: machineidv1pb.BotInstanceSpec_builder{
+				BotName:    botName,
+				InstanceId: uuid.NewString(),
+			}.Build(),
+			Status: machineidv1pb.BotInstanceStatus_builder{
+				InitialHeartbeat: machineidv1pb.BotInstanceStatusHeartbeat_builder{
+					RecordedAt: timestamppb.New(time.Now()),
+					IsStartup:  true,
+					Hostname:   "test-hostname",
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		return instance
+	}
+
+	classicInstance := makeInstance("", "classic-bot")
+	stagingInstance0 := makeInstance("/staging", "staging-bot")
+	stagingInstance1 := makeInstance("/staging", "staging-bot")
+	// Same bot name in a different scope, to prove reads are scope-strict.
+	prodInstance := makeInstance("/prod", "staging-bot")
+
+	// Poll until all instances appear via the list (cache propagation).
+	// runResourceCommand needs a *testing.T, so poll manually rather than via
+	// require.EventuallyWithT.
+	allInstances := []*machineidv1pb.BotInstance{classicInstance, stagingInstance0, stagingInstance1, prodInstance}
+	timeout := time.After(30 * time.Second)
+	for {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance, "--format=json"})
+		if err == nil {
+			propagated := 0
+			for _, instance := range allInstances {
+				if strings.Contains(buf.String(), instance.GetSpec().GetInstanceId()) {
+					propagated++
+				}
+			}
+			if propagated == len(allInstances) {
+				break
+			}
+		}
+		select {
+		case <-timeout:
+			require.FailNow(t, "timed out waiting for bot instances to appear in list")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("list all shows scope-qualified bot name for instances of scoped bots", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance, "--format=text"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, "/staging::staging-bot")
+		require.Contains(t, out, "/prod::staging-bot")
+		require.Contains(t, out, "classic-bot")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{
+			"get",
+			types.KindBotInstance + "/classic-bot/" + classicInstance.GetSpec().GetInstanceId(),
+			"--format=json",
+		})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), classicInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("two-arg unscoped get is equivalent to the single-arg form", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance,
+			"classic-bot/" + classicInstance.GetSpec().GetInstanceId(),
+			"--format=json",
+		})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), classicInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("two-arg unscoped get of a missing instance is not found", func(t *testing.T) {
+		// Not the silently-empty list it would give if Name became a bot filter.
+		_, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance, "classic-bot/does-not-exist", "--format=json",
+		})
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance,
+			"/staging::staging-bot/" + stagingInstance0.GetSpec().GetInstanceId(),
+			"--format=json",
+		})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), stagingInstance0.GetSpec().GetInstanceId())
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance,
+			"/prod::staging-bot/" + stagingInstance0.GetSpec().GetInstanceId(),
+			"--format=json",
+		})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified list by bot", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance, "/staging::staging-bot", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, stagingInstance0.GetSpec().GetInstanceId())
+		require.Contains(t, out, stagingInstance1.GetSpec().GetInstanceId())
+		require.NotContains(t, out, prodInstance.GetSpec().GetInstanceId())
+		require.NotContains(t, out, classicInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("unscoped list by bot excludes scoped bots of the same name", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBotInstance + "/staging-bot", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.NotContains(t, out, stagingInstance0.GetSpec().GetInstanceId())
+		require.NotContains(t, out, stagingInstance1.GetSpec().GetInstanceId())
+		require.NotContains(t, out, prodInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("sub-kind with SQN is rejected with a hint", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance + "/staging-bot",
+			"/staging::" + stagingInstance0.GetSpec().GetInstanceId(),
+			"--format=json",
+		})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+		require.ErrorContains(t, err, "<scope>::<bot_name>/<instance_id>")
+	})
+
+	t.Run("SQN in the single-arg form is rejected with a hint", func(t *testing.T) {
+		for _, ref := range []string{
+			types.KindBotInstance + "//staging::staging-bot",
+			types.KindBotInstance + "//staging::staging-bot/" + stagingInstance0.GetSpec().GetInstanceId(),
+		} {
+			t.Run(ref, func(t *testing.T) {
+				_, err := runResourceCommand(t, clt, []string{"get", ref, "--format=json"})
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+				require.ErrorContains(t, err, "single-arg")
+				require.ErrorContains(t, err, "<scope>::<name>")
+			})
+		}
+	})
+}
+
+// TestScopedAndUnscopedBotResource exercises tctl get/rm on bots, which are
+// double-registered as both a scoped and unscoped resource handler to support a
+// mix of scope-qualified and classic interactions. Bots are namespaced by scope,
+// so the same name may exist unscoped and in several scopes at once; each is
+// addressed by its own scope-qualified name.
+func TestScopedAndUnscopedBotResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t,
+		withFileConfig(fileConfig),
+		withFileDescriptors(dynAddr.Descriptors),
+		withScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	botClient := clt.BotServiceClient()
+	makeBot := func(scope, name string) {
+		t.Helper()
+		bot := machineidv1pb.Bot_builder{
+			Kind:     types.KindBot,
+			Version:  types.V1,
+			Scope:    scope,
+			Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+			Spec:     machineidv1pb.BotSpec_builder{}.Build(),
+		}.Build()
+		if scope == "" {
+			// Roles cannot be set on a scoped bot, but an unscoped bot with no
+			// roles is unremarkable, so keep both fixtures minimal.
+			bot.GetSpec().SetRoles(nil)
+		}
+		_, err := botClient.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{Bot: bot}.Build())
+		require.NoError(t, err)
+	}
+
+	// The same name in three namespaces: unscoped, /staging and /prod. This is
+	// the invariant scope namespacing exists to provide, seen through tctl.
+	makeBot("", "robot")
+	makeBot("/staging", "robot")
+	makeBot("/prod", "robot")
+
+	// listNames returns the Name column of 'tctl get bot --format=text', which
+	// renders scoped bots as scope-qualified names.
+	listNames := func(t require.TestingT) string {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "--format=text"})
+		require.NoError(t, err)
+		return buf.String()
+	}
+
+	// Wait until all three bots appear via the list (cache propagation).
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out := listNames(t)
+		require.Contains(t, out, "/staging::robot")
+		require.Contains(t, out, "/prod::robot")
+	}, 30*time.Second, 100*time.Millisecond)
+
+	t.Run("list all shows scope-qualified names for scoped bots", func(t *testing.T) {
+		out := listNames(t)
+		require.Contains(t, out, "/staging::robot")
+		require.Contains(t, out, "/prod::robot")
+		// The unscoped bot keeps its bare name, so the unqualified name appears
+		// on a line of its own.
+		require.Regexp(t, `(?m)^robot\b`, out)
+	})
+
+	t.Run("single-arg unscoped get returns the unscoped bot", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "bot/robot", "--format=text"})
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), scopes.QualifiedNameSeparator)
+	})
+
+	t.Run("two-arg unscoped get returns the unscoped bot", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "robot", "--format=text"})
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), scopes.QualifiedNameSeparator)
+	})
+
+	t.Run("scope-qualified get selects the bot in that scope", func(t *testing.T) {
+		for _, scope := range []string{"/staging", "/prod"} {
+			buf, err := runResourceCommand(t, clt, []string{"get", types.KindBot, scope + "::robot", "--format=text"})
+			require.NoError(t, err)
+			require.Contains(t, buf.String(), scope+"::robot")
+		}
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "/dev::robot", "--format=text"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("sub-kind is rejected with a hint", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", types.KindBot + "/staging", "/staging::robot", "--format=text"})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+		require.ErrorContains(t, err, "does not support sub-kinds")
+	})
+
+	t.Run("scope-qualified delete removes only that bot", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", types.KindBot, "/staging::robot"})
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "/staging::robot", "--format=text"})
+			require.True(t, trace.IsNotFound(err), "expected NotFound waiting for /staging::robot deletion, got: %v", err)
+		}, 30*time.Second, 100*time.Millisecond)
+
+		// The same-named bots in the other two namespaces are untouched.
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "/prod::robot", "--format=text"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "/prod::robot")
+		_, err = runResourceCommand(t, clt, []string{"get", "bot/robot", "--format=text"})
+		require.NoError(t, err)
+	})
+
+	t.Run("unscoped delete leaves the scoped bot intact", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "bot/robot"})
+		require.NoError(t, err)
+
+		_, err = runResourceCommand(t, clt, []string{"get", "bot/robot", "--format=text"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound after unscoped delete, got: %v", err)
+
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "/prod::robot", "--format=text"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "/prod::robot")
+	})
 }
 
 // TestIntegrationResource tests tctl integration commands.
@@ -1607,6 +2419,7 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	}
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Namespace", "Expires"),
+		cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
 	))
 }
 
@@ -2362,23 +3175,143 @@ version: v1
 	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
-// TestCreateEnterpriseResources asserts that tctl create
-// behaves as expected for enterprise resources. These resources cannot
-// be tested in parallel because they alter the modules to enable features.
-// The tests are grouped to amortize the cost of creating and auth server since
-// that is the most expensive part of testing editing the resource.
-func TestCreateEnterpriseResources(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
+func TestSAMLCommandsWithUnavailableMetadata(t *testing.T) {
+	const (
+		connectorName = "unavailable-metadata"
+		metadata      = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.example.com/metadata">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+	)
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Modules = &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.SAML: {Enabled: true},
+				},
 			},
-		},
+		}
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
 	})
 
-	process, err := testenv.NewTeleportProcess(t.TempDir())
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	var unavailable atomic.Bool
+	var metadataRequests atomic.Int64
+	metadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		metadataRequests.Add(1)
+		if unavailable.Load() {
+			http.Error(w, "metadata unavailable", http.StatusNotFound)
+			return
+		}
+		_, _ = io.WriteString(w, metadata)
+	}))
+	t.Cleanup(metadataServer.Close)
+
+	connector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		Display:                  "Unavailable metadata",
+		AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+		Audience:                 "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+		ServiceProviderIssuer:    "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+		EntityDescriptorURL:      metadataServer.URL,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "developers", Roles: []string{"access"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = clt.CreateSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	unavailable.Store(true)
+
+	t.Run("list", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		out, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, out.String(), connectorName)
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+
+	t.Run("get", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		out, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector + "/" + connectorName, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, out.String(), connectorName)
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+
+	t.Run("export", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		var exportErr error
+		var closeErr error
+		stdoutReader, stdoutWriter, err := os.Pipe()
+		require.NoError(t, err)
+		previousStdout := os.Stdout
+		os.Stdout = stdoutWriter
+		func() {
+			defer func() { os.Stdout = previousStdout }()
+			exportErr = (&SAMLCommand{connectorName: connectorName}).export(t.Context(), clt)
+			closeErr = stdoutWriter.Close()
+		}()
+		require.NoError(t, exportErr)
+		require.NoError(t, closeErr)
+		exportedCert, err := io.ReadAll(stdoutReader)
+		require.NoError(t, err)
+		require.NoError(t, stdoutReader.Close())
+		require.Contains(t, string(exportedCert), "BEGIN CERTIFICATE")
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+
+	t.Run("force replace", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		replacement, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+			Display:                  "Replacement",
+			AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+			Audience:                 "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+			ServiceProviderIssuer:    "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+			EntityDescriptor:         metadata,
+			AttributesToRoles: []types.AttributeMapping{
+				{Name: "groups", Value: "developers", Roles: []string{"access"}},
+			},
+		})
+		require.NoError(t, err)
+		replacementYAML, err := services.MarshalSAMLConnector(replacement)
+		require.NoError(t, err)
+		replacementPath := filepath.Join(t.TempDir(), "replacement.yaml")
+		require.NoError(t, os.WriteFile(replacementPath, replacementYAML, 0o600))
+		_, err = runResourceCommand(t, clt, []string{"create", "-f", replacementPath})
+		require.NoError(t, err)
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+}
+
+// TestCreateEnterpriseResources asserts that tctl create
+// behaves as expected for enterprise resources. The tests are
+// grouped to amortize the cost of creating and auth server since
+// that is the most expensive part of testing editing the resource.
+func TestCreateEnterpriseResources(t *testing.T) {
+	t.Parallel()
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Modules = &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OIDC: {Enabled: true},
+					entitlements.SAML: {Enabled: true},
+				},
+			},
+		}
+	}))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -2604,7 +3537,7 @@ spec:
 
 	// Explicitly change the revision and try creating the user with and without
 	// the force flag.
-	expected.GetMetadata().Revision = uuid.NewString()
+	expected.GetMetadata().SetRevision(uuid.NewString())
 	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))
@@ -2974,6 +3907,92 @@ func TestPluginResourceWrapper(t *testing.T) {
 			err = json.Unmarshal(buff, &item)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tc.plugin, item.PluginV1))
+		})
+	}
+}
+
+func TestParseScopedRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ref     string
+		id      string
+		want    ScopedRef
+		wantErr bool
+	}{
+		{
+			name: "empty id returns ref unchanged",
+			ref:  "role/myrole",
+			id:   "",
+			want: ScopedRef{Kind: "role", Name: "myrole"},
+		},
+		{
+			name: "bare name, no subkind",
+			ref:  "scoped_role",
+			id:   "myrole",
+			want: ScopedRef{Kind: "scoped_role", Name: "myrole"},
+		},
+		{
+			name: "bare name with subkind promotion",
+			ref:  "scoped_role_assignment/dynamic",
+			id:   "myassignment",
+			want: ScopedRef{Kind: "scoped_role_assignment", SubKind: "dynamic", Name: "myassignment"},
+		},
+		{
+			name: "SQN, no subkind",
+			ref:  "scoped_role",
+			id:   "/staging/west::myrole",
+			want: ScopedRef{Kind: "scoped_role", Scope: "/staging/west", Name: "myrole"},
+		},
+		{
+			name: "SQN with subkind promotion",
+			ref:  "scoped_role_assignment/dynamic",
+			id:   "/staging/west::myassignment",
+			want: ScopedRef{Kind: "scoped_role_assignment", SubKind: "dynamic", Scope: "/staging/west", Name: "myassignment"},
+		},
+		{
+			name: "root scope SQN",
+			ref:  "scoped_token",
+			id:   "/::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/", Name: "test-token"},
+		},
+		{
+			name:    "three-segment first arg with second arg is an error",
+			ref:     "scoped_role_assignment/dynamic/myassignment",
+			id:      "/staging::extra",
+			wantErr: true,
+		},
+		{
+			name:    "invalid SQN is an error",
+			ref:     "scoped_role",
+			id:      "/staging::my role",
+			wantErr: true,
+		},
+		{
+			name: "scoped token with only name",
+			ref:  "scoped_token",
+			id:   "/test::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+		{
+			name: "scoped token with name and secret",
+			ref:  "scoped_token",
+			id:   "/test::test-token:YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseScopedRef(tt.ref, tt.id)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

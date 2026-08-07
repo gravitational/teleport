@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_role Terraform resource
 sidebar_label: role
-description: This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_role resource of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_role resou
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+This page lists the supported values of the teleport_role resource of the Teleport Terraform provider.
 
 
 
@@ -85,7 +86,7 @@ resource "teleport_role" "example" {
 
 ### Required
 
-- `version` (String) Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
+- `version` (String) Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.
 
 ### Optional
 
@@ -121,8 +122,11 @@ Optional:
 - `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specallowaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
+- `app_resources` (Attributes List) AppResources is the list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. (see [below for nested schema](#nested-schema-for-specallowapp_resources))
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -171,6 +175,13 @@ Optional:
 
 - `account` (String)
 - `permission_set` (String)
+
+
+### Nested Schema for `spec.allow.app_resources`
+
+Optional:
+
+- `allow_all` (Boolean) AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.
 
 
 ### Nested Schema for `spec.allow.db_permissions`
@@ -294,6 +305,7 @@ Optional:
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specallowreview_requestsclaims_to_roles))
 - `preview_as_roles` (List of String) PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.
 - `roles` (List of String) Roles is the name of roles which may be reviewed.
+- `submit_for_users` (List of String) SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).
 - `where` (String) Where is an optional predicate which further limits which requests are reviewable.
 
 ### Nested Schema for `spec.allow.review_requests.claims_to_roles`
@@ -335,6 +347,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -506,6 +520,7 @@ Optional:
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specdenyreview_requestsclaims_to_roles))
 - `preview_as_roles` (List of String) PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.
 - `roles` (List of String) Roles is the name of roles which may be reviewed.
+- `submit_for_users` (List of String) SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).
 - `where` (String) Where is an optional predicate which further limits which requests are reviewable.
 
 ### Nested Schema for `spec.deny.review_requests.claims_to_roles`
@@ -573,6 +588,7 @@ Optional:
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
 - `ssh_port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwarding))
+- `web_terminal_clipboard_mode` (Number) WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified.
 
 ### Nested Schema for `spec.options.cert_extensions`
 

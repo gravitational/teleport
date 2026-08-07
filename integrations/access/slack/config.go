@@ -19,6 +19,7 @@
 package slack
 
 import (
+	"cmp"
 	"net/url"
 	"strings"
 
@@ -37,9 +38,22 @@ import (
 type Config struct {
 	common.BaseConfig
 	Slack               common.GenericAPIConfig
-	AccessTokenProvider auth.AccessTokenProvider
+	Review              ReviewConfig
+	AccessTokenProvider auth.AccessTokenProvider `json:"-"`
+	AppTokenProvider    auth.AccessTokenProvider `json:"-"`
 	StatusSink          common.StatusSink
 	Clock               clockwork.Clock
+}
+
+type ReviewConfig struct {
+	Enabled bool `toml:"enabled"`
+	// AppToken is the app-level token used for Slack Socket Mode API.
+	AppToken string `toml:"app_token"`
+	// SlackUserIDTrait is the name of the Teleport trait to resolve Slack user to Teleport user.
+	SlackUserIDTrait string `toml:"slack_user_id_trait"`
+	// AllowEmailUsernameMatch allows exact Slack email to Teleport username match
+	// for Slack user resolution.
+	AllowEmailUsernameMatch bool `toml:"allow_email_username_match"`
 }
 
 // LoadSlackConfig reads the config file, initializes a new SlackConfig struct object, and returns it.
@@ -57,6 +71,13 @@ func LoadSlackConfig(filepath string) (*Config, error) {
 
 	if strings.HasPrefix(conf.Slack.Token, "/") {
 		conf.Slack.Token, err = lib.ReadPassword(conf.Slack.Token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if strings.HasPrefix(conf.Review.AppToken, "/") {
+		conf.Review.AppToken, err = lib.ReadPassword(conf.Review.AppToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -84,6 +105,29 @@ func (c *Config) CheckAndSetDefaults() error {
 	} else {
 		if c.Slack.Token != "" {
 			return trace.BadParameter("exactly one of slack.token and AccessTokenProvider must be set")
+		}
+	}
+
+	// Native review config defaults.
+	if c.Review.Enabled {
+		if c.AppTokenProvider == nil {
+			if c.Review.AppToken == "" {
+				return trace.BadParameter("missing required value review.app_token")
+			}
+			c.AppTokenProvider = auth.NewStaticAccessTokenProvider(c.Review.AppToken)
+		} else {
+			if c.Review.AppToken != "" {
+				return trace.BadParameter("exactly one of review.app_token and AppTokenProvider must be set")
+			}
+		}
+
+		// Consider `review.slack_user_id_trait` a critical value that should return error if missing,
+		// since it governs Slack user to Teleport user binding.
+		// However, if user sets `review.allow_email_username_match` to true, and the field is unset,
+		// we assume no trait is set up in Teleport and user wants the fallback logic.
+		if c.Review.SlackUserIDTrait == "" && !c.Review.AllowEmailUsernameMatch {
+			return trace.BadParameter("missing required value review.slack_user_id_trait." +
+				" Either set up a Teleport trait binding Slack user ID (preferred), or enable review.allow_email_username_match (less secure)")
 		}
 	}
 
@@ -124,25 +168,39 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 		}
 	}
 
-	var apiURL = slackAPIURL
-	if endpoint := c.Slack.APIURL; endpoint != "" {
-		apiURL = endpoint
-	}
+	// We must set the defaut slack API URL here since cloud-hosted Slack
+	// does not check defaults.
+	apiURL := cmp.Or(c.Slack.APIURL, slackAPIURL)
 
 	client := makeSlackClient(apiURL).
 		OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
-			token, err := c.AccessTokenProvider.GetAccessToken()
+			botToken, err := c.AccessTokenProvider.GetAccessToken()
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			r.SetHeader("Authorization", "Bearer "+token)
+			r.SetAuthToken(botToken)
 			return nil
 		}).
 		OnAfterResponse(onAfterResponseSlack(c.StatusSink))
+
+	// For native review, we require a client with a separate auth header using the app-level token.
+	appClient := makeSlackClient(apiURL).
+		OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
+			appToken, err := c.AppTokenProvider.GetAccessToken()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			r.SetAuthToken(appToken)
+			return nil
+		}).
+		OnAfterResponse(onAfterResponseSlack(c.StatusSink))
+
 	return Bot{
-		client:      client,
-		clock:       c.Clock,
-		clusterName: clusterName,
-		webProxyURL: webProxyURL,
+		client:       client,
+		appClient:    appClient,
+		clusterName:  clusterName,
+		webProxyURL:  webProxyURL,
+		reviewConfig: c.Review,
+		clock:        c.Clock,
 	}, nil
 }

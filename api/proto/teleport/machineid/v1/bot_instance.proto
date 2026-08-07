@@ -41,6 +41,10 @@ message BotInstance {
   // Fields that are set by the server as results of operations. These should
   // not be modified by users.
   BotInstanceStatus status = 6;
+  // Scope of the BotInstance. This is determined based on the scope of the Bot
+  // associated with this instance, and may be used for scoped RBAC on the
+  // BotInstance resource.
+  string scope = 7;
 }
 
 // BotInstanceSpec contains fields

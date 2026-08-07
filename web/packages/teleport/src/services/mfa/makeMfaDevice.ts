@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DeviceType, MfaDevice } from './types';
+import { DeviceType, DeviceUsage, MfaDevice } from './types';
 
 function getType(deviceTypeFromJsonResponse: string): DeviceType {
   if (deviceTypeFromJsonResponse === 'TOTP') {
@@ -28,30 +28,47 @@ function getType(deviceTypeFromJsonResponse: string): DeviceType {
   return 'webauthn';
 }
 
-export default function makeMfaDevice(json): MfaDevice {
+export type MakeMfaDeviceOptions = {
+  isPasswordlessEnabled?: boolean;
+};
+
+export default function makeMfaDevice(
+  json: any,
+  opts: MakeMfaDeviceOptions
+): MfaDevice {
   const { id, name, lastUsed, addedAt, residentKey } = json;
-
-  let description = '';
-  if (json.type === 'TOTP') {
-    description = 'Authenticator App';
-  } else if (json.type === 'U2F' || json.type === 'WebAuthn') {
-    description = 'Hardware Key';
-  } else if (json.type === 'SSO') {
-    description = 'SSO Provider';
-  } else {
-    description = 'unknown device';
-  }
-
-  const type = getType(json.type);
   const usage = residentKey ? 'passwordless' : 'mfa';
+  const type = getType(json.type);
 
   return {
     id,
     name,
-    description,
+    description: description(json.type, usage, opts),
     registeredDate: new Date(addedAt),
     lastUsedDate: new Date(lastUsed),
     type,
     usage,
   };
+}
+
+function description(
+  type: string,
+  usage: DeviceUsage,
+  opts: MakeMfaDeviceOptions
+): string {
+  const { isPasswordlessEnabled = false } = opts;
+  if (usage === 'passwordless' && isPasswordlessEnabled) {
+    return 'Passkey';
+  }
+
+  if (type === 'TOTP') {
+    return 'Authenticator App';
+  }
+  if (type === 'U2F' || type === 'WebAuthn') {
+    return 'Hardware Key';
+  }
+  if (type === 'SSO') {
+    return 'SSO Provider';
+  }
+  return 'unknown device';
 }

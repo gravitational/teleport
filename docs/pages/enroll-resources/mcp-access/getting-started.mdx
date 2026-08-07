@@ -7,12 +7,13 @@ tags:
 - how-to
 - mcp
 - zero-trust
+page_type: how-to
 ---
 
 Teleport can provide secure connections to your MCP (Model Context Protocol)
 servers while improving both access control and visibility.
 
-This guides shows you how to:
+This guide shows you how to:
 
 - Enroll the Teleport demo MCP server in your Teleport cluster.
 - Connect to the MCP server via Teleport.
@@ -40,18 +41,18 @@ activity.
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)"!)
 - A host, e.g., an EC2 instance, where you will run the Teleport Applications
   Service.
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Configure the Teleport Application Service
 
 You can update an existing Application Service or create a new one to enable the
 demo MCP server.
 
-<Tabs>
+### Update an existing service
 
-<TabItem label="Update an existing service">
+If you already have an existing Application Service instance running, you can
+enable the demo MCP server by adding the following in your YAML configuration:
 
-If you already have an existing Application Service running, you can enable the
-demo MCP server by adding the following in your YAML configuration:
 ```diff
 app_service:
   enabled: true
@@ -59,12 +60,13 @@ app_service:
 ...
 ```
 
-Now restart the Application Service.
+Now restart the Application Service and skip to Step 2.
 
-</TabItem>
-<TabItem label="Create a new service">
+### Create a new service
 
-{/* lint ignore heading-increment remark-lint */}
+If you have not deployed the Teleport Application Service, you will need to run
+it on the host you prepared before following this guide.
+
 #### Get a join token
 (!docs/pages/includes/tctl-token.mdx serviceName="Application" tokenType="app" tokenFile="/tmp/token"!)
 
@@ -94,8 +96,6 @@ MCP server and save the configuration to `/etc/teleport.yaml`.
 #### Start the Teleport Application Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Application Service"!)
-</TabItem>
-</Tabs>
 
 ## Step 2/3. Configure your Teleport user
 

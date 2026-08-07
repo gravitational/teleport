@@ -24,9 +24,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func newApp(t *testing.T, name, publicAddr, description string, labels map[string]string) types.Application {
@@ -79,7 +81,120 @@ func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
 
 		out := MakeApp(app, cfg)
 
-		require.ElementsMatch(t, []int{int(f1), int(f2)}, out.SupportedFeatureIDs)
+		require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{componentfeaturesv1.ComponentFeatureID(f1), componentfeaturesv1.ComponentFeatureID(f2)}, out.SupportedFeatureIDs)
+	})
+}
+
+func TestMakeApp_LLM(t *testing.T) {
+	t.Parallel()
+
+	baseCfg := MakeAppsConfig{
+		LocalClusterName:  "root",
+		LocalProxyDNSName: "proxy.example.com",
+		AppClusterName:    "root",
+		UserGroupLookup:   map[string]types.UserGroup{},
+	}
+
+	t.Run("non-LLM app has no LLM configuration", func(t *testing.T) {
+		t.Parallel()
+
+		app, err := types.NewAppV3(
+			types.Metadata{Name: "web-app"},
+			types.AppSpecV3{URI: "http://localhost:8080"},
+		)
+		require.NoError(t, err)
+
+		out := MakeApp(app, baseCfg)
+		require.Nil(t, out.LLM)
+	})
+
+	tests := []struct {
+		name     string
+		format   types.LLMFormat
+		provider types.LLMProvider
+	}{
+		{
+			name:     "anthropic",
+			format:   types.LLMFormatAnthropic,
+			provider: types.LLMProviderAnthropic,
+		},
+		{
+			name:     "openai",
+			format:   types.LLMFormatOpenAI,
+			provider: types.LLMProviderOpenAI,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app, err := types.NewAppV3(
+				types.Metadata{Name: test.name},
+				types.AppSpecV3{
+					URI:        "llm://",
+					PublicAddr: test.name + ".example.com",
+					LLM: &types.LLM{
+						Format:   test.format,
+						Provider: test.provider,
+					},
+				},
+			)
+			require.NoError(t, err)
+
+			out := MakeApp(app, baseCfg)
+			require.Equal(t, &LLM{
+				Format:   test.format,
+				Provider: test.provider,
+			}, out.LLM)
+		})
+	}
+}
+
+func TestMakeApp_AWSRolesVisibility(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   "aws-console",
+			Labels: map[string]string{"aws_account_id": "123456789012"},
+		},
+		types.AppSpecV3{
+			URI:   "https://console.aws.amazon.com",
+			Cloud: types.CloudAWS,
+		},
+	)
+	require.NoError(t, err)
+
+	grantedARN := "arn:aws:iam::123456789012:role/granted"
+	requestableARN := "arn:aws:iam::123456789012:role/requestable"
+	baseCfg := MakeAppsConfig{
+		LocalClusterName:  "root",
+		LocalProxyDNSName: "proxy.example.com",
+		AppClusterName:    "root",
+		UserGroupLookup:   map[string]types.UserGroup{},
+		AWSRoles: &PrincipalSet{
+			All:     set.New(grantedARN, requestableARN),
+			Granted: set.New(grantedARN),
+		},
+	}
+
+	t.Run("with constraint support returns granted and requestable", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.SupportedFeatures = componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+
+		out := MakeApp(app, cfg)
+		require.Len(t, out.AWSRoles, 2)
+	})
+	t.Run("without constraint support returns only granted", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.SupportedFeatures = nil
+
+		out := MakeApp(app, cfg)
+		require.Len(t, out.AWSRoles, 1)
+		require.Equal(t, grantedARN, out.AWSRoles[0].ARN)
+		require.False(t, out.AWSRoles[0].RequiresRequest)
 	})
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -188,11 +189,9 @@ type streamAdapter struct {
 }
 
 func (s streamAdapter) Send(rsp *devicepb.AssertDeviceResponse) error {
-	msg := &accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: rsp,
-		},
-	}
+	msg := accessgraphsecretsv1pb.ReportSecretsResponse_builder{
+		DeviceAssertion: proto.ValueOrDefault(rsp),
+	}.Build()
 	err := s.stream.Send(msg)
 	return trace.Wrap(err)
 }

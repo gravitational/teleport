@@ -21,6 +21,9 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 )
 
 // String returns text description of this event
@@ -147,16 +150,16 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			var filter HeadlessAuthenticationFilter
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
+		case Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
+			var filter ValidatedMFAChallengeFilter
+			filter.FromMap(kind.Filter)
+			return filter.Match(res.UnwrapT().GetSpec().GetTargetCluster()), nil
+
 		default:
 			// we don't know about this filter, let the event through
 		}
 	}
 	return true, nil
-}
-
-// IsTrivial returns true iff the WatchKind only specifies a Kind but no other field.
-func (kind WatchKind) IsTrivial() bool {
-	return kind.SubKind == "" && kind.Name == "" && kind.Version == "" && !kind.LoadSecrets && len(kind.Filter) == 0
 }
 
 // Contains determines whether kind (receiver) targets exactly the same or a wider scope of events as the given subset kind.
@@ -189,7 +192,32 @@ func (kind WatchKind) Contains(subset WatchKind) bool {
 		}
 	}
 
+	// TODO(fspmarshall/scopes): determine set containment model for scope filter. Any such model
+	// must be sane in the context of the filter-defaulting behavior of the watch API's authz layer.
+
 	return true
+}
+
+// ToProto converts the gogo-native ScopeFilter to the authoritative scopesv1.Filter.
+func (f *ScopeFilter) ToProto() *scopesv1.Filter {
+	if f == nil {
+		return nil
+	}
+	return scopesv1.Filter_builder{
+		Scope: f.Scope,
+		Mode:  f.Mode,
+	}.Build()
+}
+
+// ScopeFilterFromProto converts a scopesv1.Filter to the gogo-native ScopeFilter.
+func ScopeFilterFromProto(f *scopesv1.Filter) *ScopeFilter {
+	if f == nil {
+		return nil
+	}
+	return &ScopeFilter{
+		Scope: f.GetScope(),
+		Mode:  f.GetMode(),
+	}
 }
 
 // Events returns new events interface

@@ -145,17 +145,17 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 }
 
 func TestStartAccountRecovery(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
+	t.Parallel()
+	ctx := t.Context()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -216,14 +216,13 @@ func TestStartAccountRecovery(t *testing.T) {
 }
 
 func TestStartAccountRecovery_WithLock(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -241,14 +240,13 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 }
 
 func TestStartAccountRecovery_UserErrors(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -300,17 +298,17 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 }
 
 func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -424,16 +422,16 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 }
 
 func TestVerifyAccountRecovery_WithLock(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -455,16 +453,16 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 }
 
 func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -554,16 +552,16 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 }
 
 func TestCompleteAccountRecovery(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -675,16 +673,16 @@ func TestCompleteAccountRecovery(t *testing.T) {
 }
 
 func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
 
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
@@ -854,14 +852,13 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 
 // TestAccountRecoveryFlow tests the recovery flow from start to finish.
 func TestAccountRecoveryFlow(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
 
 	cases := []struct {
 		name               string
@@ -1115,16 +1112,15 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			Type:          constants.Local,
 			SecondFactors: []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP},
 		},
+		Modules: &modulestest.Modules{
+			TestFeatures: modules.Features{
+				RecoveryCodes: true,
+			},
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	ctx := context.Background()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			RecoveryCodes: true,
-		},
-	})
 
 	const user = "llama@example.com"
 	_, _, err = authtest.CreateUserAndRole(as.AuthServer, user, []string{user}, nil /* allowRules */)
@@ -1215,14 +1211,13 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 }
 
 func TestGetAccountRecoveryCodes(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,

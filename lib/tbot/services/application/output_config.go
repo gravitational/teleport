@@ -37,9 +37,8 @@ type OutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	AppName string `yaml:"app_name"`
 
@@ -47,6 +46,11 @@ type OutputConfig struct {
 	// `tls.key` and `tls.cas`. This is unneeded for most clients which can
 	// be configured with specific paths to use, but exists for compatibility.
 	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
+
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -57,7 +61,13 @@ func (o *OutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
-func (o *OutputConfig) CheckAndSetDefaults() error {
+func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

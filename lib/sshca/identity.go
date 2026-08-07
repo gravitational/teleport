@@ -102,7 +102,8 @@ type Identity struct {
 	PreviousIdentityExpires time.Time
 	// LoginIP is an observed IP of the client on the moment of certificate creation.
 	LoginIP string
-	// PinnedIP is an IP from which client must communicate with Teleport.
+	// PinnedIP is an IP from which client must communicate with Teleport. If set,
+	// this implies that IP Pinning was required at the time of certificate creation.
 	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
@@ -123,6 +124,9 @@ type Identity struct {
 	// BotInstanceID is the unique identifier for the bot instance, if this is a
 	// Machine ID bot. It is empty for human users.
 	BotInstanceID string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and human users.
+	BotScope string
 	// JoinToken is the name of the join token used by the bot to join, if any.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
@@ -149,6 +153,15 @@ type Identity struct {
 	// GitHubUsername indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
+	// BeamID is the identifier of the Beam this certificate was created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate is being generated for.
+	HeadlessAuthenticationID string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
 	// ImmutableLabelHash is the immutable label hash used to verify
@@ -170,6 +183,18 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 
 	if i.CertType == 0 {
 		return nil, trace.BadParameter("cannot encode ssh identity missing required field CertType")
+	}
+
+	// Agent scope pins encode role and scope exclusively via the ScopePin field.
+	// Mixing in the legacy SystemRole or AgentScope fields would allow outdated
+	// infrastructure to misinterpret a scoped-agent cert as an unscoped one.
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		if i.SystemRole != "" {
+			return nil, trace.BadParameter("cannot encode ssh certificate for agent scope pin with SystemRole set; encode roles via ScopePin.SystemRoles")
+		}
+		if i.AgentScope != "" {
+			return nil, trace.BadParameter("cannot encode ssh certificate for agent scope pin with AgentScope set; encode scope via ScopePin.Scope")
+		}
 	}
 
 	cert := &ssh.Certificate{
@@ -208,11 +233,20 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	// --- user extensions ---
 
 	if i.ScopePin != nil {
-		pin, err := pinning.Encode(i.ScopePin)
+		encoded, err := pinning.Encode(i.ScopePin)
 		if err != nil {
-			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
+			return nil, trace.Errorf("failed to encode scope pin for ssh cert: %w", err)
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = pin
+		var ext string
+		switch i.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_USER:
+			ext = teleport.CertExtensionScopePin
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			ext = teleport.CertExtensionAgentScopePin
+		default:
+			return nil, trace.BadParameter("cannot encode scope pin with unknown or unspecified kind %v", i.ScopePin.GetKind())
+		}
+		cert.Permissions.Extensions[ext] = encoded
 	}
 
 	if i.PermitX11Forwarding {
@@ -250,6 +284,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.BotInstanceID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotInstanceID] = i.BotInstanceID
+	}
+	if i.BotScope != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionBotScope] = i.BotScope
 	}
 	if i.JoinToken != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
@@ -297,11 +334,20 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if credID := i.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
 	}
+	if i.DelegationSessionID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
+	}
+	if i.BeamID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionBeamID] = i.BeamID
+	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
 	}
 	if i.GitHubUsername != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = i.GitHubUsername
+	}
+	if i.HeadlessAuthenticationID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionHeadlessAuthenticationID] = i.HeadlessAuthenticationID
 	}
 
 	if i.PinnedIP != "" {
@@ -321,6 +367,11 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
 		if extension.Mode != types.CertExtensionMode_EXTENSION ||
 			extension.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		// Beam IDs are server-derived from delegation sessions and must not be
+		// spoofed or overwritten by role-supplied certificate extensions.
+		if extension.Name == teleport.CertExtensionBeamID {
 			continue
 		}
 		cert.Extensions[extension.Name] = extension.Value
@@ -396,6 +447,11 @@ func (id *Identity) IsBot() bool {
 	return id.BotName != ""
 }
 
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
+}
+
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident := &Identity{
@@ -447,6 +503,19 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed to decode value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
 		}
+		// Certs issued before PinKind was introduced will have UNSPECIFIED here.
+		// Pins decoded from the user OID are always user pins.
+		if pin.GetKind() == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+			pin.SetKind(scopesv1.PinKind_PIN_KIND_USER)
+		}
+		ident.ScopePin = pin
+	}
+
+	if v, ok := takeExtension(teleport.CertExtensionAgentScopePin); ok {
+		pin, err := pinning.Decode(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode value %q for extension %q as agent scope pin: %v", v, teleport.CertExtensionAgentScopePin, err)
+		}
 		ident.ScopePin = pin
 	}
 
@@ -479,6 +548,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	ident.BotName = takeValue(teleport.CertExtensionBotName)
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
+	ident.BotScope = takeValue(teleport.CertExtensionBotScope)
 	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
 	var (
@@ -512,8 +582,20 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		}
 		allowedResourceAccessIDs = resourceAccessIDs
 	}
-	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
-		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present.
+		ident.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity persists the resourceIDs
+		// to the legacy extension instead of adding a sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		ident.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older Auths that don't write the new extension.
+		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		ident.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)
@@ -521,8 +603,11 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceID = takeValue(teleport.CertExtensionDeviceID)
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
+	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
+	ident.BeamID = takeValue(teleport.CertExtensionBeamID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
+	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")
@@ -571,4 +656,13 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	}
 
 	return ident, nil
+}
+
+// GetPrimaryRole returns the primary role for the identity regardless of
+// whether or not it is scope pinned.
+func (i *Identity) GetPrimaryRole() types.SystemRole {
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		return types.SystemRole(i.ScopePin.GetSystemRoles().GetPrimary())
+	}
+	return i.SystemRole
 }

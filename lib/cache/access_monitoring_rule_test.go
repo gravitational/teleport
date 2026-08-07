@@ -67,123 +67,123 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 	}{
 		{
 			description: "filter by notification integration",
-			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
+			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example-notification-rule",
-				},
-				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				}.Build(),
+				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: &accessmonitoringrulesv1.Notification{
+					Notification: accessmonitoringrulesv1.Notification_builder{
 						Name: "notificationIntegration",
-					},
-				},
-			},
-			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 				Subjects:         []string{types.KindAccessRequest},
 				NotificationName: "notificationIntegration",
-			},
+			}.Build(),
 			expectedRule: true,
 		},
 		{
 			description: "filter by automatic_review integration",
-			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
+			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example-automatic-approval-rule",
-				},
-				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				}.Build(),
+				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
-					},
-				},
-			},
-			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: "automaticReviewIntegration",
-			},
+			}.Build(),
 			expectedRule: true,
 		},
 		{
 			description: "filter by both notification and automatic_review integration",
-			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
+			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example-combined-rule",
-				},
-				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				}.Build(),
+				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: &accessmonitoringrulesv1.Notification{
+					Notification: accessmonitoringrulesv1.Notification_builder{
 						Name: "notificationIntegration",
-					},
-					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+					}.Build(),
+					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
-					},
-				},
-			},
-			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: "automaticReviewIntegration",
 				NotificationName:    "notificationIntegration",
-			},
+			}.Build(),
 			expectedRule: true,
 		},
 		{
 			description: "filter by builtin automatic_review rules",
-			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
+			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example-builtin-automatic_approval-rule",
-				},
-				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				}.Build(),
+				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: &accessmonitoringrulesv1.Notification{
+					Notification: accessmonitoringrulesv1.Notification_builder{
 						Name: "notificationIntegration",
-					},
-					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+					}.Build(),
+					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),
-					},
-				},
-			},
-			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: types.BuiltInAutomaticReview,
-			},
+			}.Build(),
 			expectedRule: true,
 		},
 		{
 			description: "no match",
-			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
+			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "no-match-rule",
-				},
-				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				}.Build(),
+				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),
-					},
-				},
-			},
-			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: "automaticReviewIntegration",
-			},
+			}.Build(),
 			expectedRule: false,
 		},
 	}

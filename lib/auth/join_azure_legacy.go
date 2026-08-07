@@ -97,15 +97,23 @@ func (a *Server) RegisterUsingAzureMethod(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, &workloadidentityv1pb.JoinAttrs{
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, workloadidentityv1pb.JoinAttrs_builder{
 			Azure: joinAttrs,
-		})
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
-		return certs, trace.Wrap(err)
+		}.Build())
+		certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.emitBotJoinEvent(ctx, provisionToken, params, botInstanceID)
+		return certs, nil
 	}
 	params := makeHostCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/)
 	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.emitJoinEvent(ctx, provisionToken, params)
+	return certs, nil
 }
 
 // GetAzureJoinConfig gets configuration options for azure joining.

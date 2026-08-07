@@ -37,16 +37,16 @@ type inferenceModelClient struct {
 
 // Get gets an inference model with a given name from Teleport.
 func (c inferenceModelClient) Get(
-	ctx context.Context, name string,
+	ctx context.Context, key reconcilers.ResourceKey,
 ) (*summarizerv1.InferenceModel, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceModel(
-		ctx, &summarizerv1.GetInferenceModelRequest{Name: name},
+		ctx, summarizerv1.GetInferenceModelRequest_builder{Name: key.Name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.Model, nil
+	return resp.GetModel(), nil
 }
 
 // Create creates an inference model in Teleport.
@@ -54,7 +54,7 @@ func (c inferenceModelClient) Create(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().CreateInferenceModel(
-		ctx, &summarizerv1.CreateInferenceModelRequest{Model: model},
+		ctx, summarizerv1.CreateInferenceModelRequest_builder{Model: model}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -64,15 +64,15 @@ func (c inferenceModelClient) Update(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().UpdateInferenceModel(
-		ctx, &summarizerv1.UpdateInferenceModelRequest{Model: model},
+		ctx, summarizerv1.UpdateInferenceModelRequest_builder{Model: model}.Build(),
 	)
 	return trace.Wrap(err)
 }
 
 // Delete deletes an inference model with a given name from Teleport.
-func (c inferenceModelClient) Delete(ctx context.Context, name string) error {
+func (c inferenceModelClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceModel(
-		ctx, &summarizerv1.DeleteInferenceModelRequest{Name: name},
+		ctx, summarizerv1.DeleteInferenceModelRequest_builder{Name: key.Name}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -91,6 +91,9 @@ func NewInferenceModelReconciler(
 	](
 		client,
 		inferenceModelClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequireSessionSummaries,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)

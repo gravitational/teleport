@@ -484,20 +484,20 @@ func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 	log *slog.Logger,
 	in *machineidv1.SPIFFEFederation,
 ) string {
-	if in.Status == nil {
+	if !in.HasStatus() {
 		log.DebugContext(ctx, "No status, will sync")
 		return "no_status"
 	}
-	if in.Status.CurrentBundle == "" {
+	if in.GetStatus().GetCurrentBundle() == "" {
 		log.DebugContext(ctx, "No status.current_bundle, will sync")
 		return "no_current_bundle"
 	}
-	if in.Status.CurrentBundleSyncedAt.AsTime().IsZero() {
+	if in.GetStatus().GetCurrentBundleSyncedAt().AsTime().IsZero() {
 		log.DebugContext(ctx, "No status.current_bundle_synced_at, will sync")
 		return "no_current_bundle_synced_at"
 	}
 	// Check if we've passed the next sync time.
-	nextSyncAt := in.Status.NextSyncAt.AsTime()
+	nextSyncAt := in.GetStatus().GetNextSyncAt().AsTime()
 	now := s.cfg.Clock.Now()
 	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
 		log.DebugContext(
@@ -509,8 +509,8 @@ func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 		return "next_sync_at_passed"
 	}
 	// Check to see if the configured bundle source has changed
-	if in.Status.CurrentBundleSyncedFrom != nil {
-		if !proto.Equal(in.Spec.BundleSource, in.Status.CurrentBundleSyncedFrom) {
+	if in.GetStatus().HasCurrentBundleSyncedFrom() {
+		if !proto.Equal(in.GetSpec().GetBundleSource(), in.GetStatus().GetCurrentBundleSyncedFrom()) {
 			log.DebugContext(ctx, "status.current_bundle_synced_from has changed, will sync")
 			return "bundle_source_changed"
 		}
@@ -554,15 +554,15 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	out = proto.Clone(current).(*machineidv1.SPIFFEFederation)
 
 	// Refresh...
-	if out.Status == nil {
-		out.Status = &machineidv1.SPIFFEFederationStatus{}
+	if !out.HasStatus() {
+		out.SetStatus(&machineidv1.SPIFFEFederationStatus{})
 	}
 
 	var bundle *spiffebundle.Bundle
 	var nextSyncIn time.Duration
 	switch {
 	case current.GetSpec().GetBundleSource().GetHttpsWeb() != nil:
-		url := current.Spec.BundleSource.HttpsWeb.BundleEndpointUrl
+		url := current.GetSpec().GetBundleSource().GetHttpsWeb().GetBundleEndpointUrl()
 		log.DebugContext(
 			ctx,
 			"Fetching bundle using https_web profile",
@@ -602,7 +602,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 			ctx, "Fetching bundle using spec.bundle_source.static.bundle",
 		)
 		bundle, err = spiffebundle.Parse(
-			td, []byte(current.Spec.BundleSource.Static.Bundle),
+			td, []byte(current.GetSpec().GetBundleSource().GetStatic().GetBundle()),
 		)
 		if err != nil {
 			return nil, trace.Wrap(
@@ -619,14 +619,14 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling bundle")
 	}
-	out.Status.CurrentBundle = string(bundleBytes)
-	out.Status.CurrentBundleSyncedFrom = current.Spec.BundleSource
+	out.GetStatus().SetCurrentBundle(string(bundleBytes))
+	out.GetStatus().SetCurrentBundleSyncedFrom(current.GetSpec().GetBundleSource())
 
 	syncedAt := s.cfg.Clock.Now().UTC()
-	out.Status.CurrentBundleSyncedAt = timestamppb.New(syncedAt)
+	out.GetStatus().SetCurrentBundleSyncedAt(timestamppb.New(syncedAt))
 	// For certain sources, we need to set a next sync time.
 	if nextSyncIn > 0 {
-		out.Status.NextSyncAt = timestamppb.New(syncedAt.Add(nextSyncIn))
+		out.GetStatus().SetNextSyncAt(timestamppb.New(syncedAt.Add(nextSyncIn)))
 	}
 
 	out, err = s.cfg.Store.UpdateSPIFFEFederation(ctx, out)
@@ -638,7 +638,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	log.InfoContext(
 		ctx,
 		"Sync succeeded, new SPIFFEFederation persisted",
-		"new_revision", out.Metadata.Revision,
+		"new_revision", out.GetMetadata().GetRevision(),
 	)
 
 	return out, nil

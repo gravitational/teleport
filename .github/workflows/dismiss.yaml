@@ -43,11 +43,11 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
+          ref: 986f92841a4f032e262477e5bb15f214d50b1015 # workflows/v0.0.6
       - name: Installing Go
         uses: actions/setup-go@v6
         with:
           go-version: 'stable'
         # Run "dismiss" subcommand on bot.
       - name: Dismiss
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=dismiss -token="${{ secrets.GITHUB_TOKEN }}" -reviewers='{}'

@@ -18,7 +18,6 @@
 
 import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
-import 'jest-canvas-mock';
 import { MemoryRouter } from 'react-router';
 
 import { act, CurrentPath, render } from 'design/utils/testing';

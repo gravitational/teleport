@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -134,20 +135,20 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				},
 			},
 			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
+				resp: integrationpb.EnrollEKSClustersResponse_builder{
 					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster01",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
-						{
+						}.Build(),
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster02",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				err: nil,
 			},
 			emitter:                &mockEmitter{},
@@ -158,26 +159,26 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				require.NotEmpty(t, existingTasks)
 				existingTask := existingTasks[0]
 
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, integrationName, existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
+				require.Equal(t, "OPEN", existingTask.GetSpec().GetState())
+				require.Equal(t, integrationName, existingTask.GetSpec().GetIntegration())
+				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().GetIssueType())
 				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
 				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
 
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
+				taskClusters := existingTask.GetSpec().GetDiscoverEks().GetClusters()
 				require.Contains(t, taskClusters, "cluster01")
 				taskCluster := taskClusters["cluster01"]
 
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
+				require.Equal(t, "cluster01", taskCluster.GetName())
+				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskCluster.GetDiscoveryGroup())
 
 				require.Contains(t, taskClusters, "cluster02")
 				taskCluster2 := taskClusters["cluster02"]
 
-				require.Equal(t, "cluster02", taskCluster2.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster2.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster2.DiscoveryGroup)
+				require.Equal(t, "cluster02", taskCluster2.GetName())
+				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster2.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskCluster2.GetDiscoveryGroup())
 			},
 		},
 		{
@@ -201,20 +202,20 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				},
 			},
 			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
+				resp: integrationpb.EnrollEKSClustersResponse_builder{
 					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster01",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
-						{
+						}.Build(),
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster02",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				err: nil,
 			},
 			emitter:                &mockEmitter{},
@@ -224,23 +225,23 @@ func TestDiscoveryServerEKS(t *testing.T) {
 			userTasksDiscoverCheck: func(t *testing.T, existingTasks []*usertasksv1.UserTask) {
 				require.Len(t, existingTasks, 2)
 				existingTask := existingTasks[0]
-				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
+				if existingTask.GetSpec().GetDiscoverEks().GetAppAutoDiscover() == false {
 					existingTask = existingTasks[1]
 				}
 
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, integrationName, existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
+				require.Equal(t, "OPEN", existingTask.GetSpec().GetState())
+				require.Equal(t, integrationName, existingTask.GetSpec().GetIntegration())
+				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().GetIssueType())
 				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
 				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
 
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
+				taskClusters := existingTask.GetSpec().GetDiscoverEks().GetClusters()
 				require.Contains(t, taskClusters, "cluster01")
 				taskCluster := taskClusters["cluster01"]
 
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigWithAndWithoutAppDiscovery.GetName(), taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
+				require.Equal(t, "cluster01", taskCluster.GetName())
+				require.Equal(t, discoveryConfigWithAndWithoutAppDiscovery.GetName(), taskCluster.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskCluster.GetDiscoveryGroup())
 			},
 		},
 	} {
@@ -305,11 +306,17 @@ func TestDiscoveryServerEKS(t *testing.T) {
 type mockAuthServer struct {
 	authclient.DiscoveryAccessPoint
 
-	storeDiscoveryConfigs map[string]*discoveryconfig.DiscoveryConfig
-	storeUserTasks        map[string]*usertasksv1.UserTask
+	discoveryConfigSemaphore sync.Mutex
 
-	events      types.Events
-	usageEvents []*proto.SubmitUsageEventRequest
+	storeDiscoveryConfigs   map[string]*discoveryconfig.DiscoveryConfig
+	storeDiscoveryConfigsMu sync.RWMutex
+
+	storeUserTasks   map[string]*usertasksv1.UserTask
+	storeUserTasksMu sync.RWMutex
+
+	events        types.Events
+	usageEvents   []*proto.SubmitUsageEventRequest
+	usageEventsMu sync.Mutex
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
@@ -359,15 +366,23 @@ func (m *mockAuthServer) Ping(context.Context) (proto.PingResponse, error) {
 }
 
 func (m *mockAuthServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	m.usageEventsMu.Lock()
+	defer m.usageEventsMu.Unlock()
 	m.usageEvents = append(m.usageEvents, req)
 	return nil
 }
 
 func (m *mockAuthServer) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	m.storeDiscoveryConfigsMu.RLock()
+	defer m.storeDiscoveryConfigsMu.RUnlock()
+
 	return slices.Collect(maps.Values(m.storeDiscoveryConfigs)), "", nil
 }
 
 func (m *mockAuthServer) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	m.storeDiscoveryConfigsMu.Lock()
+	defer m.storeDiscoveryConfigsMu.Unlock()
+
 	dc, ok := m.storeDiscoveryConfigs[name]
 	if !ok {
 		return nil, trace.NotFound("discovery config %q not found", name)
@@ -383,11 +398,11 @@ func (m *mockAuthServer) GetKubernetesClusters(ctx context.Context) ([]types.Kub
 	return nil, nil
 }
 
-func (m *mockAuthServer) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+func (m *mockAuthServer) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
 	return nil, "", nil
 }
 
-func (m *mockAuthServer) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+func (m *mockAuthServer) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
 	return func(yield func(types.KubeCluster, error) bool) {}
 }
 
@@ -432,16 +447,20 @@ func (m *mockAuthServer) EnrollEKSClusters(ctx context.Context, req *integration
 }
 
 func (m *mockAuthServer) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	m.discoveryConfigSemaphore.Lock()
 	return &types.SemaphoreLease{
 		Expires: time.Now().Add(10 * time.Minute),
 	}, nil
 }
 
 func (m *mockAuthServer) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	m.discoveryConfigSemaphore.Unlock()
 	return nil
 }
 
 func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
+	m.storeUserTasksMu.RLock()
+	defer m.storeUserTasksMu.RUnlock()
 	if task, ok := m.storeUserTasks[name]; ok {
 		return task, nil
 	}
@@ -449,8 +468,19 @@ func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertas
 }
 
 func (m *mockAuthServer) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
+	m.storeUserTasksMu.Lock()
+	defer m.storeUserTasksMu.Unlock()
 	m.storeUserTasks[req.GetMetadata().GetName()] = req
 	return req, nil
+}
+
+func (m *mockAuthServer) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	m.storeDiscoveryConfigsMu.RLock()
+	defer m.storeDiscoveryConfigsMu.RUnlock()
+	if dc, ok := m.storeDiscoveryConfigs[name]; ok {
+		return dc.Clone(), nil
+	}
+	return nil, trace.NotFound("discovery config %q not found", name)
 }
 
 type mockEKSClusterEnroller struct {
@@ -459,14 +489,14 @@ type mockEKSClusterEnroller struct {
 }
 
 func (m *mockEKSClusterEnroller) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opt ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-	ret := &integrationpb.EnrollEKSClustersResponse{
+	ret := integrationpb.EnrollEKSClustersResponse_builder{
 		Results: []*integrationpb.EnrollEKSClusterResult{},
-	}
+	}.Build()
 	// Filter out non-requested clusters.
-	for _, clusterName := range req.EksClusterNames {
-		for _, mockClusterResult := range m.resp.Results {
-			if clusterName == mockClusterResult.EksClusterName {
-				ret.Results = append(ret.Results, mockClusterResult)
+	for _, clusterName := range req.GetEksClusterNames() {
+		for _, mockClusterResult := range m.resp.GetResults() {
+			if clusterName == mockClusterResult.GetEksClusterName() {
+				ret.SetResults(append(ret.GetResults(), mockClusterResult))
 			}
 		}
 	}

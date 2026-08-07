@@ -1,0 +1,30 @@
+resource "teleport_access_list" "some-access-list" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "some-access-list"
+    }
+  }
+
+  spec = {
+    description = "An example access list for IaC"
+    owners = [{
+      membership_kind = "1"
+      name            = "llama"
+      }, {
+      membership_kind = "1"
+      name            = "alpaca"
+    }]
+    audit = {
+      next_audit_date = "2023-02-02T00:00:00Z"
+      notifications = {
+        start = "336h0m0s"
+      }
+    }
+    membership_requires = {
+      roles = ["member-role"]
+    }
+    title = "My Access List"
+  }
+}

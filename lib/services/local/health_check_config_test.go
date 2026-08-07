@@ -64,7 +64,7 @@ func TestHealthCheckConfigService(t *testing.T) {
 			name: "create invalid",
 			run: func(t *testing.T, ctx context.Context, svc *HealthCheckConfigService) {
 				cfg := newHealthCfg(t, "invalid")
-				cfg.Spec = nil
+				cfg.ClearSpec()
 				_, err := svc.CreateHealthCheckConfig(ctx, cfg)
 				require.Error(t, err)
 			},
@@ -206,19 +206,19 @@ func TestHealthCheckConfigService(t *testing.T) {
 				cfg1, err := svc.CreateHealthCheckConfig(ctx, cfg1)
 				require.NoError(t, err)
 
-				cfg1.Spec.HealthyThreshold = 3
+				cfg1.GetSpec().SetHealthyThreshold(3)
 				cfgUpd, err := svc.UpdateHealthCheckConfig(ctx, cfg1)
 				require.NoError(t, err)
-				require.Equal(t, cfg1.Spec.HealthyThreshold, cfgUpd.Spec.HealthyThreshold)
+				require.Equal(t, cfg1.GetSpec().GetHealthyThreshold(), cfgUpd.GetSpec().GetHealthyThreshold())
 
 				cfgGet, err := svc.GetHealthCheckConfig(ctx, cfg1.GetMetadata().GetName())
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(cfgUpd, cfgGet, protocmp.Transform()))
 
-				cfgGet.Spec.HealthyThreshold = 9
+				cfgGet.GetSpec().SetHealthyThreshold(9)
 				cfgUpd2, err := svc.UpdateHealthCheckConfig(ctx, cfgGet)
 				require.NoError(t, err)
-				require.Equal(t, cfgGet.Spec.HealthyThreshold, cfgUpd2.Spec.HealthyThreshold)
+				require.Equal(t, cfgGet.GetSpec().GetHealthyThreshold(), cfgUpd2.GetSpec().GetHealthyThreshold())
 			},
 		},
 		{
@@ -230,10 +230,10 @@ func TestHealthCheckConfigService(t *testing.T) {
 						// then update.
 						cfg, err := svc.GetHealthCheckConfig(ctx, name)
 						require.NoError(t, err)
-						cfg.Spec.Match.Disabled = true
+						cfg.GetSpec().GetMatch().SetDisabled(true)
 						out, err := svc.UpdateHealthCheckConfig(ctx, cfg)
 						require.NoError(t, err)
-						require.Equal(t, cfg.Spec.Match.Disabled, out.Spec.Match.Disabled)
+						require.Equal(t, cfg.GetSpec().GetMatch().GetDisabled(), out.GetSpec().GetMatch().GetDisabled())
 					})
 				}
 			},
@@ -247,7 +247,7 @@ func TestHealthCheckConfigService(t *testing.T) {
 						// then update.
 						cfgCrt, err := svc.CreateHealthCheckConfig(ctx, cfg)
 						require.NoError(t, err)
-						cfgCrt.Spec.Match.Disabled = true
+						cfgCrt.GetSpec().GetMatch().SetDisabled(true)
 						out, err := svc.UpdateHealthCheckConfig(ctx, cfgCrt)
 						require.NoError(t, err)
 						require.Empty(t, cmp.Diff(cfgCrt, out, protocmp.Transform()))
@@ -267,7 +267,7 @@ func TestHealthCheckConfigService(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(cfgUps, cfgGet, protocmp.Transform()))
 
-				cfgGet.Spec.HealthyThreshold = 9
+				cfgGet.GetSpec().SetHealthyThreshold(9)
 				out, err := svc.UpsertHealthCheckConfig(ctx, cfgGet)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(cfgGet, out, protocmp.Transform()))
@@ -286,7 +286,7 @@ func TestHealthCheckConfigService(t *testing.T) {
 						require.NoError(t, err)
 						require.Empty(t, cmp.Diff(cfgUps, cfgGet, protocmp.Transform()))
 
-						cfgGet.Spec.Match.Disabled = true
+						cfgGet.GetSpec().GetMatch().SetDisabled(true)
 						out, err := svc.UpsertHealthCheckConfig(ctx, cfgGet)
 						require.NoError(t, err)
 						require.Empty(t, cmp.Diff(cfgGet, out, protocmp.Transform()))
@@ -395,14 +395,14 @@ func newHealthSvc(t *testing.T, ctx context.Context) *HealthCheckConfigService {
 func newHealthCfg(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	cfg, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
+				}.Build()},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return cfg

@@ -8,7 +8,11 @@ tags:
  - zero-trust
  - resiliency
 enterprise: Device Trust
+page_type: conceptual
 ---
+
+This page describes the configuration options you can use to enforce Teleport
+Device Trust.
 
 <Admonition type="note" title="Supported Resources">
 Device Trust fully supports SSH, database and Kubernetes resources using
@@ -141,7 +145,7 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 <Admonition type="tip" title="Trusted Clusters">
 It is possible to use [trusted
-clusters](../deploy-a-cluster/trustedclusters.mdx) to limit the impact of
+clusters](../management/trustedclusters.mdx) to limit the impact of
 device mode `required`. A leaf cluster in mode `required` will enforce access to
 all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce Device Trust on resources in

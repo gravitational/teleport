@@ -45,7 +45,7 @@ import (
 
 func HostOutputServiceBuilder(cfg *HostOutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &HostOutputService{
@@ -124,7 +124,6 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
-		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	)
@@ -154,7 +153,7 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 	}
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
-	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         privKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
@@ -162,14 +161,14 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL),
-	},
+	}.Build(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	keyRing := &libclient.KeyRing{
 		SSHPrivateKey: privKey,
-		Cert:          res.SshCertificate,
+		Cert:          res.GetSshCertificate(),
 	}
 
 	cfg := identityfile.WriteConfig{
@@ -186,12 +185,10 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, s.cfg.CAType, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	exportedCAs, err := exportSSHUserCAs(userCAs, clusterName)
 	if err != nil {
 		return trace.Wrap(err)

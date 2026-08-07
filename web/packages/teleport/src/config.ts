@@ -25,6 +25,11 @@ import type {
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
+  SecondFactor,
+} from 'shared/services';
+import {
+  legacySecondFactorToSecondFactors,
+  secondFactorsToLegacySecondFactor,
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
 
@@ -33,6 +38,7 @@ import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants'
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  AzureResource,
   IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
@@ -44,7 +50,10 @@ import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
-import { defaultEntitlements } from './entitlement';
+import {
+  applyLegacyPolicyEntitlementFallback,
+  defaultEntitlements,
+} from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
@@ -137,6 +146,7 @@ export const ossRoutes = {
   databases: '/web/cluster/:clusterId/databases',
   desktops: '/web/cluster/:clusterId/desktops',
   desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+  linuxDesktop: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
   users: '/web/users',
   bots: '/web/bots',
   bot: '/web/bot/:botName',
@@ -161,6 +171,8 @@ export const ossRoutes = {
   loginErrorCallback: '/web/msg/error/login/callback',
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
+  loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
+  scopePicker: '/web/scope_picker',
   samlSloFailed: '/web/msg/error/slo',
   userInvite: '/web/invite/:tokenId',
   userInviteContinue: '/web/invite/:tokenId/continue',
@@ -168,8 +180,11 @@ export const ossRoutes = {
   userResetContinue: '/web/reset/:tokenId/continue',
   kubernetes: '/web/cluster/:clusterId/kubernetes',
   headlessSso: `/web/headless/:requestId`,
+  browserMfa: `/web/mfa/browser/:requestId?`,
   integrations: '/web/integrations',
   integrationOverview: '/web/integrations/overview/:type/:name',
+  integrationOverviewSettings:
+    '/web/integrations/overview/:type/:name/settings',
   integrationStatus: '/web/integrations/status/:type/:name',
   integrationTasks: '/web/integrations/status/:type/:name/tasks',
   integrationStatusResources:
@@ -231,15 +246,22 @@ const cfg = {
   // If you have no other options, use the `isStripeManaged` config flag to determine if product used is Team.
   // EUB can be determined from a combination of existing config flags eg: `isUsageBasedBilling && !isStripeManaged`.
   isUsageBasedBilling: false,
-  hideInaccessibleFeatures: false,
+  get hideInaccessibleFeatures(): boolean {
+    return this.entitlements.FeatureHiding.enabled;
+  },
   customTheme: '',
   isStripeManaged: false,
   hasQuestionnaire: false,
-  externalAuditStorage: false,
   premiumSupport: false,
 
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
+
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
+
+  // scopesEnabled indicates whether authorization scopes are enabled.
+  scopesEnabled: false,
 
   configDir: '$HOME/.config/teleport',
 
@@ -264,8 +286,8 @@ const cfg = {
   oidc: false,
   /** @deprecated Use entitlements instead; remove in v20 */
   saml: false,
-  // isPolicyEnabled refers to the Teleport Policy product
-  /** @deprecated Use entitlements instead; remove in v20 */
+  // isPolicyEnabled refers to the legacy Teleport Policy product.
+  /** @deprecated Use the feature-specific identity security entitlements instead. */
   isPolicyEnabled: false,
 
   ui: {
@@ -283,6 +305,7 @@ const cfg = {
     localConnectorName: '',
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
+    second_factors: [] as SecondFactor[],
     authType: 'local' as AuthType,
     /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
     defaultConnectorName: '',
@@ -361,6 +384,8 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
+    linuxDesktopWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
@@ -432,6 +457,8 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
+    browserMfaPath: `/v1/webapi/mfa/browser/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -633,6 +660,10 @@ const cfg = {
     return cfg.playable_db_protocols;
   },
 
+  getBeamsUi() {
+    return cfg.beamsUi;
+  },
+
   getClusterInfoPath(clusterId: string) {
     return generatePath(cfg.api.clusterInfoPath, {
       clusterId,
@@ -705,8 +736,33 @@ const cfg = {
     return cfg.auth && cfg.auth.providers ? cfg.auth.providers : [];
   },
 
+  // auth2faType is derived from second_factors. Prefer calling secondFactors directly.
   getAuth2faType() {
-    return cfg.auth ? cfg.auth.second_factor : null;
+    if (!cfg.auth) {
+      return null;
+    }
+
+    // If second_factors isn't set, use second_factor to determine the auth2faType.
+    // TODO(Joerger): DELETE in v20 - v19 server sets second_factors.
+    if (!cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factor;
+    }
+
+    return secondFactorsToLegacySecondFactor(cfg.auth.second_factors);
+  },
+
+  secondFactors(): SecondFactor[] {
+    if (!cfg.auth) {
+      return null;
+    }
+
+    if (cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factors;
+    }
+
+    // If second_factors isn't set, use second_factor to populate it.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    return legacySecondFactorToSecondFactors(cfg.auth.second_factor);
   },
 
   getDefaultConnectorName() {
@@ -729,12 +785,28 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
-  isMfaEnabled() {
-    return cfg.auth.second_factor !== 'off';
+  isMfaUserConfigurable() {
+    // Users can add/remove MFA devices when at least one non-SSO factor is allowed.
+    // (SSO MFA is managed by the auth connector, not by the user.)
+    return cfg.secondFactors().some(f => f !== 'sso');
   },
 
-  isAdminActionMfaEnforced() {
-    return cfg.auth.second_factor === 'webauthn';
+  // Mirrors authpref.IsAdminActionMFAEnforced server-side. Returns undefined
+  // when the answer is unknowable from the webcfg (older proxy/auth with an
+  // SSO-only cluster), signaling callers to fall back to a server-side check.
+  isAdminActionMfaEnforced(): boolean | undefined {
+    const factors = cfg.secondFactors();
+
+    // If second_factors is empty, it could mean that `second_factors: ["sso"]`,
+    // but the old server only sent us `second_factor: "off"`.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    if (factors.length === 0) {
+      return undefined;
+    }
+
+    // OTP is not supported for admin actions, so admin MFA is only enforced
+    // when every configured factor can satisfy an admin action.
+    return !factors.includes('otp');
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
@@ -763,18 +835,38 @@ const cfg = {
     return searchString ? `${path}?${searchString}` : path;
   },
 
-  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+  getSsoUrl({
+    providerUrl,
+    providerName,
+    redirect,
+    loginHint,
+    scope,
+  }: {
+    providerUrl: string;
+    providerName: string;
+    redirect: string;
+    loginHint?: string;
+    scope?: string;
+  }) {
     loginHint = loginHint === '' ? undefined : loginHint;
+    scope = scope === '' ? undefined : scope;
     let basePath =
       cfg.baseUrl +
-      generateFullPath(providerUrl, { redirect, providerName, loginHint });
+      generateFullPath(providerUrl, {
+        redirect,
+        providerName,
+        loginHint,
+        scope,
+      });
 
+    const url = new URL(basePath);
     if (!loginHint) {
-      const url = new URL(basePath);
       url.searchParams.delete('login_hint', '');
-      basePath = url.toString();
     }
-    return basePath;
+    if (!scope) {
+      url.searchParams.delete('scope', '');
+    }
+    return url.toString();
   },
 
   getAuditRoute(clusterId: string) {
@@ -850,6 +942,13 @@ const cfg = {
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(
@@ -988,7 +1087,7 @@ const cfg = {
     if (options?.activeTab) {
       search.set('tab', options.activeTab);
     }
-    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
+    return `${generatePath(cfg.routes.botInstances)}?${search.toString()}`;
   },
 
   getInstancesRoute() {
@@ -1035,6 +1134,14 @@ const cfg = {
 
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
+      clusterId,
+      desktopName,
+      username,
+    });
+  },
+
+  getLinuxDesktopRoute({ clusterId, username, desktopName }) {
+    return generatePath(cfg.routes.linuxDesktop, {
       clusterId,
       desktopName,
       username,
@@ -1150,6 +1257,10 @@ const cfg = {
     return generatePath(cfg.api.headlessSsoPath, { requestId });
   },
 
+  getBrowserMfaPath(requestId: string) {
+    return generatePath(cfg.api.browserMfaPath, { requestId });
+  },
+
   getUserInviteTokenRoute(tokenId = '') {
     return generatePath(cfg.routes.userInvite, { tokenId });
   },
@@ -1191,6 +1302,17 @@ const cfg = {
 
   getUserWithUsernameUrl(username: string) {
     return generatePath(cfg.api.userWithUsernamePath, { username });
+  },
+
+  // TODO(kimlisa): DELETE IN v21 and replace with getUserWithUsernameUrl.
+  // React Router v7 auto encodes dynamic segments in path (v5 version did not).
+  // The upgrade surfaced a backend bug where path params were not getting auto decoded which
+  // is the default behavior of go's httprouter.Params.ByName() b/c path params for this
+  // particular endpoint are being manually set.
+  // This is a temporary patch that does not encode segments (same behavior pre-React Router v7)
+  // to provide backwards compatibility.
+  getUserWithUsernameTemporaryPatchedUrl(username: string) {
+    return cfg.api.userWithUsernamePath.replace(':username', username);
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
@@ -1539,7 +1661,7 @@ const cfg = {
 
   getIntegrationRulesUrl(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ) {
     const clusterId = cfg.proxyCluster;
@@ -1959,7 +2081,7 @@ const cfg = {
   },
 
   init(backendConfig = {}) {
-    mergeDeep(this, backendConfig);
+    mergeDeep(this, applyLegacyPolicyEntitlementFallback(backendConfig));
   },
 };
 

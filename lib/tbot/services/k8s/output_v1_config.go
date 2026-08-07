@@ -39,9 +39,8 @@ type OutputV1Config struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	// KubernetesCluster is the name of the Kubernetes cluster in Teleport.
 	// This is named a little more verbosely to avoid conflicting with the
@@ -54,6 +53,11 @@ type OutputV1Config struct {
 	// kubeconfig. It does mean that kubectl will not be able to automatically
 	// refresh the credentials within an individual invocation.
 	DisableExecPlugin bool `yaml:"disable_exec_plugin"`
+
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -70,7 +74,13 @@ func (o *OutputV1Config) SetName(name string) {
 	o.Name = name
 }
 
-func (o *OutputV1Config) CheckAndSetDefaults() error {
+func (o *OutputV1Config) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", OutputV1ServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

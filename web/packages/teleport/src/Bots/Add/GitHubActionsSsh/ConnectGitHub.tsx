@@ -32,6 +32,7 @@ import Link from 'design/Link';
 import FieldInput from 'shared/components/FieldInput';
 import Select from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
+import { getErrorMessage } from 'shared/utils/error';
 
 import cfg from 'teleport/config';
 
@@ -299,7 +300,7 @@ const MultipleHostsError = () => {
 const EnterpriseHostError = () => {
   return (
     <Box>
-      GitHub Enterprise Server Host require Teleport Enterprise.Please use a
+      GitHub Enterprise Server Host requires Teleport Enterprise. Please use a
       repository hosted at github.com or{' '}
       <Link target="_blank" href="https://goteleport.com/signup/enterprise/">
         contact us
@@ -308,10 +309,16 @@ const EnterpriseHostError = () => {
     </Box>
   );
 };
-const InvalidHostError = ({ rule, error }: { rule: string; error: string }) => {
+const InvalidHostError = ({
+  rule,
+  error,
+}: {
+  rule: string;
+  error: unknown;
+}) => {
   return (
     <Box>
-      Invalid address {rule}: {error}
+      Invalid address {rule}: {getErrorMessage(error)}
     </Box>
   );
 };

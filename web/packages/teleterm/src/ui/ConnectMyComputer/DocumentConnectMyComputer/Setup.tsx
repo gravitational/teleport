@@ -22,9 +22,13 @@ import styled from 'styled-components';
 import { Alert, Box, ButtonPrimary, Flex, H1, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { getErrorMessage } from 'shared/utils/error';
 import { wait } from 'shared/utils/wait';
 
-import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
+import {
+  isRpcError,
+  isRpcErrorReloginResolvable,
+} from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   AgentProcessError,
@@ -237,11 +241,11 @@ function AgentSetup() {
               certsReloaded = response.certsReloaded;
             } catch (error) {
               if (
-                isTshdRpcError(error, 'PERMISSION_DENIED') &&
-                !error.isResolvableWithRelogin
+                isRpcError(error, 'PERMISSION_DENIED') &&
+                !isRpcErrorReloginResolvable(error)
               ) {
                 throw new Error(
-                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`,
+                  `Cannot set up the role: ${getErrorMessage(error)}. Contact your administrator for permissions to manage users and roles.`,
                   { cause: error }
                 );
               }
@@ -428,7 +432,7 @@ function AgentSetup() {
       const { agentBinaryPath } = mainProcessClient.getRuntimeSettings();
       notificationsService.notifyError({
         title: 'Could not remove the agent binary',
-        description: `Please try removing the binary manually to continue. The binary is at ${agentBinaryPath}. The error message was: ${error.message}`,
+        description: `Please try removing the binary manually to continue. The binary is at ${agentBinaryPath}. The error message was: ${getErrorMessage(error)}`,
       });
       return;
     }

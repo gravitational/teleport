@@ -17,6 +17,6 @@
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@types/styled-system": "^5.1.25",
-    "jest-styled-components": "^7.2.0"
+    "jest-styled-components": "^7.4.0"
   }
 }

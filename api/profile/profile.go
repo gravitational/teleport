@@ -29,10 +29,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -200,7 +200,13 @@ func (p *Profile) TLSCert() ([]byte, error) {
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
 // is required for kube access.
 func (p *Profile) RequireKubeLocalProxy() bool {
-	return p.KubeProxyAddr == p.WebProxyAddr && p.TLSRoutingConnUpgradeRequired
+	if p.PrivateKeyPolicy.IsHardwareKeyPolicy() {
+		return true
+	}
+	if p.KubeProxyAddr != p.WebProxyAddr {
+		return false
+	}
+	return p.TLSRoutingConnUpgradeRequired
 }
 
 func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
@@ -261,32 +267,33 @@ func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
 }
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
-func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (p *Profile) SSHClientConfig() (ssh.ClientConfig, error) {
 	cert, err := os.ReadFile(p.SSHCertPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return ssh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	sshCert, err := sshutils.ParseCertificate(cert)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return ssh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	caCerts, err := os.ReadFile(p.KnownHostsPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return ssh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	priv, err := keys.LoadPrivateKey(p.UserSSHKeyPath())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return ssh.ClientConfig{}, trace.Wrap(err)
 	}
 
-	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
+	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return ssh.ClientConfig{}, trace.Wrap(err)
 	}
-	return ssh, nil
+
+	return sshConfig, nil
 }
 
 // SetCurrentProfileName attempts to set the current profile name.

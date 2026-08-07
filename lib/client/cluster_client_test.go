@@ -17,6 +17,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -47,12 +48,18 @@ import (
 type fakeAuthClient struct {
 	authclient.ClientI
 
-	isMFARequired     func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
-	generateUserCerts func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+	isMFARequired               func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+	generateUserCerts           func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+	createAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	close                       func() error
 }
 
 func (f fakeAuthClient) Close() error {
-	return nil
+	if f.close == nil {
+		return nil
+	}
+
+	return f.close()
 }
 
 func (f fakeAuthClient) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -72,7 +79,11 @@ func (f fakeAuthClient) GenerateUserCerts(ctx context.Context, req proto.UserCer
 }
 
 func (f fakeAuthClient) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-	return &proto.MFAAuthenticateChallenge{WebauthnChallenge: &webauthnpb.CredentialAssertion{}}, nil
+	if f.createAuthenticateChallenge == nil {
+		return &proto.MFAAuthenticateChallenge{WebauthnChallenge: &webauthnpb.CredentialAssertion{}}, nil
+	}
+
+	return f.createAuthenticateChallenge(ctx, req)
 }
 
 type fakePrompt struct {
@@ -89,6 +100,48 @@ func (f fakePrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{Webauthn: &webauthnpb.CredentialAssertionResponse{}},
 	}, nil
+}
+
+// newTestGenerateUserCerts returns a [fakeAuthClient] GenerateUserCerts
+// implementation that issues certificates signed by the given test authority.
+func newTestGenerateUserCerts(t *testing.T, ca testAuthority, clock clockwork.Clock, caSigner ssh.Signer) func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+	return func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+		var sshCert, tlsCert []byte
+		var err error
+		if req.SSHPublicKey != nil {
+			sshCert, err = ca.keygen.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:          caSigner,
+				PublicUserKey:     req.SSHPublicKey,
+				TTL:               req.Expires.Sub(clock.Now()),
+				CertificateFormat: req.Format,
+				Identity: sshca.Identity{
+					Username:       req.Username,
+					RouteToCluster: req.RouteToCluster,
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if req.TLSPublicKey != nil {
+			pub, err := keys.ParsePublicKey(req.TLSPublicKey)
+			require.NoError(t, err)
+			identity := tlsca.Identity{
+				Username: req.Username,
+				Groups:   []string{"groups"},
+			}
+			subject, err := identity.Subject()
+			require.NoError(t, err)
+			tlsCert, err = ca.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+				Clock:     clock,
+				PublicKey: pub,
+				Subject:   subject,
+				NotAfter:  req.Expires,
+			})
+			require.NoError(t, err)
+		}
+		return &proto.Certs{SSH: sshCert, TLS: tlsCert}, nil
+	}
 }
 
 func TestIssueUserCertsWithMFA(t *testing.T) {
@@ -129,43 +182,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 	failedPrompt := fakePrompt{err: errors.New("prompt failed intentionally")}
 
-	defaultGenerateUserCerts := func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-		var sshCert, tlsCert []byte
-		var err error
-		if req.SSHPublicKey != nil {
-			sshCert, err = ca.keygen.GenerateUserCert(sshca.UserCertificateRequest{
-				CASigner:          caSigner,
-				PublicUserKey:     req.SSHPublicKey,
-				TTL:               req.Expires.Sub(clock.Now()),
-				CertificateFormat: req.Format,
-				Identity: sshca.Identity{
-					Username:       req.Username,
-					RouteToCluster: req.RouteToCluster,
-				},
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		if req.TLSPublicKey != nil {
-			pub, err := keys.ParsePublicKey(req.TLSPublicKey)
-			require.NoError(t, err)
-			identity := tlsca.Identity{
-				Username: req.Username,
-				Groups:   []string{"groups"},
-			}
-			subject, err := identity.Subject()
-			require.NoError(t, err)
-			tlsCert, err = ca.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-				Clock:     clock,
-				PublicKey: pub,
-				Subject:   subject,
-				NotAfter:  req.Expires,
-			})
-			require.NoError(t, err)
-		}
-		return &proto.Certs{SSH: sshCert, TLS: tlsCert}, nil
-	}
+	defaultGenerateUserCerts := newTestGenerateUserCerts(t, ca, clock, caSigner)
 
 	tests := []struct {
 		name                    string
@@ -174,7 +191,15 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 		params                  ReissueParams
 		prompt                  fakePrompt
 		signatureAlgorithmSuite types.SignatureAlgorithmSuite
-		assertion               func(t *testing.T, result *IssueUserCertsWithMFAResult, err error)
+		// clientCluster overrides the ClusterClient's cluster field. Defaults to "test".
+		clientCluster string
+		// generateUserCerts overrides GenerateUserCerts on the connected cluster's auth client.
+		// Defaults to issuing them from the test authority.
+		generateUserCerts func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+		// wantPromptReason, when non-empty, asserts the PromptReason passed to the
+		// MFA prompt constructor.
+		wantPromptReason string
+		assertion        func(t *testing.T, result *IssueUserCertsWithMFAResult, err error)
 	}{
 		{
 			name:        "ssh no mfa",
@@ -190,9 +215,10 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			},
 		},
 		{
-			name:        "ssh mfa success",
-			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
-			params:      ReissueParams{NodeName: "test"},
+			name:             "ssh mfa success",
+			mfaRequired:      proto.MFARequired_MFA_REQUIRED_YES,
+			params:           ReissueParams{NodeName: "test"},
+			wantPromptReason: `MFA is required to access node "test"`,
 			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
@@ -212,6 +238,57 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NotNil(t, result)
 				require.Nil(t, result.KeyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+			},
+		},
+		{
+			name: "ssh login falls back to host login",
+			params: ReissueParams{
+				NodeName: "test",
+				MFAChecker: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
+						require.True(t, ok)
+						require.Equal(t, "default-login", nodeReq.Node.Login)
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+				},
+			},
+			generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+				require.Equal(t, "default-login", req.SSHLogin)
+				return defaultGenerateUserCerts(ctx, req)
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
+			},
+		},
+		{
+			name: "ssh login override used",
+			params: ReissueParams{
+				NodeName: "test",
+				SSHLogin: "override-login",
+				MFAChecker: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
+						require.True(t, ok)
+						require.Equal(t, "override-login", nodeReq.Node.Login)
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+				},
+			},
+			generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+				require.Equal(t, "override-login", req.SSHLogin)
+				return defaultGenerateUserCerts(ctx, req)
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
 			},
 		},
 		{
@@ -359,7 +436,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			params: ReissueParams{
 				NodeName:       "test",
 				RouteToCluster: "leaf",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_NO, Required: false}, nil
 					},
@@ -379,7 +456,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			params: ReissueParams{
 				NodeName:       "test",
 				RouteToCluster: "leaf",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
 					},
@@ -403,18 +480,18 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				},
 				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
 				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_NO, Required: false}, nil
 					},
-					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-						// Ensure no MFA response is passed.
-						if req.MFAResponse != nil {
-							return nil, trace.BadParameter("mfa response is not nil")
-						}
-						return defaultGenerateUserCerts(ctx, req)
-					},
 				},
+			},
+			generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+				// Ensure no MFA response is passed.
+				if req.MFAResponse != nil {
+					return nil, trace.BadParameter("mfa response is not nil")
+				}
+				return defaultGenerateUserCerts(ctx, req)
 			},
 			prompt: failedPrompt, // should not be called
 			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
@@ -473,19 +550,19 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				},
 				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
 				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
 					},
-					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-						// This is the fake reusable MFA response passed in the first call.
-						if req.MFAResponse != nil && req.MFAResponse.Response == nil {
-							return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
-						}
-						// The second call should continue here.
-						return defaultGenerateUserCerts(ctx, req)
-					},
 				},
+			},
+			generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+				// This is the fake reusable MFA response passed in the first call.
+				if req.MFAResponse != nil && req.MFAResponse.Response == nil {
+					return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+				}
+				// The second call should continue here.
+				return defaultGenerateUserCerts(ctx, req)
 			},
 			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
@@ -493,6 +570,25 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
 				require.NotNil(t, result.ReusableMFAResponse) // new MFA response
 				require.NotNil(t, result.KeyRing)
+			},
+		},
+		{
+			name:          "session MFA from a leaf cluster mentions the leaf in the prompt reason",
+			mfaRequired:   proto.MFARequired_MFA_REQUIRED_YES,
+			clientCluster: "leaf",
+			params: ReissueParams{
+				NodeName:       "test",
+				RouteToCluster: "leaf",
+				MFAChecker: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+				},
+			},
+			wantPromptReason: `MFA is required to access node "test" from leaf cluster "leaf"`,
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
 			},
 		},
 	}
@@ -503,23 +599,28 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			if test.agent != nil {
 				agent = test.agent
 			}
-			if test.params.AuthClient != nil {
-				defer test.params.AuthClient.Close()
-			}
 
 			suite := test.signatureAlgorithmSuite
 			if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
 				suite = types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1
 			}
 
+			var capturedPromptCfg *libmfa.PromptConfig
+			clientCluster := cmp.Or(test.clientCluster, "test")
+			generateUserCerts := defaultGenerateUserCerts
+			if test.generateUserCerts != nil {
+				generateUserCerts = test.generateUserCerts
+			}
 			clt := &ClusterClient{
 				tc: &TeleportClient{
 					localAgent: agent,
 					Config: Config{
 						WebProxyAddr: "proxy.example.com",
 						SiteName:     "test",
+						HostLogin:    "default-login",
 						Tracer:       tracing.NoopTracer("test"),
 						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
+							capturedPromptCfg = cfg
 							return test.prompt
 						},
 						Stderr: io.Discard,
@@ -542,17 +643,309 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 							return nil, trace.NotImplemented("mfa unknown")
 						}
 					},
-					generateUserCerts: defaultGenerateUserCerts,
+					generateUserCerts: generateUserCerts,
 				},
 				Tracer:  tracing.NoopTracer("test"),
-				cluster: "test",
+				cluster: clientCluster,
 				root:    "test",
+			}
+
+			// Auth clients for other clusters, so cases whose client is connected to a leaf can reach the root without a proxy.
+			dial := func(_ context.Context, clusterName string) (authclient.ClientI, error) {
+				// Mirror ConnectToCluster: the connected cluster resolves without opening a connection.
+				if clusterName == clientCluster {
+					return clt.CurrentCluster(), nil
+				}
+				return fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						return &proto.IsMFARequiredResponse{MFARequired: test.mfaRequired, Required: test.mfaRequired == proto.MFARequired_MFA_REQUIRED_YES}, nil
+					},
+					generateUserCerts: defaultGenerateUserCerts,
+				}, nil
 			}
 
 			ctx := context.Background()
 
-			result, err := clt.IssueUserCertsWithMFA(ctx, test.params)
+			result, err := clt.issueUserCertsWithMFA(ctx, dial, test.params)
 			test.assertion(t, result, err)
+
+			if test.wantPromptReason != "" {
+				require.NotNil(t, capturedPromptCfg, "MFA prompt constructor was not invoked")
+				require.Equal(t, test.wantPromptReason, capturedPromptCfg.PromptReason)
+			}
 		})
+	}
+}
+
+// TestIssueUserCertsWithMFAAuthClientMatrix runs IssueUserCertsWithMFA over every permutation of the inputs
+// that decide which auth server serves the request, and asserts:
+// - which one answered the MFA requirement check,
+// - which one issued the certs,
+// - which clusters were dialed.
+//
+// Whatever the caller passes, the certs must come from the root cluster's auth server.
+// A client connected to the root issues them with its own auth client; one connected to a leaf dials the root first.
+// A caller-supplied client only answers the requirement check and never issues the certs.
+func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
+	t.Parallel()
+
+	// The clusters a cell can involve, named so the assertions can say which one served each step.
+	const (
+		root  = "root"
+		leaf1 = "leaf1"
+		leaf2 = "leaf2"
+	)
+
+	// The auth clients a cell can involve, named so the assertions can say which one served each step.
+	// The caller's clients are named after the answer they give rather than after a cluster,
+	// because nothing in the code can tell which cluster a caller-supplied client serves.
+	// Every client but callerNo reports that MFA is required.
+	const (
+		connected   = "connected"
+		callerYes   = "caller yes"
+		callerNo    = "caller no"
+		dialedRoot  = "dialed root"
+		dialedLeaf1 = "dialed leaf1"
+		dialedLeaf2 = "dialed leaf2"
+	)
+
+	ca := newTestAuthority(t)
+	clock := clockwork.NewFakeClock()
+
+	localAgent, err := NewLocalAgent(LocalAgentConfig{
+		ClientStore: NewMemClientStore(),
+		ProxyHost:   root,
+		Username:    "alice",
+		Insecure:    true,
+		Site:        root,
+		LoadAllCAs:  false,
+	})
+	require.NoError(t, err)
+
+	for _, cluster := range []string{root, leaf1, leaf2} {
+		require.NoError(t, localAgent.clientStore.AddKeyRing(ca.makeSignedKeyRing(t, KeyRingIndex{
+			ProxyHost:   root,
+			ClusterName: cluster,
+			Username:    "alice",
+		}, false)))
+	}
+
+	pemBytes, ok := fixtures.PEMBytes["rsa"]
+	require.True(t, ok, "RSA key not found in fixtures")
+	caSigner, err := ssh.ParsePrivateKey(pemBytes)
+	require.NoError(t, err)
+
+	generateUserCerts := newTestGenerateUserCerts(t, ca, clock, caSigner)
+
+	type inputs struct {
+		mfaChecker         string // which MFA checker the caller supplies, if any
+		prefetchedMFACheck bool   // whether ReissueParams.MFACheck is set
+		routeToCluster     string // the cluster the caller wants to reach
+		clientCluster      string // the cluster the connected auth client belongs to
+	}
+	type counts = map[string]int // counts how often each auth client, or each cluster, was used.
+	type outcome struct {
+		issuer         string // the auth client expected to issue the certs, empty when none are issued
+		checks         counts // every auth client asked whether MFA is required
+		dials          counts // every cluster a connection is opened to
+		mfaNotRequired bool   // true when the MFA check returned that MFA is not required
+	}
+
+	connectedIssues := outcome{issuer: connected}
+	leafDialsRoot := outcome{issuer: dialedRoot, dials: counts{root: 1}}
+	callerDeclines := outcome{checks: counts{callerNo: 1}, mfaNotRequired: true}
+
+	// Every permutation the loops below generate must appear here, so a missing row fails the test.
+	want := map[inputs]outcome{
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{connected: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{dialedRoot: 1}, dials: counts{root: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{dialedLeaf1: 1}, dials: counts{leaf1: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{connected: 1}, dials: counts{root: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{dialedLeaf2: 1}, dials: counts{leaf2: 1, root: 1}},
+
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{callerYes: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{callerYes: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
+
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: callerDeclines,
+	}
+
+	// newClusterClient returns a client connected to the named cluster, backed by authClient.
+	newClusterClient := func(cluster string, authClient authclient.ClientI) *ClusterClient {
+		return &ClusterClient{
+			tc: &TeleportClient{
+				localAgent: localAgent,
+				Config: Config{
+					WebProxyAddr: "proxy.example.com",
+					SiteName:     root,
+					HostLogin:    "default-login",
+					Tracer:       tracing.NoopTracer("test"),
+					MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
+						return fakePrompt{}
+					},
+					Stderr: io.Discard,
+				},
+				lastPing: &webclient.PingResponse{
+					Auth: webclient.AuthenticationSettings{
+						SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+					},
+				},
+			},
+			ProxyClient: &proxy.Client{},
+			AuthClient:  authClient,
+			Tracer:      tracing.NoopTracer("test"),
+			cluster:     cluster,
+			root:        root,
+		}
+	}
+
+	requireCounts := func(t *testing.T, want, got counts, what string) {
+		if want == nil { // A nil expectation means the step must not have happened at all.
+			require.Empty(t, got, what)
+			return
+		}
+		require.Equal(t, want, got, what)
+	}
+
+	topologies := []struct{ routeToCluster, clientCluster string }{
+		{root, root},
+		{root, leaf1},
+		{leaf1, root},
+		{leaf1, leaf1},
+		{leaf2, leaf1},
+	}
+
+	for _, mfaChecker := range []string{"", callerYes, callerNo} {
+		for _, prefetchedMFACheck := range []bool{true, false} {
+			for _, topology := range topologies {
+				in := inputs{
+					mfaChecker:         mfaChecker,
+					prefetchedMFACheck: prefetchedMFACheck,
+					routeToCluster:     topology.routeToCluster,
+					clientCluster:      topology.clientCluster,
+				}
+
+				name := "no MFA checker"
+				if in.mfaChecker != "" {
+					name = in.mfaChecker
+				}
+				if in.prefetchedMFACheck {
+					name += ", prefetched check"
+				} else {
+					name += ", checked requirement"
+				}
+				name += ", routed to " + in.routeToCluster + ", " + in.clientCluster + " client"
+
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					expected, ok := want[in]
+					require.True(t, ok, "no expectation declared for %+v", in)
+
+					checks, certRequests, challenges, closes := counts{}, counts{}, counts{}, counts{}
+					var certRoutes []string
+					authClients := map[string]fakeAuthClient{}
+					for _, name := range []string{connected, callerYes, callerNo, dialedRoot, dialedLeaf1, dialedLeaf2} {
+						required := name != callerNo
+						authClients[name] = fakeAuthClient{
+							isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+								checks[name]++
+								if !required {
+									return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_NO}, nil
+								}
+								return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+							},
+							generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+								certRequests[name]++
+								certRoutes = append(certRoutes, req.RouteToCluster)
+								return generateUserCerts(ctx, req)
+							},
+							createAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+								challenges[name]++
+								return &proto.MFAAuthenticateChallenge{WebauthnChallenge: &webauthnpb.CredentialAssertion{}}, nil
+							},
+							close: func() error {
+								closes[name]++
+								return nil
+							},
+						}
+					}
+
+					clt := newClusterClient(in.clientCluster, authClients[connected])
+
+					params := ReissueParams{NodeName: "test", RouteToCluster: in.routeToCluster}
+					if in.prefetchedMFACheck {
+						params.MFACheck = &proto.IsMFARequiredResponse{
+							MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+							Required:    true,
+						}
+					}
+					if in.mfaChecker != "" {
+						params.MFAChecker = authClients[in.mfaChecker]
+					}
+
+					dials := counts{}
+					dial := func(_ context.Context, clusterName string) (authclient.ClientI, error) {
+						if clusterName == in.clientCluster {
+							return clt.CurrentCluster(), nil
+						}
+						dials[clusterName]++
+						return authClients["dialed "+clusterName], nil
+					}
+
+					result, err := clt.issueUserCertsWithMFA(context.Background(), dial, params)
+					require.NoError(t, err)
+					require.NotNil(t, result)
+					require.NotEmpty(t, result.KeyRing.Cert)
+
+					wantMFARequired := proto.MFARequired_MFA_REQUIRED_YES
+					wantIssuer := counts{expected.issuer: 1}
+					wantCertRoutes := []string{in.routeToCluster}
+					if expected.mfaNotRequired {
+						wantMFARequired = proto.MFARequired_MFA_REQUIRED_NO
+						wantIssuer = counts{}
+						wantCertRoutes = nil
+					}
+					require.Equal(t, wantMFARequired, result.MFARequired)
+
+					requireCounts(t, wantIssuer, certRequests, "the root cluster's auth server must issue the certs, and nothing else")
+					requireCounts(t, wantIssuer, challenges, "the MFA challenge must come from the auth server that issues the certs")
+					requireCounts(t, expected.checks, checks, "auth servers asked whether MFA is required")
+					requireCounts(t, expected.dials, dials, "clusters dialed")
+
+					require.Equal(t, wantCertRoutes, certRoutes, "cert requests, by routed cluster")
+
+					wantCloses := counts{}
+					for cluster := range expected.dials {
+						wantCloses["dialed "+cluster] = 1
+					}
+					requireCounts(t, wantCloses, closes, "auth clients closed")
+				})
+			}
+		}
 	}
 }

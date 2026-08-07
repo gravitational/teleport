@@ -86,6 +86,7 @@ export function DefaultSection({
   return (
     <>
       <CategoryButton
+        data-testid="side-nav-category"
         ref={refs.setReference}
         $active={$active}
         isExpanded={isExpanded}
@@ -164,6 +165,7 @@ export const CustomChildrenSection = forwardRef<
   return (
     <>
       <CategoryButton
+        data-testid="side-nav-category"
         ref={ref}
         $active={$active}
         isExpanded={isExpanded}
@@ -193,7 +195,12 @@ export function StandaloneSection({
   $active: boolean;
 }) {
   return (
-    <CategoryButton as={NavLink} $active={$active} to={route}>
+    <CategoryButton
+      as={NavLink}
+      data-testid="side-nav-category"
+      $active={$active}
+      to={route}
+    >
       <Icon />
       {title}
     </CategoryButton>
@@ -338,13 +345,11 @@ export function getCategoryStyles(
         background: ${theme.colors.interactive.tonal.primary[2]};
         color: ${theme.colors.interactive.solid.primary.active};
       }
-      ${
-        isExpanded &&
-        `
+      ${isExpanded &&
+      `
         background: ${theme.colors.interactive.tonal.primary[1]};
         color: ${theme.colors.interactive.solid.primary.default};
-      `
-      }
+      `}
     `;
   }
 
@@ -360,13 +365,11 @@ export function getCategoryStyles(
       background: ${theme.colors.interactive.tonal.neutral[1]};
       color: ${theme.colors.text.main};
     }
-    ${
-      isExpanded &&
-      `
+    ${isExpanded &&
+    `
       background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
-      `
-    }
+      `}
   `;
 }
 
@@ -392,7 +395,7 @@ export function SubsectionItem({
       end={exact}
       tabIndex={0}
       onClick={onClick}
-      data-testid={to}
+      data-testid="side-nav-item"
     >
       {children}
     </StyledSubsectionItem>

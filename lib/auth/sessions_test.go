@@ -106,6 +106,66 @@ func TestCreateWebSession(t *testing.T) {
 	}
 }
 
+func TestCreateWebSession_accessGraphAPIUsage(t *testing.T) {
+	t.Parallel()
+
+	const userLlama = "llama"
+
+	fakeclock := clockwork.NewFakeClock()
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Clock: fakeclock,
+		Dir:   t.TempDir(),
+	})
+	require.NoError(t, err, "NewAuthServer failed")
+	t.Cleanup(func() {
+		assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
+	})
+
+	authServer := testAuthServer.AuthServer
+	ctx := context.Background()
+
+	_, _, err = authtest.CreateUserAndRole(authServer, userLlama, []string{userLlama}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	tests := []struct {
+		name  string
+		usage types.WebSessionUsage
+	}{
+		{name: "unspecified usage keeps bearer token", usage: types.WebSessionUsage_WEB_SESSION_USAGE_UNSPECIFIED},
+		{name: "access graph usage omits bearer token", usage: types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
+				User:       userLlama,
+				SessionTTL: time.Hour,
+				Usage:      tc.usage,
+			})
+			require.NoError(t, err, "CreateWebSessionFromReq failed")
+
+			if tc.usage == types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+				require.Empty(t, session.GetBearerToken(), "bearer token should be empty for access graph sessions")
+				require.True(t, session.GetBearerTokenExpiryTime().IsZero(), "bearer token expiry should be zero for access graph sessions")
+				// No explicit GetWebToken check: types.NewWebToken rejects an
+				// empty Token (api/types/session.go), so if upsertWebSession
+				// did not skip UpsertWebToken here, CreateWebSessionFromReq
+				// would have returned an error above.
+				return
+			}
+
+			require.NotEmpty(t, session.GetBearerToken(), "bearer token should be populated for standard sessions")
+			require.False(t, session.GetBearerTokenExpiryTime().IsZero(), "bearer token expiry should be set for standard sessions")
+			got, err := authServer.GetWebToken(ctx, types.GetWebTokenRequest{
+				User:  userLlama,
+				Token: session.GetBearerToken(),
+			})
+			require.NoError(t, err, "GetWebToken failed")
+			require.Equal(t, session.GetBearerToken(), got.GetToken())
+		})
+	}
+}
+
 func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	t.Parallel()
 
@@ -121,20 +181,20 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 
 	var storedWebTokens utils.SyncMap[string, *devicepb.DeviceWebToken]
 	authServer.SetCreateDeviceWebTokenFunc(func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-		if dwt.BrowserMaxTouchPoints > 1 {
+		if dwt.GetBrowserMaxTouchPoints() > 1 {
 			// Simulate CreateDeviceWebToken not creating tokens for iPads.
 			return nil, nil
 		}
 
-		dwt.Id = uuid.NewString()
-		dwt.Token = uuid.NewString()
+		dwt.SetId(uuid.NewString())
+		dwt.SetToken(uuid.NewString())
 
-		storedWebTokens.Store(dwt.Id, dwt)
+		storedWebTokens.Store(dwt.GetId(), dwt)
 
-		return &devicepb.DeviceWebToken{
-			Id:    dwt.Id,
-			Token: dwt.Token,
-		}, nil
+		return devicepb.DeviceWebToken_builder{
+			Id:    dwt.GetId(),
+			Token: dwt.GetToken(),
+		}.Build(), nil
 	})
 
 	const userLlama = "llama"
@@ -189,10 +249,10 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 			storedWebToken, ok := storedWebTokens.Load(gotToken.Id)
 			require.True(t, ok, "created web token was not found")
 
-			require.Equal(t, storedWebToken.Token, gotToken.Token)
-			require.Equal(t, loginIP, storedWebToken.BrowserIp)
-			require.Equal(t, loginUserAgent, storedWebToken.BrowserUserAgent)
-			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.BrowserMaxTouchPoints))
+			require.Equal(t, storedWebToken.GetToken(), gotToken.Token)
+			require.Equal(t, loginIP, storedWebToken.GetBrowserIp())
+			require.Equal(t, loginUserAgent, storedWebToken.GetBrowserUserAgent())
+			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.GetBrowserMaxTouchPoints()))
 		})
 	}
 }

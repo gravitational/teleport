@@ -20,13 +20,13 @@ package app
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -38,11 +38,14 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredApps.get,
-		OnCreate:            s.onCreate,
-		OnUpdate:            s.onUpdate,
-		OnDelete:            s.onDelete,
-		Logger:              s.log.With("kind", types.KindApp),
+		CompareResources: func(a1, a2 types.Application) int {
+			return services.EqualFromBool(a1.IsEqual(a2))
+		},
+		GetNewResources: s.monitoredApps.get,
+		OnCreate:        s.onCreate,
+		OnUpdate:        s.onUpdate,
+		OnDelete:        s.onDelete,
+		Logger:          s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -53,8 +56,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
-				} else if s.c.OnReconcile != nil {
-					s.c.OnReconcile(s.getApps())
+				} else {
+					s.reconcileDoneOnce.Do(func() { close(s.reconcileDone) })
+					if s.c.OnReconcile != nil {
+						s.c.OnReconcile(s.getApps())
+					}
 				}
 			case <-ctx.Done():
 				s.log.DebugContext(ctx, "Reconciler done.")
@@ -91,7 +97,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 			case apps := <-watcher.ResourcesC:
 				for _, app := range apps {
 					if app.GetPublicAddr() == "" {
-						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						// TODO (williamo/scopes): Dynamic app registration does not support scoped apps
+						// add scoped app here when we do support it.
+						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName(), "")
 						if err == nil {
 							app.SetPublicAddr(pubAddr)
 						} else {
@@ -134,9 +142,23 @@ type FindPublicAddrClient interface {
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
-func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
-	// If the application has a public address already set, use it.
-	if appPublicAddr != "" {
+//
+// For a scoped app, the address is always derived as the
+// scope-qualified FQDN "<hash(name,scope)>.<proxy>"
+// TODO(williamo/scopes): We added a scopeVar as a variadic parameter to not break the e submodule.
+// This will be amended in a future PR.
+func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr, appName string, scopeVar ...string) (string, error) {
+	// If the application has a public address already set, use it. Scoped apps
+	// always derive their address, so the config value is not honored.
+	scope := ""
+	switch len(scopeVar) {
+	case 1:
+		scope = scopeVar[0]
+	case 0:
+	default:
+		return "", trace.BadParameter("multiple scopes not allowed")
+	}
+	if appPublicAddr != "" && scope == "" {
 		return appPublicAddr, nil
 	}
 
@@ -156,7 +178,10 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
+		if scope != "" {
+			return scopedapp.ScopedAppPublicAddr(scope, appName, addr.Host()), nil
+		}
+		return utils.DefaultAppFQDN(appName, addr.Host(), ""), nil
 	}
 
 	// Fall back to cluster name.
@@ -164,7 +189,11 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
+
+	if scope != "" {
+		return scopedapp.ScopedAppPublicAddr(scope, appName, cn.GetClusterName()), nil
+	}
+	return utils.DefaultAppFQDN(appName, "", cn.GetClusterName()), nil
 }
 
 func (s *Server) getResources() map[string]types.Application {
@@ -184,5 +213,21 @@ func (s *Server) onDelete(ctx context.Context, app types.Application) error {
 }
 
 func (s *Server) matcher(app types.Application) bool {
-	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	matchesLabels := services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	if !matchesLabels {
+		return false
+	}
+
+	if s.c.IgnoreAppsWithCommandLabels {
+		if len(app.GetDynamicLabels()) > 0 {
+			s.log.WarnContext(
+				context.Background(),
+				"refusing to register app with dynamic labels",
+				"app_name", app.GetName(),
+			)
+			return false
+		}
+	}
+
+	return true
 }

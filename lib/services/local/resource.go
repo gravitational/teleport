@@ -26,6 +26,8 @@ import (
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -106,6 +108,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromAutoUpdateVersion(r.UnwrapT())
 	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 		item, err = itemFromHealthCheckConfig(r.UnwrapT())
+	case types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentity]:
+		item, err = itemFromWorkloadIdentity(r.UnwrapT())
+	case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
+		item, err = itemFromCertAuthorityOverride(r.UnwrapT())
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -154,6 +160,30 @@ func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
 		Revision: ap.GetRevision(),
 	}
 
+	return item, nil
+}
+
+// itemFromWorkloadIdentity attempts to encode the supplied workload identity as
+// an instance of `backend.Item` suitable for storage.
+func itemFromWorkloadIdentity(wi *workloadidentityv1pb.WorkloadIdentity) (*backend.Item, error) {
+	if err := services.ValidateWorkloadIdentity(wi); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalWorkloadIdentity(wi)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(wi)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.NewKey(workloadIdentityPrefix, wi.GetMetadata().GetName()),
+		Value:    value,
+		Expires:  expires,
+		Revision: wi.GetMetadata().GetRevision(),
+	}
 	return item, nil
 }
 
@@ -260,6 +290,11 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 	if err := services.CheckAndSetDefaults(gc); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := gc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := gc.GetRevision()
 	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {
@@ -296,6 +331,11 @@ func itemFromRole(role types.Role) (*backend.Item, error) {
 // instance of `backend.Item` suitable for storage.
 func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error) {
 	rev := connector.GetRevision()
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)

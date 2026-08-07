@@ -40,7 +40,9 @@ package typical
 
 import (
 	"fmt"
+	"go/ast"
 	"reflect"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
@@ -89,7 +91,8 @@ type ParserSpec[TEnv any] struct {
 type Variable any
 
 // Function holds the definition of a function. It is expected to be the result
-// of calling one of (Unary|Binary|Ternary)(Variadic)?Function.
+// of calling one of the function constructors in this package, such as
+// [UnaryFunction] or [BinaryVariadicFunctionWithEnv].
 type Function interface {
 	buildExpression(name string, args ...any) (any, error)
 }
@@ -98,7 +101,7 @@ type Function interface {
 // specific expression language.
 type Parser[TEnv, TResult any] struct {
 	spec    ParserSpec[TEnv]
-	pred    predicate.Parser
+	pred    predicate.ASTParser
 	options parserOptions
 }
 
@@ -157,7 +160,7 @@ func NewParser[TEnv, TResult any](spec ParserSpec[TEnv], opts ...ParserOption) (
 		}
 	}
 
-	pred, err := predicate.NewParser(def)
+	pred, err := predicate.NewASTParser(def)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating predicate parser")
 	}
@@ -173,6 +176,21 @@ func (p *Parser[TEnv, TResult]) Parse(expression string) (Expression[TEnv, TResu
 		return nil, trace.BadParameter("empty expression")
 	}
 	result, err := p.pred.Parse(expression)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing expression")
+	}
+	expr, err := coerce[TEnv, TResult](result)
+	if err != nil {
+		return nil, trace.Wrap(err, "expression evaluated to unexpected type")
+	}
+	return expr, nil
+}
+
+func (p *Parser[TEnv, TResult]) ParseAST(expression ast.Expr) (Expression[TEnv, TResult], error) {
+	if expression == nil {
+		return nil, trace.BadParameter("nil expression")
+	}
+	result, err := p.pred.ParseAST(expression)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing expression")
 	}
@@ -373,22 +391,32 @@ func (d dynamicMap[TEnv, TValues, TMap]) buildIndexExpression(keyExpr Expression
 	}}
 }
 
-type funcGetter[TValues any] func(key string) (TValues, error)
-
-func (f funcGetter[TValues]) Get(key string) (TValues, error) {
-	return f(key)
-}
-
 // DynamicMapFunction returns a definition for a variable that can be indexed
 // with map[key] or map.key syntax to get a TValues. Each time the
 // variable is indexed in an expression, [getFunc] will be called to retrieve
 // the value.
 func DynamicMapFunction[TEnv, TValues any](getFunc func(env TEnv, key string) (TValues, error)) Variable {
-	return DynamicMap[TEnv, TValues](func(env TEnv) (funcGetter[TValues], error) {
-		return funcGetter[TValues](func(key string) (TValues, error) {
-			return getFunc(env, key)
-		}), nil
-	})
+	return dynamicMapFunction[TEnv, TValues]{getFunc: getFunc}
+}
+
+type dynamicMapFunction[TEnv, TValues any] struct {
+	getFunc func(env TEnv, key string) (TValues, error)
+}
+
+//nolint:unused // https://github.com/dominikh/go-tools/issues/1294
+func (d dynamicMapFunction[TEnv, TValues]) buildIndexExpression(keyExpr Expression[TEnv, string]) any {
+	return dynamicVariable[TEnv, TValues]{func(env TEnv) (TValues, error) {
+		var nul TValues
+		key, err := keyExpr.Evaluate(env)
+		if err != nil {
+			return nul, trace.Wrap(err, "evaluating key of index expression")
+		}
+		result, err := d.getFunc(env, key)
+		if err != nil {
+			return nul, trace.Wrap(err, "getting value from dynamic map")
+		}
+		return result, nil
+	}}
 }
 
 type dynamicVariable[TEnv, TVar any] struct {
@@ -407,6 +435,36 @@ func (d dynamicVariable[TEnv, TVar]) Evaluate(env TEnv) (TVar, error) {
 	return result, trace.Wrap(err)
 }
 
+type nullaryFunction[TEnv, TResult any] struct {
+	impl func() (TResult, error)
+}
+
+// NullaryFunction returns a definition for a function that is called without
+// arguments.
+func NullaryFunction[TEnv, TResult any](impl func() (TResult, error)) Function {
+	return nullaryFunction[TEnv, TResult]{impl}
+}
+
+func (f nullaryFunction[TEnv, TResult]) buildExpression(name string, args ...any) (any, error) {
+	if len(args) != 0 {
+		return nil, trace.BadParameter("function (%s) accepts 0 arguments, given %d", name, len(args))
+	}
+	return nullaryFuncExpr[TEnv, TResult]{
+		name: name,
+		impl: f.impl,
+	}, nil
+}
+
+type nullaryFuncExpr[TEnv, TResult any] struct {
+	name string
+	impl func() (TResult, error)
+}
+
+func (e nullaryFuncExpr[TEnv, TResult]) Evaluate(_ TEnv) (TResult, error) {
+	res, err := e.impl()
+	return res, trace.Wrap(err, "evaluating function (%s)", e.name)
+}
+
 type unaryFunction[TEnv, TArg, TResult any] struct {
 	impl func(TArg) (TResult, error)
 }
@@ -423,7 +481,7 @@ func (f unaryFunction[TEnv, TArg, TResult]) buildExpression(name string, args ..
 	}
 	argExpr, err := coerce[TEnv, TArg](args[0])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing argument to function (%s)", name)
 	}
 	return unaryFuncExpr[TEnv, TArg, TResult]{
 		name:    name,
@@ -466,7 +524,7 @@ func (f unaryFunctionWithEnv[TEnv, TArg, TResult]) buildExpression(name string, 
 	}
 	argExpr, err := coerce[TEnv, TArg](args[0])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing argument to function (%s)", name)
 	}
 	return unaryFuncWithEnvExpr[TEnv, TArg, TResult]{
 		name:    name,
@@ -507,11 +565,11 @@ func (f binaryFunction[TEnv, TArg1, TArg2, TResult]) buildExpression(name string
 	}
 	arg1Expr, err := coerce[TEnv, TArg1](args[0])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing first argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing first argument to function (%s)", name)
 	}
 	arg2Expr, err := coerce[TEnv, TArg2](args[1])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing second argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing second argument to function (%s)", name)
 	}
 	return binaryFuncExpr[TEnv, TArg1, TArg2, TResult]{
 		name:     name,
@@ -561,15 +619,15 @@ func (f ternaryFunction[TEnv, TArg1, TArg2, TArg3, TResult]) buildExpression(nam
 	}
 	arg1Expr, err := coerce[TEnv, TArg1](args[0])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing first argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing first argument to function (%s)", name)
 	}
 	arg2Expr, err := coerce[TEnv, TArg2](args[1])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing second argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing second argument to function (%s)", name)
 	}
 	arg3Expr, err := coerce[TEnv, TArg3](args[2])
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing third argument to (%s)", name)
+		return nil, trace.Wrap(err, "parsing third argument to function (%s)", name)
 	}
 	return ternaryFuncExpr[TEnv, TArg1, TArg2, TArg3, TResult]{
 		name:     name,
@@ -603,6 +661,72 @@ func (e ternaryFuncExpr[TEnv, TArg1, TArg2, TArg3, TResult]) Evaluate(env TEnv) 
 		return nul, trace.Wrap(err, "evaluating third argument to function (%s)", e.name)
 	}
 	res, err := e.impl(arg1, arg2, arg3)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating function (%s)", e.name)
+	}
+	return res, nil
+}
+
+type ternaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult any] struct {
+	impl func(TEnv, TArg1, TArg2, TArg3) (TResult, error)
+}
+
+// TernaryFunctionWithEnv returns a definition for a function that can be called
+// with three arguments. The arguments may be literals or subexpressions. The
+// [impl] will be called with the evaluation env as the first argument, followed
+// by the actual arguments passed in the expression.
+func TernaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult any](impl func(TEnv, TArg1, TArg2, TArg3) (TResult, error)) Function {
+	return ternaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult]{impl}
+}
+
+func (f ternaryFunctionWithEnv[TEnv, TArg1, TArg2, TArg3, TResult]) buildExpression(name string, args ...any) (any, error) {
+	if len(args) != 3 {
+		return nil, trace.BadParameter("function (%s) accepts 3 arguments, given %d", name, len(args))
+	}
+	arg1Expr, err := coerce[TEnv, TArg1](args[0])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing first argument to function (%s)", name)
+	}
+	arg2Expr, err := coerce[TEnv, TArg2](args[1])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing second argument to function (%s)", name)
+	}
+	arg3Expr, err := coerce[TEnv, TArg3](args[2])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing third argument to function (%s)", name)
+	}
+	return ternaryFuncWithEnvExpr[TEnv, TArg1, TArg2, TArg3, TResult]{
+		name:     name,
+		impl:     f.impl,
+		arg1Expr: arg1Expr,
+		arg2Expr: arg2Expr,
+		arg3Expr: arg3Expr,
+	}, nil
+}
+
+type ternaryFuncWithEnvExpr[TEnv, TArg1, TArg2, TArg3, TResult any] struct {
+	name     string
+	impl     func(TEnv, TArg1, TArg2, TArg3) (TResult, error)
+	arg1Expr Expression[TEnv, TArg1]
+	arg2Expr Expression[TEnv, TArg2]
+	arg3Expr Expression[TEnv, TArg3]
+}
+
+func (e ternaryFuncWithEnvExpr[TEnv, TArg1, TArg2, TArg3, TResult]) Evaluate(env TEnv) (TResult, error) {
+	var nul TResult
+	arg1, err := e.arg1Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating first argument to function (%s)", e.name)
+	}
+	arg2, err := e.arg2Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating second argument to function (%s)", e.name)
+	}
+	arg3, err := e.arg3Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating third argument to function (%s)", e.name)
+	}
+	res, err := e.impl(env, arg1, arg2, arg3)
 	if err != nil {
 		return nul, trace.Wrap(err, "evaluating function (%s)", e.name)
 	}
@@ -722,7 +846,7 @@ func BinaryVariadicFunction[TEnv, TArg1, TVarArgs, TResult any](impl func(TArg1,
 
 func (f binaryVariadicFunction[TEnv, TArg1, TVarArgs, TResult]) buildExpression(name string, args ...any) (any, error) {
 	if len(args) == 0 {
-		return nil, trace.BadParameter("function (%s) accepts 1 or more argument, given %d", name, len(args))
+		return nil, trace.BadParameter("function (%s) accepts 1 or more arguments, given %d", name, len(args))
 	}
 	arg1Expr, err := coerce[TEnv, TArg1](args[0])
 	if err != nil {
@@ -767,6 +891,71 @@ func (e binaryVariadicFuncExpr[TEnv, TArg1, TVarArgs, TResult]) Evaluate(env TEn
 		varArgs[i] = arg
 	}
 	res, err := e.impl(arg1, varArgs...)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating function (%s)", e.name)
+	}
+	return res, nil
+}
+
+type binaryVariadicFunctionWithEnv[TEnv, TArg1, TVarArgs, TResult any] struct {
+	impl func(TEnv, TArg1, ...TVarArgs) (TResult, error)
+}
+
+// BinaryVariadicFunctionWithEnv returns a definition for a function that can
+// be called with one or more arguments. The arguments may be literals or
+// subexpressions. The [impl] will be called with the evaluation env as the
+// first argument, followed by the actual arguments passed in the expression.
+func BinaryVariadicFunctionWithEnv[TEnv, TArg1, TVarArgs, TResult any](impl func(TEnv, TArg1, ...TVarArgs) (TResult, error)) Function {
+	return binaryVariadicFunctionWithEnv[TEnv, TArg1, TVarArgs, TResult]{impl}
+}
+
+func (f binaryVariadicFunctionWithEnv[TEnv, TArg1, TVarArgs, TResult]) buildExpression(name string, args ...any) (any, error) {
+	if len(args) == 0 {
+		return nil, trace.BadParameter("function (%s) accepts 1 or more arguments, given %d", name, len(args))
+	}
+	arg1Expr, err := coerce[TEnv, TArg1](args[0])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing first argument to function (%s)", name)
+	}
+	args = args[1:]
+	varArgExprs := make([]Expression[TEnv, TVarArgs], len(args))
+	for i, arg := range args {
+		argExpr, err := coerce[TEnv, TVarArgs](arg)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing argument %d to function (%s)", i+2, name)
+		}
+		varArgExprs[i] = argExpr
+	}
+	return binaryVariadicFuncWithEnvExpr[TEnv, TArg1, TVarArgs, TResult]{
+		name:        name,
+		impl:        f.impl,
+		arg1Expr:    arg1Expr,
+		varArgExprs: varArgExprs,
+	}, nil
+}
+
+type binaryVariadicFuncWithEnvExpr[TEnv, TArg1, TVarArgs, TResult any] struct {
+	name        string
+	impl        func(TEnv, TArg1, ...TVarArgs) (TResult, error)
+	arg1Expr    Expression[TEnv, TArg1]
+	varArgExprs []Expression[TEnv, TVarArgs]
+}
+
+func (e binaryVariadicFuncWithEnvExpr[TEnv, TArg1, TVarArgs, TResult]) Evaluate(env TEnv) (TResult, error) {
+	var nul TResult
+	arg1, err := e.arg1Expr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating first argument to function (%s)", e.name)
+	}
+	varArgs := make([]TVarArgs, len(e.varArgExprs))
+	for i, argExpr := range e.varArgExprs {
+		arg, err := argExpr.Evaluate(env)
+		if err != nil {
+			return nul, trace.Wrap(err, "evaluating argument %d to function (%s)", i+2, e.name)
+		}
+		varArgs[i] = arg
+	}
+	res, err := e.impl(env, arg1, varArgs...)
 	if err != nil {
 		return nul, trace.Wrap(err, "evaluating function (%s)", e.name)
 	}
@@ -1019,6 +1208,48 @@ func (l LiteralExpr[TEnv, T]) Evaluate(TEnv) (T, error) {
 	return l.Value, nil
 }
 
+// StringSlice is an interface to represent operations that one might want to do
+// on a string slice, but without necessarily having to evaluate the slice
+// eagerly.
+type StringSlice interface {
+	// Slice converts the StringSlice into a regular []string. The return value
+	// might be shared between callers, so it shouldn't be modified, but
+	// implementations might have to create a new slice at every call.
+	Slice() []string
+	// Contains returns true if the target string is in the slice. Calling
+	// Contains should be equivalent (but can be faster) to calling
+	// [slices.Contains] on the result of Slice().
+	Contains(target string) bool
+}
+
+// actualStringSlice is an adapter type to treat an actual []string as a
+// [StringSlice].
+type actualStringSlice []string
+
+// Slice implements [StringSlice].
+func (s actualStringSlice) Slice() []string {
+	return s
+}
+
+// Contains implements [StringSlice].
+func (s actualStringSlice) Contains(target string) bool {
+	return slices.Contains(s, target)
+}
+
+// stringAsStringSlice is an adapter to regard a single string as a singleton
+// [StringSlice].
+type stringAsStringSlice string
+
+// Slice implements [StringSlice].
+func (s stringAsStringSlice) Slice() []string {
+	return []string{string(s)}
+}
+
+// Contains implements [StringSlice].
+func (s stringAsStringSlice) Contains(target string) bool {
+	return string(s) == target
+}
+
 // coerce is called at parse time to attempt to convert arg to an
 // Expression[TEnv, TArg]. In most cases (for valid expressions) we can convert
 // all arguments to known types at parse time so that reflection is not
@@ -1030,38 +1261,101 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 		return typedArgExpr, nil
 	}
 
-	// any(*new(TArg)) is a trick to create an interface wrapping an instance of
-	// the generic type TArg so that we can do a type assertion on TArg.
-	if _, ok := any(*new(TArg)).([]string); ok {
-		// If we are expecting a []string and given a string, wrap it in a slice.
-		// This happens at parse time without reflection during evaluation.
-		// It's probably possible to do this for any slice type with heavy use
-		// of reflect, but for now []string is sufficient.
-		//
-		// This enables functions like strings.upper(str) to accept lists or
-		// single strings, which is common in existing predicate expressions.
-		var sliceExpr Expression[TEnv, []string]
-		switch typedArg := arg.(type) {
-		case string:
-			sliceExpr = LiteralExpr[TEnv, []string]{[]string{typedArg}}
-		case []string:
+	{
+		var expr Expression[TEnv, TArg]
+		// this is a runtime check to know if TArg is []string; if it is, we can
+		// write an Expression[TEnv, []string] through typedExpr and then expr
+		// will be the Expression[TEnv, TArg] to return, without having to do a
+		// second type assertion
+		typedExpr, ok := any(&expr).(*Expression[TEnv, []string])
+		if ok {
+			switch arg := arg.(type) {
+			// If we are expecting a []string and given a string or an
+			// expression returning a string, we wrap it in a slice. This
+			// happens at parse time without reflection during evaluation. It's
+			// probably possible to do this for any slice type with heavy use of
+			// reflect, but for now []string is sufficient.
+			//
+			// This enables functions like strings.upper(str) to accept lists or
+			// single strings, which is common in existing predicate
+			// expressions.
+			case string:
+				*typedExpr = LiteralExpr[TEnv, []string]{[]string{arg}}
+			case Expression[TEnv, string]:
+				*typedExpr = dynamicVariable[TEnv, []string]{
+					func(env TEnv) ([]string, error) {
+						str, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return []string{str}, nil
+					},
+				}
 			// This case will be necessary if we caught a slice literal.
-			sliceExpr = LiteralExpr[TEnv, []string]{typedArg}
-		case Expression[TEnv, string]:
-			sliceExpr = dynamicVariable[TEnv, []string]{
-				func(env TEnv) ([]string, error) {
-					str, err := typedArg.Evaluate(env)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					return []string{str}, nil
-				},
+			case []string:
+				*typedExpr = LiteralExpr[TEnv, []string]{arg}
+			// This case is if we have an expression returning a [StringSlice]
+			// but we're expecting a []string. There's no way to get a
+			// StringSlice literal, so we don't have to deal with that.
+			case Expression[TEnv, StringSlice]:
+				*typedExpr = dynamicVariable[TEnv, []string]{
+					accessor: func(env TEnv) ([]string, error) {
+						lss, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return lss.Slice(), nil
+					},
+				}
+			default:
+				return nil, unexpectedTypeError[TArg](arg)
 			}
-		default:
-			return nil, unexpectedTypeError[TArg](arg)
+
+			return expr, nil
 		}
-		// We know TArg is []string so this assertion is safe.
-		return sliceExpr.(Expression[TEnv, TArg]), nil
+	}
+
+	{
+		var expr Expression[TEnv, TArg]
+		// same type check as above, if this passes we know that TArg is StringSlice
+		typedExpr, ok := any(&expr).(*Expression[TEnv, StringSlice])
+		if ok {
+			switch arg := arg.(type) {
+			// Like what we do above when expecting a []string, we wrap string
+			// literals and string expressions into singleton [StringSlice]
+			// objects with the appropriate adapter.
+			case string:
+				*typedExpr = LiteralExpr[TEnv, StringSlice]{stringAsStringSlice(arg)}
+			case Expression[TEnv, string]:
+				*typedExpr = dynamicVariable[TEnv, StringSlice]{
+					accessor: func(env TEnv) (StringSlice, error) {
+						str, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return stringAsStringSlice(str), nil
+					},
+				}
+			// These cases convert from []string literals or expressions into
+			// StringSlice.
+			case []string:
+				*typedExpr = LiteralExpr[TEnv, StringSlice]{actualStringSlice(arg)}
+			case Expression[TEnv, []string]:
+				*typedExpr = dynamicVariable[TEnv, StringSlice]{
+					accessor: func(env TEnv) (StringSlice, error) {
+						ss, err := arg.Evaluate(env)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						return actualStringSlice(ss), nil
+					},
+				}
+			default:
+				return nil, unexpectedTypeError[TArg](arg)
+			}
+
+			return expr, nil
+		}
 	}
 
 	if anyExpr, ok := arg.(Expression[TEnv, any]); ok {

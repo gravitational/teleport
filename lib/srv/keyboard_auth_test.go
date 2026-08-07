@@ -30,49 +30,22 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
-	t.Parallel()
-
-	h, id := setupKeyboardInteractiveAuthTest(t)
-
-	preconds := []*decisionpb.Precondition{
-		// No preconditions.
-	}
-
-	inPerms := &ssh.Permissions{
-		Extensions: map[string]string{
-			"foo": "bar",
-		},
-	}
-
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
-	require.NoError(t, err)
-	require.Empty(
-		t,
-		cmp.Diff(
-			inPerms,
-			outPerms,
-		),
-		"KeyboardInteractiveAuth() perms mismatch (-want +got)",
-	)
-}
-
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	t.Parallel()
 
-	h, id := setupKeyboardInteractiveAuthTest(t)
+	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	inPerms := &ssh.Permissions{
@@ -87,29 +60,13 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	var sshErr *ssh.PartialSuccessError
 	require.ErrorAs(t, err, &sshErr)
 	require.NotNil(t, sshErr.Next)
-	require.NotNil(t, sshErr.Next.PublicKeyCallback)
 	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
 
-	// Verify that the PublicKeyCallback returns the original permissions.
-	// TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
-	outPerms, err = sshErr.Next.PublicKeyCallback(nil, nil)
-	require.NoError(t, err)
-	require.Empty(
-		t,
-		cmp.Diff(
-			inPerms,
-			outPerms,
-		),
-		"PublicKeyCallback() perms mismatch (-want +got)",
-	)
-
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: "test-challenge-name",
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: "test-challenge-name",
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -134,49 +91,18 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	)
 }
 
-// TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
-func TestKeyboardInteractiveAuth_PreCondInBandMFA_LegacyPublicKeyCallback_RegularCertDenied(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.T) {
 	t.Parallel()
 
-	h, id := setupKeyboardInteractiveAuthTest(t)
-
-	id.MFAVerified = "" // Simulate no MFA verification, indicating a regular SSH certificate.
-
-	preconds := []*decisionpb.Precondition{
-		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-	}
-
-	inPerms := &ssh.Permissions{}
-
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
-	require.Nil(t, outPerms)
-
-	var sshErr *ssh.PartialSuccessError
-	require.ErrorAs(t, err, &sshErr)
-	require.NotNil(t, sshErr.Next)
-	require.NotNil(t, sshErr.Next.PublicKeyCallback)
-	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
-
-	// Verify that the PublicKeyCallback denies authentication since MFA is required but a regular SSH certificate is used.
-	outPerms, err = sshErr.Next.PublicKeyCallback(nil, nil)
-	require.Nil(t, outPerms)
-	require.ErrorIs(
-		t,
-		err,
-		trace.AccessDenied("regular SSH certificates are forbidden when MFA is required and using legacy public key authentication"),
-	)
-}
-
-// TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
-func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallback(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-	h, id := setupKeyboardInteractiveAuthTest(t)
+	mfaVerifier := &mockMFAServiceClient{}
+	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, mfaVerifier)
+	id.ClusterName = "leaf-cluster"
+	id.RouteToCluster = "root-cluster"
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	inPerms := &ssh.Permissions{}
@@ -186,49 +112,71 @@ func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallba
 
 	var sshErr *ssh.PartialSuccessError
 	require.ErrorAs(t, err, &sshErr)
-	require.NotNil(t, sshErr.Next)
-	require.NotNil(t, sshErr.Next.PublicKeyCallback)
 	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
 
-	outPerms, err = sshErr.Next.PublicKeyCallback(nil, nil)
-	require.Nil(t, outPerms)
-	require.ErrorIs(
-		t,
-		err,
-		trace.AccessDenied(`legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`),
-	)
-}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: "test-challenge-name",
+		}.Build(),
+	}.Build()
+	respJSON, err := protojson.Marshal(resp)
+	require.NoError(t, err)
 
-func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
-	t.Parallel()
-
-	h, id := setupKeyboardInteractiveAuthTest(t)
-
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
-		},
+	metadata := &mockConnMetadata{
+		sessionID: []byte("test-session-id"),
+		user:      "test-user",
 	}
 
-	inPerms := &ssh.Permissions{}
+	outPerms, err = sshErr.Next.KeyboardInteractiveCallback(
+		metadata,
+		mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)}),
+	)
+	require.NoError(t, err)
+	require.Same(t, inPerms, outPerms)
+	require.NotNil(t, mfaVerifier.lastReq)
+	require.Equal(t, "root-cluster", mfaVerifier.lastReq.GetSourceCluster())
+	require.Equal(t, id.Username, mfaVerifier.lastReq.GetUsername())
+	require.Equal(t, metadata.sessionID, mfaVerifier.lastReq.GetPayload().GetSshSessionId())
+}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+func TestKeyboardInteractiveAuth_PreCondInBandMFA_EmptySessionID(t *testing.T) {
+	t.Parallel()
+
+	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
+
+	preconds := []*decisionpb.Precondition{
+		decisionpb.Precondition_builder{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		}.Build(),
+	}
+
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, &ssh.Permissions{})
 	require.Nil(t, outPerms)
-	require.ErrorIs(t, err, trace.BadParameter(`unexpected precondition type "PRECONDITION_KIND_UNSPECIFIED" found (this is a bug)`))
+
+	var sshErr *ssh.PartialSuccessError
+	require.ErrorAs(t, err, &sshErr)
+	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
+
+	outPerms, err = sshErr.Next.KeyboardInteractiveCallback(
+		&mockConnMetadata{user: "test-user"},
+		mockKeyboardInteractiveChallengeRaw(nil),
+	)
+	require.Nil(t, outPerms)
+	require.ErrorIs(t, err, trace.BadParameter("params SessionID must be set and be non-empty"))
 }
 
 func TestKeyboardInteractiveAuth_EmptyClusterName(t *testing.T) {
 	t.Parallel()
 
-	h, id := setupKeyboardInteractiveAuthTest(t)
+	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
 
 	id.ClusterName = ""
 	id.RouteToCluster = ""
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, &ssh.Permissions{})
@@ -236,7 +184,7 @@ func TestKeyboardInteractiveAuth_EmptyClusterName(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("identity missing cluster name (this is a bug)"))
 }
 
-func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.Identity) {
+func setupKeyboardInteractiveAuthTestWithVerifier(t *testing.T, verifier mfav2.MFAServiceClient) (*srv.AuthHandlers, *sshca.Identity) {
 	t.Helper()
 
 	authSvr := &mockServer{}
@@ -245,7 +193,7 @@ func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.I
 		Server:                        authSvr,
 		Emitter:                       &eventstest.MockRecorderEmitter{},
 		AccessPoint:                   authSvr.GetAccessPoint(),
-		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+		ValidatedMFAChallengeVerifier: verifier,
 	}
 
 	h, err := srv.NewAuthHandlers(config)
@@ -273,13 +221,22 @@ func (m *mockServer) GetAccessPoint() srv.AccessPoint {
 }
 
 type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
+	mfav2.MFAServiceClient
+
+	lastReq   *mfav2.VerifyValidatedMFAChallengeRequest
+	verifyErr error
 }
 
-var _ mfav1.MFAServiceClient = (*mockMFAServiceClient)(nil)
+var _ mfav2.MFAServiceClient = (*mockMFAServiceClient)(nil)
 
-func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, _ *mfav1.VerifyValidatedMFAChallengeRequest, _ ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error) {
-	return &mfav1.VerifyValidatedMFAChallengeResponse{}, nil
+func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, req *mfav2.VerifyValidatedMFAChallengeRequest, _ ...grpc.CallOption) (*mfav2.VerifyValidatedMFAChallengeResponse, error) {
+	m.lastReq = req
+
+	if m.verifyErr != nil {
+		return nil, m.verifyErr
+	}
+
+	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
 }
 
 type mockConnMetadata struct {

@@ -157,6 +157,25 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.We
 	return s.upsertSession(ctx, session, appsPrefix, sessionsPrefix)
 }
 
+// UpdateAppSession updates an existing application web session if the revisions match.
+func (s *IdentityService) UpdateAppSession(ctx context.Context, session types.WebSession) error {
+	rev := session.GetRevision()
+	value, err := services.MarshalWebSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()),
+		Value:    value,
+		Expires:  session.GetExpiryTime(),
+		Revision: rev,
+	}
+	if _, err = s.ConditionalUpdate(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // UpsertSnowflakeSession creates a Snowflake web session.
 func (s *IdentityService) UpsertSnowflakeSession(ctx context.Context, session types.WebSession) error {
 	return s.upsertSession(ctx, session, snowflakePrefix, sessionsPrefix)
@@ -300,11 +319,10 @@ func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sessionMetadata := session.GetMetadata()
 	item := backend.Item{
 		Key:      webSessionKey(session.GetName()),
 		Value:    value,
-		Expires:  backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Expires:  session.GetEarliestExpiry(),
 		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)

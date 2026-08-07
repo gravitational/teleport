@@ -522,7 +522,13 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
 	prompt.PINMessage = "Enter your *new* security key PIN"
-	prompt.FirstTouchMessage = "Tap your *new* security key"
+	if touchid.IsAvailable() {
+		prompt.FirstTouchMessage = "" +
+			"(WEBAUTHN is used to register security keys. To register Touch ID, use --type=TOUCHID instead.)\n" +
+			"Tap your *new* security key"
+	} else {
+		prompt.FirstTouchMessage = "Tap your *new* security key"
+	}
 	prompt.SecondTouchMessage = "Tap your *new* security key again to complete registration"
 
 	resp, err := wancli.Register(ctx, origin, cc, prompt)

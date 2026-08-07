@@ -30,14 +30,16 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "ScopedToken.metadata.id"
+  - "ScopedToken.metadata.revision"
   # Usage tracking is server-side only
   - "ScopedToken.status"
+  # Uses a google.protobuf.Struct field that isn't supported (see
+  # https://github.com/gravitational/protoc-gen-terraform/issues/52)
+  - "ScopedToken.spec.generic_oidc.must_match_fields"
 
 # These fields will be marked as Computed: true
 computed_fields:
-  - "ScopedToken.metadata.expires"
   - "ScopedToken.metadata.namespace"
-  - "ScopedToken.metadata.revision"
   - "ScopedToken.kind"
 
 # These fields will be marked as Required: true
@@ -47,16 +49,18 @@ required_fields:
   - "ScopedToken.version"
   - "ScopedToken.scope"
   - "ScopedToken.spec"
-  - "ScopedToken.spec.assigned_scope"
   - "ScopedToken.spec.join_method"
   - "ScopedToken.spec.roles"
   - "ScopedToken.spec.usage_mode"
 
 sensitive_fields:
+  - "ScopedToken.spec.bound_keypair.onboarding.registration_secret"
 
 plan_modifiers:
   # Force to recreate resource if its name changes
   Metadata.name:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+  ScopedToken.scope:
     - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time
@@ -72,3 +76,5 @@ validators:
 
 custom_types:
   "ScopedToken.metadata.expires": Timestamp
+  "ScopedToken.spec.bound_keypair.onboarding.must_register_before": Timestamp
+  "ScopedToken.spec.bound_keypair.rotate_after": Timestamp

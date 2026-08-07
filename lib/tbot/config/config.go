@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
@@ -97,9 +98,13 @@ type BotConfig struct {
 
 	Oneshot bool `yaml:"oneshot"`
 
+	// Scoped indicates whether `tbot` should run in scoped mode. This must
+	// be set to true when `tbot` is authenticating as a scoped Bot.
+	Scoped bool `yaml:"scoped,omitempty"`
+
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
-	// - Refuse to run if not compiled with boringcrypto
+	// - Refuse to run if not compiled in FIPS140 mode
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - RSA2048 or ECDSA with NIST-P256 curve should be used for private key generation
@@ -211,7 +216,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	namer := newServiceNamer()
 	for i, service := range conf.Services {
-		if err := service.CheckAndSetDefaults(); err != nil {
+		if err := service.CheckAndSetDefaults(conf.Scoped); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
@@ -316,7 +321,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 // ServiceConfig is an interface over the various service configurations.
 type ServiceConfig interface {
 	Type() string
-	CheckAndSetDefaults() error
+	CheckAndSetDefaults(scoped bool) error
 
 	// GetCredentialLifetime returns the service's custom certificate TTL and
 	// RenewalInterval. It's used for validation purposes; services that do not
@@ -408,6 +413,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case identity.KeyAgentServiceType:
+			v := &identity.KeyAgentConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case application.TunnelServiceType:
 			v := &application.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
@@ -440,6 +451,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case application.ProxyServiceType:
 			v := &application.ProxyServiceConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case beams.VNetServiceType:
+			v := &beams.VNetServiceConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

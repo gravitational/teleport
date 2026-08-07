@@ -76,9 +76,8 @@ type OutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	// Formats specifies if any special behavior should be invoked when
 	// producing artifacts. An empty value is supported by most database,
@@ -93,6 +92,11 @@ type OutputConfig struct {
 	Database string `yaml:"database,omitempty"`
 	// Username is the database username to request access as.
 	Username string `yaml:"username,omitempty"`
+
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -117,7 +121,13 @@ func (o *OutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
-func (o *OutputConfig) CheckAndSetDefaults() error {
+func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

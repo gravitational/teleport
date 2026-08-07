@@ -70,3 +70,15 @@ func TestAccessListMemberClone(t *testing.T) {
 	require.Empty(t, cmp.Diff(item, cpy))
 	require.NotSame(t, item, cpy)
 }
+
+func TestAccessListMemberEqualIgnoresStatus(t *testing.T) {
+	status := AccessListMemberStatus{
+		Display:        &types.UserDisplay{Primary: "Member Name", Secondary: "member@example.com"},
+		AddedByDisplay: &types.UserDisplay{Primary: "Adder Name", Secondary: "adder@example.com"},
+	}
+	item := &AccessListMember{}
+	other := item.Clone()
+	other.Status = &status
+
+	require.True(t, item.IsEqual(other))
+}

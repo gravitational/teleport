@@ -51,13 +51,17 @@ var (
 	// nsCocoaErrorDomain is a generic error domain used in a lot of Apple's Cocoa frameworks.
 	nsCocoaErrorDomain = "NSCocoaErrorDomain"
 
-	// https://developer.apple.com/documentation/foundation/1448136-nserror_codes/nsxpcconnectioninterrupted?changes=latest_major&language=objc
+	// https://developer.apple.com/documentation/foundation/nsxpcconnectioninterrupted-swift.var
 	errorCodeNSXPCConnectionInterrupted = int(C.NSXPCConnectionInterrupted)
 	errXPCConnectionInterrupted         = errors.New("XPC connection interrupted")
 
-	// https://developer.apple.com/documentation/foundation/1448136-nserror_codes/nsxpcconnectioncodesigningrequirementfailure?language=objc
+	// https://developer.apple.com/documentation/foundation/nsxpcconnectioncodesigningrequirementfailure-swift.var
 	errorCodeNSXPCConnectionCodeSigningRequirementFailure = int(C.NSXPCConnectionCodeSigningRequirementFailure)
 	errXPCConnectionCodeSigningRequirementFailure         = errors.New("code signing requirement failed")
+
+	// https://developer.apple.com/documentation/foundation/nsxpcconnectioninvalid-swift.var
+	errorCodeNSXPCConnectionInvalid = int(C.NSXPCConnectionInvalid)
+	errXPCConnectionInvalid         = errors.New("XPC connection invalid")
 )
 
 func DaemonLabel() (string, error) {

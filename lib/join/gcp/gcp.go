@@ -74,16 +74,16 @@ type IDTokenClaims struct {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGCP {
-	attrs := &workloadidentityv1pb.JoinAttrsGCP{
+	attrs := workloadidentityv1pb.JoinAttrsGCP_builder{
 		ServiceAccount: c.Email,
-	}
+	}.Build()
 	if c.Google.ComputeEngine.InstanceName != "" {
-		attrs.Gce = &workloadidentityv1pb.JoinAttrsGCPGCE{
+		attrs.SetGce(workloadidentityv1pb.JoinAttrsGCPGCE_builder{
 			Project: c.Google.ComputeEngine.ProjectID,
 			Zone:    c.Google.ComputeEngine.Zone,
 			Id:      c.Google.ComputeEngine.InstanceID,
 			Name:    c.Google.ComputeEngine.InstanceName,
-		}
+		}.Build())
 	}
 
 	return attrs

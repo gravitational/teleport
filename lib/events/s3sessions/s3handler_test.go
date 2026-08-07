@@ -1,5 +1,3 @@
-//go:build dynamodb
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -21,25 +19,34 @@
 package s3sessions
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
+	"testing/iotest"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	bucket := os.Getenv("TELEPORT_TEST_AUDIT_SESSIONS_S3_BUCKET")
+	const s3BucketEnvVar = "TELEPORT_TEST_AUDIT_SESSIONS_S3_BUCKET"
+	bucket := os.Getenv(s3BucketEnvVar)
 	if bucket == "" {
-		bucket = "teleport-unit-tests"
+		t.Skipf("Skipping s3sessions tests as %q is not set.", s3BucketEnvVar)
 	}
 
 	handler, err := NewHandler(context.Background(), Config{
@@ -53,7 +60,10 @@ func TestStreams(t *testing.T) {
 
 	// Stream with handler and many parts
 	t.Run("StreamSinglePart", func(t *testing.T) {
-		test.StreamSinglePart(t, handler)
+		test.StreamWithPermutedParameters(t, handler, test.StreamParams{
+			PrintEvents:    1024,
+			MinUploadBytes: 5 * 1024 * 1024, // S3 minimum part size is 5MB
+		})
 	})
 	t.Run("UploadDownload", func(t *testing.T) {
 		test.UploadDownload(t, handler)
@@ -115,6 +125,129 @@ func (m *mockS3Client) PutBucketEncryption(ctx context.Context, params *s3.PutBu
 	args := m.Called(ctx, params, optFns)
 	return args.Get(0).(*s3.PutBucketEncryptionOutput), args.Error(1)
 }
+
+// TestReplayObjectNameRejectsPathTraversal asserts that UploadReplayObject
+// and StreamReplayObjectRange reject any object name outside the
+// well-known manifest/index/blob naming scheme used by ReplaySink --
+// crucially, names containing path traversal segments, which would
+// otherwise resolve straight through path.Join in replayPath to read or
+// write objects outside the beam's own replay artifact. The check must
+// happen before any S3 call, so a zero-value Handler (no client) is enough
+// to exercise it.
+func TestReplayObjectNameRejectsPathTraversal(t *testing.T) {
+	h := &Handler{}
+	ctx := context.Background()
+	sid := session.ID("beam-1")
+
+	badNames := []string{
+		"../x",
+		"blob.0/../manifest",
+		"/../../etc/passwd",
+		"..",
+		"blob.-1",
+		"blob",
+		"manifest.json",
+		"",
+	}
+	for _, name := range badNames {
+		t.Run(name, func(t *testing.T) {
+			_, err := h.UploadReplayObject(ctx, sid, name, strings.NewReader("x"))
+			require.True(t, trace.IsBadParameter(err), "UploadReplayObject(%q): got %v", name, err)
+
+			_, err = h.StreamReplayObjectRange(ctx, sid, name, 0, 0)
+			require.True(t, trace.IsBadParameter(err), "StreamReplayObjectRange(%q): got %v", name, err)
+		})
+	}
+}
+
+func TestStreamReplayObjectRangeRetries(t *testing.T) {
+	data := []byte("0123456789")
+
+	tests := []struct {
+		name       string
+		length     int64
+		firstBody  func() io.ReadCloser
+		want       []byte
+		wantRanges []string
+	}{
+		{
+			name:   "truncated range",
+			length: 6,
+			firstBody: func() io.ReadCloser {
+				return io.NopCloser(bytes.NewReader(data[2:5]))
+			},
+			want:       data[2:8],
+			wantRanges: []string{"bytes=2-7", "bytes=5-7"},
+		},
+		{
+			name:   "connection error",
+			length: 0,
+			firstBody: func() io.ReadCloser {
+				return io.NopCloser(io.MultiReader(
+					bytes.NewReader(data[2:5]),
+					iotest.ErrReader(errors.New("connection reset")),
+				))
+			},
+			want:       data[2:],
+			wantRanges: []string{"bytes=2-9", "bytes=5-9"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &replayRangeS3Client{
+				t:         t,
+				data:      data,
+				firstBody: tt.firstBody(),
+			}
+			h := &Handler{
+				Config: Config{Bucket: "recordings"},
+				client: client,
+			}
+
+			rc, err := h.StreamReplayObjectRange(t.Context(), session.ID("beam-1"), "blob.0", 2, tt.length)
+			require.NoError(t, err)
+			defer rc.Close()
+
+			got, err := io.ReadAll(rc)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantRanges, client.ranges)
+		})
+	}
+}
+
+type replayRangeS3Client struct {
+	s3Client
+	t         *testing.T
+	data      []byte
+	firstBody io.ReadCloser
+	ranges    []string
+}
+
+func (c *replayRangeS3Client) HeadObject(context.Context, *s3.HeadObjectInput, ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	return &s3.HeadObjectOutput{ContentLength: aws.Int64(int64(len(c.data)))}, nil
+}
+
+func (c *replayRangeS3Client) GetObject(_ context.Context, input *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	rangeStr := aws.ToString(input.Range)
+	c.ranges = append(c.ranges, rangeStr)
+	if c.firstBody != nil {
+		body := c.firstBody
+		c.firstBody = nil
+		return &s3.GetObjectOutput{Body: body}, nil
+	}
+
+	var start, end int64
+	_, err := fmt.Sscanf(rangeStr, "bytes=%d-%d", &start, &end)
+	require.NoError(c.t, err)
+	require.GreaterOrEqual(c.t, start, int64(0))
+	require.Less(c.t, end, int64(len(c.data)))
+	return &s3.GetObjectOutput{
+		Body: io.NopCloser(bytes.NewReader(c.data[start : end+1])),
+	}, nil
+}
+
 func TestEnsureBucket(t *testing.T) {
 	mockClient := &mockS3Client{}
 	var gotRegion s3types.BucketLocationConstraint

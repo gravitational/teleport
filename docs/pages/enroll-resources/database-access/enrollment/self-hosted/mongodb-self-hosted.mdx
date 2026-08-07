@@ -7,6 +7,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="MongoDB"!)
@@ -45,6 +46,8 @@ tags:
   also configure Teleport to trust this CA for standalone MongoDB instances. 
 
   (!docs/pages/includes/database-access/split-db-ca-details.mdx db="MongoDB Replica Set"!)
+
+(!docs/pages/includes/database-access/single-node-note.mdx!)
 
 ## Step 1/3. Install and configure Teleport
 
@@ -260,6 +263,8 @@ $ tsh db connect --db-user=alice --db-name dev example-mongo
   Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
   able to connect. The Database Service attempts to run `mongosh` first and, if `mongosh` is not in `PATH`, runs `mongo`.
 </Admonition>
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="example-mongo" dbArgs="--db-user=alice --db-name=dev"!)
 
 To log out of the database and remove credentials:
 

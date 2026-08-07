@@ -18,7 +18,6 @@
 
 import { http, HttpResponse } from 'msw';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
 
 import { AwsRole } from 'shared/services/apps';
 
@@ -69,11 +68,9 @@ const defaultUserGet = http.get(cfg.api.userWithUsernamePath, () =>
 );
 
 export const NoTraits = () => (
-  <MemoryRouter>
-    <Provider awsRoles={[]}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={[]}>
+    <SetupAccess />
+  </Provider>
 );
 NoTraits.parameters = {
   msw: {
@@ -82,11 +79,9 @@ NoTraits.parameters = {
 };
 
 export const WithTraits = () => (
-  <MemoryRouter>
-    <Provider awsRoles={awsRoles}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={awsRoles}>
+    <SetupAccess />
+  </Provider>
 );
 WithTraits.parameters = {
   msw: {
@@ -108,11 +103,9 @@ WithTraits.parameters = {
 };
 
 export const NoAccess = () => (
-  <MemoryRouter>
-    <Provider awsRoles={awsRoles} noAccess={true}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={awsRoles} noAccess={true}>
+    <SetupAccess />
+  </Provider>
 );
 NoAccess.parameters = {
   msw: {
@@ -121,11 +114,9 @@ NoAccess.parameters = {
 };
 
 export const SsoUser = () => (
-  <MemoryRouter>
-    <Provider awsRoles={awsRoles} isSso={true}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={awsRoles} isSso={true}>
+    <SetupAccess />
+  </Provider>
 );
 SsoUser.parameters = {
   msw: {

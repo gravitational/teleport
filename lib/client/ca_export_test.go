@@ -81,9 +81,9 @@ type mockIntegrationsClient struct {
 }
 
 func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Context, in *integrationpb.ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*integrationpb.ExportIntegrationCertAuthoritiesResponse, error) {
-	return &integrationpb.ExportIntegrationCertAuthoritiesResponse{
+	return integrationpb.ExportIntegrationCertAuthoritiesResponse_builder{
 		CertAuthorities: m.caKeySet,
-	}, nil
+	}.Build(), nil
 }
 
 func TestExportAllAuthorities(t *testing.T) {
@@ -333,6 +333,15 @@ func TestExportAllAuthorities(t *testing.T) {
 			name: "aws iam roles anywhere",
 			req: ExportAuthoritiesRequest{
 				AuthType: "awsra",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificatePEMFunc,
+			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "app-client",
+			req: ExportAuthoritiesRequest{
+				AuthType: "app-client",
 			},
 			errorCheck:      require.NoError,
 			assertNoSecrets: validateTLSCertificatePEMFunc,

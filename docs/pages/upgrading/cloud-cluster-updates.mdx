@@ -4,11 +4,16 @@ description: Provides a high-level overview of Teleport cluster updates on Cloud
 tags:
  - conceptual
  - platform-wide
+page_type: conceptual
 ---
 
 On Teleport Enterprise (Cloud) clusters, the Auth Service and Proxy Service are automatically
 kept up to date with patches and minor releases following the release schedule
 described in [Teleport Upcoming Releases](../upcoming-releases.mdx).
+
+This page describes the functionality of Teleport Cloud cluster updates.
+
+## When updates take place
 
 - Major version updates for the cluster typically occur one month after the
 release of a new major version. Minor version updates and patches occur more regularly.
@@ -46,4 +51,13 @@ update types, including patches and agent upgrades. Updates will not begin befor
 
 Customers can change their maintenance window by navigating to the `Help & Support`
 section in the Teleport Web UI and clicking the edit button for `Window Start Time`
+in the `Scheduled Upgrades` section.
+
+## Environment profile
+
+The environment profile lets you define an environment (staging or production) for your
+tenant. During updates, tenants marked as staging will update before those marked as production.
+
+Customers can change their environment profile by navigating to the `Help & Support`
+section in the Teleport Web UI and clicking the edit button for `Environment Profile`
 in the `Scheduled Upgrades` section.

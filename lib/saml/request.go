@@ -20,9 +20,9 @@ package saml
 
 import (
 	"bytes"
-	"html/template"
 	"net/http"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/httplib"

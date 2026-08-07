@@ -32,12 +32,12 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: OutputConfig{
-				Destination: dest,
-				Roles:       []string{"access"},
-				Format:      TLSDatabaseFormat,
-				Service:     "my-database-service",
-				Database:    "my-database",
-				Username:    "my-username",
+				Destination:         dest,
+				Format:              TLSDatabaseFormat,
+				Service:             "my-database-service",
+				Database:            "my-database",
+				Username:            "my-username",
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -62,7 +62,6 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *OutputConfig {
 				return &OutputConfig{
 					Destination: destination.NewMemory(),
-					Roles:       []string{"access"},
 					Database:    "db",
 					Service:     "service",
 					Username:    "username",
@@ -98,6 +97,28 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "unrecognized format (no-such-format)",
+		},
+		{
+			name: "roles is no longer supported",
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:     destination.NewMemory(),
+					Service:         "service",
+					DeprecatedRoles: []string{"access"},
+				}
+			},
+			wantErr: "roles: the roles field is no longer supported",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					Service:     "service",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

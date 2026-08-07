@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, exec, fork, spawn } from 'node:child_process';
+import { ChildProcess, execFile, fork, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -35,6 +35,8 @@ import {
 } from 'electron';
 import { enableMapSet, enablePatches } from 'immer';
 
+import { AutoUpdateServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb.client';
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
@@ -60,12 +62,7 @@ import {
   KeepLastChunks,
   LoggerColor,
 } from 'teleterm/services/logger';
-import {
-  AutoUpdateClient,
-  createAutoUpdateClient,
-  createTshdClient,
-  TshdClient,
-} from 'teleterm/services/tshd';
+import { AutoUpdateClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -493,10 +490,24 @@ export default class MainProcess {
       const target = '/usr/local/bin/tsh';
       const prompt =
         'Teleport Connect wants to create a symlink for tsh in /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf '${source}' '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
+
+      const script = `
+on run argv
+  set src to item 1 of argv
+  set tgt to item 2 of argv
+  set msg to item 3 of argv
+  do shell script "mkdir -p /usr/local/bin && ln -sf " & quoted form of src & " " & quoted form of tgt with prompt msg with administrator privileges
+end run
+  `;
 
       try {
-        await promisify(exec)(command);
+        await promisify(execFile)('osascript', [
+          '-e',
+          script,
+          source,
+          target,
+          prompt,
+        ]);
         this.logger.info(`Created the symlink to ${source} under ${target}`);
         return true;
       } catch (error) {
@@ -514,10 +525,15 @@ export default class MainProcess {
       const target = '/usr/local/bin/tsh';
       const prompt =
         'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"rm '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
-
+      const script = `
+on run argv
+  set tgt to item 1 of argv
+  set msg to item 2 of argv
+  do shell script "rm " & quoted form of tgt with prompt msg with administrator privileges
+end run
+  `;
       try {
-        await promisify(exec)(command);
+        await promisify(execFile)('osascript', ['-e', script, target, prompt]);
         this.logger.info(`Removed the symlink under ${target}`);
         return true;
       } catch (error) {
@@ -649,7 +665,10 @@ export default class MainProcess {
 
     ipcHandle(
       MainProcessIpc.SelectDirectoryForDesktopSession,
-      async (_, args: { desktopUri: string; login: string }) => {
+      async (
+        _,
+        args: { desktopUri: string; login: string; directoryId: number }
+      ) => {
         const value = await dialog.showOpenDialog({
           properties: ['openDirectory'],
         });
@@ -666,6 +685,7 @@ export default class MainProcess {
           desktopUri: args.desktopUri,
           login: args.login,
           path: dirPath,
+          directoryId: args.directoryId,
         });
 
         return path.basename(dirPath);
@@ -715,9 +735,11 @@ export default class MainProcess {
     );
 
     ipcHandle(MainProcessIpc.Logout, async (_, args) => {
-      await this.clusterLifecycleManager.logoutAndRemoveCluster(
-        args.clusterUri
-      );
+      await this.clusterLifecycleManager.logoutCluster(args.clusterUri);
+    });
+
+    ipcHandle(MainProcessIpc.ForgetCluster, async (_, args) => {
+      await this.clusterLifecycleManager.forgetCluster(args.clusterUri);
     });
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
@@ -933,10 +955,13 @@ async function setUpTshdClients({
     host: tshdAddress,
     channelCredentials: creds,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
   return {
-    terminalService: createTshdClient(transport),
-    autoUpdateService: createAutoUpdateClient(transport),
+    terminalService: new TerminalServiceClient(transport),
+    autoUpdateService: new AutoUpdateServiceClient(transport),
   };
 }
 

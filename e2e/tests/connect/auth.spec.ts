@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test, expect } from '../../helpers/connect';
+import { test, expect } from '@gravitational/e2e/helpers/connect';
+import { startUrl } from '@gravitational/e2e/helpers/env';
 
 test.use({ autoLogin: true });
 
@@ -28,5 +29,9 @@ test('logging out', async ({ app }) => {
     page.getByText('Are you sure you want to log out?')
   ).toBeVisible();
   await page.getByRole('button', { name: 'Log Out', exact: true }).click();
-  await expect(page.getByText('Connect a Cluster')).toBeVisible();
+  const proxyHostname = new URL(startUrl).hostname;
+  const previouslyUsedCluster = page
+    .getByRole('listitem')
+    .filter({ hasText: proxyHostname });
+  await expect(previouslyUsedCluster.getByText('Not logged in')).toBeVisible();
 });

@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -91,10 +92,20 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if !filter.Match(desktop) {
+			return []types.WindowsDesktop{}, nil
+		}
 		return []types.WindowsDesktop{desktop}, nil
 	}
 	if filter.HostID != "" {
-		return s.getWindowsDesktopsForHostID(ctx, filter.HostID)
+		desktops, err := s.getWindowsDesktopsForHostID(ctx, filter.HostID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return slices.DeleteFunc(
+			desktops,
+			func(d types.WindowsDesktop) bool { return !filter.Match(d) },
+		), nil
 	}
 
 	startKey := backend.ExactKey(windowsDesktopsPrefix)

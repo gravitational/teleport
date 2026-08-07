@@ -29,10 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v4"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -155,15 +154,15 @@ func convertPermissions(perms permissions.PermissionSet) (*Permissions, error) {
 	var errors []error
 	for permission, objects := range perms {
 		for _, obj := range objects {
-			if err := checkPgPermission(obj.GetSpec().ObjectKind, permission); err != nil {
+			if err := checkPgPermission(obj.GetSpec().GetObjectKind(), permission); err != nil {
 				errors = append(errors, err)
 				continue
 			}
-			if obj.GetSpec().ObjectKind == databaseobjectimportrule.ObjectKindTable {
+			if obj.GetSpec().GetObjectKind() == databaseobjectimportrule.ObjectKindTable {
 				out.Tables = append(out.Tables, TablePermission{
 					Privilege: permission,
-					Schema:    obj.GetSpec().Schema,
-					Table:     obj.GetSpec().Name,
+					Schema:    obj.GetSpec().GetSchema(),
+					Table:     obj.GetSpec().GetName(),
 				})
 			}
 		}
@@ -254,7 +253,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		var pgErr *pq.Error
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == common.SQLStatePermissionsChanged {
 				logger.ErrorContext(ctx, "User permissions have changed, rejecting connection",

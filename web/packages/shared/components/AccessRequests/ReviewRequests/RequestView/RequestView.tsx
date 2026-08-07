@@ -43,6 +43,7 @@ import { Status, StatusDot, StatusKind } from 'design/Status';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
 import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
   AccessRequest,
@@ -53,6 +54,7 @@ import {
   RequestKind,
   RequestState,
   Resource,
+  UserDisplay,
   WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
@@ -76,6 +78,7 @@ import { SuggestedAccessList } from './types';
 
 export interface RequestViewProps {
   user: string;
+  userDisplay?: UserDisplay;
   getFlags(accessRequest: AccessRequest): RequestFlags;
   fetchRequestAttempt: Attempt<AccessRequest>;
   fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>;
@@ -92,6 +95,7 @@ export interface RequestViewProps {
 
 export function RequestView({
   user,
+  userDisplay,
   fetchRequestAttempt,
   getFlags,
   confirmDelete,
@@ -176,6 +180,7 @@ export function RequestView({
       {confirmDelete && (
         <RequestDelete
           user={request.user}
+          userDisplay={request.userDisplay}
           roles={request.roles}
           requestId={request.id}
           requestState={request.state}
@@ -220,16 +225,12 @@ export function RequestView({
                 />
                 <H3>
                   <Flex flexWrap="wrap" alignItems="baseline">
-                    <Text
-                      mr={1}
-                      title={request.user}
-                      bold
-                      style={{
-                        maxWidth: '120px',
-                      }}
-                    >
-                      {request.user}
-                    </Text>
+                    <RequesterDisplayName
+                      username={request.user}
+                      primaryText={request.userDisplay?.primary}
+                      primaryTextProps={{ fontWeight: 'bold' }}
+                      layout="inline"
+                    />
                     {request.requestKind === RequestKind.LongTerm ? (
                       <>
                         <Text
@@ -294,6 +295,7 @@ export function RequestView({
               <Timeline />
               <RequestorTimestamp
                 user={request.user}
+                display={request.userDisplay}
                 reason={request.requestReason}
                 createdDuration={request.createdDuration}
                 resources={request.resources}
@@ -312,6 +314,7 @@ export function RequestView({
                 <RequestReview
                   submitReview={submitReview}
                   user={user}
+                  userDisplay={userDisplay}
                   submitReviewAttempt={submitReviewAttempt}
                   fetchSuggestedAccessListsAttempt={
                     fetchSuggestedAccessListsAttempt
@@ -357,21 +360,28 @@ export const Timeline = styled.div`
 
 export function RequestorTimestamp({
   user,
+  display,
   reason,
   createdDuration,
   resources,
 }: {
   user: string;
+  display?: UserDisplay;
   reason: string;
   createdDuration: string;
   resources: Resource[];
 }) {
   return (
     <>
-      <Timestamp author={user} createdDuration={createdDuration} />
+      <Timestamp
+        author={user}
+        display={display}
+        createdDuration={createdDuration}
+      />
       {(reason || resources?.length > 0) && (
         <Comment
           author={user}
+          display={display}
           comment={reason}
           createdDuration={createdDuration}
           resources={resources}
@@ -383,12 +393,14 @@ export function RequestorTimestamp({
 
 export function Timestamp({
   author,
+  display,
   state,
   createdDuration,
   promotedAccessListTitle,
   assumeStartTime,
 }: {
   author: string;
+  display?: UserDisplay;
   state?: RequestState;
   createdDuration: string;
   promotedAccessListTitle?: string;
@@ -431,7 +443,12 @@ export function Timestamp({
         {$icon}
       </Box>
       <Text typography="body2">
-        <b>{author}</b>{' '}
+        <UserDisplayName
+          username={author}
+          primaryText={display?.primary}
+          primaryTextProps={{ fontWeight: 'bold' }}
+          layout="inline"
+        />{' '}
         {!isPromoted ? (
           assumeStartTime ? (
             <span>
@@ -489,13 +506,32 @@ const AwsConsoleConstraintsList = <R extends object>({
   );
 };
 
+const SshConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'ssh', R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>SSH Logins</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.ssh.logins.map(login => (
+          <AWSConstraintChip key={login} label={login} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
 function Comment({
   author,
+  display,
   comment,
   createdDuration,
   resources,
 }: {
   author: string;
+  display?: UserDisplay;
   comment: string;
   createdDuration: string;
   resources?: Resource[];
@@ -507,10 +543,15 @@ function Comment({
     constraints: resource.constraints,
   }));
 
-  const renderConstraints = (r: NonNullable<typeof data>[number]) =>
-    hasResourceConstraints(r, 'aws_console') ? (
-      <AwsConsoleConstraintsList resource={r} />
-    ) : null;
+  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
+    if (hasResourceConstraints(r, 'aws_console')) {
+      return <AwsConsoleConstraintsList resource={r} />;
+    }
+    if (hasResourceConstraints(r, 'ssh')) {
+      return <SshConstraintsList resource={r} />;
+    }
+    return null;
+  };
 
   const renderAfter = (r: NonNullable<typeof data>[number]) =>
     r.constraints ? (
@@ -531,11 +572,18 @@ function Comment({
       style={{ position: 'relative' }}
     >
       <Flex bg="levels.sunken" py={1} px={3} alignItems="baseline">
-        <H3 mr={2}>{author}</H3>
+        <H3 mr={2}>
+          <UserDisplayName
+            username={author}
+            primaryText={display?.primary}
+            primaryTextProps={{ fontWeight: 'bold' }}
+            layout="inline"
+          />
+        </H3>
         <Text typography="body3">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="levels.elevated">
+        <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">
           {comment}
         </Box>
       )}
@@ -594,18 +642,15 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
           background: ${props => props.theme.colors.spotBackground[0]};
         `}
       >
-        <Text
-          typography="body3"
-          bold
-          mr={3}
-          style={{
-            whiteSpace: 'nowrap',
-            maxWidth: '200px',
+        <UserDisplayName
+          username={reviewer.name}
+          primaryText={reviewer.display?.primary}
+          secondaryText={reviewer.display?.secondary}
+          primaryTextProps={{
+            fontWeight: 'bold',
           }}
-          title={reviewer.name}
-        >
-          {reviewer.name}
-        </Text>
+          layout="stacked"
+        />
         <StatusDot kind={dotKind} />
       </Flex>
     );
@@ -684,6 +729,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
       <Fragment key={index}>
         <Timestamp
           author={author}
+          display={review.authorDisplay}
           state={state}
           createdDuration={createdDuration}
           promotedAccessListTitle={promotedAccessListTitle}
@@ -692,6 +738,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
         {reason && (
           <Comment
             author={author}
+            display={review.authorDisplay}
             comment={reason}
             createdDuration={createdDuration}
           />
@@ -751,6 +798,10 @@ const StyledTable = styled(Table)`
 const BrandName = styled.span`
   font-weight: bold;
   color: ${p => p.theme.colors.brand};
+`;
+
+const RequesterDisplayName = styled(UserDisplayName)`
+  margin-right: ${props => props.theme.space[1]}px;
 `;
 
 export const TimelineCommentAndReviewsContainer = styled.div`

@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -121,11 +122,17 @@ func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase
 	}
 }
 
+// MFAChecker answers whether MFA is required for a target resource.
+type MFAChecker interface {
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+}
+
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
 	RouteToCluster    string
 	NodeName          string
+	SSHLogin          string
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
@@ -133,6 +140,7 @@ type ReissueParams struct {
 	RouteToDatabase       proto.RouteToDatabase
 	RouteToApp            proto.RouteToApp
 	RouteToWindowsDesktop proto.RouteToWindowsDesktop
+	RouteToLinuxDesktop   proto.RouteToLinuxDesktop
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -144,11 +152,12 @@ type ReissueParams struct {
 	// mimics LocalKeystore and remove this.
 	ExistingCreds *KeyRing
 
-	// MFACheck is optional parameter passed if MFA check was already done.
-	// It can be nil.
+	// MFACheck is RouteToCluster's answer to the MFA requirement check for this
+	// request's target resource, when the caller already has it.
 	MFACheck *proto.IsMFARequiredResponse
-	// AuthClient is the client used for the MFACheck that can be reused
-	AuthClient authclient.ClientI
+	// MFAChecker runs the MFA requirement check if given and MFACheck is nil.
+	// It must be a client of RouteToCluster's auth server, since only that cluster can answer the check.
+	MFAChecker MFAChecker
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
 	// TTL defines the maximum time-to-live for user certificates.
@@ -184,6 +193,10 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// Windows desktop means a request for a TLS certificate for access to a specific
 		// desktop, as specified by RouteToWindowsDesktop.
 		return proto.UserCertsRequest_WindowsDesktop
+	case p.RouteToLinuxDesktop.LinuxDesktop != "":
+		// Linux desktop means a request for a TLS certificate for access to a specific
+		// desktop, as specified by RouteToLinuxDesktop.
+		return proto.UserCertsRequest_LinuxDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -205,6 +218,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequir
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
 	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
+	case p.RouteToLinuxDesktop.LinuxDesktop != "":
+		req.Target = &proto.IsMFARequiredRequest_LinuxDesktop{LinuxDesktop: &p.RouteToLinuxDesktop}
 	default:
 		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
@@ -328,7 +343,7 @@ func WithSSHLogDir(logDir string) NodeClientOption {
 
 // NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
 // The nodeName field is optional and is used only to present better error messages.
-func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
+func NewNodeClient(ctx context.Context, sshConfig apissh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -710,7 +725,7 @@ func newClientConn(
 	ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
-	config *ssh.ClientConfig,
+	config apissh.ClientConfig,
 ) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
 	type response struct {
 		conn   ssh.Conn
@@ -724,7 +739,7 @@ func newClientConn(
 		// Use a noop text map propagator so that the tracing context isn't included in
 		// the connection handshake. Since the provided conn will already include the tracing
 		// context we don't want to send it again.
-		conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
+		conn, chans, reqs, err := apissh.NewClientConn(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 

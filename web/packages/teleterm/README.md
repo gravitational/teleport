@@ -145,6 +145,18 @@ GOOS=windows CGO_ENABLED=1 go build -o build/tsh.exe  -ldflags '-w -s' -buildvcs
 It's important for the executable to end with `.exe`. If that command doesn't work, you can always
 inspect what we currently do in [our Windows build pipeline scripts](https://github.com/gravitational/teleport/blob/983017b23f65e49350615bfbbe52b7f1080ea7b9/build.assets/windows/build.ps1#L377).
 
+#### Certificate requirements for updater
+
+The privileged updater on Windows (for per-machine updates) verifies update signatures before running the installer:
+
+- `WinVerifyTrust` must succeed for the update executable.
+- The signer subject must match the Teleport publisher subject:
+  `CN=Gravitational, Inc., O=Gravitational, Inc., L=Oakland, ST=California, C=US`.
+
+The hardcoded values are kept in `authenticode_windows.go`.
+As a result, the service binary itself does not need to be signed (e.g., in OSS builds), but all updates must be
+properly signed.
+
 #### Native dependencies on Windows
 
 On Windows, you need to pay special attention to [the dev tools needed by node-pty](https://github.com/microsoft/node-pty?tab=readme-ov-file#windows),

@@ -51,8 +51,6 @@ import {
   VnetStoppedReason,
 } from './vnetContext';
 
-/* oxlint-disable jest/no-standalone-expect */
-
 describe('autostart', () => {
   it('starts VNet if turned on', async () => {
     const appContext = new MockAppContext();
@@ -152,6 +150,40 @@ describe('autostart', () => {
     await act(() => promise);
 
     expect(result.current.startAttempt.status).toEqual('');
+  });
+
+  it('does not start VNet if Windows system service version does not match client version', async () => {
+    const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true, hasEverStarted: true },
+    });
+    const { promise, resolve } = Promise.withResolvers();
+    appContext.vnet.checkInstallTimeRequirements = async () => {
+      const response = new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.VERSION_MISMATCH,
+        },
+      });
+      resolve(response);
+      return response;
+    };
+    const { result } = renderHook(() => useVnetContext(), {
+      wrapper: createWrapper(Wrapper, { appContext }),
+    });
+    await act(() => promise);
+
+    expect(result.current.startAttempt.status).toEqual('');
+    expect(result.current.installTimeRequirementsCheck).toEqual({
+      status: 'failed',
+      reason: {
+        kind: 'windows-service-version-mismatch',
+      },
+    });
   });
 
   it('switches off if start fails', async () => {
@@ -307,38 +339,41 @@ describe('diag notification', () => {
       mockAppContext: appContext => {
         jest
           .spyOn(appContext.vnet, 'runDiagnostics')
-          .mockResolvedValueOnce(
-            new MockedUnaryCall({ report: issuesFoundReport })
-          )
-          .mockResolvedValueOnce(
-            new MockedUnaryCall({ report: noIssuesFoundReport })
-          )
-          .mockResolvedValueOnce(
-            new MockedUnaryCall({ report: issuesFoundReport })
-          )
-          .mockResolvedValue(
-            new MockedUnaryCall({}, new Error('something went wrong'))
-          );
+          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
       },
       verify: async ({ notificationsService, vnet }, result) => {
-        // Open the diag report and verify that it removes the notification.
+        // Wait for the first run to create a notification.
         await waitFor(
-          () =>
-            expect(result.current.diagnosticsAttempt.status).toEqual('success'),
+          () => expect(notificationsService.getNotifications()).toHaveLength(1),
           { interval }
         );
+
+        // Open the diag report and verify that it removes the notification.
         await act(async () => {
           result.current.openReport(result.current.diagnosticsAttempt.data);
         });
-        expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
         expect(notificationsService.getNotifications()).toHaveLength(0);
 
         jest.clearAllMocks();
 
-        // Wait for the third report to be processed and verify that it does not result in another
-        // notification being created.
+        // Wait for at least one no-issues run…
+        jest
+          .spyOn(vnet, 'runDiagnostics')
+          .mockReturnValue(
+            new MockedUnaryCall({ report: noIssuesFoundReport })
+          );
         await waitFor(
-          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(3),
+          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(1),
+          { interval }
+        );
+
+        // …then flip back to returning issues and wait for one more run. Verify that the cycle
+        // did not create another notification.
+        jest
+          .spyOn(vnet, 'runDiagnostics')
+          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
+        await waitFor(
+          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(2),
           { interval }
         );
         expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(0);
@@ -382,10 +417,9 @@ describe('diag notification', () => {
       mockAppContext: appContext => {
         jest
           .spyOn(appContext.vnet, 'runDiagnostics')
-          .mockResolvedValueOnce(
+          .mockReturnValue(
             new MockedUnaryCall({ report: noIssuesFoundReport })
-          )
-          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
+          );
       },
       verify: async (
         { vnet, notificationsService },
@@ -397,15 +431,18 @@ describe('diag notification', () => {
             expect(result.current.diagnosticsAttempt.status).toEqual('success'),
           { interval }
         );
-        expect(notificationsService.notifyWarning).not.toHaveBeenCalled();
+        expect(notificationsService.getNotifications()).toHaveLength(0);
 
-        // Close the panel and wait for the next run, verify that the notification was sent.
+        // Close the panel and start returning report with issues, then wait for the next run to
+        // produce a notification.
         await act(async () => controlConnectionsRef.current.close());
+        jest
+          .spyOn(vnet, 'runDiagnostics')
+          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
         await waitFor(
-          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(2),
+          () => expect(notificationsService.getNotifications()).toHaveLength(1),
           { interval }
         );
-        expect(notificationsService.getNotifications().length).toEqual(1);
       },
     },
     {

@@ -285,6 +285,7 @@ export function Users(props: State) {
           </ExternalLink>{' '}
           and{' '}
           <ExternalLink
+            target="_blank"
             href="https://goteleport.com/docs/reference/user-types/"
             className="external-link"
           >

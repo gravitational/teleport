@@ -235,11 +235,11 @@ func extractSSHKey(ctx context.Context, path, deviceID string, fileData []byte) 
 
 	key, err := accessgraph.NewPrivateKeyWithName(
 		privateKeyNameGen(path, deviceID, fingerprint),
-		&accessgraphsecretsv1pb.PrivateKeySpec{
+		accessgraphsecretsv1pb.PrivateKeySpec_builder{
 			PublicKeyFingerprint: fingerprint,
 			DeviceId:             deviceID,
 			PublicKeyMode:        mode,
-		},
+		}.Build(),
 	)
 	return key, trace.Wrap(err)
 }

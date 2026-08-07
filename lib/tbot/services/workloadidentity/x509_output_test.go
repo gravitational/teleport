@@ -19,6 +19,7 @@ package workloadidentity
 import (
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"os"
 	"path"
@@ -26,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
@@ -35,10 +37,14 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -77,25 +83,25 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	workloadIdentity := &workloadidentityv1pb.WorkloadIdentity{
+	workloadIdentity := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "foo-bar-bizz",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+		}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 				Id: "/valid/{{ user.bot_name }}",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
-		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
 			WorkloadIdentity: workloadIdentity,
-		})
+		}.Build())
 	require.NoError(t, err)
 
 	checkCRL := func(t *testing.T, tmpDir string, bundle *x509bundle.Bundle) {
@@ -228,5 +234,75 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		require.NoError(t, err)
 
 		checkCRL(t, tmpDir, bundle)
+	})
+}
+
+func TestX509OutputService_render_TrustDomains(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, nil, time.Hour)
+	require.NoError(t, err)
+	cert, err := tlsca.ParseCertificatePEM(certPEM)
+	require.NoError(t, err)
+	parsedKey, err := keys.ParsePrivateKey(keyPEM)
+	require.NoError(t, err)
+	signer := parsedKey.Signer
+
+	localBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString("example.com"))
+	localBundle.AddX509Authority(cert)
+
+	appClientBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(
+		apiworkloadidentity.NewInternalAppTrustDomain("example.com"),
+	))
+	appClientBundle.AddX509Authority(cert)
+
+	x509Cred := workloadidentityv1pb.Credential_builder{
+		X509Svid: workloadidentityv1pb.X509SVIDCredential_builder{Cert: cert.Raw}.Build(),
+	}.Build()
+
+	newService := func(dest destination.Destination) *X509OutputService {
+		return &X509OutputService{
+			cfg: &X509OutputConfig{
+				Destination:         dest,
+				TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			},
+			log: logtest.NewLogger(),
+		}
+	}
+
+	t.Run("app_client included when available", func(t *testing.T) {
+		dest := destination.NewMemory()
+		svc := newService(dest)
+		bundleSet := &workloadidentity.BundleSet{
+			Local:     localBundle,
+			AppClient: appClientBundle,
+		}
+
+		require.NoError(t, svc.render(ctx, bundleSet, x509Cred, signer, &workloadidentity.CRLSet{}))
+
+		gotBundle, err := dest.Read(ctx, internal.SVIDTrustBundlePEMPath)
+		require.NoError(t, err)
+
+		// Trust bundle file is the local bundle bytes followed by the
+		// requested trust-domain bundle bytes (raw concatenation, see
+		// X509OutputService.render).
+		wantLocal, err := localBundle.X509Bundle().Marshal()
+		require.NoError(t, err)
+		wantAppClient, err := appClientBundle.X509Bundle().Marshal()
+		require.NoError(t, err)
+		require.Equal(t, append(wantLocal, wantAppClient...), gotBundle)
+	})
+
+	t.Run("app_client unavailable doesn't return error", func(t *testing.T) {
+		dest := destination.NewMemory()
+		svc := newService(dest)
+		bundleSet := &workloadidentity.BundleSet{
+			Local:     localBundle,
+			AppClient: nil,
+		}
+
+		err := svc.render(ctx, bundleSet, x509Cred, signer, &workloadidentity.CRLSet{})
+		require.NoError(t, err)
 	})
 }

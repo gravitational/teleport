@@ -123,7 +123,7 @@ export function FormIdentifierFirst({
   };
 
   return (
-    <Card my="5" mx="auto" width={650} p={4}>
+    <Card my="5" mx="auto" maxWidth={650} minWidth={300} p={4}>
       <Flex flexDirection="column" alignItems="center">
         <Text typography="h1" textAlign="center">
           {rememberedUsername ? title : ssoTitle}

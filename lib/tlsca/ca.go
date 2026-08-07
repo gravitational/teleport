@@ -121,8 +121,9 @@ type Identity struct {
 	// Username is the name of the user (for end-users/bots) or the Host ID (for
 	// Teleport processes).
 	Username string
-	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
-	// set, the Groups field must not be set.
+	// ScopePin is an optional pin that ties the certificate to a specific scope. For user identities it
+	// encodes scoped role assignments (PIN_KIND_USER); for agent identities it encodes system roles
+	// (PIN_KIND_AGENT). When set, the Groups field must not be set.
 	ScopePin *scopesv1.Pin
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
@@ -201,8 +202,16 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and non-bot identities.
+	BotScope string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken contains the name of the join token used when a Machine ID bot
-	// joins. It is empty for other identity types.
+	// or agent joins. Note that agents using the `token` join method will
+	// include a censored token name.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
@@ -232,9 +241,20 @@ type Identity struct {
 	// authenticated.
 	OriginClusterName string
 
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
+
+	// BeamID is the identifier of the Beam this certificate was created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
+
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
+
+	// WebSessionID is the session ID of the web session associated with this identity, if any.
+	WebSessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -277,6 +297,11 @@ type RouteToApp struct {
 	// This is a JSON string that conforms with
 	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
 	AWSCredentialProcessCredentials string
+
+	// Scope is the scope of the target application.
+	// TODO (williamo/scopes): consider creating a TargetScope parameter in the root
+	// Identity struct, and removing this.
+	Scope string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -410,6 +435,8 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:         devExts,
 		BotName:                  id.BotName,
 		BotInstanceID:            id.BotInstanceID,
+		BotScopeOfOrigin:         id.BotScope,
+		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
 	}
 }
@@ -618,7 +645,8 @@ var (
 	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
 
 	// JoinTokenOID is an extension OID that contains the name of the join token
-	// used when a bot joins.
+	// used when a bot or agent joins. It is censored for agents joining with
+	// the `token` join method.
 	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
 
 	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
@@ -635,6 +663,36 @@ var (
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+
+	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
+	// web session ID associated with this identity, if any.
+	WebSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
+
+	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
+	// are for a bot internal identity, rather than an output certificate.
+	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
+
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 30}
+
+	// AgentScopePinASN1ExtensionOID is an extension OID that contains the agent scope pin,
+	// encoding the agent's pinned scope and system roles.
+	AgentScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 31}
+
+	// BeamIDASN1ExtensionOID is an extension OID that contains the identifier of
+	// the Beam this certificate was created for.
+	BeamIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 32}
+
+	// BotScopeASN1ExtensionOID is an extension OID that encodes the scope of
+	// the Machine ID bot the certificate was issued to, if any.
+	BotScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
+
+	// TargetScopeASN1ExtensionOID is an extension OID used to encode the scope of the
+	// target resource. A single TargetScope OID hinges on the fact that
+	// certificates are only issued for one resource at a time.
+	// If this is changed, we will need additional per protocol target scopes.
+	TargetScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -666,6 +724,21 @@ var (
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
+	// Agent scope pins encode role and scope exclusively via the ScopePin field.
+	// Mixing in the legacy Groups, SystemRoles, or AgentScope fields would allow
+	// outdated infrastructure to misinterpret a scoped-agent cert as an unscoped one.
+	if id.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		if len(id.Groups) > 0 {
+			return pkix.Name{}, trace.BadParameter("cannot encode tls certificate for agent scope pin with Groups set; encode roles via ScopePin.SystemRoles")
+		}
+		if len(id.SystemRoles) > 0 {
+			return pkix.Name{}, trace.BadParameter("cannot encode tls certificate for agent scope pin with SystemRoles set; encode roles via ScopePin.SystemRoles")
+		}
+		if id.AgentScope != "" {
+			return pkix.Name{}, trace.BadParameter("cannot encode tls certificate for agent scope pin with AgentScope set; encode scope via ScopePin.Scope")
+		}
+	}
+
 	rawTraits, err := wrappers.MarshalTraits(&id.Traits)
 	if err != nil {
 		return pkix.Name{}, trace.Wrap(err)
@@ -754,6 +827,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AppNameASN1ExtensionOID,
 				Value: id.RouteToApp.Name,
+			})
+	}
+	if id.RouteToApp.Scope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  TargetScopeASN1ExtensionOID,
+				Value: id.RouteToApp.Scope,
 			})
 	}
 	if id.RouteToApp.AWSRoleARN != "" {
@@ -952,6 +1032,23 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotScope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotScopeASN1ExtensionOID,
+				Value: id.BotScope,
+			})
+	}
+
+	if id.BotInternal {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInternalASN1ExtensionOID,
+				Value: types.True,
+			},
+		)
+	}
+
 	if id.JoinToken != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -961,15 +1058,25 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	if id.ScopePin != nil {
-		pin, err := pinning.Encode(id.ScopePin)
+		// User pins go in the user OID; agent pins go in the agent OID. The OID separation
+		// ensures fail-closed behavior on older auth servers that only know about user pins.
+		var oid asn1.ObjectIdentifier
+		switch id.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_USER:
+			oid = ScopePinASN1ExtensionOID
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			oid = AgentScopePinASN1ExtensionOID
+		default:
+			return pkix.Name{}, trace.BadParameter("cannot encode scope pin with unknown or unspecified kind %v", id.ScopePin.GetKind())
+		}
+		encoded, err := pinning.Encode(id.ScopePin)
 		if err != nil {
 			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
 		}
-
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  ScopePinASN1ExtensionOID,
-				Value: pin,
+				Type:  oid,
+				Value: encoded,
 			})
 	}
 
@@ -978,6 +1085,22 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AgentScopeASN1ExtensionOID,
 				Value: id.AgentScope,
+			})
+	}
+
+	if id.DelegationSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DelegationSessionIDASN1ExtensionOID,
+				Value: id.DelegationSessionID,
+			})
+	}
+
+	if id.BeamID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BeamIDASN1ExtensionOID,
+				Value: id.BeamID,
 			})
 	}
 
@@ -1099,6 +1222,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.WebSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  WebSessionIDASN1ExtensionOID,
+				Value: id.WebSessionID,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1177,6 +1308,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.Name = val
+			}
+		case attr.Type.Equal(TargetScopeASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.Scope = val
 			}
 		case attr.Type.Equal(AppAWSRoleARNASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1313,6 +1449,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(BotScopeASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotScope = val
+			}
+		case attr.Type.Equal(BotInternalASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInternal = val == types.True
+			}
 		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1325,11 +1471,35 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err != nil {
 					return nil, trace.Errorf("failed to decode scope pin: %w", err)
 				}
+				// Certs issued before PinKind was introduced will have UNSPECIFIED here.
+				// Pins decoded from the user OID are always user pins.
+				if pin.GetKind() == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+					pin.SetKind(scopesv1.PinKind_PIN_KIND_USER)
+				}
+				id.ScopePin = pin
+			}
+		case attr.Type.Equal(AgentScopePinASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				pin, err := pinning.Decode(val)
+				if err != nil {
+					return nil, trace.Errorf("failed to decode agent scope pin: %w", err)
+				}
 				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
-			id.AgentScope = attr.Value.(string)
-
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AgentScope = val
+			}
+		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DelegationSessionID = val
+			}
+		case attr.Type.Equal(BeamIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.BeamID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1406,11 +1576,28 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.ImmutableLabelHash = val
 			}
+		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.WebSessionID = val
+			}
 		}
 	}
 
-	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
-		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present.
+		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity (e.g., database proxy CSR signing)
+		// persists the resourceIDs to the legacy extension, instead of adding a
+		// sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		id.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older Auths that don't write the new extension.
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		id.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {
@@ -1434,6 +1621,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	switch {
 	case id.BotName != "":
 		userKind = events.UserKind_USER_KIND_BOT
+	case id.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT:
+		userKind = events.UserKind_USER_KIND_SYSTEM
 	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil && len(id.Groups) > 0:
 		userKind = events.UserKind_USER_KIND_SYSTEM
 	default:
@@ -1443,6 +1632,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	if userTeleportCluster == "" {
 		userTeleportCluster = id.TeleportCluster
 	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1454,9 +1644,12 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		TrustedDevice:     device,
 		BotName:           id.BotName,
 		BotInstanceID:     id.BotInstanceID,
+		BotScopeOfOrigin:  id.BotScope,
 		UserRoles:         slices.Clone(id.Groups),
 		UserTraits:        id.Traits.Clone(),
 		UserClusterName:   userTeleportCluster,
+		ScopePin:          pinning.ToEventsPin(id.ScopePin),
+		BeamID:            id.BeamID,
 	}
 }
 
@@ -1479,6 +1672,24 @@ func (id *Identity) IsMFAVerified() bool {
 // IsBot returns whether this identity belongs to a bot.
 func (id *Identity) IsBot() bool {
 	return id.BotName != ""
+}
+
+// IsDelegationSession returns whether this identity was created for a Delegation Session.
+func (id *Identity) IsDelegationSession() bool {
+	return id.DelegationSessionID != ""
+}
+
+// GetAgentScope returns the effective agent scope for this identity. Returns empty string
+// for unscoped agents and non-agent certs.
+// TODO(fspmarshall/scopes): remove this helper once we've fully transitioned to pinned agents.
+func (id Identity) GetAgentScope() string {
+	if id.AgentScope != "" {
+		return id.AgentScope
+	}
+	if id.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		return id.ScopePin.GetScope()
+	}
+	return ""
 }
 
 // CertificateRequest is a X.509 signing certificate request

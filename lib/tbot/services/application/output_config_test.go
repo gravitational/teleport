@@ -32,9 +32,9 @@ func TestApplicationOutput_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: OutputConfig{
-				Destination: dest,
-				Roles:       []string{"access"},
-				AppName:     "my-app",
+				Destination:         dest,
+				AppName:             "my-app",
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -59,7 +59,6 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *OutputConfig {
 				return &OutputConfig{
 					Destination: destination.NewMemory(),
-					Roles:       []string{"access"},
 					AppName:     "app",
 				}
 			},
@@ -82,6 +81,28 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "app_name must not be empty",
+		},
+		{
+			name: "roles is no longer supported",
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:     destination.NewMemory(),
+					AppName:         "app",
+					DeprecatedRoles: []string{"access"},
+				}
+			},
+			wantErr: "roles: the roles field is no longer supported",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					AppName:     "app",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

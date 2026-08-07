@@ -17,13 +17,16 @@
  */
 
 import { EventEmitter } from 'node:events';
+import type { WatchEventType } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { isErrnoException } from 'shared/utils/error';
 import { wait } from 'shared/utils/wait';
 
+import Logger, { NullService } from 'teleterm/logger';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
@@ -32,6 +35,7 @@ import { CreateFsWatcher, FsWatcher, watchProfiles } from './profileWatcher';
 let tempDir: string;
 
 beforeAll(async () => {
+  Logger.init(new NullService());
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'profile-watcher-test'));
 });
 
@@ -62,9 +66,9 @@ async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
     try {
       paths = await fs.readdir(tshDir);
     } catch (err) {
-      if (err.code === 'ENOENT') {
+      if (isErrnoException(err, 'ENOENT')) {
         throw {
-          name: 'TshdRpcError',
+          name: 'RpcError',
           code: 'NOT_FOUND',
         };
       }
@@ -85,7 +89,7 @@ async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
           // The file with the cluster disappeared between fs.readdir above and fs.readFile.
           // This is possible in tests where we call `void tshClientMock.removeCluster` without
           // awaiting.
-          if (err.code === 'ENOENT') {
+          if (isErrnoException(err, 'ENOENT')) {
             return null;
           }
           throw err;
@@ -140,7 +144,10 @@ function mockClusterStore(initial: { clusters: Cluster[] }) {
 class VirtualWatcher extends EventEmitter implements FsWatcher {
   private closed = false;
   constructor(
-    private readonly onEvent: () => void,
+    private readonly onEvent: (
+      event: WatchEventType,
+      filename: string | null
+    ) => void,
     signal?: AbortSignal
   ) {
     super();
@@ -149,7 +156,7 @@ class VirtualWatcher extends EventEmitter implements FsWatcher {
 
   emitFileSystemEvent(): void {
     if (!this.closed) {
-      this.onEvent();
+      this.onEvent('change', 'profile');
     }
   }
 

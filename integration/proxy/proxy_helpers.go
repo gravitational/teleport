@@ -36,7 +36,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -674,15 +674,15 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	serviceClient, err := tc.NewKubernetesServiceClient(context.Background(), tc.SiteName)
 	require.NoError(t, err)
 
-	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
+	response, err := serviceClient.ListKubernetesResources(context.Background(), kubeproto.ListKubernetesResourcesRequest_builder{
 		ResourceType:        types.KindKubePod,
 		KubernetesCluster:   kubeClusterName,
 		KubernetesNamespace: metav1.NamespaceDefault,
 		TeleportCluster:     tc.SiteName,
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Len(t, response.Resources, 3)
-	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
+	require.Len(t, response.GetResources(), 3)
+	require.Equal(t, types.KindKubePod, response.GetResources()[0].Kind)
 }
 
 func mustConnectDatabaseGateway(ctx context.Context, t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
@@ -780,10 +780,10 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: teleportCluster,
 	}
 	client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            "https://" + teleportCluster,
+		Host:            "https://" + teleportCluster + alpncommon.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
 	})

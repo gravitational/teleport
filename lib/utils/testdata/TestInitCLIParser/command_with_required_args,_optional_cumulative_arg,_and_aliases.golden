@@ -1,0 +1,20 @@
+usage: widget ship [<flags>] <widget> <dest> [<note>...]
+
+Ship a widget to a destination.
+
+Flags:
+  -v, --[no-]verbose  Enable verbose output.
+  -c, --config="/etc/widget.yaml"  
+                      Path to config file. ($WIDGET_CONFIG)
+  -t, --tag=TAG ...   Tags to apply. Repeatable.
+      --[no-]express  Use express shipping.
+
+Args:
+  <widget>  Name of the widget to ship.
+  <dest>    Destination, e.g. city or warehouse ID.
+  [<note>]  Optional shipping notes, repeatable.
+
+Aliases:
+send
+deliver
+

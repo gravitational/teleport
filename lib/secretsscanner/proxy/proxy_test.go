@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -50,7 +49,7 @@ func TestProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	newProxyService(t, lis, authClient)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, err := secretscannerclient.NewSecretsScannerServiceClient(ctx, secretscannerclient.ClientConfig{
 		ProxyServer: lis.Addr().String(),
@@ -62,15 +61,11 @@ func TestProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send the device assertion init message
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_Init{
-					Init: &devicepb.AssertDeviceInit{},
-				},
-			},
-		},
-	})
+	err = stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
+		DeviceAssertion: devicepb.AssertDeviceRequest_builder{
+			Init: &devicepb.AssertDeviceInit{},
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Receive the device assertion challenge message
@@ -79,15 +74,11 @@ func TestProxy(t *testing.T) {
 	assert.NotNil(t, msg.GetDeviceAssertion().GetChallenge())
 
 	// Send the device assertion challenge response message
-	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceRequest{
-				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
-					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
-				},
-			},
-		},
-	})
+	err = stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
+		DeviceAssertion: devicepb.AssertDeviceRequest_builder{
+			ChallengeResponse: devicepb.AuthenticateDeviceChallengeResponse_builder{Signature: []byte("response")}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Receive the device assertion response message
@@ -102,7 +93,6 @@ func TestProxy(t *testing.T) {
 	// Receive the termination message
 	_, err = stream.Recv()
 	require.ErrorIs(t, err, io.EOF)
-
 }
 
 func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
@@ -110,7 +100,8 @@ func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
 	require.NoError(t, err)
 
 	server := grpc.NewServer()
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, &fakeSecretsScannerSvc{})
+	service := &fakeSecretsScannerSvc{}
+	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, service)
 	go func() {
 		err := server.Serve(lis)
 		assert.NoError(t, err)
@@ -148,15 +139,11 @@ func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsS
 		return trace.BadParameter("missing device init")
 	}
 
-	err = in.Send(&accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceResponse{
-				Payload: &devicepb.AssertDeviceResponse_Challenge{
-					Challenge: &devicepb.AuthenticateDeviceChallenge{Challenge: []byte("challenge")},
-				},
-			},
-		},
-	})
+	err = in.Send(accessgraphsecretsv1pb.ReportSecretsResponse_builder{
+		DeviceAssertion: devicepb.AssertDeviceResponse_builder{
+			Challenge: devicepb.AuthenticateDeviceChallenge_builder{Challenge: []byte("challenge")}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -169,15 +156,11 @@ func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsS
 		return trace.BadParameter("missing device challenge")
 	}
 
-	err = in.Send(&accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: &devicepb.AssertDeviceResponse{
-				Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{
-					DeviceAsserted: &devicepb.DeviceAsserted{},
-				},
-			},
-		},
-	})
+	err = in.Send(accessgraphsecretsv1pb.ReportSecretsResponse_builder{
+		DeviceAssertion: devicepb.AssertDeviceResponse_builder{
+			DeviceAsserted: &devicepb.DeviceAsserted{},
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

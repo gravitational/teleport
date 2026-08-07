@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -51,12 +52,15 @@ type HostOutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	// Principals is a list of principals to request for the host cert.
 	Principals []string `yaml:"principals"`
+
+	// CAType selects the CA type to export for TrustedUserCAKeys.
+	// Supported values: "user", "openssh". Defaults to "user".
+	CAType types.CertAuthType `yaml:"ca_type,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -81,7 +85,13 @@ func (o *HostOutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *HostOutputConfig) CheckAndSetDefaults() error {
+func (o *HostOutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", HostOutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -90,6 +100,14 @@ func (o *HostOutputConfig) CheckAndSetDefaults() error {
 	}
 	if len(o.Principals) == 0 {
 		return trace.BadParameter("at least one principal must be specified")
+	}
+
+	switch o.CAType {
+	case "":
+		o.CAType = types.UserCA
+	case types.UserCA, types.OpenSSHCA:
+	default:
+		return trace.BadParameter("ca_type (%q) is unsupported", o.CAType)
 	}
 
 	return nil

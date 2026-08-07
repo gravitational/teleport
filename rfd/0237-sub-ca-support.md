@@ -50,8 +50,8 @@ override, in case a Teleport downgrade is ever required.
 1. First, Alice issues CSRs for the desired CA
 
     ```shell
-    $ tctl auth create-override-csr --type=db_client
-    > (Writes "db_client-${public_key}.pem".)
+    $ tctl auth create-override-csr --type=db_client --out='csrs/'
+    > (Writes "csrs/db_client-${public_key}.pem".)
     ```
 
     Note: if HSMs are configured then `tctl auth create-override-csr` must be
@@ -142,7 +142,7 @@ disable may be forced via the `--force` flag.
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth delete-override --type=db_client --public-key='AB:CD:EF:...'`
+`tctl auth delete-override --type=db_client --public-key='abcdef...'`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
 delete may be forced with the `--force` flag.
@@ -158,19 +158,19 @@ delete may be forced with the `--force` flag.
     > There are active overrides for CA "db_client". You must either supply an
     > override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override-csr --type=db_client --public-key='abcdef...'
     > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth create-override --set-disabled=true --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --set-disabled=true --type=db_client --public-key='abcdef...'
 
     $ tctl auth rotate --manual --type=db_client --phase=update_clients
     > ERROR: Found CA overrides for authority "db_client". You must either
     > supply an override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override-csr --type=db_client --public-key='abcdef...'
     > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth create-override --set-disabled=true --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --set-disabled=true --type=db_client --public-key='abcdef...'
     ```
 
     Note: the interactive rotation wizard will print similar messages to above.
@@ -180,8 +180,10 @@ delete may be forced with the `--force` flag.
 1. Alice updates the CA override for "db_client":
 
     ```shell
-    $ tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
-    > (Writes "db_client-${public_key}.pem".)
+    $ tctl auth create-override-csr --type=db_client --public-key='abcdef...'
+    > -----BEGIN CERTIFICATE REQUEST-----
+    > (...)
+    > -----END CERTIFICATE REQUEST-----
 
     # Alice issues certificate from CSR.
 
@@ -244,9 +246,10 @@ rotation.
 tctl auth rotate --type=db_client --phase=init
 
 # 2. Create the CSR.
-tctl auth create-override-csr --type=db_client \
-  --subject='OU=Llama Unit,CN=Llama Teleport DB client CA'
-> (Writes CSR file for NEW key.)
+tctl auth create-override-csr \
+  --type=db_client \
+  --out='csrs/'
+> (Writes CSR files for OLD and NEW keys.)
 
 # 3. Sign the CSR for the NEW key using the external CA.
 
@@ -262,7 +265,7 @@ tctl auth create-override \
 # 5. Enable the override.
 tctl auth update-override
   --type=db_client \
-  --public-key='2B:CD:EF:...' \
+  --public-key='2bcdef...' \
   --set-disabled=false
 
 # 6. Advance rotation.
@@ -420,18 +423,12 @@ https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b6
 +  // "Cert" and "CRL" and replaced by the override.
 +  bool CertOverrideActive = 5;
 +
-+  // Certificate trust chain, in PEM form.
-+  //
-+  // Sorted from leaf to root.
++  // Certificate trust chain, in PEM form. Sorted from leaf to root.
 +  //
 +  // Absent for self-signed certificates, but may be present if a cert override
 +  // is active.
-+  repeated X509Certificate TrustChain = 6;
++  repeated bytes TrustChain = 6;
  }
-+
-+message X509Certificate {
-+  string pem = 1;
-+}
 ```
 
 Existing certificate generation RPCs are also modified to carry a certificate
@@ -453,12 +450,8 @@ authn - [public docs][mssql-pub] and [sources][mssql-sources].)
    bytes Cert = 1;
    repeated bytes CACerts = 2;
 +
-+  // Certificate trust chain, in PEM form.
-+  //
-+  // Sorted from leaf to root.
-+  //
-+  // If present should be presented along with Cert to form its trust chain.
-+  repeated types.X509Certificate TrustChain = 3;
++  // Certificate trust chain, in PEM form. Sorted from leaf to root.
++  repeated bytes TrustChain = 3;
  }
 ```
 
@@ -474,8 +467,8 @@ the cluster name](
 https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b63c761cb/lib/tlsca/parsegen.go#L41-L47).
 
 If customization of the O= field is desired then cluster name is recorded using
-OID "1.3.9999.4.1". If any Subject customization is at play then the system
-favors the alternate OID to the O= field.
+OID "1.3.9999.4.1". In other situations "O=" is preferred to carry the cluster
+name, as it's more friendly to downstream systems that reject unknown OIDs.
 
 Managed Subjects may have, at the system's discretion, the certificate serial
 number added to their Subject. Customized Subjects are not changed in this
@@ -688,14 +681,54 @@ message RemoveCertificateOverrideResponse {}
 // List is paginated.
 ```
 
+Windows and DB certificate responses are changed to carry CA override
+information (necessary for "start session" audit logs, see
+[Audit Events](#audit)).
+
+```diff
+ package proto; // api/proto/teleport/legacy/client/proto
+
+ message WindowsDesktopCertResponse {
+   // (...)
++
++  // CA override details. Optional.
++  // If present then a CA override was active during certificate issuance.
++  CAOverrideCertificateDetails ca_override = n;
+ }
+
+ message DatabaseCertResponse {
+   // (...)
+
+   // CACerts is a list of certificate authorities.
+   //
+   // CACerts are the root CAs that the client itself should trust
+   // (tls.Config.RootCAs).
+   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
++
++  // Certificate trust chain, in PEM form. Sorted from leaf to root.
++  //
++  // Cert and TrustChain are the certificates the client should present.
++  repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
++
++  // CA override details. Optional.
++  // If present then a CA override was active during certificate issuance.
++  CAOverrideCertificateDetails CAOverride = 4 [(gogoproto.jsontag) = "ca_override"];
+ }
++
++// CAOverrideCertificateDetails holds information about an active
++// CertAuthorityOverride that took effect during certificate issuance.
++message CAOverrideCertificateDetails {
++  string public_key_hash = 1;
++}
+```
+
 The storage key space for cert_authority_override resources is
 `/cert_authority_overrides/cluster/{clusterName}/{caType}`.
 
 ### Cache and event stream
 
 The new cert_authority_override resource is both cached and supported by event
-streams. Streaming events to cert_authority_override resources invalidate the
-cache for the corresponding cert_authority.
+streams.
 
 ## Security
 
@@ -720,6 +753,7 @@ user on startup. Whether this is an acceptable or desirable mitigation is TBD.
 See also the [client/agent compatibility validation
 section](#client-agent-compat-validation).
 
+<a id="audit"></a>
 ## Audit Events
 
 New audit events are added to track the cert_authority_override life cycle.
@@ -769,6 +803,25 @@ Codes:
 * `TCO03I` - CertAuthorityOverrideCertificatesDeleteCode
   * Special case of upsert: deleted certificate
 * `TCO04I` - CertAuthorityOverrideDeleteCode
+
+Windows and DB session started events are changed to carry CA override data.
+(These are the only events emitted in response to service certificate issuance.)
+
+```diff
+ package events; // api/proto/teleport/legacy/types/events
+
+ message WindowsDesktopSessionStart {
+   // (...)
++
++  CAOverrideCertificateDetails CAOverride = n [(gogoproto.jsontag) = "ca_override,omitempty"];
+ }
+
+ message DatabaseSessionStart {
+   // (...)
++
++  CAOverrideCertificateDetails CAOverride = n [(gogoproto.jsontag) = "ca_override,omitempty"];
+ }
+```
 
 ## Observability
 

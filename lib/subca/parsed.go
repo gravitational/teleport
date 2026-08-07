@@ -23,13 +23,19 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// SupportedCATypes returns a slice of supported CA types for CA overrides.
+func SupportedCATypes() []string {
+	return slices.Clone(allowedCAOverrideSubKinds)
+}
 
 var (
 	allowedCAOverrideSubKinds = []string{
@@ -67,6 +73,67 @@ type ParsedCertificateOverride struct {
 	Chain []*x509.Certificate
 }
 
+// ParseCAOverride parses a CA override without validation. Useful to parse
+// resources that are known to be valid.
+//
+// If resource is nil, returns nil.
+//
+// See [ValidateAndParseCAOverride].
+func ParseCAOverride(resource *subcav1.CertAuthorityOverride) (*ParsedCertAuthorityOverride, error) {
+	if resource == nil {
+		return nil, nil
+	}
+
+	parsed := &ParsedCertAuthorityOverride{
+		CAOverride:           resource,
+		CertificateOverrides: make([]*ParsedCertificateOverride, len(resource.GetSpec().GetCertificateOverrides())),
+	}
+
+	for i, co := range resource.GetSpec().GetCertificateOverrides() {
+		// Certificate and PublicKey.
+		cert, pkh, err := parseCertificateAndPublicKey(co)
+		if err != nil {
+			return nil, trace.Wrap(err, "spec.certificate_overrides[%d].certificate", i)
+		}
+
+		// Chain.
+		var chain []*x509.Certificate
+		if l := len(co.GetChain()); l > 0 {
+			chain = make([]*x509.Certificate, l)
+			for j, pem := range co.GetChain() {
+				cert, err := tlsutils.ParseCertificatePEM([]byte(pem))
+				if err != nil {
+					return nil, trace.Wrap(err, "spec.certificate_overrides[%d].chain[%d]", i, j)
+				}
+				chain[j] = cert
+			}
+		}
+
+		parsed.CertificateOverrides[i] = &ParsedCertificateOverride{
+			CertificateOverride: co,
+			PublicKey:           pkh,
+			Certificate:         cert,
+			Chain:               chain,
+		}
+	}
+
+	return parsed, nil
+}
+
+func parseCertificateAndPublicKey(co *subcav1.CertificateOverride) (_ *x509.Certificate, publicKeyHash string, _ error) {
+	if co.GetCertificate() != "" {
+		cert, err := tlsutils.ParseCertificatePEM([]byte(co.GetCertificate()))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return cert, HashCertificatePublicKey(cert), nil
+	}
+
+	// Normalize user-supplied public keys.
+	pkh := NormalizePublicKey(co.GetPublicKey())
+	return nil, pkh, nil
+}
+
 // ValidateAndParseCAOverride validates a CertAuthorityOverride resource and
 // returns it in parsed form.
 //
@@ -79,25 +146,26 @@ func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*Parse
 	switch {
 	case resource == nil:
 		return nil, trace.BadParameter("ca override required")
-	case resource.Kind != types.KindCertAuthorityOverride:
-		return nil, trace.BadParameter("invalid kind: %q", resource.Kind)
-	case !slices.Contains(allowedCAOverrideSubKinds, resource.SubKind):
-		return nil, trace.BadParameter("invalid or unsupported sub_kind/caType: %q", resource.SubKind)
-	case resource.Version != types.V1:
-		return nil, trace.BadParameter("invalid or unsupported version: %q", resource.Version)
-	case resource.Metadata == nil:
+	case resource.GetKind() != types.KindCertAuthorityOverride:
+		return nil, trace.BadParameter("invalid kind: %q", resource.GetKind())
+	case !slices.Contains(allowedCAOverrideSubKinds, resource.GetSubKind()):
+		return nil, trace.BadParameter("invalid or unsupported sub_kind/caType: %q", resource.GetSubKind())
+	case resource.GetVersion() != types.V1:
+		return nil, trace.BadParameter("invalid or unsupported version: %q", resource.GetVersion())
+	case !resource.HasMetadata():
 		return nil, trace.BadParameter("metadata required")
-	case resource.Metadata.Name == "":
+	case resource.GetMetadata().GetName() == "":
 		return nil, trace.BadParameter("metadata.name/clusterName required")
-	case resource.Spec == nil:
+	case !resource.HasSpec():
 		return nil, trace.BadParameter("spec required")
 	}
+	clusterName := resource.GetMetadata().GetName()
 
-	overrides := resource.Spec.CertificateOverrides
+	overrides := resource.GetSpec().GetCertificateOverrides()
 	parsedOverrides := make([]*ParsedCertificateOverride, len(overrides))
 	seenPublicKeys := make(map[string]struct{})
 	for i, co := range overrides {
-		parsedCO, fieldName, err := validateCertificateOverride(co)
+		parsedCO, fieldName, err := validateCertificateOverride(clusterName, co)
 		if err != nil {
 			if fieldName != "" {
 				fieldName = "." + fieldName
@@ -123,6 +191,7 @@ func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*Parse
 }
 
 func validateCertificateOverride(
+	clusterName string,
 	co *subcav1.CertificateOverride,
 ) (_ *ParsedCertificateOverride, fieldName string, _ error) {
 	// Trace not used on purpose. Errors are trace-wrapped up in the chain.
@@ -133,21 +202,24 @@ func validateCertificateOverride(
 	// Certificate.
 	var cert *x509.Certificate
 	var wantPublicKey string
-	if co.Certificate != "" {
+	if co.GetCertificate() != "" {
 		var err error
-		cert, err = ParseCertificateOverrideCertificate(co.Certificate)
+		cert, err = ParseCertificateOverrideCertificate(co.GetCertificate())
 		if err != nil {
+			return nil, "certificate", err
+		}
+		if err := validateOverrideCertificate(clusterName, cert); err != nil {
 			return nil, "certificate", err
 		}
 		wantPublicKey = HashCertificatePublicKey(cert)
 	}
 
 	// PublicKey.
-	if co.PublicKey != "" {
-		if !certificateOverridePublicKeyRE.MatchString(co.PublicKey) {
+	if co.GetPublicKey() != "" {
+		if !certificateOverridePublicKeyRE.MatchString(co.GetPublicKey()) {
 			return nil, "", errors.New("invalid public key")
 		}
-		if wantPublicKey != "" && !strings.EqualFold(co.PublicKey, wantPublicKey) {
+		if wantPublicKey != "" && NormalizePublicKey(co.GetPublicKey()) != wantPublicKey {
 			return nil, "public_key", fmt.Errorf("certificate public key mismatch (want %q)", wantPublicKey)
 		}
 	}
@@ -155,32 +227,31 @@ func validateCertificateOverride(
 	// Validate "required" fields now that we know both Certificate and PublicKey
 	// are valid.
 	switch {
-	case co.Disabled && co.PublicKey == "" && co.Certificate == "":
+	case co.GetDisabled() && co.GetPublicKey() == "" && co.GetCertificate() == "":
 		return nil, "", errors.New("certificate or public key required")
-	case co.Disabled:
+	case co.GetDisabled():
 		// OK, determined above to have either PublicKey or Certificate.
-	case co.Certificate == "":
+	case co.GetCertificate() == "":
 		return nil, "", errors.New("certificate required")
 	}
 
 	// Chain.
-
 	var chain []*x509.Certificate
-	if len(co.Chain) > 0 {
+	if len(co.GetChain()) > 0 {
 		if cert == nil {
 			return nil, "", errors.New("chain not allowed with an empty certificate")
 		}
 
 		// The exact number is arbitrary, the fact that a cap exists isn't.
 		const maxChainLength = 10
-		if len(co.Chain) > maxChainLength {
+		if len(co.GetChain()) > maxChainLength {
 			return nil, "chain", fmt.Errorf(
-				"certificate chain has too many entries (%d > %d)", len(co.Chain), maxChainLength)
+				"certificate chain has too many entries (%d > %d)", len(co.GetChain()), maxChainLength)
 		}
 
-		chain = make([]*x509.Certificate, len(co.Chain))
+		chain = make([]*x509.Certificate, len(co.GetChain()))
 		prev := cert
-		for i, chainPEM := range co.Chain {
+		for i, chainPEM := range co.GetChain() {
 			chainCert, err := ParseCertificateOverrideCertificate(chainPEM)
 			if err != nil {
 				return nil, fmt.Sprintf("chain[%d]", i), err
@@ -216,8 +287,8 @@ func validateCertificateOverride(
 	}
 
 	// Normalize public key to lowercase so it matches HashPublicKey.
-	publicKey := cmp.Or(wantPublicKey, co.PublicKey)
-	publicKey = strings.ToLower(publicKey)
+	publicKey := cmp.Or(wantPublicKey, co.GetPublicKey())
+	publicKey = NormalizePublicKey(publicKey)
 
 	return &ParsedCertificateOverride{
 		CertificateOverride: co,
@@ -225,4 +296,40 @@ func validateCertificateOverride(
 		Certificate:         cert,
 		Chain:               chain,
 	}, "", nil
+}
+
+func validateOverrideCertificate(
+	clusterName string,
+	cert *x509.Certificate,
+) error {
+	// Trace not used on purpose. Errors are trace-wrapped up in the chain.
+	certClusterName, err := tlsca.ClusterName(cert.Subject)
+	if err != nil {
+		return fmt.Errorf("cluster name: %w", err)
+	}
+	if certClusterName != clusterName {
+		return fmt.Errorf(
+			"incorrect cluster name %q (expected %q)",
+			certClusterName,
+			clusterName,
+		)
+	}
+
+	// Verify certificate constraints.
+	switch {
+	case !cert.IsCA:
+		return errors.New("not a CA certificate (IsCA=false)")
+	case !cert.BasicConstraintsValid:
+		return errors.New("basic constraints not valid (BasicConstraintsValid=false)")
+	case cert.KeyUsage&x509.KeyUsageCertSign == 0:
+		// Usage names per Go 1.26.1.
+		// https://cs.opensource.google/go/go/+/refs/tags/go1.26.1:src/crypto/x509/x509_string.go;l=23
+		return errors.New("missing KeyUsage keyCertSign")
+	case cert.KeyUsage&x509.KeyUsageCRLSign == 0:
+		return errors.New("missing KeyUsage cRLSign")
+	case cert.NotBefore.After(cert.NotAfter):
+		return errors.New("NotBefore > NotAfter")
+	}
+
+	return nil
 }

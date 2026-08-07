@@ -32,7 +32,7 @@ import {
 import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
-import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
+import { assertUnreachable } from 'teleterm/ui/utils';
 import { VnetLauncher } from 'teleterm/ui/Vnet';
 
 export interface SimpleAction {
@@ -216,30 +216,33 @@ export function mapToAction(
         };
       }
 
-      const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
-        result.resource;
+      const {
+        uri,
+        name,
+        protocol,
+        gcpProjectId,
+        autoUserProvisioning,
+        databaseUsers,
+        wildcardUserAllowed,
+      } = result.resource;
 
       if (autoUserProvisioning) {
         return {
           type: 'simple-action',
           searchResult: result,
-          perform: async () => {
-            const dbUsers = await retryWithRelogin(ctx, uri, () =>
-              ctx.resourcesService.getDbUsers(uri)
-            );
-            return connectToDatabase(
+          perform: () =>
+            connectToDatabase(
               ctx,
               {
                 uri,
                 name,
                 protocol,
                 gcpProjectId,
-                dbUser: dbUsers[0],
+                dbUser: databaseUsers?.[0] ?? '',
                 autoUserProvisioning,
               },
               { origin: 'search_bar' }
-            );
-          },
+            ),
         };
       }
 
@@ -247,17 +250,16 @@ export function mapToAction(
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: () =>
-            retryWithRelogin(ctx, result.resource.uri, async () => {
-              const dbUsers = await ctx.resourcesService.getDbUsers(
-                result.resource.uri
-              );
-              return dbUsers.map(dbUser => ({
-                value: dbUser,
-                displayText: dbUser,
-              }));
-            }),
-          placeholder: 'Provide db username',
+          getSuggestions: async () =>
+            databaseUsers.map(dbUser => ({
+              value: dbUser,
+              displayText: dbUser,
+            })),
+          allowOnlySuggestions: !wildcardUserAllowed,
+          noSuggestionsAvailableMessage: 'No db username available',
+          placeholder: wildcardUserAllowed
+            ? 'Provide db username'
+            : 'Search by username',
         },
         perform: dbUser =>
           connectToDatabase(

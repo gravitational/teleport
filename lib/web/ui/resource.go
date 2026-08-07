@@ -100,8 +100,8 @@ func RequestableRolesFromProto(roles []*proto.ListRequestableRolesResponse_Reque
 	out := make([]RequestableRole, 0, len(roles))
 	for _, role := range roles {
 		item := &RequestableRole{
-			Name:        role.Name,
-			Description: role.Description,
+			Name:        role.GetName(),
+			Description: role.GetDescription(),
 		}
 
 		out = append(out, *item)

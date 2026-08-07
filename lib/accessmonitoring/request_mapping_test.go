@@ -96,7 +96,7 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "does not match any role",
 			condition: `
-                contains_any(access_request.spec.roles, set("no-match")) ||
+                contains_any(access_request.spec.roles, set("no-match")) &&
                 access_request.spec.roles.contains_any(set("no-match"))`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{"dev", "stage", "prod"},
@@ -116,7 +116,7 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "does not match all requested roles",
 			condition: `
-                contains_all(set("dev"), access_request.spec.roles) ||
+                contains_all(set("dev"), access_request.spec.roles) &&
                 set("dev").contains_all(access_request.spec.roles)`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{"dev", "stage", "prod"},
@@ -126,7 +126,7 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "requested roles is empty",
 			condition: `
-                contains_all(set("dev"), access_request.spec.roles) ||
+                contains_all(set("dev"), access_request.spec.roles) &&
                 set("dev").contains_all(access_request.spec.roles)`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{},
@@ -136,7 +136,7 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "both sets are empty",
 			condition: `
-                contains_all(set(), access_request.spec.roles) ||
+                contains_all(set(), access_request.spec.roles) &&
                 set().contains_all(access_request.spec.roles)`,
 			env: AccessRequestExpressionEnv{
 				Roles: []string{},
@@ -146,8 +146,8 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "(union) single resource has label",
 			condition: `
-                access_request.spec.resource_labels_union["env"].
-                    contains("test")`,
+                access_request.spec.resource_labels_union["env"].contains("test") &&
+				contains(access_request.spec.resource_labels_union["env"], "test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -183,8 +183,8 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "(intersection) single resource has label",
 			condition: `
-                access_request.spec.resource_labels_intersection["env"].
-                    contains("test")`,
+                access_request.spec.resource_labels_intersection["env"].contains("test") &&
+				contains(access_request.spec.resource_labels_intersection["env"], "test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{
@@ -199,8 +199,8 @@ func TestEvaluateCondition(t *testing.T) {
 		{
 			description: "(intersection) multiple resources have label",
 			condition: `
-                access_request.spec.resource_labels_intersection["env"].
-                    contains("test")`,
+                access_request.spec.resource_labels_intersection["env"].contains("test") &&
+				contains(access_request.spec.resource_labels_intersection["env"], "test")`,
 			env: AccessRequestExpressionEnv{
 				RequestedResources: []types.ResourceWithLabels{
 					&types.ServerV2{

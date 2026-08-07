@@ -235,11 +235,12 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
       <Text>A new version is available.</Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
-          <img alt="App icon" height="50px" src={iconMac} />
+          <img alt="App icon" height="50px" width="50px" src={iconMac} />
         ) : (
           <img
             alt="App icon"
             height="43px"
+            width="43px"
             style={{ marginRight: '4px' }}
             src={iconWinLinux}
           />
@@ -276,10 +277,14 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
               Teleport Connect updates are currently configured using deprecated
               environment variables (<code>TELEPORT_TOOLS_VERSION</code> or{' '}
               <code>TELEPORT_CDN_BASE_URL</code>). To continue receiving updates
-              without requiring UAC prompts, migrate these settings to the
-              system policy registry keys:{' '}
-              <code>HKLM\SOFTWARE\Policies\Teleport\TeleportConnect</code>.
-              {/*TODO(gzdunek): Link to docs.*/}
+              without requiring UAC prompts, migrate these settings to the{' '}
+              <Link
+                target="_blank"
+                href="https://goteleport.com/docs/connect-your-client/teleport-clients/teleport-connect#managed-updates-configuration"
+              >
+                system policy registry keys
+              </Link>{' '}
+              (<code>HKLM\SOFTWARE\Policies\Teleport\TeleportConnect</code>).
             </Text>
           </Flex>
         )}

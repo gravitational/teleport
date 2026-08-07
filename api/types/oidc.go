@@ -436,9 +436,6 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("the client_secret must be a literal value, file:// URLs are not supported")
 	}
 
-	if len(o.GetClaimsToRoles()) == 0 {
-		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
-	}
 	for _, v := range o.Spec.ClaimsToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("add roles in claims_to_roles")
@@ -504,11 +501,26 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// trimStr truncates the length of a string, appending '...' for strings
+// that are truncated. If the string is truncated, the result will have
+// len of max + 3 (for the ellipsis).
+func trimStr(str string, max int) string {
+	if len(str) <= max {
+		return str
+	}
+
+	return str[:max] + "..."
+}
+
 // Validate will preform checks not found in CheckAndSetDefaults
 // that should only be preformed when the OIDC connector resource
 // itself is being created or updated, not when a OIDCConnector
 // object is being created or updated.
 func (o *OIDCConnectorV3) Validate() error {
+	if len(o.GetName()) > constants.MaxAuthConnectorNameLength {
+		return trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(o.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	if o.Spec.ClientRedirectSettings != nil {
 		for _, cidrStr := range o.Spec.ClientRedirectSettings.InsecureAllowedCidrRanges {
 			_, err := netip.ParsePrefix(cidrStr)
@@ -523,6 +535,10 @@ func (o *OIDCConnectorV3) Validate() error {
 		if err := entra.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if len(o.GetClaimsToRoles()) == 0 {
+		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
 	}
 
 	return nil
@@ -655,20 +671,6 @@ func (r *OIDCAuthRequest) Check() error {
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
 	}
-	return nil
-}
-
-func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
-	if e.GroupType != "" {
-		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
-			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
-		}
-	}
-
-	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 

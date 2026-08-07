@@ -110,26 +110,26 @@ func ProtoToResource(rule *loginrulepb.LoginRule) *Resource {
 	r := &Resource{
 		ResourceHeader: types.ResourceHeader{
 			Kind:     types.KindLoginRule,
-			Version:  rule.Version,
-			Metadata: *apiutils.CloneProtoMsg(rule.Metadata),
+			Version:  rule.GetVersion(),
+			Metadata: *apiutils.CloneProtoMsg(rule.GetMetadata()),
 		},
 		Spec: spec{
-			Priority:         rule.Priority,
-			TraitsExpression: rule.TraitsExpression,
-			TraitsMap:        traitsMapProtoToResource(rule.TraitsMap),
+			Priority:         rule.GetPriority(),
+			TraitsExpression: rule.GetTraitsExpression(),
+			TraitsMap:        traitsMapProtoToResource(rule.GetTraitsMap()),
 		},
 	}
 	return r
 }
 
 func resourceToProto(r *Resource) *loginrulepb.LoginRule {
-	return &loginrulepb.LoginRule{
+	return loginrulepb.LoginRule_builder{
 		Metadata:         apiutils.CloneProtoMsg(&r.Metadata),
 		Version:          r.Version,
 		Priority:         r.Spec.Priority,
 		TraitsMap:        traitsMapResourceToProto(r.Spec.TraitsMap),
 		TraitsExpression: r.Spec.TraitsExpression,
-	}
+	}.Build()
 }
 
 func traitsMapResourceToProto(in map[string][]string) map[string]*wrappers.StringValues {

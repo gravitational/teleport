@@ -274,6 +274,58 @@ func TestFileLogCheckpoint(t *testing.T) {
 	}
 }
 
+func TestMatchSearch(t *testing.T) {
+	tests := []struct {
+		name   string
+		search string
+		text   string
+		want   bool
+	}{
+		{
+			name:   "empty search matches any text",
+			search: "",
+			text:   `{"user":"alice"}`,
+			want:   true,
+		},
+		{
+			name:   "whitespace-only search matches any text",
+			search: "  \t\n ",
+			text:   `{"user":"alice"}`,
+			want:   true,
+		},
+		{
+			name:   "single term is case-insensitive",
+			search: "ALICE",
+			text:   `{"user":"alice-search-target"}`,
+			want:   true,
+		},
+		{
+			name:   "all search terms must be present",
+			search: "target alice",
+			text:   `{"user":"alice-search-target"}`,
+			want:   true,
+		},
+		{
+			name:   "missing term does not match",
+			search: "target carol",
+			text:   `{"user":"alice-search-target"}`,
+			want:   false,
+		},
+		{
+			name:   "wildcard-like characters are treated literally",
+			search: "svc%prod",
+			text:   `route svc%prod backend`,
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, MatchSearch(tt.search, tt.text))
+		})
+	}
+}
+
 func TestSearchSessionEvents(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	start := clock.Now()

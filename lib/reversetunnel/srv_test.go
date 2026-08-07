@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net"
@@ -36,11 +37,13 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -194,7 +197,7 @@ func TestServerKeyAuth(t *testing.T) {
 						Username:   con.User(),
 						Principals: []string{con.User()},
 						Roles:      []string{"dev", "admin"},
-						ScopePin:   &scopesv1.Pin{Scope: "test"},
+						ScopePin:   scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"}.Build(),
 					},
 				})
 				require.NoError(t, err)
@@ -328,6 +331,39 @@ func TestServerKeyAuth(t *testing.T) {
 			wantErr: require.Error,
 		},
 		{
+			desc: "agent scope pin host cert",
+			key: func() ssh.PublicKey {
+				rawCert, err := ta.GenerateHostCert(sshca.HostCertificateRequest{
+					CASigner:      hostCASigner,
+					PublicHostKey: newPubKey(t),
+					HostID:        "root-host-id",
+					NodeName:      con.User(),
+					Identity: sshca.Identity{
+						ClusterName: "root",
+						ScopePin: scopesv1.Pin_builder{
+							Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+							Scope: "test-scope",
+							SystemRoles: scopesv1.SystemRoles_builder{
+								Primary: string(types.RoleNode),
+							}.Build(),
+						}.Build(),
+					},
+				})
+				require.NoError(t, err)
+				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
+				require.NoError(t, err)
+				return key
+			}(),
+			wantExtensions: map[string]string{
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
+				extCertRole:          string(types.RoleNode),
+				extAuthority:         "root",
+				extScope:             "test-scope",
+			},
+			wantErr: require.NoError,
+		},
+		{
 			desc: "not a cert",
 			key: func() ssh.PublicKey {
 				key, _, _, _, err := ssh.ParseAuthorizedKey(newPubKey(t))
@@ -452,6 +488,60 @@ func TestOnlyAuthDial(t *testing.T) {
 	}
 }
 
+func TestHeaderError(t *testing.T) {
+	ctx := t.Context()
+
+	const failTrue = true
+	// no connections should actually hit the auth listener because the PROXY
+	// header signer will fail
+	authListenerAddr := acceptAndCloseListener(t, failTrue)
+
+	proxySigner, err := multiplexer.NewPROXYSigner("", func() (*tls.Certificate, error) {
+		return nil, trace.Errorf("oh no")
+	}, nil, false)
+
+	require.NoError(t, err)
+	srv := &server{
+		logger: logtest.NewLogger(),
+		ctx:    ctx,
+		Config: Config{
+			LocalAuthAddresses: []string{authListenerAddr},
+		},
+		proxySigner: proxySigner,
+	}
+
+	serverConn, clientConn := sshPipe(t)
+	go ssh.DiscardRequests(serverConn.reqC)
+	go ssh.DiscardRequests(clientConn.reqC)
+	go func() {
+		for nc := range serverConn.newChC {
+			go srv.handleTransport(&ssh.ServerConn{Conn: serverConn.conn}, nc)
+		}
+	}()
+	go func() {
+		for nc := range clientConn.newChC {
+			_ = nc.Reject(0, "")
+		}
+	}()
+
+	ch, reqC, err := clientConn.conn.OpenChannel(constants.ChanTransport, nil)
+	require.NoError(t, err)
+	go ssh.DiscardRequests(reqC)
+	go io.Copy(io.Discard, ch.Stderr())
+	defer ch.Close()
+
+	ok, err := ch.SendRequest(constants.ChanTransportDialReq, true, []byte(constants.RemoteAuthServer))
+	require.NoError(t, err)
+
+	// the request should fail because the PROXY header signer has failed
+	require.False(t, ok)
+
+	// block until the remote side closes the connection; this is needed so that
+	// the auth listener has time to receive the connection and fail the test if
+	// something connects to it
+	_, _ = io.Copy(io.Discard, ch)
+}
+
 type sshConn struct {
 	conn   ssh.Conn
 	newChC <-chan ssh.NewChannel
@@ -482,8 +572,13 @@ func sshPipe(t *testing.T) (sshConn, sshConn) {
 		}
 	}()
 	go func() {
-		c, nc, r, err := ssh.NewClientConn(c2, "", &ssh.ClientConfig{
-			User:            "a",
+		c, nc, r, err := apissh.NewClientConn(t.Context(), c2, "", apissh.ClientConfig{
+			User: "a",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 		assert.NoError(t, err)

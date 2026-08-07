@@ -79,7 +79,7 @@ func (c *IDTokenClaims) GetSubject() string {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsTerraformCloud {
-	return &workloadidentityv1pb.JoinAttrsTerraformCloud{
+	return workloadidentityv1pb.JoinAttrsTerraformCloud_builder{
 		Sub:              c.Sub,
 		OrganizationName: c.OrganizationName,
 		ProjectName:      c.ProjectName,
@@ -87,7 +87,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsTerraformClou
 		FullWorkspace:    c.FullWorkspace,
 		RunId:            c.RunID,
 		RunPhase:         c.RunPhase,
-	}
+	}.Build()
 }
 
 // CheckIDTokenParams are parameters used to validate CircleCI OIDC tokens.
@@ -117,6 +117,7 @@ func (p *CheckIDTokenParams) checkAndSetDefaults() error {
 // rules in the provided provision token.
 func CheckIDToken(
 	ctx context.Context,
+	m modules.Modules,
 	params *CheckIDTokenParams,
 ) (*IDTokenClaims, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
@@ -129,7 +130,7 @@ func CheckIDToken(
 	}
 
 	hostnameOverride := token.Spec.TerraformCloud.Hostname
-	if hostnameOverride != "" && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if hostnameOverride != "" && m.BuildType() != modules.BuildEnterprise {
 		return nil, trace.Wrap(
 			services.ErrRequiresEnterprise,
 			"terraform_cloud joining for Terraform Enterprise",

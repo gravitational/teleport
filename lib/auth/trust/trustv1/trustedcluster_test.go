@@ -28,33 +28,31 @@ import (
 	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // TestCloudProhibited verifies that Trusted Clusters cannot be created or updated
 // in a Cloud hosted environment.
-// Tests cannot be run in parallel because it relies on environment variables.
 func TestCloudProhibited(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	p := newTestPack(t)
 
 	trust := local.NewCAService(p.mem)
+	modules := modulestest.OSSModules()
+	modules.TestFeatures.Cloud = true
 	cfg := &ServiceConfig{
 		Cache:            trust,
 		Backend:          trust,
 		Authorizer:       &fakeAuthorizer{},
 		ScopedAuthorizer: &fakeAuthorizer{},
 		AuthServer:       &fakeAuthServer{},
+		Modules:          modules,
 	}
 
 	service, err := NewService(cfg)
 	require.NoError(t, err)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{Cloud: true},
-	})
 
 	tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
 		RoleMap: []types.RoleMapping{
@@ -67,23 +65,23 @@ func TestCloudProhibited(t *testing.T) {
 	require.True(t, ok)
 
 	t.Run("Cloud prohibits being a leaf cluster (UpsertTrustedCluster)", func(t *testing.T) {
-		_, err = service.UpsertTrustedCluster(ctx, &trustpb.UpsertTrustedClusterRequest{
+		_, err = service.UpsertTrustedCluster(ctx, trustpb.UpsertTrustedClusterRequest_builder{
 			TrustedCluster: trustedClusterV2,
-		})
+		}.Build())
 		require.True(t, trace.IsNotImplemented(err), "UpsertTrustedClusterV2 returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 
 	t.Run("Cloud prohibits being a leaf cluster (CreateTrustedCluster)", func(t *testing.T) {
-		_, err = service.CreateTrustedCluster(ctx, &trustpb.CreateTrustedClusterRequest{
+		_, err = service.CreateTrustedCluster(ctx, trustpb.CreateTrustedClusterRequest_builder{
 			TrustedCluster: trustedClusterV2,
-		})
+		}.Build())
 		require.True(t, trace.IsNotImplemented(err), "CreateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 
 	t.Run("Cloud prohibits being a leaf cluster (UpdateTrustedCluster)", func(t *testing.T) {
-		_, err = service.UpdateTrustedCluster(ctx, &trustpb.UpdateTrustedClusterRequest{
+		_, err = service.UpdateTrustedCluster(ctx, trustpb.UpdateTrustedClusterRequest_builder{
 			TrustedCluster: trustedClusterV2,
-		})
+		}.Build())
 		require.True(t, trace.IsNotImplemented(err), "UpdateTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 }
@@ -112,9 +110,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "upsert no access",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.UpsertTrustedCluster(ctx, &trustpb.UpsertTrustedClusterRequest{
+				_, err := service.UpsertTrustedCluster(ctx, trustpb.UpsertTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 			},
 			authorizer: fakeAuthorizer{
@@ -130,9 +128,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "upsert no create access",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.UpsertTrustedCluster(ctx, &trustpb.UpsertTrustedClusterRequest{
+				_, err := service.UpsertTrustedCluster(ctx, trustpb.UpsertTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 			},
 			authorizer: fakeAuthorizer{
@@ -151,9 +149,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "upsert no update access",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.UpsertTrustedCluster(ctx, &trustpb.UpsertTrustedClusterRequest{
+				_, err := service.UpsertTrustedCluster(ctx, trustpb.UpsertTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 			},
 			authorizer: fakeAuthorizer{
@@ -172,9 +170,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "upsert ok",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.UpsertTrustedCluster(ctx, &trustpb.UpsertTrustedClusterRequest{
+				_, err := service.UpsertTrustedCluster(ctx, trustpb.UpsertTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.NoError(t, err)
 			},
 			authorizer: fakeAuthorizer{
@@ -193,9 +191,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "create no access",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.CreateTrustedCluster(ctx, &trustpb.CreateTrustedClusterRequest{
+				_, err := service.CreateTrustedCluster(ctx, trustpb.CreateTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 			},
 			authorizer: fakeAuthorizer{
@@ -210,9 +208,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "create ok",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.CreateTrustedCluster(ctx, &trustpb.CreateTrustedClusterRequest{
+				_, err := service.CreateTrustedCluster(ctx, trustpb.CreateTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.NoError(t, err)
 			},
 			authorizer: fakeAuthorizer{
@@ -229,9 +227,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "update no access",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.UpdateTrustedCluster(ctx, &trustpb.UpdateTrustedClusterRequest{
+				_, err := service.UpdateTrustedCluster(ctx, trustpb.UpdateTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 			},
 			authorizer: fakeAuthorizer{
@@ -246,9 +244,9 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		{
 			desc: "update ok",
 			f: func(t *testing.T, service *Service) {
-				_, err := service.UpdateTrustedCluster(ctx, &trustpb.UpdateTrustedClusterRequest{
+				_, err := service.UpdateTrustedCluster(ctx, trustpb.UpdateTrustedClusterRequest_builder{
 					TrustedCluster: trustedClusterV2,
-				})
+				}.Build())
 				require.NoError(t, err)
 			},
 			authorizer: fakeAuthorizer{
@@ -310,6 +308,7 @@ func TestTrustedClusterRBAC(t *testing.T) {
 				Authorizer:       &test.authorizer,
 				ScopedAuthorizer: &test.authorizer,
 				AuthServer:       &fakeAuthServer{},
+				Modules:          modulestest.OSSModules(),
 			}
 
 			service, err := NewService(cfg)

@@ -251,7 +251,7 @@ to match your cluster domain if it is different from the default value `cluster.
 `awsDatabases` configures AWS database auto-discovery.
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx#step-36-create-iam-policies-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx#step-35-create-iam-policies-for-teleport).
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
   ```yaml
@@ -402,7 +402,7 @@ databases:
 ```
 
 <Admonition type="tip" title="Supported values">
-  You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../enroll-resources/database-access/reference/configuration.mdx).
+  You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/deployment/config.mdx#database-service).
 </Admonition>
 
 <Admonition type="tip" title="Trusting Database CA">
@@ -857,7 +857,7 @@ get the image pull credentials used to validate the image signature.
 This is not required when pulling images from official public Teleport
 registries (chart's default).
 
-Supported values are `amazon`, `google`, `docker` and `none`.
+Supported values are `aws`, `google`, `docker` and `none`.
 
 ### `updater.extraArgs`
 
@@ -934,7 +934,7 @@ PodSecurityPolicy resources (PSP) have been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
 Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
 The steps are documented in the
-[PSP removal guide](../../zero-trust-access/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+[PSP removal guide](../../installation/self-hosted/helm-deployments/migration-kubernetes-1-25-psp.mdx).
 
 This value will be removed in a future chart version.
 
@@ -1054,6 +1054,23 @@ a Kubernetes PodDisruptionBudget for the agent pods.
 
 `highAvailability.podDisruptionBudget.minAvailable` is the minimum
 available pod specified on the PodDisruptionBudget.
+
+#### `highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"AlwaysAllow"` |
+
+`highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy` allows
+eviction of unhealthy pods even if it falls below minAvailable. When all
+pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
+server due to firewall/networking), the kubernetes default policy
+(IfHealthyBudget) prevents draining a node. This chart's default
+(AlwaysAllow) allows failing pods to be killed when nodes need to drain.
+The value will be omitted with a warning on Kubernetes before 1.27 due to
+API support. Set to "" to suppress the warning at helm install time.
+See also: [unhealthyPodEvictionPolicy in Kube
+docs](https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it)
 
 ## `podMonitor`
 
@@ -1436,6 +1453,25 @@ Possible values are `text` (default) or `json`.
 
 See the [Teleport config file reference](../../reference/deployment/config.mdx) for
 more details on possible values for `extra_fields`.
+
+## `skipHooks`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`skipHooks` configures the chart to not render any hooks.
+This can be used in CI flows where the chart is rendered and applied separately.
+
+<Admonition type="danger">
+After disabling the hooks, uninstalling the `teleport-kube-agent` chart
+will no longer remove the agents state (stored in secrets named after the chart
+pods). If you set this boolean to true, you are responsible for deleting the
+secrets after uninstalling the chart.
+
+Failure to do so might leave valid Teleport credentials in your cluster, or cause
+issues when a new agent with the same name is deployed in the cluster.
+</Admonition>
 
 ## `affinity`
 

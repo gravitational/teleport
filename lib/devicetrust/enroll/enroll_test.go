@@ -45,12 +45,12 @@ func TestCeremony_RunAdmin(t *testing.T) {
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
 
 	// Create the device corresponding to registeredDev.
-	_, err = devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	_, err = devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   registeredDev.GetDeviceOSType(),
 			AssetTag: registeredDev.SerialNumber,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err, "CreateDevice(registeredDev) failed")
 
 	tests := []struct {
@@ -148,8 +148,8 @@ func TestCeremony_Run(t *testing.T) {
 			},
 			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
 				require.NotNil(t, d, "RunCeremony returned nil device")
-				require.NotNil(t, d.Credential, "device credential is nil")
-				assert.Equal(t, linuxDev1.CredentialID, d.Credential.Id, "device credential mismatch")
+				require.NotNil(t, d.GetCredential(), "device credential is nil")
+				assert.Equal(t, linuxDev1.CredentialID, d.GetCredential().GetId(), "device credential mismatch")
 			},
 		},
 		{
@@ -160,8 +160,8 @@ func TestCeremony_Run(t *testing.T) {
 			},
 			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
 				require.NotNil(t, d, "RunCeremony returned nil device")
-				require.NotNil(t, d.Credential, "device credential is nil")
-				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
+				require.NotNil(t, d.GetCredential(), "device credential is nil")
+				assert.Equal(t, windowsDev1.CredentialID, d.GetCredential().GetId(), "device credential mismatch")
 			},
 		},
 	}

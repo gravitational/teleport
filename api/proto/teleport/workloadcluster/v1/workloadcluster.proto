@@ -46,7 +46,7 @@ message Region {
 
 // Bot configures a bot for the child Teleport Cloud cluster
 message Bot {
-  // name is the name of the bot, token, and role that will be created
+  // name of the bot, token, and role that will be created
   string name = 1;
 }
 

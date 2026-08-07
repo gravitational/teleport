@@ -26,11 +26,14 @@ import (
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -58,8 +61,8 @@ func (c *scopedTokenCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-func scopedTokenHandler() Handler {
-	return Handler{
+func scopedTokenScopedHandler() ScopedHandler {
+	return ScopedHandler{
 		getHandler:    getScopedToken,
 		createHandler: createScopedToken,
 		deleteHandler: deleteScopedToken,
@@ -106,35 +109,52 @@ func updateScopedToken(ctx context.Context, client *authclient.Client, raw servi
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("%v %q has been updated\n", types.KindScopedToken, token.GetMetadata().GetName())
+	fmt.Printf("%v %q has been updated\n", types.KindScopedToken, scopes.QualifiedName{Name: token.GetMetadata().GetName(), Scope: token.GetScope()}.String())
 	return nil
 }
 
-func getScopedToken(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	// If a specific token name is requested, filter the results
-	if ref.Name != "" {
-		token, err := client.GetScopedToken(ctx, ref.Name, opts.WithSecrets)
+func getScopedToken(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindScopedToken, subKind)
+	}
+
+	if sqn != nil {
+		token, err := client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name:       sqn.Name,
+			Scope:      sqn.Scope,
+			WithSecret: opts.WithSecrets,
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !opts.WithSecrets {
-			token.GetStatus().Secret = "******"
+		if !opts.WithSecrets && token.GetStatus().GetSecret() != "" {
+			token.GetStatus().SetSecret("******")
+		}
+		if !opts.WithSecrets && token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+			token.GetStatus().GetUsage().GetBoundKeypair().SetRegistrationSecret("******")
 		}
 		return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
 	}
 
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
-		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
+		res, err := client.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			Limit:       uint32(pageSize),
 			Cursor:      pageKey,
 			WithSecrets: opts.WithSecrets,
-		})
+			// exhaustive user-facing views use MODE_ALL per RFD 0229i
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		if !opts.WithSecrets {
 			for _, token := range res.GetTokens() {
-				token.GetStatus().Secret = "******"
+				if token.GetStatus().GetSecret() != "" {
+					token.GetStatus().SetSecret("******")
+				}
+				if token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+					token.GetStatus().GetUsage().GetBoundKeypair().SetRegistrationSecret("******")
+				}
 			}
 		}
 
@@ -147,27 +167,46 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 	return &scopedTokenCollection{tokens: tokens}, nil
 }
 
-func deleteScopedToken(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteScopedToken(ctx, ref.Name); err != nil {
+func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindScopedToken, subKind)
+	}
+
+	// Fetch first to verify scope before deleting.
+	token, err := client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if token.GetScope() != sqn.Scope {
+		return scopeMismatchNotFound(types.KindScopedToken, sqn, token.GetScope())
+	}
+
+	if err := client.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		types.KindScopedToken,
-		ref.Name,
+		sqn.String(),
 	)
 	return nil
 }
 
 func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
-	table := asciitable.MakeTable([]string{"Token", "Secret", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
-
-	secretFunc := func(t *joiningv1.ScopedToken) string {
-		if withSecrets {
-			return t.GetStatus().GetSecret()
-		}
-		return "******"
+	headers := []string{
+		"Token",
+		"Type",
+		"Assigns Scope",
+		"Labels",
+		"Expiry Time (UTC)",
 	}
+	table := asciitable.MakeTable(headers)
 
 	now := time.Now()
 	for _, t := range tokens {
@@ -178,7 +217,20 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			expdur := expiresAt.Sub(now).Round(time.Second)
 			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 		}
-		table.AddRow([]string{t.GetMetadata().GetName(), secretFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), PrintMetadataLabels(t.GetMetadata().Labels), expiry})
+
+		token := t.GetMetadata().GetName()
+		if withSecrets {
+			token = joining.EncodeScopedToken(t.GetMetadata().GetName(), t.GetStatus().GetSecret())
+		}
+
+		row := []string{
+			scopes.QualifiedName{Scope: t.GetScope(), Name: token}.String(),
+			strings.Join(t.GetSpec().GetRoles(), ","),
+			t.GetSpec().GetAssignedScope(),
+			PrintMetadataLabels(t.GetMetadata().GetLabels()),
+			expiry,
+		}
+		table.AddRow(row)
 	}
 	return table.AsBuffer()
 }

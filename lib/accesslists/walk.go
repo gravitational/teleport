@@ -214,7 +214,7 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 		return trace.Wrap(err)
 	}
 	stack = append(stack, accessPath{firstLeg})
-	seen := map[string]struct{}{config.root.GetName(): {}}
+	seen := map[NormalizedSQN]struct{}{ScopeQualifiedName(config.root): {}}
 
 	var path accessPath
 	var list *accesslist.AccessList
@@ -232,18 +232,27 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 
 		// We iterate over every member of the considered list
 		listMembersFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-			r, token, err := config.getter.ListAccessListMembers(ctx, list.GetName(), pageSize, pageToken)
+			r, token, err := listAccessListMembers(ctx, config.getter, accesslistv1.ListAccessListMembersRequest_builder{
+				AccessListScope: list.GetScope(),
+				AccessList:      list.GetName(),
+				PageSize:        int32(pageSize),
+				PageToken:       pageToken,
+			}.Build())
 			return r, token, trace.Wrap(err)
 		}
 
 		for member, err = range clientutils.Resources(ctx, listMembersFn) {
 			if err != nil {
-				return trace.Wrap(err, "getting access list members for %q", list.GetName())
+				return trace.Wrap(err, "getting access list members for %q", ScopeQualifiedName(list).String())
 			}
 
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			switch member.Spec.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
 				// The member is a nested list.
-				name := member.GetName()
+				name, err := MemberScopeQualifiedName(member)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 
 				// If we already walked a valid path to this list, skip it.
 				if _, seen := seen[name]; seen {
@@ -254,7 +263,7 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 				// get the same AL several times if the accessLeg is filtered out.
 				// It's a bit inefficient but should not happen often, it's
 				// more relevant for us to avoid keeping everything in-memory.
-				nestedList, err = config.getter.GetAccessList(ctx, name)
+				nestedList, err = getAccessList(ctx, config.getter, name)
 				if err != nil {
 					// Gracefully handle the missing access list case,
 					// to avoid breaking everything in case of membership inconsistency.

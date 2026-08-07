@@ -142,7 +142,7 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 	return pingResp, nil
 }
 
-type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.CLILoginResponse, error)
 
 func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) error {
 	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
@@ -187,17 +187,18 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 }
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.CLILoginResponse, error) {
 		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin:             sshLogin,
-			User:                 user,
-			Password:             password,
-			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
+			SSHLogin:               sshLogin,
+			User:                   user,
+			Password:               password,
+			MFAPromptConstructor:   c.clusterClient.NewMFAPrompt,
+			MFACeremonyConstructor: c.clusterClient.NewRedirectorMFACeremony,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -211,7 +212,7 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.CLILoginResponse, error) {
 		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -245,9 +246,9 @@ func newPwdlessLoginPrompt(ctx context.Context, log *slog.Logger, stream api.Ter
 
 // PromptPIN prompts the user for a PIN.
 func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
-	if err := p.Stream.Send(&api.LoginPasswordlessResponse{
+	if err := p.Stream.Send(api.LoginPasswordlessResponse_builder{
 		Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN,
-	}); err != nil {
+	}.Build()); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -266,7 +267,7 @@ func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
 
 // PromptTouch prompts the user for a security key touch.
 func (p *pwdlessLoginPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
-	return p.ackTouch, trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
+	return p.ackTouch, trace.Wrap(p.Stream.Send(api.LoginPasswordlessResponse_builder{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}.Build()))
 }
 
 func (p *pwdlessLoginPrompt) ackTouch() error {
@@ -297,15 +298,15 @@ func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*wancli.CredentialIn
 	// Convert to grpc message.
 	creds := make([]*api.CredentialInfo, len(deviceCreds))
 	for i, cred := range deviceCreds {
-		creds[i] = &api.CredentialInfo{
+		creds[i] = api.CredentialInfo_builder{
 			Username: cred.User.Name,
-		}
+		}.Build()
 	}
 
-	if err := p.Stream.Send(&api.LoginPasswordlessResponse{
+	if err := p.Stream.Send(api.LoginPasswordlessResponse_builder{
 		Prompt:      api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL,
 		Credentials: creds,
-	}); err != nil {
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

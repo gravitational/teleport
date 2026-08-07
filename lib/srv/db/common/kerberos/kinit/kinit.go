@@ -28,9 +28,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"

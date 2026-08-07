@@ -23,9 +23,11 @@ import (
 	"errors"
 	"iter"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -61,7 +63,7 @@ type eksAuditLogFetcherRunner interface {
 // eksAuditLogWatcher is a watcher that waits for notifications on a channel
 // indicating what EKS clusters should have audit logs fetched, and reconciles
 // that against what is currently being fetched. Fetchers are started and
-// stopped in response to this reconcilliation.
+// stopped in response to this reconciliation.
 type eksAuditLogWatcher struct {
 	client             accessgraphv1alpha.AccessGraphServiceClient
 	log                *slog.Logger
@@ -109,39 +111,40 @@ type fetcherCompleted struct {
 // and starts/stops log fetchers as required to match the given list. It
 // completes when the given context is done.
 //
-// If any errors occur initializing the grpc stream, it is returned and the
-// main loop is not run.
+// If any errors occur initializing the grpc stream, the main loop continues to
+// run. In this case reconcile events on the auditLogClustersCh channel are
+// just drained and ignored. The error often is that Identity Activity Center
+// is not enabled in access graph. All errors are logged. This behavior means
+// any callers to Reconcile do not block as we are always receiving on the
+// channel for reconciliation.
+//
+// The main loop will terminate when ctx is done.
 func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 	w.log.InfoContext(ctx, "EKS Audit Log Watcher started")
 	defer w.log.InfoContext(ctx, "EKS Audit Log Watcher completed")
 
-	stream, err := w.client.KubeAuditLogStream(ctx)
-	if err != nil {
-		w.log.ErrorContext(ctx, "Failed to get access graph service KubeAuditLogStream", "error", err)
-		return trace.Wrap(err)
-	}
+	// Wait for all the fetchers we started to complete before we return.
+	var wg sync.WaitGroup
+	defer wg.Wait()
 
-	config := &accessgraphv1alpha.KubeAuditLogConfig{}
-	if err := sendTAGKubeAuditLogConfig(ctx, stream, config); err != nil {
-		w.log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
-		return trace.Wrap(err)
-	}
-
-	config, err = receiveTAGKubeAuditLogConfig(ctx, stream)
-	if err != nil {
-		w.log.ErrorContext(ctx, "Failed to receive access graph config", "error", err)
-		return trace.Wrap(err)
-	}
-	w.log.InfoContext(ctx, "KubeAuditLogConfig received", "config", config)
+	// initialize the stream but ignore errors. We do not want to exit on error
+	// as we need to ensure we keep the w.auditLogCLustersCh channel drained
+	// so as to not block AWS discovery.
+	// TODO(camscale): On error, periodically retry to re-initialize the stream
+	// until it succeeds or we terminate.
+	stream, _ := w.initializeStream(ctx)
 
 	// Loop waiting for EKS clusters we need to fetch audit logs for on
-	// s.awsKubeAuditLogClustersCh channel (from the resource syncer).
+	// w.auditLogClustersCh channel (from the resource syncer).
 	// Reconcile that list of clusters against what we know and start/stop
-	// any log fetchers necessary.
+	// any log fetchers necessary. Just drain channels if we don't have
+	// a connection/stream to access graph.
 	for {
 		select {
 		case clusters := <-w.auditLogClustersCh:
-			w.reconcile(ctx, clusters, stream)
+			if stream != nil {
+				w.reconcile(ctx, wg.Go, clusters, stream)
+			}
 		case completed := <-w.completedCh:
 			w.complete(ctx, completed)
 		case <-ctx.Done():
@@ -150,13 +153,47 @@ func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 	}
 }
 
-// Reconcile triggers a reconcilliation of currently running fetchers against
-// the given slice of clusters. The reconcilliation will stop any fetchers for
+// initializeStream creates a KubeAuditLogStream and performs the config
+// negotiation phase at the start of the stream, leaving it ready to send kube
+// audit logs. If any error occurs, it is returned with a nil stream. Otherwise
+// the stream is returned.
+func (w *eksAuditLogWatcher) initializeStream(ctx context.Context) (accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient, error) {
+	stream, err := w.client.KubeAuditLogStream(ctx)
+	if err != nil {
+		w.log.ErrorContext(ctx, "Failed to get access graph service KubeAuditLogStream", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	config := &accessgraphv1alpha.KubeAuditLogConfig{}
+	if err := sendTAGKubeAuditLogConfig(ctx, stream, config); err != nil {
+		w.log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	config, err = receiveTAGKubeAuditLogConfig(ctx, stream)
+	if err != nil {
+		// TODO(camscale): This error could be because Identity Access Center is
+		// not enabled. That should not be an error. In that case we should just
+		// return nil, nil so that the watcher can just drain the channel of
+		// discovered clusters, keeping AWS discovery unblocked.
+		// We can only detect this case by string comparing the error which is
+		// not ideal. A better way would be for the config returned to include
+		// a "not enabled" flag after which the stream is closed.
+		w.log.ErrorContext(ctx, "Failed to receive access graph config", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	w.log.InfoContext(ctx, "KubeAuditLogConfig received", "config", config)
+
+	return stream, nil
+}
+
+// Reconcile triggers a reconciliation of currently running fetchers against
+// the given slice of clusters. The reconciliation will stop any fetchers for
 // clusters not in the slice and start any fetchers for clusters in the slice
 // that are not running.
 //
 // If the given context is done before the clusters can be sent to the
-// reconcilliation goroutine, the context's error will be returned.
+// reconciliation goroutine, the context's error will be returned.
 func (w *eksAuditLogWatcher) Reconcile(ctx context.Context, clusters []eksAuditLogCluster) error {
 	select {
 	case <-ctx.Done():
@@ -170,20 +207,21 @@ func (w *eksAuditLogWatcher) Reconcile(ctx context.Context, clusters []eksAuditL
 // reconcile compares the given slice of clusters against the currently running
 // log fetchers and stops any running fetchers not in the cluster slice and
 // starts a log fetcher for any cluster in the slice that does not have a
-// running log fetcher.
+// running log fetcher. The spawn function is used to launch the goroutine that
+// manages the fetcher, typically WaitGroup.Go from the caller.
 //
 // Log fetchers that are started are initialized with the given grpc stream
 // over which they should send their audit logs.
-func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditLogCluster, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient) {
+func (w *eksAuditLogWatcher) reconcile(ctx context.Context, spawn func(func()), clusters []eksAuditLogCluster, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient) {
 	w.log.DebugContext(ctx, "Reconciling EKS audit log clusters", "new_count", len(clusters))
 
 	// Make a map of the discovered clusters, keyed by ARN so we can compare against
 	// the existing clusters we are fetching audit logs for.
 	discoveredClusters := make(map[string]eksAuditLogCluster)
 	for _, discovered := range clusters {
-		discoveredClusters[discovered.cluster.Arn] = discovered
+		discoveredClusters[discovered.cluster.GetArn()] = discovered
 	}
-	// Stop any fetchers for clusters we are running fetcher for that discovery did not return.
+	// Stop any fetchers for clusters we are running a fetcher for that discovery did not return.
 	for arn, fetcherCancel := range mapDifference(w.fetchers, discoveredClusters) {
 		w.log.InfoContext(ctx, "Stopping eksKubeAuditLogFetcher", "cluster", arn)
 		fetcherCancel()
@@ -192,7 +230,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 	// Start any new fetchers for clusters we are not running that discovery returned.
 	for arn, discovered := range mapDifference(discoveredClusters, w.fetchers) {
 		w.log.InfoContext(ctx, "Starting eksKubeAuditLogFetcher", "cluster", arn)
-		ctx, cancel := context.WithCancel(ctx)
+		fetcherCtx, cancel := context.WithCancel(ctx)
 		var logFetcher eksAuditLogFetcherRunner
 		if w.newFetcher == nil {
 			logFetcher = newEKSAuditLogFetcher(discovered.fetcher, discovered.cluster, stream, w.log)
@@ -201,13 +239,19 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 			logFetcher = w.newFetcher(discovered.fetcher, discovered.cluster, stream, w.log)
 		}
 		w.fetchers[arn] = cancel
-		go func() {
-			err := logFetcher.Run(ctx)
+		spawn(func() {
+			err := logFetcher.Run(fetcherCtx)
 			select {
 			case w.completedCh <- fetcherCompleted{arn, err}:
 			case <-ctx.Done():
+				// This ctx.Done() signals that the watcher should clean up.
+				// This terminates the watcher and all the fetchers - we do
+				// not wait for the fetchers to complete.
+				// Normal fetcher termination is done by closing the fetcher-
+				// specific context, which comes back to us via the case above
+				// on the completedCh channel, not here.
 			}
-		}()
+		})
 	}
 }
 
@@ -240,9 +284,9 @@ func mapDifference[K comparable, V1 any, V2 any](m1 map[K]V1, m2 map[K]V2) iter.
 
 func sendTAGKubeAuditLogConfig(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient, config *accessgraphv1alpha.KubeAuditLogConfig) error {
 	err := stream.Send(
-		&accessgraphv1alpha.KubeAuditLogStreamRequest{
-			Action: &accessgraphv1alpha.KubeAuditLogStreamRequest_Config{Config: config},
-		},
+		accessgraphv1alpha.KubeAuditLogStreamRequest_builder{
+			Config: proto.ValueOrDefault(config),
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)

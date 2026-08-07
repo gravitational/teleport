@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -63,7 +64,7 @@ type ServicesTestSuite struct {
 	Access         services.Access
 	TrustS         services.Trust
 	TrustInternalS services.TrustInternal
-	PresenceS      services.Presence
+	PresenceS      services.PresenceInternal
 	ProvisioningS  services.Provisioner
 	WebS           services.Identity
 	ConfigS        services.ClusterConfiguration
@@ -395,7 +396,8 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
+	_, err = s.PresenceS.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
@@ -403,7 +405,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
+	err = s.PresenceS.DeleteProxyServer(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -462,7 +464,11 @@ func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Remove the application.
-	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
+	err = s.PresenceS.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: server.GetHostID(),
+		Name:   server.GetName(),
+		Scope:  server.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.
@@ -718,6 +724,12 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
+			Credentials: &types.SAMLConnectorCredentials{
+				Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-id",
+					ClientSecret: "test-secret",
+				},
+			},
 		},
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
@@ -738,6 +750,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
+	oauthNoSecrets.ClientSecret = ""
+	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
 	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
@@ -1211,8 +1226,9 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
+	ctx := t.Context()
 	clusterName := "example.com"
-	out, err := s.TrustS.GetTunnelConnections(clusterName)
+	out, err := s.TrustS.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
@@ -1224,15 +1240,15 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	out, err = s.TrustS.GetAllTunnelConnections()
+	out, err = s.TrustS.GetAllTunnelConnections(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1240,37 +1256,34 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	dt = dt.Add(time.Hour)
 	conn.SetLastHeartbeat(dt)
 
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteAllTunnelConnections()
+	out, err = s.TrustS.GetAllTunnelConnections(ctx)
 	require.NoError(t, err)
-
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = s.TrustS.DeleteAllTunnelConnections()
-	require.NoError(t, err)
+	for _, tc := range out {
+		err = s.TrustS.DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
+		require.NoError(t, err)
+	}
 
 	// test delete individual connection
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteTunnelConnection(clusterName, conn.GetName())
+	err = s.TrustS.DeleteTunnelConnection(ctx, clusterName, conn.GetName())
 	require.NoError(t, err)
 
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
+	out, err = s.TrustS.GetTunnelConnections(ctx, clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
@@ -1563,9 +1576,9 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	ctx := context.Background()
 	ap, err := clusterconfig.NewAccessGraphSettings(
-		&clusterconfigpb.AccessGraphSettingsSpec{
+		clusterconfigpb.AccessGraphSettingsSpec_builder{
 			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -1579,7 +1592,7 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	require.Empty(t, cmp.Diff(ap, got, protocmp.Transform()))
 
 	// Validate that update only works if the revision matches.
-	got.Metadata.Revision = "123"
+	got.GetMetadata().SetRevision("123")
 	_, err = s.ConfigS.UpdateAccessGraphSettings(ctx, got)
 	require.True(t, trace.IsCompareFailed(err))
 
@@ -1587,8 +1600,8 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertAccessGraphSettings(ctx, protobuf.Clone(got).(*clusterconfigpb.AccessGraphSettings))
 	require.NoError(t, err)
 	require.NotEmpty(t, upserted.GetMetadata().GetRevision())
-	upserted.Metadata.Revision = ""
-	got.Metadata.Revision = ""
+	upserted.GetMetadata().SetRevision("")
+	got.GetMetadata().SetRevision("")
 	require.Empty(t, cmp.Diff(upserted, got, protocmp.Transform()))
 }
 
@@ -1663,31 +1676,31 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 func (s *ServicesTestSuite) StaticScopedTokens(t *testing.T) {
 	ctx := t.Context()
 	// set static tokens
-	staticTokens := &joiningv1.StaticScopedTokens{
+	staticTokens := joiningv1.StaticScopedTokens_builder{
 		Kind:  types.KindStaticScopedTokens,
 		Scope: "/",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Kind:  types.KindScopedToken,
 					Scope: "/",
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name:    "tok1",
 						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
-					},
-					Spec: &joiningv1.ScopedTokenSpec{
+					}.Build(),
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{types.RoleNode.String()},
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
 						AssignedScope: "/local",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	err := s.LocalConfigS.SetStaticScopedTokens(ctx, staticTokens)
 	require.NoError(t, err)
@@ -2214,15 +2227,16 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(ctx, srv)
+				_, err := s.PresenceS.UpsertProxyServer(ctx, srv)
 				require.NoError(t, err)
 
 				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 				out, err := s.PresenceS.GetProxies()
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteAllProxies()
-				require.NoError(t, err)
+				for _, p := range out {
+					require.NoError(t, s.PresenceS.DeleteProxyServer(ctx, p.GetName()))
+				}
 
 				return out[0]
 			},
@@ -2232,7 +2246,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindTunnelConnection,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
@@ -2240,13 +2254,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.TrustS.UpsertTunnelConnection(conn)
+				err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 				require.NoError(t, err)
 
-				out, err := s.TrustS.GetTunnelConnections("example.com")
+				out, err := s.TrustS.GetTunnelConnections(ctx, "example.com")
 				require.NoError(t, err)
 
-				err = s.TrustS.DeleteAllTunnelConnections()
+				err = s.TrustS.DeleteTunnelConnection(ctx, conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]

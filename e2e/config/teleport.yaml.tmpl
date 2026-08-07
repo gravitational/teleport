@@ -1,7 +1,7 @@
 {{- /*gotype: github.com/gravitational/teleport/e2e/runner.TeleportConfig */ -}}
 version: v3
 teleport:
-  nodename: teleport-e2e
+  nodename: {{ .ClusterName }}
   auth_token: foo
   data_dir: {{ .DataDir }}
   log:
@@ -15,7 +15,7 @@ auth_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:{{ .AuthServerPort }}
   proxy_listener_mode: multiplex
-  cluster_name: teleport-e2e
+  cluster_name: {{ .ClusterName }}
   tokens:
     - "node,auth,proxy,db,trusted_cluster:foo"
 {{- if .LicenseFile }}

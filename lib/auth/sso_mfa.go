@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -73,7 +75,16 @@ func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.Begin
 		return nil, trace.BadParameter("unsupported sso connector type %v", params.SSO.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, params.User, chal.RequestId, params.SSO.ConnectorId, params.SSO.ConnectorType, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster); err != nil {
+	if err := a.upsertMFASession(ctx, upsertMFASessionParams{
+		user:          params.User,
+		sessionID:     chal.RequestId,
+		connectorID:   params.SSO.ConnectorId,
+		connectorType: params.SSO.ConnectorType,
+		ext:           params.Ext,
+		sip:           params.SIP,
+		sourceCluster: params.SourceCluster,
+		targetCluster: params.TargetCluster,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -90,17 +101,22 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	const notFoundErrMsg = "mfa sso session data not found"
-	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
-	if trace.IsNotFound(err) {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
-	} else if err != nil {
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Verify the user's name and sso device matches.
-	if mfaSess.Username != username {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
+	// Verify the session was created by the SSO MFA flow:
+	// SSO MFA sessions are created with an SSO connector and no client redirect URL.
+	isSSOMFASession := slices.Contains([]string{constants.SAML, constants.OIDC}, mfaSess.ConnectorType) && mfaSess.TSHRedirectURL == ""
+	if !isSSOMFASession {
+		a.logger.WarnContext(ctx,
+			"Rejecting an MFA session that was not created by the SSO MFA flow.",
+			"request_id", mfaSess.RequestID,
+			"connector_type", mfaSess.ConnectorType,
+			"username", username,
+		)
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.
@@ -121,18 +137,8 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 		return nil, trace.AccessDenied("invalid SSO MFA challenge response")
 	}
 
-	// Check if the given scope is satisfied by the challenge scope.
-	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
-		return nil, trace.AccessDenied("required scope %q is not satisfied by the given sso mfa session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
-	}
-
-	// If this session is reusable, but this context forbids reusable sessions, return an error.
-	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-		return nil, trace.AccessDenied("the given sso mfa session allows reuse, but reuse is not permitted in this context")
-	}
-
 	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-		if err := a.DeleteSSOMFASessionData(ctx, sessionID); err != nil {
+		if err := a.DeleteMFASessionData(ctx, sessionID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -147,51 +153,66 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	}, nil
 }
 
-// upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
-// sessionID, connector details, and challenge extensions.
-func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string) error {
-	data := &services.SSOMFASessionData{
-		Username:      user,
-		RequestID:     sessionID,
-		ConnectorID:   connectorID,
-		ConnectorType: connectorType,
+// upsertMFASessionParams are the parameters for upsertMFASession.
+type upsertMFASessionParams struct {
+	user           string
+	sessionID      string
+	connectorID    string
+	connectorType  string
+	tshRedirectURL string
+	ext            *mfav1.ChallengeExtensions
+	sip            *mfav2.SessionIdentifyingPayload
+	sourceCluster  string
+	targetCluster  string
+}
+
+// upsertMFASession upserts a new unverified MFA session for the given username,
+// sessionID, connector details, and challenge extensions. This is used by both
+// SSO MFA and Browser MFA.
+func (a *Server) upsertMFASession(ctx context.Context, params upsertMFASessionParams) error {
+	data := &services.MFASessionData{
+		Username:       params.user,
+		RequestID:      params.sessionID,
+		ConnectorID:    params.connectorID,
+		ConnectorType:  params.connectorType,
+		TSHRedirectURL: params.tshRedirectURL,
 		ChallengeExtensions: &mfatypes.ChallengeExtensions{
-			Scope:      ext.Scope,
-			AllowReuse: ext.AllowReuse,
+			Scope:      params.ext.Scope,
+			AllowReuse: params.ext.AllowReuse,
 		},
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
+		SourceCluster: params.sourceCluster,
+		TargetCluster: params.targetCluster,
 	}
 
-	if sip != nil {
+	if params.sip != nil {
 		data.Payload = &mfatypes.SessionIdentifyingPayload{
-			SSHSessionID: sip.GetSshSessionId(),
+			SSHSessionID: params.sip.GetSshSessionId(),
+			TLSSessionID: params.sip.GetTlsSessionId(),
 		}
 	}
 
-	return trace.Wrap(a.UpsertSSOMFASessionData(ctx, data))
+	return trace.Wrap(a.UpsertMFASessionData(ctx, data))
 }
 
-// UpsertSSOMFASessionWithToken upserts the given SSO MFA session with a random mfa token.
-func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.SSOMFASessionData) (token string, err error) {
+// UpsertMFASessionWithToken upserts the given SSO MFA session with a random mfa token.
+func (a *Server) UpsertMFASessionWithToken(ctx context.Context, sd *services.MFASessionData) (token string, err error) {
 	sd.Token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if err := a.UpsertSSOMFASessionData(ctx, sd); err != nil {
+	if err := a.UpsertMFASessionData(ctx, sd); err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	return sd.Token, nil
 }
 
-// GetSSOMFASession returns the SSO MFA session for the given username and sessionID.
-func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
-	sd, err := a.GetSSOMFASessionData(ctx, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// TODO(danielashare): Remove these wrapper functions once `e` points to the renamed versions
+func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.MFASessionData) (token string, err error) {
+	return a.UpsertMFASessionWithToken(ctx, sd)
+}
 
-	return sd, nil
+func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
+	return a.GetMFASessionData(ctx, sessionID)
 }

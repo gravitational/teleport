@@ -46,6 +46,10 @@ const (
 	// TerraformCloudSafeName is a URL scheme-safe name for the terraform_cloud
 	// join method.
 	TerraformCloudSafeName = "terraform-cloud"
+
+	// GenericOIDCSafeName is a URL scheme-safe name for the generic_oidc join
+	// method.
+	GenericOIDCSafeName = "generic-oidc"
 )
 
 type JoinURI struct {
@@ -112,6 +116,8 @@ func MapURLSafeJoinMethod(name string) (types.JoinMethod, error) {
 		return types.JoinMethodAzureDevops, nil
 	case "terraform-cloud", "terraformcloud":
 		return types.JoinMethodTerraformCloud, nil
+	case "generic-oidc", "genericoidc":
+		return types.JoinMethodGenericOIDC, nil
 	default:
 		return types.JoinMethodUnspecified, trace.BadParameter("unsupported join method %q", name)
 	}
@@ -126,6 +132,8 @@ func MapJoinMethodToURLSafe(m types.JoinMethod) string {
 		return AzureDevopsSafeName
 	case types.JoinMethodTerraformCloud:
 		return TerraformCloudSafeName
+	case types.JoinMethodGenericOIDC:
+		return GenericOIDCSafeName
 	default:
 		return string(m)
 	}

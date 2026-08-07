@@ -49,6 +49,10 @@ message Database {
   string gcp_project_id = 10;
   // auto_user_provisioning contains database auto-user provisioning information.
   AutoUserProvisioning auto_user_provisioning = 11;
+  // database_users is a list of allowed database users that Teleport RBAC permits the user to connect as.
+  repeated string database_users = 12;
+  // wildcard_user_allowed is true when the user's role grants access with db_users: ["*"],
+  bool wildcard_user_allowed = 13;
 }
 
 // AutoUserProvisioning contains database auto-user provisioning information.

@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -30,11 +28,9 @@ export default {
 
 export const Empty = () => {
   return (
-    <MemoryRouter>
-      <TeleportProviderBasic>
-        <EmptyState />
-      </TeleportProviderBasic>
-    </MemoryRouter>
+    <TeleportProviderBasic>
+      <EmptyState />
+    </TeleportProviderBasic>
   );
 };
 

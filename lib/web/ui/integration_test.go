@@ -47,15 +47,47 @@ func TestMakeIntegration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	terraformManagedIntegration, err := types.NewIntegrationAWSOIDC(
+	terraformManagedAwsIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{
-			Name: "terraform-managed",
+			Name: "terraform-managed-aws",
 			Labels: map[string]string{
 				types.CreatedByIaCLabel: IaCTerraformLabel,
 			},
 		},
 		&types.AWSOIDCIntegrationSpecV1{
 			RoleARN: "arn:aws:iam::123456789012:role/TerraformRole",
+		},
+	)
+	require.NoError(t, err)
+
+	terraformManagedAzureIntegration, err := types.NewIntegrationAzureOIDC(
+		types.Metadata{
+			Name: "terraform-managed-azure",
+			Labels: map[string]string{
+				types.CreatedByIaCLabel:                      IaCTerraformLabel,
+				types.AzureManagedIdentityRegionLabel:        "eastus",
+				types.AzureManagedIdentityResourceGroupLabel: "my-azure-resource-group",
+				types.AzureManagementGroupIDLabel:            "my-management-group",
+			},
+		},
+		&types.AzureOIDCIntegrationSpecV1{
+			TenantID: "foo",
+			ClientID: "bar",
+		},
+	)
+	require.NoError(t, err)
+
+	terraformManagedAwsOrgIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{
+			Name: "terraform-managed-aws-org",
+			Labels: map[string]string{
+				types.CreatedByIaCLabel:                  IaCTerraformLabel,
+				types.AWSOrganizationalUnitsIncludeLabel: "ou-1,ou-2",
+				types.AWSOrganizationalUnitsExcludeLabel: "ou-3",
+			},
+		},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/example",
 		},
 	)
 	require.NoError(t, err)
@@ -85,12 +117,44 @@ func TestMakeIntegration(t *testing.T) {
 			},
 		},
 		{
-			integration: terraformManagedIntegration,
+			integration: terraformManagedAwsIntegration,
 			want: Integration{
-				Name:    "terraform-managed",
+				Name:    "terraform-managed-aws",
 				SubKind: types.IntegrationSubKindAWSOIDC,
 				AWSOIDC: &IntegrationAWSOIDCSpec{
 					RoleARN: "arn:aws:iam::123456789012:role/TerraformRole",
+				},
+				IsManagedByTerraform: true,
+			},
+		},
+		{
+			integration: terraformManagedAzureIntegration,
+			want: Integration{
+				Name:    "terraform-managed-azure",
+				SubKind: types.IntegrationSubKindAzureOIDC,
+				AzureOIDC: &IntegrationAzureOIDCSpec{
+					TenantID: "foo",
+					ClientID: "bar",
+					ManagedIdentity: &IntegrationAzureManagedIdentitySpec{
+						Region:            "eastus",
+						ResourceGroup:     "my-azure-resource-group",
+						ManagementGroupID: "my-management-group",
+					},
+				},
+				IsManagedByTerraform: true,
+			},
+		},
+		{
+			integration: terraformManagedAwsOrgIntegration,
+			want: Integration{
+				Name:    "terraform-managed-aws-org",
+				SubKind: types.IntegrationSubKindAWSOIDC,
+				AWSOIDC: &IntegrationAWSOIDCSpec{
+					RoleARN: "arn:aws:iam::123456789012:role/example",
+					Organization: &IntegrationAWSOrganizationSpec{
+						IncludeUnits: []string{"ou-1", "ou-2"},
+						ExcludeUnits: []string{"ou-3"},
+					},
 				},
 				IsManagedByTerraform: true,
 			},

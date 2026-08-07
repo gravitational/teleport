@@ -26,8 +26,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type mockCA struct {
@@ -104,16 +108,53 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		return params
 	}
 
+	// makeScopedParams builds params around a scoped token referencing the
+	// bot (scope, botName). Unlike makeParams, mutating the returned params'
+	// token status is not supported: the scoped token wrapper converts its
+	// status on every accessor call.
+	makeScopedParams := func(scope, botName string) *JoinStateParams {
+		scopedToken, err := joining.NewToken(joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Scope:   scope,
+			Metadata: headerv1.Metadata_builder{
+				Name: "example-token",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				Roles:      []string{string(types.RoleBot)},
+				UsageMode:  joining.TokenUsageModeBot,
+				Bot:        scopes.QualifiedName{Scope: scope, Name: botName}.String(),
+				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
+						InitialPublicKey: "abcd",
+					}.Build(),
+					Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
+						Mode:  string(RecoveryModeStandard),
+						Limit: 1,
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		return &JoinStateParams{
+			Clock:       clock,
+			ClusterName: "example.com",
+			Token:       scopedToken,
+		}
+	}
+
 	withRecovery := func(count, limit uint32) func(*JoinStateParams) {
 		return func(params *JoinStateParams) {
-			params.Token.Status.BoundKeypair.RecoveryCount = count
-			params.Token.Spec.BoundKeypair.Recovery.Limit = limit
+			params.Token.GetBoundKeypairStatus().RecoveryCount = count
+			params.Token.GetBoundKeypair().Recovery.Limit = limit
 		}
 	}
 
 	withInstanceID := func(id string) func(*JoinStateParams) {
 		return func(params *JoinStateParams) {
-			params.Token.Status.BoundKeypair.BoundBotInstanceID = id
+			params.Token.GetBoundKeypairStatus().BoundBotInstanceID = id
 		}
 	}
 
@@ -209,8 +250,43 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		{
 			name: "subject must match",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				jsp.Token.Spec.BotName = "invalid"
+				ptv2, ok := jsp.Token.(*types.ProvisionTokenV2)
+				require.True(t, ok)
+
+				ptv2.Spec.BotName = "invalid"
 			})),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "scoped bot success",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeScopedParams("/foo", "test"),
+			assertError:  require.NoError,
+		},
+		{
+			// The subject is the scope-qualified name, so a same-named bot in
+			// another scope is a different subject.
+			name:         "bot scope must match",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeScopedParams("/bar", "test"),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "unscoped join state rejected for scoped bot",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeScopedParams("/foo", "test"),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "scoped join state rejected for unscoped bot",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
 			verifyParams: makeParams(withRecovery(0, 1)),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "invalid subject claim")
@@ -219,8 +295,8 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		{
 			name: "informational parameters can be modified",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				jsp.Token.Spec.BoundKeypair.Recovery.Mode = "relaxed"
-				jsp.Token.Spec.BoundKeypair.Recovery.Limit = 123
+				jsp.Token.GetBoundKeypair().Recovery.Mode = "relaxed"
+				jsp.Token.GetBoundKeypair().Recovery.Limit = 123
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
 			assertError:  require.NoError,
@@ -242,4 +318,16 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			tt.assertError(t, err)
 		})
 	}
+
+	t.Run("subject", func(t *testing.T) {
+		// An unscoped bot's subject must stay the bare name: changing it would
+		// invalidate every join state already held by an unscoped bot.
+		subject, err := makeParams().GetSubject()
+		require.NoError(t, err)
+		require.Equal(t, "test", subject)
+
+		subject, err = makeScopedParams("/foo", "test").GetSubject()
+		require.NoError(t, err)
+		require.Equal(t, "/foo::test", subject)
+	})
 }

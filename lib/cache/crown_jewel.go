@@ -55,13 +55,13 @@ func newCrownJewelCollection(upstream services.CrownJewels, w types.WatchKind) (
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *crownjewelv1.CrownJewel {
-			return &crownjewelv1.CrownJewel{
+			return crownjewelv1.CrownJewel_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

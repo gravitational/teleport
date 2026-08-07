@@ -686,7 +686,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-1
-  namespace: foo
 spec:
   glSpec: "* * * * */5"
   glImage: my-awesome-gl-image
@@ -696,7 +695,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-2
-  namespace: foo
 spec:
   glSpec: "* * * * */2"
   glImage: my-awesome-gl-image-2
@@ -769,23 +767,13 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify access denied
     * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"crontabs","name":"*","namespace":"","api_group":"stable.example.com","verbs":["*"]}`
     * [ ] Verify access denied
-* [ ] Verify support for Teleport v17
-  * [ ] Start a v17 kubernetes_service
+* [ ] Verify support for Teleport v18
+  * [ ] Start a v18 kubernetes_service
   * [ ] Verify happy path
     * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles)
-          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deplyments","name":"*","namespace":"*"}`.
-    * [ ] Verify access to pods, clusterroles and deployments on the v17 cluster
+          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deployments","name":"*","namespace":"*"}`.
+    * [ ] Verify access to pods, clusterroles and deployments on the v18 cluster
     * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
-  * [ ] Verify incomptible role, CRD
-    * [ ] Create a role v8 with access to pods and a crd.
-         ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
-    * [ ] Verify access denied to explicit resources `pods`, `crontabs` andother resources `services`, `globals`, `nodes`.
-  * [ ] Verify incompatible role, namespace
-    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
-    * [ ] Verify access denied to the namespace and any other resources
-  * [ ] Verify incompatible role, wildcard kind - cluster-wide
-    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
-    * [ ] Verify access denied to any resource
 
 ### Kubernetes Access Request
 
@@ -829,10 +817,6 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify you can request access to all cluster-wide resources with `--resource '/TELEPORT_CLUSTER_NAME/kube:cw:*.*/K8S_CLSUTER_NAME/*`
     * [ ] Verify you can access resources like `nodes` and `persistentvolumes` with `kubectl` using `tsh kube login`
     * [ ] Verify you can't request access to `configmaps` or `services`
-* [ ] Verify tsh v17 support (TODO(@creack) Remove this section in v19)
-  * [ ] Using tsh v17, verify you can search for `pod` and `secret` (can use a role with wildcard permission)
-  * [ ] Using tsh v17, verify you can request access for `pod` and `secret`
-    * [ ] Verify you can list `pod` with `secret` with `kubectl` after the request is granted using `tsh kube login`
 
 ### Teleport with FIPS mode
 
@@ -893,8 +877,10 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] G Suite Screenshots are up-to-date
 - [ ] Azure Active Directory (AD) install instructions work
     - [ ] Azure Active Directory (AD) Screenshots are up-to-date
-- [ ] ActiveDirectory (ADFS) install instructions work
-    - [ ] Active Directory (ADFS) Screenshots are up-to-date
+- [ ] Entra ID SAML (previously ADFS) install instructions work
+    - [ ] Entra ID SAML Screenshots are up-to-date
+- [ ] Entra ID OIDC install instructions work
+    - [ ] Entra ID OIDC Screenshots are up-to-date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up-to-date
 - [ ] OneLogin install instructions work
@@ -1198,6 +1184,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
+    - [ ] App Access
     - [ ] Desktop Access
   - [ ] Device authorization applies to Trusted Clusters
         (root with mode="optional" and leaf with mode="required")
@@ -1383,8 +1370,8 @@ For web, run each session in a different browser.
 
 Ensure the default `terminationPolicy` of `terminate` has not been changed.
 
-For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --role moderator`:
- - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
+For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --mode moderator`:
+ - [ ] Ensure that `Ctrl+D` in the user terminal disconnects the moderator as the session has ended.
  - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
  - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
  - [ ] Upload file (web only).
@@ -1397,10 +1384,16 @@ For all performance tests
  1) Verify that there are no memory/goroutine/file descriptor leaks
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
 
+
+Where applicable nodes used should be configured as follows:
+
+ 1) [Transparent hugepages](https://docs.kernel.org/admin-guide/mm/transhuge.html#global-thp-controls) disabled.
+
 ### Ansible-like Test
 
 Run the [ansible-like](https://github.com/gravitational/teleport/tree/4fd411add0c6fa7d4d0d19b1cf0c5c13c541498e/assets/loadtest/ansible-like)
-test against a Cloud tenant with 60k nodes dispersed geographically in multiple regions.
+test against a Cloud tenant with at least 120k nodes dispersed geographically in multiple regions. During the test, the cluster should be manually
+tested to confirm that the ansible-like load does not slow down the control plane beyond the point of usability.
 
  - [ ] DynamoDB
  - [ ] CRDB
@@ -1528,7 +1521,8 @@ manualy testing.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
+    - [ ] MySQL server version reported by Teleport is correct. You can find this in the connection information that is printed when you connect via `tsh db connect`.
+    - [ ] MySQL server version reported by `SELECT VERSION();` is correct and approximately matches the one printed in the connection information above.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -1922,8 +1916,8 @@ proxy_service:
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
   - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
   - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
-- Keyboard Layout
-  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+- Keyboard Layout (Changes take effect after signing out of the Windows session on the remote host)
+  - [ ] If "System" is chosen in preferences, the default layout for the remote server is used
   - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility
@@ -2250,6 +2244,94 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
   - [ ] Verify access to Okta apps granted by access_list/access_request.
+  - [ ] Verify that Permission granted by Access Request to Okta Resources are revoked after expiration.
+    - [ ] Verify access request expiration revocation flow when Access List Sync is Enabled.
+    - [ ] Verify access request expiration revocation flow when Access List Sync is Disabled.
+  - [ ] Verify Okta SCIM sync functionality
+    - [ ] Verify Okta SCIM only functionality.
+      - [ ] Verify Okta users are pushed to Teleport.
+      - [ ] Verify that users deleted in Okta are removed from Teleport.
+      - [ ] Verify Okta SCIM User Locking:
+        - [ ] Deactivating a user in Okta locks them in Teleport
+        - [ ] Reactivating the user in Okta unlocks them in Teleport.
+    - [ ]  Verify Okta SCIM functionality with Access List Sync
+      - [ ] Verify Okta users are pushed to Teleport.
+      - [ ] Verify that users deleted in Okta are removed from Teleport.
+      - [ ] Verify Okta SCIM User Locking:
+        - [ ] Deactivating a user in Okta locks them in Teleport (not deleted).
+        - [ ] Reactivating the user in Okta unlocks them in Teleport.
+      - [ ] Verify Okta groups are pushed to Teleport.
+
+- [ ] Verify Okta Enrollment Flow
+  - [ ] Verify Web UI flow
+    - [ ] Verify Okta SAML Connector setup
+      - [ ] Verify that Okta SSO integration can be created with preexisting Okta SSO connector.
+      - [ ] Verify that Okta SSO integration can be created from SSO metadataURL
+    - [ ] Verified that Okta Plugin can be config with partial setup via Okta integration updates:
+      -  [ ] SSO only
+      -  [ ] SSO + SCIM
+      -  [ ] SSO + Access List Sync
+      -  [ ] SSO + SCIM + Access List Sync
+      -  [ ] SSO  Access List Sync + SCIM
+    -  Verify that in any time Okta Plugin can be updated via Okta Plugin status page and the change is reflected by Okta Sync
+    - [ ] Verify that the Okta Oauth credential - clientID can be updated
+    - [ ] Verify that Access List groups/app filters can be updated and the update is reflected by Okta Sync
+    - [ ] Verify that Bidirectional sync can be disabled/enabled in any time and when it is enabled Teleport doest push any changes to Okta
+  - [ ] Verify CLI Enrollment Flow
+    - [ ] Plugin can be installed using `tctl plugins install okta`.
+    - [ ] Plugin settings can be updated using `tctl edit plugins/okta`.
+    - [ ] Plugin can be uninstalled using:
+      - `tctl plugin cleanup okta` / `tctl plugins delete okta`
+
+## Teleport AWS Identity Center Integration
+- [ ] Verify **CLI Enrollment Flow**
+  - [ ] Setup [Full hand-off Mode](https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/#step-34-switch-teleport-to-full-hand-off-mode).
+    - When configuring SAML IdP in AWS SCIM is reset. The new SCIM base URL can be configured with `tctl edit plugin/aws-identity-center` and the new token can be rotated with `tctl plugins rotate awsic "$scim_token"`.
+  - [ ] Check if Teleport local users are pushed to AWS (those are later called SSO users)
+  - [ ] AWS `aws_accounts_filters` and `group_sync_filters` [can be updated](https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/#extending-the-integration) and changes are applied by AWS IC Sync.
+    - `tctl edit plugin/aws-identity-center`
+- [ ] Verify **Access List Synchronization**
+  - [ ] Moving users in/out of Teleport Access Lists updates AWS IC groups accordingly.
+  - [ ] Updating role assignments in Teleport Access Lists updates AWS IC group assignments.
+  - [ ] Creating a new Access List in Teleport creates a corresponding group in AWS IC.
+    - NOTE: An Access List is synced to AWS IC if it grants at least one AWS IC role.
+    - For a new Access List:
+      - [ ] Role updates or deletions are synced to AWS IC.
+      - [ ] Member assignments/unassignments are reflected in AWS IC.
+- [ ] Verify AWS IC Access Request flow
+  - [ ] SSO user without permissions can request access to AWS IC resources.
+  - [ ] Access List owner is a suggested reviewer for AWS IC access requests.
+  - [ ] When approved, user gains access to AWS IC resource.
+  - [ ] When request expires, user loses access to AWS IC resource.
+  - [ ] When a user is locked, permissions are revoked in AWS IC.
+    - This is handled by disabling the user on AWS side (look for "Disabled" status in the user listing). The permissions are still assigned to the user for the duration of the request. The active AWS session will be valid and this is a known limitation (see [issue #62578](https://github.com/gravitational/teleport/issues/62578)).
+- [ ] Verify that when a user is Locked the user is disabled on the AWS IC side and then enabled when the Lock is removed
+- [ ] Verify **Direct Role Assignment in AWS IC**
+  - [ ] Assigning/removing roles with AWS IC permissions updates the user’s permissions in AWS IC.
+  - [ ] Locked roles result in permission de-provisioning from AWS IC
+    - [ ] Verify AWS users permissions when role is assigned to a Teleport user.
+    - [ ] Verify AWS groups permissions when role is granted by an Access List.
+- [ ] Verify **Access List**.
+  - [ ] Membership expiration in Teleport Access Lists is reflected in AWS IC.
+  - [ ] Renaming an Access List title in Teleport is reflected in AWS IC without breaking sync.
+  - [ ] **Nested Access List**
+    - [ ] Nested Access Lists are provisioned as a combination of all included Access Lists.
+    - [ ] Adding/removing users from a child list updates the parent Access List accordingly.
+    - [ ] Verify behavior when users are moved between overlapping Access Lists with different permissions.
+    - [ ] Deleting a child Access List removes users from the parent.
+
+## Teleport Entra ID integration
+  - [ ] Docs (including screenshots) are up to date.
+    - [ ] Verify that guided (Web UI) installation method is working as expected.
+    - [ ] Verify that manual Entra ID configuration using Azure portal is working as expected.
+    - [ ] Verify that terraform-based Entra ID configuration is working as expected.
+  - [ ] User sync - verify that all the users that exist in Entra ID directory are synced to Teleport.
+  - [ ] Group sync - verify that all the groups that exist in the Entra ID directory are synced to Teleport.
+      - [ ] Verify that group members are synced to Teleport.
+      - [ ] Verify that group id and name regexp based include/exclude filters are working as expected (refer to docs for filter settings).
+      - [ ] Verify that Access List owner's source configuration is working as expected. Test all the three source types including `plugin`, `entraid` and `plugin-and-entraid`.
+      - [ ] Verify that all the group import settings can be configured and updated using both the Web UI and `tctl`.
+  - [ ] Veriy that when Access Graph sync is enabled, Entra ID policies are synced to Teleport.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.
@@ -2285,36 +2367,51 @@ Verify SAML IdP service provider resource management.
   - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
         relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
 
-## SSO MFA
+## Multi-factor Authentication (MFA)
 
-Verify SSO MFA core functionality. The tests below should be performed once
-with OIDC and once with SAML.
+### WebAuthn
 
-Configure both an OIDC connector and a SAML connector following the [Quick GitHub/SAML/OIDC Setup Tips]
-and [enable MFA on them](https://goteleport.com/docs/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
+- [ ] `tsh mfa ls` should
+  display the MFA device, and `tsh mfa add` / `tsh mfa rm` should work.
+- [ ] [Moderated Sessions](https://goteleport.com/docs/zero-trust-access/authentication/joining-sessions/)
+- [ ] [Admin Actions](https://goteleport.com/docs/zero-trust-access/authentication/mfa-for-admin-actions/) (`tctl tokens
+  ls`)
+- [ ] [Headless](https://goteleport.com/docs/zero-trust-access/authentication/headless/) (`tsh ls --headless`)
+- [ ] [Per-session MFA](https://goteleport.com/docs/zero-trust-access/authentication/per-session-mfa/)
+  - [ ] Server Access: verify MFA on `tsh ssh`
+  - [ ] File Transfer: verify MFA on `tsh scp`
+  - [ ] Kubernetes Access: verify MFA on `kubectl version` after `tsh kube login`, or on `tsh proxy kube --exec`
+  - [ ] Database Access: verify MFA on `tsh db connect`, `tsh proxy db --tunnel`, or `tsh db exec`
+  - [ ] App Access: verify MFA when starting an app session
+  - [ ] Desktop Access: verify MFA when starting a desktop session
+- [ ] Audit log should show [MFA challenge events](https://goteleport.com/docs/reference/audit-events/).
+- [ ] Force in-band MFA for SSH only (`TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA=yes`) ([RFD
+  234](https://github.com/gravitational/teleport/blob/a1478ef54c252db4a49c225015ede10e2baef7e0/rfd/0234-in-band-mfa-ssh-sessions.md))
+  - [ ] `tsh ssh`
+  - [ ] Web UI
+  - [ ] Teleport Connect
+  - [ ] VNet
+  - [ ] Any client <= v18 should get an access denied error due to lack of support for in-band MFA
 
-For simplicity, you can use the same IdP App (client id/secret or entity descriptor)
-for both login and MFA. This way, each Teleport MFA check will make you re-login via SSO.
+### OIDC SSO
 
-Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
-e.g. `cap.second_factors: ['webauthn', 'sso']`.
+Configure OIDC using [Quick GitHub/SAML/OIDC Setup Tips] and
+[SSO MFA](https://goteleport.com/docs/zero-trust-access/sso/sso-for-mfa/). Ensure `sso` is allowed in
+`cap.second_factors`.
 
-The following should work with SSO MFA, automatically opening the SSO MFA redirect URL:
-
+- [ ] Run the WebAuthn checks above using OIDC SSO MFA.
 - [ ] `tsh mfa ls` should display the SSO MFA device.
-  - [ ] SSO MFA device cannot be deleted or added
-- [ ] Add another MFA device (`tsh mfa add`)
-- [ ] Delete the other MFA device (`tsh --mfa-mode=sso mfa rm`)
-- [ ] Moderated Sessions
-- [ ] Admin Actions (e.g. `tctl tokens ls`)
-- [ ] Per-session MFA
-  - [ ] Server Access
-  - [ ] File Transfers
-  - [ ] Kubernetes Access
-  - [ ] App Access
-  - [ ] Database Access
-  - [ ] Desktop Access
-- [ ] Headless (`tsh ls --headless`)
+- [ ] SSO MFA devices cannot be added or removed with `tsh mfa add` / `tsh mfa rm`.
+
+### SAML SSO
+
+Configure SAML using [Quick GitHub/SAML/OIDC Setup Tips] and
+[SSO MFA](https://goteleport.com/docs/zero-trust-access/sso/sso-for-mfa/). Ensure `sso` is allowed in
+`cap.second_factors`.
+
+- [ ] Run the WebAuthn checks above using SAML SSO MFA.
+- [ ] `tsh mfa ls` should display the SSO MFA device.
+- [ ] SSO MFA devices cannot be added or removed with `tsh mfa add` / `tsh mfa rm`.
 
 ## MCP Access
 - [ ] Verify Teleport supports MCP servers in various transports
@@ -2347,6 +2444,28 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
   - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
   - [ ] Verify MCP client can only see allowed tools
   - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
+
+## CA overrides
+
+Validate downstream configuration and protocol access, using an enabled
+override, for each supported CA.
+
+- [ ] Create an override for the "db_client" CA
+- [ ] Create an override for the "windows" CA
+- [ ] Exercise CA rotation
+- [ ] Exercise Cloud tenant
+- [ ] Exercise multi-Auth, PKCS#11 deployment
+  - [ ] Async CRL creation works
+- [ ] Exercise tctl commands, verify that audit events are issued
+  - [ ] tctl auth create-override-csr
+  - [ ] tctl auth create-override
+  - [ ] tctl auth update-override
+  - [ ] tctl auth delete-override
+  - [ ] tctl create
+  - [ ] tctl edit
+  - [ ] tctl delete
+  - [ ] tctl auth pub-key-hash (no audit)
+  - [ ] tctl get (no audit)
 
 ## Resources
 

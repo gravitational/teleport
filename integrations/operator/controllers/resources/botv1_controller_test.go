@@ -40,22 +40,22 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-var botSpec = &machineidv1.BotSpec{
+var botSpec = machineidv1.BotSpec_builder{
 	Roles: []string{"roleA", "roleB"},
 	Traits: []*machineidv1.Trait{
-		{
+		machineidv1.Trait_builder{
 			Name:   "traitA",
 			Values: []string{"valueA", "valueB"},
-		},
-		{
+		}.Build(),
+		machineidv1.Trait_builder{
 			Name:   "traitB",
 			Values: []string{"valueC", "valueD"},
-		},
+		}.Build(),
 	},
 	// Note: The server-side resource will have the default value filled in, so
 	// we need to explicitly set it to ensure comparisons succeed.
 	MaxSessionTtl: durationpb.New(defaults.DefaultBotMaxSessionTTL),
-}
+}.Build()
 
 type botTestingPrimitives struct {
 	setup *testSetup
@@ -71,27 +71,27 @@ func (g *botTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error 
 }
 
 func (g *botTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	bot := &machineidv1.Bot{
+	bot := machineidv1.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Spec: botSpec,
-	}
+	}.Build()
 	_, err := g.setup.TeleportClient.
 		BotServiceClient().
-		CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
+		CreateBot(ctx, machineidv1.CreateBotRequest_builder{Bot: bot}.Build())
 	return trace.Wrap(err)
 }
 
 func (g *botTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*machineidv1.Bot, error) {
 	resp, err := g.setup.TeleportClient.
 		BotServiceClient().
-		GetBot(ctx, &machineidv1.GetBotRequest{BotName: name})
+		GetBot(ctx, machineidv1.GetBotRequest_builder{BotName: name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +101,7 @@ func (g *botTestingPrimitives) GetTeleportResource(ctx context.Context, name str
 func (g *botTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	_, err := g.setup.TeleportClient.
 		BotServiceClient().
-		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: name})
+		DeleteBot(ctx, machineidv1.DeleteBotRequest_builder{BotName: name}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -156,7 +156,7 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 		testlib.ProtoCompareOptions(
 			protocmp.IgnoreFields(&machineidv1.Bot{}, "status"),
 			protocmp.SortRepeated(func(a, b *machineidv1.Trait) bool {
-				return strings.Compare(a.Name, b.Name) == -1
+				return strings.Compare(a.GetName(), b.GetName()) == -1
 			}),
 		)...,
 	)

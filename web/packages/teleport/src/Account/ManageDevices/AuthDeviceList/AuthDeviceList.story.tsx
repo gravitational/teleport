@@ -19,12 +19,12 @@
 import * as Icon from 'design/Icon';
 
 import { ActionButtonSecondary, Header } from 'teleport/Account/Header';
-import { MfaDevice } from 'teleport/services/mfa';
+import makeMfaDevice from 'teleport/services/mfa/makeMfaDevice';
 
 import { AuthDeviceList } from './AuthDeviceList';
 
 export default {
-  title: 'Teleport/Account/Manage Devices/Device List',
+  title: 'Teleport/Account/Manage Devices/Auth Device List',
 };
 
 export function EmptyList() {
@@ -43,13 +43,18 @@ export function EmptyList() {
           }
         />
       }
-      deviceTypeColumnName="Passkey Type"
       devices={[]}
+      attempt={{ status: 'success' }}
+      passkeysEnabled
     />
   );
 }
 
-export function ListWithDevices() {
+export function ListWithDevices({
+  isPasswordlessEnabled,
+}: {
+  isPasswordlessEnabled: boolean;
+}) {
   return (
     <AuthDeviceList
       header={
@@ -65,56 +70,63 @@ export function ListWithDevices() {
           }
         />
       }
-      deviceTypeColumnName="Passkey Type"
-      devices={devices}
+      devices={devicesJson.map(d =>
+        makeMfaDevice(d, { isPasswordlessEnabled })
+      )}
+      attempt={{ status: 'success' }}
+      passkeysEnabled={isPasswordlessEnabled}
     />
   );
 }
 
-const devices: MfaDevice[] = [
+ListWithDevices.argTypes = {
+  isPasswordlessEnabled: {
+    control: 'boolean',
+    defaultValue: true,
+  },
+};
+
+ListWithDevices.args = { isPasswordlessEnabled: true };
+
+const devicesJson: any[] = [
   {
-    id: '1',
-    description: 'Hardware Key',
+    id: 'c62fcf79-a1ce-4774-9098-c13702bd7895',
     name: 'touch_id',
-    registeredDate: new Date(1628799417000),
-    lastUsedDate: new Date(1628799417000),
-    type: 'webauthn',
-    usage: 'passwordless',
+    addedAt: '2021-08-12T20:16:57.000Z',
+    lastUsed: '2021-08-12T20:16:57.000Z',
+    type: 'WebAuthn',
+    residentKey: true,
   },
   {
-    id: '2',
-    description: 'Hardware Key',
+    id: '44860895-b008-4b58-b283-978429d9980a',
     name: 'solokey',
-    registeredDate: new Date(1623722252000),
-    lastUsedDate: new Date(1623981452000),
-    type: 'webauthn',
-    usage: 'passwordless',
+    addedAt: '2021-06-15T01:57:32.000Z',
+    lastUsed: '2021-06-18T01:57:32.000Z',
+    type: 'WebAuthn',
+    residentKey: true,
   },
   {
-    id: '3',
-    description: 'Hardware Key',
-    name: 'backup yubikey',
-    registeredDate: new Date(1618711052000),
-    lastUsedDate: new Date(1626472652000),
-    type: 'webauthn',
-    usage: 'passwordless',
+    id: 'ac7f91f7-a616-4e91-9d6d-652d35423377',
+    name: 'authy',
+    addedAt: '2021-04-18T01:57:32.000Z',
+    lastUsed: '2021-07-16T21:57:32.000Z',
+    type: 'TOTP',
+    residentKey: false,
   },
   {
-    id: '4',
-    description: 'Hardware Key',
+    id: '50d90d05-67ee-4fdd-be54-2f5182fea9a5',
     name: 'yubikey',
-    registeredDate: new Date(1612493852000),
-    lastUsedDate: new Date(1614481052000),
-    type: 'webauthn',
-    usage: 'passwordless',
+    addedAt: '2021-02-05T02:57:32.000Z',
+    lastUsed: '2021-02-28T02:57:32.000Z',
+    type: 'WebAuthn',
+    residentKey: false,
   },
   {
-    id: '5',
-    description: 'sso provider',
+    id: '5cc6a573-e9d2-4d8d-a34e-566c91b51233',
     name: 'okta',
-    registeredDate: new Date(1612493852000),
-    lastUsedDate: new Date(1614481052000),
-    type: 'sso',
-    usage: 'mfa',
+    addedAt: '2021-02-05T02:57:32.000Z',
+    lastUsed: '2021-02-28T02:57:32.000Z',
+    type: 'SSO',
+    residentKey: false,
   },
 ];

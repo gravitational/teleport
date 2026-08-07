@@ -1,8 +1,8 @@
 ### "binary missing signature or entitlements" on `tsh device enroll`
 
 A signed and notarized `tsh` binary is necessary to enroll and use a trusted
-device. [Download the macOS tsh installer](../../installation/macos.mdx) to fix
-the problem.
+device. [Download the macOS tsh
+installer](../../installation/single-machine/macos.mdx) to fix the problem.
 
 ### "unauthorized device" errors using a trusted device
 
@@ -45,6 +45,12 @@ device/<asset_tag>` and changing the "enroll_status" field to "not_enrolled".
 
 ### App access and "access to this app requires a trusted device"
 
+{/*
+    NOTE: This section is linked in the product.
+    Make sure the link stays updated, or better yet, do not change the name of this section.
+    https://github.com/gravitational/teleport/blob/9bc227823d914122663ea62ad5957e4ccfeba82a/lib/srv/app/connections_handler.go#L803
+*/}
+
 Follow the instructions in the [Web UI troubleshooting section](
 #web-ui-fails-to-authenticate-trusted-device) below (Teleport v16 or later).
 
@@ -64,6 +70,12 @@ Follow the instructions in the [Web UI troubleshooting section](
 #web-ui-fails-to-authenticate-trusted-device) below.
 
 ### Web UI fails to authenticate trusted device
+
+{/*
+    NOTE: This section is linked in the product.
+    Make sure the link stays updated, or better yet, do not change the name of this section.
+    https://github.com/gravitational/teleport/blob/9bc227823d914122663ea62ad5957e4ccfeba82a/lib/srv/app/connections_handler.go#L802
+*/}
 
 The Web UI attempts to authenticate your device using Teleport Connect during
 login. If you are not asked to authenticate your device immediately after login,

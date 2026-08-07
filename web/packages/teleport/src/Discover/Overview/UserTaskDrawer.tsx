@@ -35,6 +35,7 @@ import { getErrorMessage } from 'shared/utils/error';
 
 import {
   integrationService,
+  type DiscoverAzureVmInstance,
   type DiscoverEc2Instance,
   type DiscoverEksCluster,
   type DiscoverRdsDatabase,
@@ -269,11 +270,21 @@ function getTaskInfo(task: UserTaskDetail): {
       account: task.discoverEks?.account_id,
     };
   }
-  return {
-    resourceType: 'RDS',
-    region: task.discoverRds?.region,
-    account: task.discoverRds?.account_id,
-  };
+  if (taskType.includes('rds')) {
+    return {
+      resourceType: 'RDS',
+      region: task.discoverRds?.region,
+      account: task.discoverRds?.account_id,
+    };
+  }
+  if (taskType.includes('azure-vm')) {
+    return {
+      resourceType: 'Azure VM',
+      region: task.discoverAzureVm?.region,
+      account: task.discoverAzureVm?.subscription_id,
+    };
+  }
+  return { resourceType: '', region: undefined, account: undefined };
 }
 
 type ImpactRow = {
@@ -281,7 +292,7 @@ type ImpactRow = {
   name?: string;
   resourceUrl?: string;
   invocationUrl?: string;
-  kind: 'ec2' | 'eks' | 'rds';
+  kind: 'ec2' | 'eks' | 'rds' | 'azure-vm';
 };
 
 function getImpacts(task: UserTaskDetail): {
@@ -319,17 +330,35 @@ function getImpacts(task: UserTaskDetail): {
     return { rows, count: rows.length };
   }
 
-  const databases = task.discoverRds?.databases ?? {};
-  const rows = Object.keys(databases).map(key => {
-    const d = databases[key] as DiscoverRdsDatabase;
-    return {
-      id: d?.name || key,
-      name: d?.name,
-      resourceUrl: d?.resourceUrl,
-      kind: 'rds' as const,
-    };
-  });
-  return { rows, count: rows.length };
+  if (taskType.includes('rds')) {
+    const databases = task.discoverRds?.databases ?? {};
+    const rows = Object.keys(databases).map(key => {
+      const d = databases[key] as DiscoverRdsDatabase;
+      return {
+        id: d?.name || key,
+        name: d?.name,
+        resourceUrl: d?.resourceUrl,
+        kind: 'rds' as const,
+      };
+    });
+    return { rows, count: rows.length };
+  }
+
+  if (taskType.includes('azure-vm')) {
+    const instances = task.discoverAzureVm?.instances ?? {};
+    const rows = Object.keys(instances).map(key => {
+      const vm = instances[key] as DiscoverAzureVmInstance;
+      return {
+        id: vm?.vm_id || vm?.resource_id || key,
+        name: vm?.name,
+        resourceUrl: vm?.resourceUrl,
+        kind: 'azure-vm' as const,
+      };
+    });
+    return { rows, count: rows.length };
+  }
+
+  return { rows: [], count: 0 };
 }
 
 function makeImpactsTable(impacted: { rows: ImpactRow[] }): {

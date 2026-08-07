@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_auth_preference Terraform resource
 sidebar_label: auth_preference
-description: This page describes the supported values of the teleport_auth_preference resource of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_auth_preference resource of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_auth_prefe
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the teleport_auth_preference resource of the Teleport Terraform provider.
+This page lists the supported values of the teleport_auth_preference resource of the Teleport Terraform provider.
 
 
 
@@ -54,7 +55,7 @@ resource "teleport_auth_preference" "example" {
 
 Optional:
 
-- `allow_browser_authentication` (Boolean) AllowBrowserAuthentication enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true.
+- `allow_cli_auth_via_browser` (Boolean) AllowCLIAuthViaBrowser enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true if the Webauthn is configured, defaults to false otherwise.
 - `allow_headless` (Boolean) AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.
 - `allow_local_auth` (Boolean) AllowLocalAuth is true if local authentication is enabled.
 - `allow_passwordless` (Boolean) AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.

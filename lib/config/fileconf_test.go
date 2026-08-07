@@ -41,11 +41,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
@@ -493,7 +492,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
 					},
-					"allow_browser_authentication": "true",
+					"allow_cli_auth_via_browser": "true",
 				}
 			},
 			expected: &AuthenticationConfig{
@@ -501,7 +500,7 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					RPID: "example.com",
 				},
-				AllowBrowserAuthentication: types.NewBoolOption(true),
+				AllowCLIAuthViaBrowser: types.NewBoolOption(true),
 			},
 		}, {
 			desc: "Local auth with browser authentication disabled",
@@ -511,7 +510,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
 					},
-					"allow_browser_authentication": "false",
+					"allow_cli_auth_via_browser": "false",
 				}
 			},
 			expected: &AuthenticationConfig{
@@ -519,31 +518,31 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					RPID: "example.com",
 				},
-				AllowBrowserAuthentication: types.NewBoolOption(false),
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}, {
 			desc: "Local auth with browser authentication disabled without WebAuthn",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":                         "local",
-					"allow_browser_authentication": "false",
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "false",
 				}
 			},
 			expected: &AuthenticationConfig{
-				Type:                       "local",
-				AllowBrowserAuthentication: types.NewBoolOption(false),
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}, {
 			desc: "Local auth with browser authentication empty string",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":                         "local",
-					"allow_browser_authentication": "",
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "",
 				}
 			},
 			expected: &AuthenticationConfig{
-				Type:                       "local",
-				AllowBrowserAuthentication: &types.BoolOption{},
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: &types.BoolOption{},
 			},
 		},
 	}
@@ -676,28 +675,28 @@ teleport:
 `,
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "fully_defined_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-						ImmutableLabels: &joiningv1.ImmutableLabels{
+						ImmutableLabels: joiningv1.ImmutableLabels_builder{
 							Ssh: map[string]string{
 								"hello": "world",
 							},
-						},
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+						}.Build(),
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 		{
@@ -711,23 +710,23 @@ teleport:
 `, tokenFilePath),
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "file_scoped_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 		{
@@ -760,40 +759,40 @@ teleport:
 `, tokenFilePath),
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "fully_defined_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
-				{
+					}.Build(),
+				}.Build(),
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "file_scoped_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 	}
@@ -996,11 +995,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
-	// Device trust mode=required is an Enterprise feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
+	t.Parallel()
 	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
 	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
 	require.NoError(t, err)
@@ -1607,6 +1602,88 @@ func TestBackoffConfig(t *testing.T) {
 	}
 }
 
+func TestBoundKeypairConfig(t *testing.T) {
+	testCases := []struct {
+		desc             string
+		mutate           func(cfgMap)
+		expectJoinParams JoinParams
+	}{
+		{
+			desc:             "empty",
+			mutate:           func(cfg cfgMap) {},
+			expectJoinParams: JoinParams{},
+		},
+		{
+			desc: "bound keypair registration secret value",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"registration_secret_value": "reg-secret",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					RegistrationSecretValue: "reg-secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair registration secret path",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"registration_secret_path": "/path/to/secret",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					RegistrationSecretPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair registration static key path",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"static_key_path": "/path/to/key",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					StaticPrivateKeyPath: "/path/to/key",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectJoinParams, cfg.JoinParams)
+		})
+	}
+}
+
 func TestMakeSampleFileConfig(t *testing.T) {
 	t.Run("Default roles", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
@@ -1856,4 +1933,85 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb", "sha256:7e12c17c20d9cb"}, fc.CAPin)
 	})
+}
+
+func TestAuditQueueConfig_Parse(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc      string
+		cfg       AuditQueueConfig
+		want      servicecfg.AuditQueueConfig
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc: "empty",
+			cfg:  AuditQueueConfig{},
+			want: servicecfg.AuditQueueConfig{
+				Synchronous: auditqueue.SynchronousNormal,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "valid fields",
+			cfg: AuditQueueConfig{
+				SoftLimit:               "100MiB",
+				HardLimit:               "1GiB",
+				MaxAttempts:             5,
+				DeadLetterTTL:           types.Duration(24 * time.Hour),
+				DeadLetterSweepInterval: types.Duration(5 * time.Minute),
+				OrphanScanInterval:      types.Duration(10 * time.Minute),
+				Backend:                 []string{"sqlite_disk", "sqlite_memory"},
+			},
+			want: servicecfg.AuditQueueConfig{
+				SoftLimit:               100 * 1024 * 1024,
+				MaxBytes:                1024 * 1024 * 1024,
+				MaxAttempts:             5,
+				DeadLetterTTL:           24 * time.Hour,
+				DeadLetterSweepInterval: 5 * time.Minute,
+				OrphanScanInterval:      10 * time.Minute,
+				Backends:                []string{"sqlite_disk", "sqlite_memory"},
+				Synchronous:             auditqueue.SynchronousNormal,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "synchronous FULL",
+			cfg:  AuditQueueConfig{Synchronous: "FULL"},
+			want: servicecfg.AuditQueueConfig{
+				Synchronous: auditqueue.SynchronousFull,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "invalid soft_limit",
+			cfg:  AuditQueueConfig{SoftLimit: "not-a-size"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "invalid hard_limit",
+			cfg:  AuditQueueConfig{HardLimit: "not-a-size"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "invalid synchronous",
+			cfg:  AuditQueueConfig{Synchronous: "OFF"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			got, err := tt.cfg.Parse()
+			tt.assertErr(t, err)
+			if err == nil {
+				require.Equal(t, tt.want, got)
+			}
+		})
+	}
 }

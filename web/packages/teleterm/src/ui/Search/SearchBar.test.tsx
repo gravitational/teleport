@@ -23,8 +23,10 @@ import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
 import {
+  makeLabelsList,
   makeRetryableError,
   makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -387,6 +389,45 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
   await user.click(screen.getByTestId('unfocusable-element'));
 
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+it('shows secondary label matches for terms not already matched by the main field', async () => {
+  const user = userEvent.setup();
+  const appContext = setUpContext('/clusters/foo');
+  const resourceSearchResult = {
+    kind: 'server' as const,
+    requiresRequest: false,
+    resource: makeServer({
+      hostname: 'ansible',
+      addr: 'dev-host.internal:3022',
+      labels: makeLabelsList({ owner: 'an', env: 'dev', creator: 'admin' }),
+    }),
+  };
+
+  jest
+    .spyOn(appContext.resourcesService, 'searchResources')
+    .mockResolvedValue([resourceSearchResult]);
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </MockAppContextProvider>
+  );
+
+  const searchbox = await screen.findByRole('searchbox');
+  await user.type(searchbox, 'ab dev');
+
+  expect(await screen.findByText('Connect over SSH')).toBeVisible();
+  const results = await screen.findByRole('menu');
+  expect(results).toHaveTextContent('env: dev');
+  // The result was already matched by the main field ("ansible").
+  expect(results).not.toHaveTextContent('owner: an');
+  // This label is omitted because it has no matches.
+  expect(results).not.toHaveTextContent('creator: admin');
 });
 
 const getMockedSearchContext = (): SearchContext.SearchContext => ({

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 )
@@ -33,8 +34,8 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 			name: "full",
 			in: HostOutputConfig{
 				Destination: dest,
-				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
+				CAType:      types.UserCA,
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -59,9 +60,35 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *HostOutputConfig {
 				return &HostOutputConfig{
 					Destination: destination.NewMemory(),
-					Roles:       []string{"access"},
+					Principals:  []string{"host.example.com"},
+					CAType:      types.OpenSSHCA,
+				}
+			},
+		},
+		{
+			name: "roles is no longer supported",
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination:     destination.NewMemory(),
+					Principals:      []string{"host.example.com"},
+					CAType:          types.OpenSSHCA,
+					DeprecatedRoles: []string{"access"},
+				}
+			},
+			wantErr: "roles: the roles field is no longer supported",
+		},
+		{
+			name: "default ca_type",
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
 					Principals:  []string{"host.example.com"},
 				}
+			},
+			want: &HostOutputConfig{
+				Destination: destination.NewMemory(),
+				Principals:  []string{"host.example.com"},
+				CAType:      types.UserCA,
 			},
 		},
 		{
@@ -82,6 +109,28 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "at least one principal must be specified",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
+					Principals:  []string{"host.example.com"},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "invalid ca_type",
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
+					Principals:  []string{"host.example.com"},
+					CAType:      types.CertAuthType("invalid"),
+				}
+			},
+			wantErr: `ca_type ("invalid") is unsupported`,
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

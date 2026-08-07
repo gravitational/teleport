@@ -28,17 +28,8 @@ func ForAuthServer() *componentfeaturesv1.ComponentFeatures {
 	return New(FeatureResourceConstraintsV1)
 }
 
-type sshServerInfoGetter interface {
-	GetProxyMode() bool
-}
-
-// ForSSHServer returns features that an SSH/Proxy server can support/participate in.
-func ForSSHServer(g sshServerInfoGetter) *componentfeaturesv1.ComponentFeatures {
-	// Resource Constraints are only supported for Proxy servers.
-	if !g.GetProxyMode() {
-		return New()
-	}
-
+// ForSSHServer returns features that an SSH server can support/participate in.
+func ForSSHServer() *componentfeaturesv1.ComponentFeatures {
 	return New(FeatureResourceConstraintsV1)
 }
 

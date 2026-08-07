@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
@@ -43,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/defaults"

@@ -20,8 +20,10 @@ package service
 
 import (
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -102,10 +104,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	clusterName := conn.ClusterName()
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		ClusterName:    clusterName,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		ScopesFeatures: process.scopesFeatures,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -184,14 +187,18 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			InsecureMode:             process.Config.InsecureMode,
-			Component:                teleport.ComponentDatabase,
-			HostUUID:                 conn.HostID(),
-			Resolver:                 tunnelAddrResolver,
-			Client:                   conn.Client,
-			Server:                   dbService,
-			AccessPoint:              conn.Client,
-			AuthMethods:              conn.ClientAuthMethods(),
+			InsecureMode: process.Config.InsecureMode,
+			Component:    teleport.ComponentDatabase,
+			HostUUID:     conn.HostID(),
+			Resolver:     tunnelAddrResolver,
+			Client:       conn.Client,
+			Server:       dbService,
+			AccessPoint:  conn.Client,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return conn.ClientSigners(), nil
+				},
+			},
 			Cluster:                  clusterName,
 			FIPS:                     process.Config.FIPS,
 			ConnectedProxyGetter:     proxyGetter,
@@ -220,12 +227,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				warnOnErr(process.ExitContext(), dbService.Shutdown(payloadContext(payload)), logger)
 			}
 		}
-		if asyncEmitter != nil {
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		}
 		if agentPool != nil {
 			agentPool.Stop()
 		}
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})

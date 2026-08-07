@@ -1,0 +1,23 @@
+Usage: widget [<flags>] <command> [<args> ...]
+
+Widget is a tool for widgeting. It supports a variety of operations on widgets
+and the things widgets are made of.
+
+Flags:
+  -v, --[no-]verbose  Enable verbose output.
+  -c, --config="/etc/widget.yaml"  
+                      Path to config file. ($WIDGET_CONFIG)
+  -t, --tag=TAG ...   Tags to apply. Repeatable.
+
+Commands:
+  help              Show help.
+  hello             Hello.
+  very-long-command Very long command.
+  create            Create.
+  start             Start.
+  ship              Ship a widget to a destination.
+  inventory         Manage the widget inventory.
+  reconcile         Reconcile the local inventory against the remote source of truth. This operation is idempotent and safe to run repeatedly; mismatches are reported but not automatically corrected unless --fix is passed.
+
+Try 'widget help [command]' to get help for a given command.
+

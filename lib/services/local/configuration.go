@@ -700,7 +700,7 @@ func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UI
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalUIConfig(item.Value)
+	return services.UnmarshalUIConfig(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
@@ -841,7 +841,7 @@ func (s *ClusterConfigurationService) CreateAccessGraphSettings(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 
-	set.Metadata.Revision = lease.Revision
+	set.GetMetadata().SetRevision(lease.Revision)
 	return set, nil
 }
 
@@ -865,7 +865,7 @@ func (s *ClusterConfigurationService) UpdateAccessGraphSettings(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 
-	set.Metadata.Revision = lease.Revision
+	set.GetMetadata().SetRevision(lease.Revision)
 	return set, nil
 }
 
@@ -888,7 +888,7 @@ func (s *ClusterConfigurationService) UpsertAccessGraphSettings(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 
-	set.Metadata.Revision = lease.Revision
+	set.GetMetadata().SetRevision(lease.Revision)
 	return set, nil
 }
 

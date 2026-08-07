@@ -42,8 +42,10 @@ type Info struct {
 	TokenExpires        time.Time
 	NodeName            string
 	HostID              string
+	AssignedScope       string
 	SystemRoles         []string
 	BotName             string
+	BotScope            string
 	BotGeneration       uint64
 	BotInstanceID       string
 	Error               error

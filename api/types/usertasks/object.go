@@ -1,20 +1,16 @@
-/*
- * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package usertasks
 
@@ -252,6 +248,10 @@ const (
 	// because the SSM Script Run (also known as Invocation) failed.
 	// This happens when there's a failure with permissions or an invalid configuration (eg, invalid document name).
 	AutoDiscoverEC2IssueSSMInvocationFailure = "ec2-ssm-invocation-failure"
+
+	// AutoDiscoverEC2IssueJoinFailure is used to identify instances where Teleport was installed
+	// but the agent failed to join the cluster.
+	AutoDiscoverEC2IssueJoinFailure = "ec2-join-failure"
 )
 
 // DiscoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
@@ -261,6 +261,7 @@ var DiscoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 	AutoDiscoverEC2IssueSSMScriptFailure,
 	AutoDiscoverEC2IssueSSMInvocationFailure,
+	AutoDiscoverEC2IssueJoinFailure,
 	AutoDiscoverEC2IssuePermAccountDenied,
 	AutoDiscoverEC2IssuePermOrgDenied,
 }
@@ -315,6 +316,11 @@ var DiscoverRDSIssueTypes = []string{
 // List of Auto Discover Azure VM issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover Azure VM tasks.
 const (
+	// AutoDiscoverAzureVMIssueSubscriptionListDenied indicates the integration
+	// lacks permission to list subscriptions while expanding a wildcard
+	// subscription matcher.
+	AutoDiscoverAzureVMIssueSubscriptionListDenied = "azure-vm-subscription-list-denied"
+
 	// AutoDiscoverAzureVMIssueMissingRunCommandsPermission is used to identify VMs that failed to auto-enroll
 	// because the Azure integration is missing runCommands permissions (runCommands/write or runCommands/read).
 	AutoDiscoverAzureVMIssueMissingRunCommandsPermission = "azure-vm-missing-run-commands-permission"
@@ -334,6 +340,7 @@ const (
 
 // DiscoverAzureVMIssueTypes is a list of issue types that can occur when trying to auto enroll Azure VMs.
 var DiscoverAzureVMIssueTypes = []string{
+	AutoDiscoverAzureVMIssueSubscriptionListDenied,
 	AutoDiscoverAzureVMIssueMissingRunCommandsPermission,
 	AutoDiscoverAzureVMIssueVMNotRunning,
 	AutoDiscoverAzureVMIssueVMAgentNotAvailable,
@@ -398,13 +405,16 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 
 	// Permission issues occur before instance discovery (org/account level),
 	// so account ID, region, and instance list may all be empty.
-	if isPermissionIssueType(ut.GetSpec().GetIssueType()) {
+	if IsPermissionIssueType(ut.GetSpec().GetIssueType()) {
 		return validateDiscoverEC2PermissionIssue(ut)
 	}
 	return validateDiscoverEC2InstallationIssue(ut)
 }
 
-func isPermissionIssueType(issueType string) bool {
+// IsPermissionIssueType reports whether the given issue type represents an
+// IAM permission error (account-level or org-level). Permission issues have
+// relaxed validation: they may have empty account ID, region, and instances.
+func IsPermissionIssueType(issueType string) bool {
 	switch issueType {
 	case AutoDiscoverEC2IssuePermAccountDenied,
 		AutoDiscoverEC2IssuePermOrgDenied:
@@ -621,14 +631,20 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 	if discover == nil {
 		return trace.BadParameter("%s: discover_azure_vm field is required", TaskTypeDiscoverAzureVM)
 	}
-	switch {
-	case discover.SubscriptionId == "":
-		return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
-	case discover.ResourceGroup == "":
-		return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
-	case discover.Region == "":
-		return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
+	isSubscriptionListIssue := spec.IssueType == AutoDiscoverAzureVMIssueSubscriptionListDenied
+	if !isSubscriptionListIssue {
+		switch {
+		case discover.SubscriptionId == "":
+			return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
+		case discover.ResourceGroup == "":
+			return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
+		case discover.Region == "":
+			return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
+		case len(discover.Instances) == 0:
+			return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
+		}
 	}
+
 	expectedTaskName := taskNameForDiscoverAzureVM(
 		TaskGroup{
 			Integration: spec.Integration,
@@ -646,9 +662,12 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 			ut.Metadata.Name,
 		)
 	}
-	if len(discover.Instances) == 0 {
-		return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
+
+	// Subscription resolution fails before VM scope or instance data is known.
+	if isSubscriptionListIssue {
+		return nil
 	}
+
 	for vmID, vmIssue := range discover.Instances {
 		switch {
 		case vmIssue == nil:

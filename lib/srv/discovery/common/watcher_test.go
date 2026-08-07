@@ -20,12 +20,14 @@ package common
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -61,14 +63,25 @@ func TestWatcher(t *testing.T) {
 	}
 
 	clock := clockwork.NewFakeClock()
-	fetchIterations := atomic.Uint32{}
+	fetchIterationsStart := atomic.Uint32{}
+	fetchIterationsEnd := atomic.Uint32{}
+	resourcesCollectorMU := sync.RWMutex{}
+	var resourcesCollector types.ResourcesWithLabels
 	watcher, err := NewWatcher(ctx, WatcherConfig{
 		FetchersFn: StaticFetchers([]Fetcher{appFetcher, noAuthFetcher, dbFetcher}),
 		Interval:   time.Hour,
 		Clock:      clock,
 		Origin:     types.OriginCloud,
 		PreFetchHookFn: func() {
-			fetchIterations.Add(1)
+			fetchIterationsStart.Add(1)
+		},
+		ProcessResourcesDiscoveredHookFn: func(rwl types.ResourcesWithLabels) {
+			resourcesCollectorMU.Lock()
+			defer resourcesCollectorMU.Unlock()
+			resourcesCollector = append(resourcesCollector, rwl...)
+		},
+		PostFetchHookFn: func() {
+			fetchIterationsEnd.Add(1)
 		},
 	})
 	require.NoError(t, err)
@@ -76,13 +89,33 @@ func TestWatcher(t *testing.T) {
 
 	// Watcher should fetch once right away at watcher.Start.
 	wantResources := types.ResourcesWithLabels{app1, app2, db}
-	assertFetchResources(t, watcher, wantResources)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		if !assert.Equal(collect, uint32(1), fetchIterationsEnd.Load()) {
+			return
+		}
+		assert.Equal(t, uint32(1), fetchIterationsStart.Load())
+
+		resourcesCollectorMU.RLock()
+		defer resourcesCollectorMU.RUnlock()
+		assert.ElementsMatch(collect, wantResources, resourcesCollector)
+	}, time.Second, 100*time.Millisecond, "timeout waiting for resources")
+
+	resourcesCollectorMU.Lock()
+	resourcesCollector = nil
+	resourcesCollectorMU.Unlock()
 
 	// Watcher should fetch again after interval.
 	clock.Advance(time.Hour + time.Minute)
-	assertFetchResources(t, watcher, wantResources)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		if !assert.Equal(collect, uint32(2), fetchIterationsEnd.Load()) {
+			return
+		}
+		assert.Equal(t, uint32(2), fetchIterationsStart.Load())
 
-	require.Equal(t, uint32(2), fetchIterations.Load())
+		resourcesCollectorMU.RLock()
+		defer resourcesCollectorMU.RUnlock()
+		assert.ElementsMatch(collect, wantResources, resourcesCollector)
+	}, time.Second, 100*time.Millisecond, "timeout waiting for resources")
 }
 
 func TestWatcherWithDynamicFetchers(t *testing.T) {

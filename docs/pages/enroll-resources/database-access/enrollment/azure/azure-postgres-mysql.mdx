@@ -7,6 +7,7 @@ tags:
  - zero-trust
  - infrastructure-identity
  - azure
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure PostgreSQL or MySQL" dbConfigure="with Microsoft Entra ID-based authentication"!)
@@ -359,7 +360,7 @@ Save this file and apply it to your Teleport cluster:
 
 ```code
 $ tctl create -f azure-database-role.yaml
-role 'azure-database-role.yaml' has been created
+role 'azure-database-access' has been created
 ```
 
 (!docs/pages/includes/create-role-using-web.mdx!)

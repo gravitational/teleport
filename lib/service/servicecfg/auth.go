@@ -192,6 +192,30 @@ type PluginOAuthProviders struct {
 	SlackCredentials *OAuthClientCredentials
 }
 
+func (p PluginOAuthProviders) GetStaticCredentialsForPlugin(pluginType types.PluginType) types.PluginStaticCredentials {
+	switch pluginType {
+	case types.PluginTypeSlack:
+		if p.SlackCredentials == nil {
+			return nil
+		}
+		return &types.PluginStaticCredentialsV1{
+			// Empty header, this is technically an invalid resource.
+			// This is a good thing as this must not be stored in the backend.
+			ResourceHeader: types.ResourceHeader{},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+					OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+						ClientId:     p.SlackCredentials.ClientID,
+						ClientSecret: p.SlackCredentials.ClientSecret,
+					},
+				},
+			},
+		}
+	default:
+		return nil
+	}
+}
+
 // OAuthClientCredentials stores the client_id and client_secret
 // of an OAuth application.
 type OAuthClientCredentials struct {

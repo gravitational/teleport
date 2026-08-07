@@ -117,8 +117,8 @@ func (u *UIDiscoverStartedEvent) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (u *UIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverStartedEvent{
 			UiDiscoverStartedEvent: &prehogv1a.UIDiscoverStartedEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -139,8 +139,8 @@ func (u *UIDiscoverResourceSelectionEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverResourceSelectionEvent{
 			UiDiscoverResourceSelectionEvent: &prehogv1a.UIDiscoverResourceSelectionEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -163,8 +163,8 @@ func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverIntegrationAwsOidcConnectEvent{
 			UiDiscoverIntegrationAwsOidcConnectEvent: &prehogv1a.UIDiscoverIntegrationAWSOIDCConnectEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -189,8 +189,8 @@ func (u *UIDiscoverDatabaseRDSEnrollEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDatabaseRDSEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDatabaseRDSEnrollEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDatabaseRdsEnrollEvent{
 			UiDiscoverDatabaseRdsEnrollEvent: &prehogv1a.UIDiscoverDatabaseRDSEnrollEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -213,8 +213,8 @@ func (u *UIDiscoverKubeEKSEnrollEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverKubeEKSEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverKubeEKSEnrollEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverKubeEksEnrollEvent{
 			UiDiscoverKubeEksEnrollEvent: &prehogv1a.UIDiscoverKubeEKSEnrollEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -241,8 +241,8 @@ func (u *UIDiscoverDeployServiceEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDeployServiceEvent{
 			UiDiscoverDeployServiceEvent: &prehogv1a.UIDiscoverDeployServiceEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -265,8 +265,8 @@ func (u *UIDiscoverCreateDiscoveryConfigEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverCreateDiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverCreateDiscoveryConfigEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateDiscoveryConfig{
 			UiDiscoverCreateDiscoveryConfig: &prehogv1a.UIDiscoverCreateDiscoveryConfigEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -289,8 +289,8 @@ func (u *UIDiscoverDatabaseRegisterEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDatabaseRegisterEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDatabaseRegisterEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDatabaseRegisterEvent{
 			UiDiscoverDatabaseRegisterEvent: &prehogv1a.UIDiscoverDatabaseRegisterEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -312,8 +312,8 @@ func (u *UIDiscoverDatabaseConfigureMTLSEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDatabaseConfigureMTLSEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDatabaseConfigureMTLSEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDatabaseConfigureMtlsEvent{
 			UiDiscoverDatabaseConfigureMtlsEvent: &prehogv1a.UIDiscoverDatabaseConfigureMTLSEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -335,8 +335,8 @@ func (u *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) CheckAndSetDefaults(
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDesktopActiveDirectoryToolsInstallEvent{
 			UiDiscoverDesktopActiveDirectoryToolsInstallEvent: &prehogv1a.UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -358,8 +358,8 @@ func (u *UIDiscoverDesktopActiveDirectoryConfigureEvent) CheckAndSetDefaults() e
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDesktopActiveDirectoryConfigureEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDesktopActiveDirectoryConfigureEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDesktopActiveDirectoryConfigureEvent{
 			UiDiscoverDesktopActiveDirectoryConfigureEvent: &prehogv1a.UIDiscoverDesktopActiveDirectoryConfigureEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -384,8 +384,8 @@ func (u *UIDiscoverAutoDiscoveredResourcesEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverAutoDiscoveredResourcesEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverAutoDiscoveredResourcesEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
 			UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1a.UIDiscoverAutoDiscoveredResourcesEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -407,8 +407,8 @@ func (u *UIDiscoverEC2InstanceSelectionEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverEC2InstanceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverEC2InstanceSelectionEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverEc2InstanceSelection{
 			UiDiscoverEc2InstanceSelection: &prehogv1a.UIDiscoverEC2InstanceSelectionEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -429,8 +429,8 @@ func (u *UIDiscoverDeployEICEEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDeployEICEEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDeployEICEEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDeployEice{
 			UiDiscoverDeployEice: &prehogv1a.UIDiscoverDeployEICEEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -451,8 +451,8 @@ func (u *UIDiscoverCreateNodeEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverCreateNodeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverCreateNodeEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateNode{
 			UiDiscoverCreateNode: &prehogv1a.UIDiscoverCreateNodeEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -473,8 +473,8 @@ func (u *UIDiscoverCreateAppServerEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverCreateAppServerEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverCreateAppServerEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateAppServerEvent{
 			UiDiscoverCreateAppServerEvent: &prehogv1a.UIDiscoverCreateAppServerEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -496,8 +496,8 @@ func (u *UIDiscoverDatabaseConfigureIAMPolicyEvent) CheckAndSetDefaults() error 
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverDatabaseConfigureIAMPolicyEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverDatabaseConfigureIAMPolicyEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDatabaseConfigureIamPolicyEvent{
 			UiDiscoverDatabaseConfigureIamPolicyEvent: &prehogv1a.UIDiscoverDatabaseConfigureIAMPolicyEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -519,8 +519,8 @@ func (u *UIDiscoverPrincipalsConfigureEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverPrincipalsConfigureEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverPrincipalsConfigureEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverPrincipalsConfigureEvent{
 			UiDiscoverPrincipalsConfigureEvent: &prehogv1a.UIDiscoverPrincipalsConfigureEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -542,8 +542,8 @@ func (u *UIDiscoverTestConnectionEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverTestConnectionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverTestConnectionEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverTestConnectionEvent{
 			UiDiscoverTestConnectionEvent: &prehogv1a.UIDiscoverTestConnectionEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
@@ -564,8 +564,8 @@ func (u *UIDiscoverCompletedEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverCompletedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (u *UIDiscoverCompletedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiDiscoverCompletedEvent{
 			UiDiscoverCompletedEvent: &prehogv1a.UIDiscoverCompletedEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{

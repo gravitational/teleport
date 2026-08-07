@@ -49,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 const (
@@ -194,7 +194,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 	)
 	defer span.End()
 
-	session, err := ns.createServerSession(ctx, nil)
+	session, err := ns.createServerSession(ctx, sessionParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}

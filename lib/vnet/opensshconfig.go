@@ -29,9 +29,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	renameio "github.com/google/renameio/v2/maybe" // Writes aren't guaranteed to be atomic on Windows.
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"

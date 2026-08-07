@@ -149,7 +149,7 @@ func yamlToRole(yaml string) (types.Role, error) {
 	if extractedRes.Kind != types.KindRole {
 		return nil, trace.BadParameter("resource kind %q is invalid, only role is allowed", extractedRes.Kind)
 	}
-	resource, err := services.UnmarshalRole(extractedRes.Raw)
+	resource, err := services.UnmarshalRole(extractedRes.Raw, services.DisallowUnknown())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

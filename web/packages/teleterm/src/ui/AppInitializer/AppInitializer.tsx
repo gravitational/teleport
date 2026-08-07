@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Indicator } from 'design';
+import { getErrorMessage } from 'shared/utils/error';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
@@ -43,17 +44,24 @@ export const AppInitializer = () => {
       // activate it.
       const rootClusterUri =
         appContext.workspacesService.getRestoredState()?.rootClusterUri;
-      if (rootClusterUri) {
+      if (
+        rootClusterUri &&
+        // If the previously active workspace no longer has a cluster, start without an
+        // active workspace so ClusterConnectPanel is shown. This can happen when the
+        // profile was removed outside Connect. Recreating the profile should be a
+        // user-initiated reconnect action, not an automatic startup side effect.
+        appContext.clustersService.findCluster(rootClusterUri)
+      ) {
         void appContext.workspacesService.setActiveWorkspace(rootClusterUri);
       }
       appContext.mainProcessClient.signalUserInterfaceReadiness({
         success: true,
       });
     } catch (error) {
-      logger.error(error?.message);
+      logger.error('Failed to initialize app', error);
 
       setShouldShowUi(true);
-      appContext?.notificationsService.notifyError(error?.message);
+      appContext?.notificationsService.notifyError(getErrorMessage(error));
       appContext?.mainProcessClient.signalUserInterfaceReadiness({
         success: false,
       });

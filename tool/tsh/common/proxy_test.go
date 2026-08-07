@@ -31,18 +31,23 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
-	"text/template"
+	"testing/synctest"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -1793,4 +1799,268 @@ func Test_checkProxyMCPCompatibility(t *testing.T) {
 			tt.checkResult(t, checkProxyMCPCompatibility(tt.command, app))
 		})
 	}
+}
+
+func Test_alpnProtocolForApp(t *testing.T) {
+	tests := []struct {
+		name         string
+		appURI       string
+		appLLM       *types.LLM
+		appHTTPS     bool
+		wantProtocol alpncommon.Protocol
+		wantErr      bool
+	}{
+		{
+			name:         "HTTP app",
+			appURI:       "http://example.com",
+			wantProtocol: alpncommon.ProtocolHTTP,
+		},
+		{
+			name:         "HTTPS app",
+			appURI:       "https://example.com",
+			wantProtocol: alpncommon.ProtocolHTTP,
+		},
+		{
+			name:         "TCP app",
+			appURI:       "tcp://example.com",
+			wantProtocol: alpncommon.ProtocolTCP,
+		},
+		{
+			name:         "MCP app",
+			appURI:       "mcp+http://example.com",
+			wantProtocol: alpncommon.ProtocolHTTP,
+		},
+		{
+			name:         "HTTP app with --https-tunnel flag",
+			appURI:       "http://example.com",
+			appHTTPS:     true,
+			wantProtocol: alpncommon.ProtocolAppHTTPS,
+		},
+		{
+			name:         "HTTPS app with --https-tunnel flag",
+			appURI:       "https://example.com",
+			appHTTPS:     true,
+			wantProtocol: alpncommon.ProtocolAppHTTPS,
+		},
+		{
+			name:   "LLM app with --https-tunnel flag",
+			appURI: "llm://",
+			appLLM: &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			},
+			appHTTPS:     true,
+			wantProtocol: alpncommon.ProtocolAppHTTPS,
+		},
+		{
+			name:     "TCP app with --https-tunnel flag",
+			appURI:   "tcp://example.com",
+			appHTTPS: true,
+			wantErr:  true,
+		},
+		{
+			name:     "MCP app with --https-tunnel flag",
+			appURI:   "mcp+http://example.com",
+			appHTTPS: true,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := types.NewAppV3(types.Metadata{
+				Name: t.Name(),
+			}, types.AppSpecV3{
+				URI: tt.appURI,
+				LLM: tt.appLLM,
+			})
+			require.NoError(t, err)
+
+			got, err := alpnProtocolForApp(app, tt.appHTTPS)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantProtocol, got)
+		})
+	}
+}
+
+func TestRetryLock(t *testing.T) {
+	testDirPath := t.TempDir()
+	lockFilePath := func(lockFileName string) string {
+		return path.Join(testDirPath, lockFileName)
+	}
+
+	tc := &client.TeleportClient{}
+
+	// Relogin functions each call synctest.Wait to ensure that the shared lock holders
+	// are blocked waiting on the exclusive lock to release. Otherwise we'll have flaky tests.
+	successRelogin := func(ctx context.Context, tc *client.TeleportClient, rwro ...client.RetryWithReloginOption) error {
+		synctest.Wait()
+		return nil
+	}
+
+	failedRelogin := func(ctx context.Context, tc *client.TeleportClient, rwro ...client.RetryWithReloginOption) error {
+		synctest.Wait()
+		return errors.New("relogin failed")
+	}
+
+	networkIssuesResolveAfter := func(attempt int) reloginFunc {
+		return func(_ context.Context, _ *client.TeleportClient, _ ...client.RetryWithReloginOption) error {
+			synctest.Wait()
+			if attempt > 0 {
+				attempt--
+				return trace.ConnectionProblem(io.ErrClosedPipe, "network problem")
+			}
+			return nil
+		}
+	}
+
+	reloginCallCounter := func(f reloginFunc) (reloginFunc, *atomic.Int32, *atomic.Bool) {
+		var calls atomic.Int32
+		var reloginSuccess atomic.Bool
+		return func(ctx context.Context, tc *client.TeleportClient, rwro ...client.RetryWithReloginOption) error {
+			calls.Add(1)
+			if err := f(ctx, tc, rwro...); err != nil {
+				return err
+			}
+			reloginSuccess.Store(true)
+			return nil
+		}, &calls, &reloginSuccess
+	}
+
+	operationCallCounter := func(op func() error) (func() error, *atomic.Int32) {
+		var calls atomic.Int32
+		return func() error {
+			calls.Add(1)
+			return op()
+		}, &calls
+	}
+
+	// Returns an operation function that only returns successfully after relogin is called AND succeeds.
+	successOnRelogin := func(rf reloginFunc) (reloginFunc, func() error, *atomic.Int32, *atomic.Int32) {
+		rf, reloginCalls, reloginSuccess := reloginCallCounter(rf)
+		op, opCalls := operationCallCounter(func() error {
+			if reloginSuccess.Load() {
+				return nil
+			}
+			return errors.New("ssh: cert has expired")
+		})
+		return rf, op, reloginCalls, opCalls
+	}
+
+	tests := []struct {
+		name                   string
+		relogin                reloginFunc
+		errorAssertion         func(t require.TestingT, err error, msgAndArgs ...interface{})
+		expectedReloginCalls   int
+		expectedOperationCalls int
+	}{
+		{
+			name:           "transient network errors are retried",
+			relogin:        networkIssuesResolveAfter(3),
+			errorAssertion: require.NoError,
+			// Expect 6 operation calls
+			// 3 "first attempts" initially and 3
+			// retry attempts after relogin eventually succeeds.
+			expectedOperationCalls: 6,
+			// Relogin is attempted 4 times
+			expectedReloginCalls: 4,
+		},
+		{
+			name:           "relogin succeeds - each instance's operation succeeds",
+			relogin:        successRelogin,
+			errorAssertion: require.NoError,
+			// Each operation tries to run, fails the first attempt,
+			// then retries after successful relogin.
+			expectedOperationCalls: 6,
+			expectedReloginCalls:   1,
+		},
+
+		{
+			name:           "relogin eventually gives up retrying network errors",
+			relogin:        networkIssuesResolveAfter(4),
+			errorAssertion: require.Error,
+			// Expect 5 operation calls
+			// 3 "first attempts" initially and 2
+			// retry attempts by the shared lock holders.
+			// Exclusive lock holder will not retry after relogin failure.
+			expectedOperationCalls: 5,
+			expectedReloginCalls:   4,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				lockPath := lockFilePath("testlock.lock")
+				t.Cleanup(func() {
+					os.Remove(lockPath)
+				})
+				relogin, operation, reloginCalls, operationCalls := successOnRelogin(test.relogin)
+				errors := make(chan error, 3)
+				wg := sync.WaitGroup{}
+				for range 3 {
+					wg.Go(func() {
+						errors <- sshRetryer{
+							shouldRetry:   client.ShouldRetryWithRelogin,
+							relogin:       relogin,
+							lockfilePath:  lockFilePath(lockPath),
+							waitDuration:  30 * time.Second,
+							retryDriver:   retryutils.NewLinearDriver(1 * time.Second),
+							retryAttempts: 3,
+						}.retryWithLimitedRelogin(t.Context(), tc, operation)
+					})
+				}
+				wg.Wait()
+				close(errors)
+				for err := range errors {
+					test.errorAssertion(t, err)
+				}
+				assert.Equal(t, test.expectedOperationCalls, int(operationCalls.Load()))
+				assert.Equal(t, test.expectedReloginCalls, int(reloginCalls.Load()))
+			})
+
+		})
+	}
+
+	t.Run("relogin fails open", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			relogin, operation, reloginCalls, operationCalls := successOnRelogin(failedRelogin)
+			// run two batches of operation attempts.
+			for i := range 2 {
+				errors := make(chan error, 3)
+				wg := sync.WaitGroup{}
+				for range 3 {
+					wg.Go(func() {
+						errors <- sshRetryer{
+							shouldRetry:   client.ShouldRetryWithRelogin,
+							relogin:       relogin,
+							lockfilePath:  lockFilePath("failopen"),
+							waitDuration:  60 * time.Second,
+							retryDriver:   retryutils.NewLinearDriver(1 * time.Second),
+							retryAttempts: 3,
+						}.retryWithLimitedRelogin(t.Context(), tc, operation)
+					})
+				}
+				wg.Wait()
+				close(errors)
+				for err := range errors {
+					// All operations should fail since
+					// relogin never succeeds
+					require.Error(t, err)
+				}
+
+				// Expect 5 operation calls per batch
+				// 3 "first attempts" initially. The exclusive lock
+				// holder won't retry after relogin failure, but the
+				// shared lock holders *will* retry anyway.
+				assert.Equal(t, 5*(i+1), int(operationCalls.Load()))
+				// Relogin is called once per batch.
+				assert.Equal(t, i+1, int(reloginCalls.Load()))
+			}
+		})
+	})
 }

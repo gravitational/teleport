@@ -8,4 +8,5 @@ auth_server: example.teleport.sh:443
 credential_ttl: 1m0s
 renewal_interval: 30s
 oneshot: false
+scoped: true
 fips: false

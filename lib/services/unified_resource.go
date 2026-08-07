@@ -35,9 +35,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -396,6 +399,7 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 	switch r.GetKind() {
 	case types.KindNode,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindGitServer,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
@@ -420,6 +424,8 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 		if _, ok := kinds[types.KindMCP]; ok && r.GetSubKind() == types.KindMCP {
 			return true
 		}
+
+		// TODO(gabrielcorado): support LLM subkind.
 
 		_, ok := kinds[types.KindIdentityCenterAccount]
 		return ok
@@ -463,6 +469,8 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 				return true
 			}
 		}
+
+		// TODO(gabrielcorado): support LLM subkind.
 		return false
 	default:
 		return false
@@ -523,6 +531,7 @@ type ResourceGetter interface {
 	DatabaseServersGetter
 	AppServersGetter
 	WindowsDesktopGetter
+	LinuxDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
@@ -543,7 +552,13 @@ func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg Re
 
 // resourceName is a unique name to be used as a key in the resources map
 func resourceKey(resource types.Resource) string {
-	return resource.GetName() + "/" + resource.GetKind()
+	key := resource.GetName() + "/" + resource.GetKind()
+	if r, ok := resource.(interface{ GetScope() string }); ok {
+		if scope := r.GetScope(); scope != "" {
+			key = scopes.QualifiedName{Name: key, Scope: scope}.String()
+		}
+	}
+	return key
 }
 
 type resourceSortKey struct {
@@ -575,6 +590,9 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 				name = sanitizedFriendlyName + "/" + app.GetName()
 			} else {
 				name = app.GetName()
+			}
+			if scope := r.GetScope(); scope != "" {
+				name = scopes.QualifiedName{Name: name, Scope: scope}.String()
 			}
 			kind = types.KindApp
 		}
@@ -637,6 +655,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newLinuxDesktops, err := c.getLinuxDesktops(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	newICAccounts, err := c.getIdentityCenterAccounts(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -662,6 +685,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources(c, newKubes)
 	putResources(c, newSAMLApps)
 	putResources(c, newDesktops)
+	putResources(c, newLinuxDesktops)
 	putResources(c, newICAccounts)
 	putResources(c, newGitServers)
 	c.stale = false
@@ -714,6 +738,18 @@ func (c *UnifiedResourceCache) getDesktops(ctx context.Context) ([]types.Windows
 	}
 
 	return newDesktops, nil
+}
+
+// getLinuxDesktops will get all Linux desktops
+func (c *UnifiedResourceCache) getLinuxDesktops(ctx context.Context) ([]resource, error) {
+	var linuxDesktops []resource
+	for linuxDesktop, err := range clientutils.Resources(ctx, c.ListLinuxDesktops) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		linuxDesktops = append(linuxDesktops, types.ProtoResource153ToLegacy(linuxDesktop))
+	}
+	return linuxDesktops, nil
 }
 
 // getSAMLApps will get all SAML Idp Service Providers
@@ -868,6 +904,9 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 		case types.OpDelete:
 			switch event.Resource.GetKind() {
 			case types.KindIdentityCenterAccount:
+				// IdentityCenterAccountToAppServer stores the entry under
+				// KindAppServer with the IC account's name; rebuild that
+				// header so the delete matches the cache key.
 				c.deleteLocked(&types.ResourceHeader{
 					Kind: types.KindAppServer,
 					Metadata: types.Metadata{
@@ -901,6 +940,7 @@ func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindGitServer},
@@ -1080,7 +1120,7 @@ func (a *aggregatedAppServer) GetComponentFeatures() *componentfeaturesv1.Compon
 func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer) *componentfeaturesv1.ComponentFeatures {
 	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
 	for _, s := range servers {
-		allFeatures = append(allFeatures, s.GetComponentFeatures())
+		allFeatures = append(allFeatures, componentfeatures.GetEffectiveServerFeatures(s))
 	}
 	return componentfeatures.Intersect(allFeatures...)
 }
@@ -1230,6 +1270,13 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		}
 
 		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}, RequiresRequest: requiresRequest}
+	case types.KindLinuxDesktop:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: proto.PackLinuxDesktop(unwrapper.UnwrapT()), Logins: logins, RequiresRequest: requiresRequest}
 	case types.KindWindowsDesktop:
 		desktop, ok := resource.(*types.WindowsDesktopV3)
 		if !ok {

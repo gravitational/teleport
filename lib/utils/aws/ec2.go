@@ -21,11 +21,11 @@ package aws
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
 

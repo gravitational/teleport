@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 Teleport allows you to add arbitrary key-value pairs to applications, servers,
@@ -15,8 +16,8 @@ the following:
 - Filter the resources returned when running `tctl` and `tsh` commands.
 - Define roles that limit the resources Teleport users can access.
 
-This guide demonstrates how to add labels to enrolled server resources.
-However, you can follow similar steps to add labels to other types of resources.
+In this guide, you will add labels to enrolled server resources. You can follow
+similar steps to add labels to other types of resources.
 
 ## How it works
 
@@ -33,7 +34,8 @@ process or editing the configuration file.
 
 You can add multiple static, dynamic, and resource-based labels for the same resource.
 However, you can't add static labels that use the same key with different values or use
-a static label to define multiple potential values.
+a static label to define multiple potential values. If a static label and dynamic label have
+the same key, the dynamic label always takes precedence in resource filtering and RBAC permissions.
 
 Dynamic labels are especially useful for decoupling a label value from the Teleport configuration.
 For example, if you start Teleport on an Amazon EC2 instance, you can use a dynamic label to set the
@@ -285,10 +287,10 @@ host server every one hour.
 
 1. Save your changes and close the file.
 
-1. Start Teleport with the invitation token you saved in the `INVITE_TOKEN` environment variable:
+1. Start Teleport with the invitation token you saved in the `/tmp/token` file:
 
    ```code
-   $ sudo teleport start --token=${INVITE_TOKEN?}
+   $ sudo teleport start --token=/tmp/token
    ```
 
 1. Verify that you have added the label by running the following command on your local
@@ -382,6 +384,5 @@ After you have labeled your resources, you can use the labels when running
 For more information, see [Resource filtering](../../reference/access-controls/predicate-language.mdx).
 
 You can also use labels to limit the access that users in different roles have to
-
 specific classes of resources. For more information, see
 [Teleport Role Templates](role-templates.mdx).

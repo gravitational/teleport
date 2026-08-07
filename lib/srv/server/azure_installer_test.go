@@ -19,86 +19,184 @@ package server
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
-type mockRunCommandClient struct {
-	runFunc func(ctx context.Context, req azure.RunCommandRequest) error
+type mockRunCommandClient struct{}
+
+func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
+	if strings.HasPrefix(req.VMName, "bad") {
+		return nil, trace.BadParameter("VM is bad: %v", req.VMName)
+	}
+
+	return &azure.RunCommandResult{
+		ExecutionState: string(armcompute.ExecutionStateSucceeded),
+		ExitCode:       0,
+		StdOut:         "Mock stdout",
+		StdErr:         "Mock stderr",
+	}, nil
 }
 
-func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) error {
-	if m.runFunc != nil {
-		return m.runFunc(ctx, req)
+type blockingFakeRunCommandClient struct {
+	started     chan struct{}
+	unblockOnce sync.Once
+	unblockCh   chan struct{}
+
+	mu      sync.Mutex
+	blocked map[string]struct{}
+}
+
+func newBlockingRunCommandClient(instanceCount int) *blockingFakeRunCommandClient {
+	return &blockingFakeRunCommandClient{
+		started:   make(chan struct{}, instanceCount),
+		unblockCh: make(chan struct{}),
+		blocked:   make(map[string]struct{}),
 	}
-	return nil
+}
+
+func (m *blockingFakeRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
+	m.mu.Lock()
+	m.blocked[req.VMName] = struct{}{}
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		delete(m.blocked, req.VMName)
+		m.mu.Unlock()
+	}()
+
+	select {
+	case m.started <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	// block so other installs can enter Run. If the installer becomes
+	// sequential, blockUntil will time out waiting for the later starts instead
+	// of observing the full instance set.
+	select {
+	case <-m.unblockCh:
+		return &azure.RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateSucceeded),
+			ExitCode:       0,
+			StdOut:         "Mock stdout",
+			StdErr:         "Mock stderr",
+		}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (m *blockingFakeRunCommandClient) blockUntil(count int) []string {
+	for len(m.blockedVMs()) < count {
+		select {
+		case <-m.started:
+		case <-time.After(5 * time.Second):
+			return m.blockedVMs()
+		}
+	}
+	return m.blockedVMs()
+}
+
+func (m *blockingFakeRunCommandClient) unblock() {
+	m.unblockOnce.Do(func() {
+		close(m.unblockCh)
+	})
+}
+
+func (m *blockingFakeRunCommandClient) blockedVMs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return slices.Collect(maps.Keys(m.blocked))
+}
+
+func newFakeSemaphore(maxLeases int) *fakeSemaphore {
+	return &fakeSemaphore{
+		sem:    make(chan struct{}, maxLeases),
+		closed: make(chan struct{}),
+	}
+}
+
+type fakeSemaphore struct {
+	sem    chan struct{}
+	closed chan struct{}
+}
+
+func (f *fakeSemaphore) acquire(ctx context.Context) (func(), error) {
+	select {
+	case f.sem <- struct{}{}:
+	case <-f.closed:
+		return nil, errors.New("fake semaphore closed")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return f.release, nil
+}
+
+func (f *fakeSemaphore) release() {
+	<-f.sem
+}
+
+func (f *fakeSemaphore) getActive() int {
+	return len(f.sem)
+}
+
+func (f *fakeSemaphore) close() {
+	close(f.closed)
 }
 
 func TestAzureInstallRequestRun(t *testing.T) {
-	makeVMs := func(names ...string) []*armcompute.VirtualMachine {
-		vms := make([]*armcompute.VirtualMachine, len(names))
-		for i, name := range names {
-			vms[i] = &armcompute.VirtualMachine{
-				ID:   &name,
-				Name: &name,
-			}
+	makeVM := func(name string) *azure.VirtualMachine {
+		return &azure.VirtualMachine{
+			ID:   name,
+			Name: name,
+		}
+	}
+
+	makeVMs := func(names ...string) []*azure.VirtualMachine {
+		var vms []*azure.VirtualMachine
+		for _, name := range names {
+			vms = append(vms, makeVM(name))
 		}
 		return vms
 	}
+
 	t.Parallel()
+
+	client := &mockRunCommandClient{}
 
 	tests := []struct {
 		name            string
-		instances       []*armcompute.VirtualMachine
-		runFunc         func(ctx context.Context, req azure.RunCommandRequest) error
+		instances       []*azure.VirtualMachine
 		proxyAddrGetter func(context.Context) (string, error)
-		wantErr         string
-		wantFailedVMs   []string
+
+		wantErr string
+
+		wantOK     []string
+		wantFailed []string
 	}{
 		{
-			name:      "no instances",
-			instances: nil,
+			name:      "success",
+			instances: makeVMs("good-1", "good-2", "good-3"),
+			wantOK:    []string{"good-1", "good-2", "good-3"},
 		},
 		{
-			name:      "single instance success",
-			instances: makeVMs("vm-1"),
-		},
-		{
-			name:      "single instance failure",
-			instances: makeVMs("vm-1"),
-			runFunc: func(ctx context.Context, req azure.RunCommandRequest) error {
-				return errors.New("install failed")
-			},
-			wantFailedVMs: []string{"vm-1"},
-		},
-		{
-			name:      "multiple instances all success",
-			instances: makeVMs("vm-1", "vm-2", "vm-3"),
-		},
-		{
-			name:      "multiple instances some failures",
-			instances: makeVMs("vm-1", "vm-2", "vm-3"),
-			runFunc: func(ctx context.Context, req azure.RunCommandRequest) error {
-				if req.VMName == "vm-2" {
-					return errors.New("install failed")
-				}
-				return nil
-			},
-			wantFailedVMs: []string{"vm-2"},
-		},
-		{
-			name:      "multiple instances all failures",
-			instances: makeVMs("vm-1", "vm-2", "vm-3"),
-			runFunc: func(ctx context.Context, req azure.RunCommandRequest) error {
-				return errors.New("install failed")
-			},
-			wantFailedVMs: []string{"vm-1", "vm-2", "vm-3"},
+			name:       "mixed results",
+			instances:  makeVMs("good-1", "bad-2", "good-3", "bad-4"),
+			wantOK:     []string{"good-1", "good-3"},
+			wantFailed: []string{"bad-2", "bad-4"},
 		},
 		{
 			name:      "proxy addr getter error",
@@ -114,13 +212,16 @@ func TestAzureInstallRequestRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockRunCommandClient{runFunc: tt.runFunc}
 			proxyAddrGetter := tt.proxyAddrGetter
 			if proxyAddrGetter == nil {
 				proxyAddrGetter = func(ctx context.Context) (string, error) {
 					return "proxy.example.com:443", nil
 				}
 			}
+
+			var mu sync.Mutex
+			var failed []string
+			var good []string
 
 			req := &AzureInstallRequest{
 				Instances: tt.instances,
@@ -131,24 +232,107 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				ProxyAddrGetter: proxyAddrGetter,
 				Region:          "eastus",
 				ResourceGroup:   "test-rg",
+				OnRunCommandFinished: func(result AzureInstallResult) {
+					mu.Lock()
+					defer mu.Unlock()
+					if result.Failure() {
+						failed = append(failed, result.Instance.ID)
+					} else {
+						good = append(good, result.Instance.ID)
+					}
+				},
 			}
 
-			failures, err := req.Run(t.Context(), client)
+			err := req.Run(t.Context(), client)
+
+			slices.Sort(failed)
+			slices.Sort(good)
+
+			require.Equal(t, tt.wantFailed, failed)
+			require.Equal(t, tt.wantOK, good)
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-
-			require.NoError(t, err)
-
-			var failedNames []string
-			for _, vm := range failures {
-				failedNames = append(failedNames, *vm.Instance.Name)
-			}
-			slices.Sort(failedNames)
-
-			require.Equal(t, tt.wantFailedVMs, failedNames)
 		})
 	}
+
+	runAzureInstallRequest := func(t *testing.T, req *AzureInstallRequest, client azure.RunCommandClient) <-chan error {
+		t.Helper()
+		errCh := make(chan error, 1)
+		go func() { errCh <- req.Run(t.Context(), client) }()
+		return errCh
+	}
+	makeTestAzureInstallRequest := func(instances []*azure.VirtualMachine) *AzureInstallRequest {
+		return &AzureInstallRequest{
+			Instances: instances,
+			InstallerParams: &types.InstallerParams{
+				JoinMethod: types.JoinMethodAzure,
+				JoinToken:  "test-token",
+			},
+			ProxyAddrGetter: func(ctx context.Context) (string, error) {
+				return "proxy.example.com:443", nil
+			},
+			Region:        "eastus",
+			ResourceGroup: "test-rg",
+			AcquireLease: func(context.Context) (func(), error) {
+				return func() {}, nil
+			},
+		}
+	}
+
+	t.Run("runs installations in parallel", func(t *testing.T) {
+		t.Parallel()
+
+		instances := makeVMs("vm-1", "vm-2", "vm-3")
+		client := newBlockingRunCommandClient(len(instances))
+		defer client.unblock()
+		req := makeTestAzureInstallRequest(instances)
+
+		runErrCh := runAzureInstallRequest(t, req, client)
+		require.ElementsMatch(t, []string{"vm-1", "vm-2", "vm-3"}, client.blockUntil(len(instances)))
+
+		client.unblock()
+		require.NoError(t, <-runErrCh)
+	})
+
+	t.Run("acquires and releases lease", func(t *testing.T) {
+		t.Parallel()
+
+		instances := makeVMs("vm-1", "vm-2", "vm-3")
+		client := newBlockingRunCommandClient(len(instances))
+		defer client.unblock()
+		leases := newFakeSemaphore(3)
+		req := makeTestAzureInstallRequest(instances)
+		req.AcquireLease = leases.acquire
+
+		runErrCh := runAzureInstallRequest(t, req, client)
+
+		require.ElementsMatch(t, []string{"vm-1", "vm-2", "vm-3"}, client.blockUntil(len(instances)))
+		require.Equal(t, len(instances), leases.getActive())
+		client.unblock()
+		require.NoError(t, <-runErrCh)
+		require.Zero(t, leases.getActive())
+	})
+
+	t.Run("returns acquire lease error", func(t *testing.T) {
+		t.Parallel()
+
+		instances := makeVMs("vm-1", "vm-2")
+		client := newBlockingRunCommandClient(len(instances))
+		defer client.unblock()
+		leases := newFakeSemaphore(1)
+		req := makeTestAzureInstallRequest(instances)
+		req.AcquireLease = leases.acquire
+
+		runErrCh := runAzureInstallRequest(t, req, client)
+		_ = client.blockUntil(1)
+		require.Equal(t, 1, leases.getActive())
+		leases.close()
+		require.ErrorContains(t, <-runErrCh, "fake semaphore closed")
+		require.Empty(t, client.blockedVMs())
+		require.Zero(t, leases.getActive())
+	})
 }

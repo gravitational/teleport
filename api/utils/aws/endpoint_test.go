@@ -24,6 +24,76 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsAWSEndpoint(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com",
+			"example.amazonaws.com",
+			"foo.amazonaws.com.cn",
+			"example.amazonaws.com:12345", // port numbers must be allowed here
+		} {
+			require.True(t, IsAWSEndpoint(endpoint))
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"example.com",
+			"foo.amazonaws.com.cn.example.com",
+			"bad.amazonaws.com.example.com",
+			// api.aws endpoints are deliberately excluded, they are matched by
+			// IsAWSAPIEndpoint so legacy endpoint parsers never see them.
+			"aws-mcp.us-east-1.api.aws",
+		} {
+			require.False(t, IsAWSEndpoint(endpoint))
+		}
+	})
+}
+
+func TestIsAWSOwnedEndpoint(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"example.amazonaws.com",
+			"foo.amazonaws.com.cn",
+			"aws-mcp.us-east-1.api.aws",
+			"kms-fips.us-east-1.api.aws:443",
+		} {
+			require.True(t, IsAWSOwnedEndpoint(endpoint))
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"example.com",
+			"evil-api.aws",
+			"foo.api.aws.example.com",
+			"bad.amazonaws.com.example.com",
+		} {
+			require.False(t, IsAWSOwnedEndpoint(endpoint))
+		}
+	})
+}
+
+func TestIsAWSAPIEndpoint(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"aws-mcp.us-east-1.api.aws",
+			"kms-fips.us-east-1.api.aws:443",
+		} {
+			require.True(t, IsAWSAPIEndpoint(endpoint))
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"example.com",
+			"example.amazonaws.com",
+			"api.aws",
+			"evil-api.aws",
+			"foo.api.aws.example.com",
+		} {
+			require.False(t, IsAWSAPIEndpoint(endpoint))
+		}
+	})
+}
+
 func TestParseRDSEndpoint(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -535,7 +605,6 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestRedshiftServerlessEndpoint(t *testing.T) {

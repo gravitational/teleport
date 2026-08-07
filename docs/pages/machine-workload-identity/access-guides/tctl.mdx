@@ -6,6 +6,7 @@ tags:
  - how-to
  - mwi
  - infrastructure-identity
+page_type: how-to
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -98,9 +99,7 @@ services:
     path: /opt/machine-id
 ```
 
-If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to execute the Terraform
-plan later.
+(!docs/pages/includes/machine-id/reload-tbot.mdx resource="the generated credentials"!)
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by `tctl` to
@@ -139,6 +138,15 @@ the generated identity file if you have modified this:
 
 ```code
 $ tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
+```
+
+If you run `tctl` on a host that also runs a Teleport service (with
+`/etc/teleport.yaml` present), the local configuration may conflict with the
+`--auth-server` flag. Set `TELEPORT_CONFIG_FILE=""` to bypass the local
+configuration:
+
+```code
+$ TELEPORT_CONFIG_FILE="" tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
 ```
 
 Check your Teleport cluster, ensuring the role has been created.

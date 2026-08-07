@@ -37,36 +37,36 @@ func Test_newHealthCheckConfig(t *testing.T) {
 	t.Parallel()
 	fullCfg, err := healthcheckconfig.NewHealthCheckConfig(
 		"full",
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				Disabled: true,
-				DbLabels: []*labelv1.Label{{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   "foo",
 					Values: []string{"bar", "baz"},
-				}},
+				}.Build()},
 				DbLabelsExpression: `labels["qux"] == "*"`,
-				KubernetesLabels: []*labelv1.Label{{
+				KubernetesLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   "app",
 					Values: []string{"web", "api"},
-				}},
+				}.Build()},
 				KubernetesLabelsExpression: `labels["lux"] == "*"`,
-			},
+			}.Build(),
 			Timeout:            durationpb.New(time.Second * 42),
 			Interval:           durationpb.New(time.Second * 43),
 			HealthyThreshold:   7,
 			UnhealthyThreshold: 8,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
 	minimalCfg, err := healthcheckconfig.NewHealthCheckConfig(
 		"minimal",
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				DbLabelsExpression:         `labels["*"] == "*"`,
 				KubernetesLabelsExpression: `labels["*"] == "*"`,
-			},
-		},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 

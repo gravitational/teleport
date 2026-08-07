@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -84,7 +85,9 @@ type Status struct {
 	// LastSyncTime is the timestamp when the Discovery Config was last sync.
 	LastSyncTime time.Time `json:"last_sync_time,omitempty" yaml:"last_sync_time,omitempty"`
 	// IntegrationDiscoveredResources maps an integration to a summary of resources that were found using that integration.
-	IntegrationDiscoveredResources map[string]*discoveryconfigv1.IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
+	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
+	// ServerStatus tracks the discovery iteration status for multiple discovery servers, keyed by Server ID.
+	ServerStatus map[string]*DiscoveryStatusServer `json:"server_status,omitempty" yaml:"server_status,omitempty"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
@@ -99,6 +102,54 @@ func NewDiscoveryConfig(metadata header.Metadata, spec Spec) (*DiscoveryConfig, 
 	}
 
 	return discoveryConfig, nil
+}
+
+// IntegrationDiscoveredSummary holds the summary of resources discovered for a specific integration.
+type IntegrationDiscoveredSummary struct {
+	*discoveryconfigv1.IntegrationDiscoveredSummary
+}
+
+// MarshalJSON marshals the IntegrationDiscoveredSummary into JSON.
+func (s *IntegrationDiscoveredSummary) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		s = &IntegrationDiscoveredSummary{}
+	}
+	return protojson.Marshal(s.IntegrationDiscoveredSummary)
+}
+
+// UnmarshalJSON unmarshals JSON data into the IntegrationDiscoveredSummary.
+func (s *IntegrationDiscoveredSummary) UnmarshalJSON(data []byte) error {
+	if s.IntegrationDiscoveredSummary == nil {
+		s.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+	}
+
+	return protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}.Unmarshal(data, s.IntegrationDiscoveredSummary)
+}
+
+// ServerStatus holds the status of a discovery server.
+type DiscoveryStatusServer struct {
+	*discoveryconfigv1.DiscoveryStatusServer
+}
+
+// MarshalJSON marshals the ServerStatus into JSON.
+func (s *DiscoveryStatusServer) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		s = &DiscoveryStatusServer{}
+	}
+	return protojson.Marshal(s.DiscoveryStatusServer)
+}
+
+// UnmarshalJSON unmarshals JSON data into the ServerStatus.
+func (s *DiscoveryStatusServer) UnmarshalJSON(data []byte) error {
+	if s.DiscoveryStatusServer == nil {
+		s.DiscoveryStatusServer = &discoveryconfigv1.DiscoveryStatusServer{}
+	}
+
+	return protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}.Unmarshal(data, s.DiscoveryStatusServer)
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.

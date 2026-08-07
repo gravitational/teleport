@@ -40,7 +40,11 @@ create-joe: aks
 
 .PHONY: create-token
 create-token: aks
-	$(KUBECTL) --context "$(aks_name)" --namespace "$(teleport_namespace)" exec "deploy/$(teleport_release)-auth" -- tctl token add --type=node --ttl=8766h
+	$(KUBECTL) --context "$(aks_name)" --namespace "$(teleport_namespace)" exec "deploy/$(teleport_release)-auth" -- tctl tokens add --type=node --ttl=8766h
+
+.PHONY: create-token-tc
+create-token-tc: aks
+	$(KUBECTL) --context "$(aks_name)" --namespace "$(teleport_namespace)" exec "deploy/$(teleport_release)-auth" -- tctl tokens add --type=trusted_cluster --ttl=8766h
 
 # Recursively destroying the kube cluster and everything in it is incredibly
 # slow, recursively destroying the database will not work because the teleport

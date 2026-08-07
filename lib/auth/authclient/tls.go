@@ -159,7 +159,7 @@ func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName strin
 			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil {
 				if !trace.IsNotFound(err) {
-					logger.DebugContext(info.Context(), "Ignoring unsupported cluster name name", "cluster_name", info.ServerName)
+					logger.DebugContext(info.Context(), "Ignoring unsupported cluster name", "cluster_name", info.ServerName)
 					clusterName = ""
 				}
 			}

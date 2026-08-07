@@ -77,6 +77,8 @@ func (p *ProxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 			WebListenAddr:    p.ServiceConfig.Proxy.WebAddr.String(),
 			DialTimeout:      sshDialTimeout,
 		},
+		ScopesEnabled: p.ServiceConfig.ScopesFeatures.Enabled,
+		GroupID:       p.ServiceConfig.Proxy.ProxyGroupID,
 	}
 
 	p.setProxyPublicAddressesSettings(&proxySettings)

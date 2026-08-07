@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request PagerDuty 
 
 ## Installation
 
-See the [Access Requests with PagerDuty guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/).
+See the [Access Requests with PagerDuty guide](https://goteleport.com/docs/identity-governance/access-requests/plugins/pagerduty/).
 
 ## Values
 

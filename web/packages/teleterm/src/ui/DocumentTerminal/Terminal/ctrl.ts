@@ -19,6 +19,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+
 import {
   SearchAddon,
   TerminalSearcher,
@@ -94,6 +95,7 @@ export default class TtyTerminal implements TerminalSearcher {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       rightClickSelectsWord: this.config['terminal.rightClick'] === 'menu',
       theme: this.options.theme,
       windowsPty: this.options.windowsPty && {
@@ -236,14 +238,15 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.onData(data => {
       this.ptyProcess.write(data).catch(error => {
-        this.logger.error(`Failed to write to the PTY process: ${error}`);
+        this.logger.error('Failed to write to the PTY process', error);
       });
     });
 
     this.term.onResize(size => {
       this.ptyProcess.resize(size.cols, size.rows).catch(error => {
         this.logger.error(
-          `Failed to send resize request to the PTY process: ${error}`
+          'Failed to send resize request to the PTY process',
+          error
         );
       });
     });
@@ -257,7 +260,7 @@ export default class TtyTerminal implements TerminalSearcher {
     // The shared process version of PtyProcess knows whether it was started or not (the status
     // field), so it's a matter of exposing this field through gRPC and reading it here.
     this.ptyProcess.start(this.term.cols, this.term.rows).catch(error => {
-      this.logger.error(`Failed to start the PTY process: ${error}`);
+      this.logger.error('Failed to start the PTY process', error);
     });
 
     window.addEventListener('resize', this.debouncedResize);

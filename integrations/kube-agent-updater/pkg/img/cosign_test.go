@@ -312,6 +312,11 @@ func Test_cosignKeyValidator_ValidateAndResolveDigestAuthenticated(t *testing.T)
 
 	regURL, err := url.Parse(testRegistry.URL)
 	require.NoError(t, err)
+	// Switch out `127.0.0.1` for `localhost`. This circumvents an SSRF
+	// protection in go-containerregistry which prohibits the client from
+	// connecting to realms which are 127.0.0.1. See:
+	// https://github.com/google/go-containerregistry/pull/2243
+	regURL.Host = fmt.Sprintf("localhost:%s", regURL.Port())
 
 	// Build a special test case: an image with a tag that must be resolved
 	namedImage, err := reference.ParseNamed(regURL.Host + "/testrepo")

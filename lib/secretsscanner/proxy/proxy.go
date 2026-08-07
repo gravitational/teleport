@@ -22,13 +22,12 @@ package proxy
 
 import (
 	"context"
-	"errors"
-	"io"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
 // AuthClient is a subset of the full Auth API that must be connected
@@ -71,64 +70,9 @@ type Service struct {
 
 // ReportSecrets proxies the ReportSecrets method from the proxy to the Auth's secret service.
 func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
-	ctx, cancel := context.WithCancel(client.Context())
-	defer cancel()
-	upstream, err := s.authClient.AccessGraphSecretsScannerClient().ReportSecrets(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	errCh := make(chan error, 1)
-	go func() {
-		err := trace.Wrap(s.forwardClientToServer(ctx, client, upstream))
-		if err != nil {
-			cancel()
-		}
-		errCh <- err
-	}()
-
-	err = s.forwardServerToClient(ctx, client, upstream)
-	return trace.NewAggregate(err, <-errCh)
-}
-
-func (s *Service) forwardClientToServer(ctx context.Context,
-	client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer,
-	server accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) (err error) {
-	for {
-		req, err := client.Recv()
-		if errors.Is(err, io.EOF) {
-			if err := server.CloseSend(); err != nil {
-				s.log.WarnContext(ctx, "Failed to close upstream stream", "error", err)
-			}
-			break
-		}
-		if err != nil {
-			s.log.WarnContext(ctx, "Failed to receive from client stream", "error", err)
-			return trace.Wrap(err)
-		}
-		if err := server.Send(req); err != nil {
-			s.log.WarnContext(ctx, "Failed to send to upstream stream", "error", err)
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func (s *Service) forwardServerToClient(ctx context.Context,
-	client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer,
-	server accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) (err error) {
-	for {
-		out, err := server.Recv()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			s.log.WarnContext(ctx, "Failed to receive from upstream stream", "error", err)
-			return trace.Wrap(err)
-		}
-		if err := client.Send(out); err != nil {
-			s.log.WarnContext(ctx, "Failed to send to client stream", "error", err)
-			return trace.Wrap(err)
-		}
-	}
+	err := grpcutils.ProxyBidiStream(s.log, client, func(ctx context.Context) (accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient, error) {
+		server, err := s.authClient.AccessGraphSecretsScannerClient().ReportSecrets(ctx)
+		return server, trace.Wrap(err)
+	})
+	return trace.Wrap(err)
 }

@@ -36,6 +36,8 @@ var _ compare.IsEqual[KubeCluster] = (*KubernetesClusterV3)(nil)
 type KubeCluster interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
+	// ResourceWithSecrets provides WithoutSecrets method.
+	ResourceWithSecrets
 	// GetNamespace returns the kube cluster namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the kube cluster static labels.
@@ -85,6 +87,8 @@ type KubeCluster interface {
 	GetStatus() *KubernetesClusterStatus
 	// SetStatus sets the kube cluster status.
 	SetStatus(*KubernetesClusterStatus)
+	// GetScope gets the scope of the kube cluster.
+	GetScope() string
 }
 
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
@@ -130,17 +134,30 @@ func NewKubernetesClusterV3WithoutSecrets(cluster KubeCluster) (*KubernetesClust
 		KubernetesClusterSpecV3{
 			DynamicLabels: LabelsToV2(copiedCluster.GetDynamicLabels()),
 		},
+		KubeClusterWithScope(copiedCluster.GetScope()),
 	)
 	return clusterWithoutCreds, trace.Wrap(err)
 }
 
+type kubeClusterOpt func(*KubernetesClusterV3)
+
+// KubeClusterWithScope is an option that sets the scope when building a [KubernetesClusterV3].
+func KubeClusterWithScope(scope string) kubeClusterOpt {
+	return func(k *KubernetesClusterV3) {
+		k.Scope = scope
+	}
+}
+
 // NewKubernetesClusterV3 creates a new Kubernetes cluster resource.
-func NewKubernetesClusterV3(meta Metadata, spec KubernetesClusterSpecV3) (*KubernetesClusterV3, error) {
+func NewKubernetesClusterV3(meta Metadata, spec KubernetesClusterSpecV3, opts ...kubeClusterOpt) (*KubernetesClusterV3, error) {
 	k := &KubernetesClusterV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
 
+	for _, opt := range opts {
+		opt(k)
+	}
 	if err := k.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -348,6 +365,18 @@ func (k *KubernetesClusterV3) Copy() KubeCluster {
 	return utils.CloneProtoMsg(k)
 }
 
+// WithoutSecrets returns a shallow copy of this kube cluster with its kubeconfig removed. Note that this function
+// is a lot less aggressive than the existing [NewKubernetesClusterV3WithoutSecrets] which the heartbeat
+// path uses. That function removes all fields except for name/labels/scope.
+func (k *KubernetesClusterV3) WithoutSecrets() Resource {
+	if !k.IsKubeconfig() {
+		return k
+	}
+	k2 := *k
+	k2.Spec.Kubeconfig = nil
+	return &k2
+}
+
 // GetStatus gets the kube cluster status.
 func (k *KubernetesClusterV3) GetStatus() *KubernetesClusterStatus {
 	if k == nil {
@@ -359,6 +388,15 @@ func (k *KubernetesClusterV3) GetStatus() *KubernetesClusterStatus {
 // SetStatus sets the kube cluster status.
 func (k *KubernetesClusterV3) SetStatus(status *KubernetesClusterStatus) {
 	k.Status = status
+}
+
+// GetScope returns the scope of the kube cluster.
+func (k *KubernetesClusterV3) GetScope() string {
+	if k == nil {
+		return ""
+	}
+
+	return k.Scope
 }
 
 // MatchSearch goes through select field values and tries to

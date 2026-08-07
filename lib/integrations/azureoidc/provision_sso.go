@@ -22,11 +22,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // setupSSO sets up SAML based SSO to Teleport for the given application (service principal).
 func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID string, spID string, acsURL string) error {
-	spPatch := &msgraph.ServicePrincipal{}
+	spPatch := &models.ServicePrincipal{}
 	// Set service principal to prefer SAML sign on
 	preferredSingleSignOnMode := "saml"
 	spPatch.PreferredSingleSignOnMode = &preferredSingleSignOnMode
@@ -43,10 +44,10 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	}
 
 	// Add SAML urls
-	app := &msgraph.Application{}
+	app := &models.Application{}
 	uris := []string{acsURL}
 	app.IdentifierURIs = &uris
-	webApp := &msgraph.WebApplication{}
+	webApp := &models.WebApplication{}
 	webApp.RedirectURIs = &uris
 	app.Web = webApp
 	securityGroups := new(string)
@@ -54,12 +55,12 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	app.GroupMembershipClaims = securityGroups
 
 	claimName := "groups"
-	optionalClaim := []msgraph.OptionalClaim{
+	optionalClaim := []models.OptionalClaim{
 		{
 			Name: &claimName,
 		},
 	}
-	app.OptionalClaims = &msgraph.OptionalClaims{
+	app.OptionalClaims = &models.OptionalClaims{
 		IDToken:     optionalClaim,
 		SAML2Token:  optionalClaim,
 		AccessToken: optionalClaim,
@@ -82,7 +83,7 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	}
 
 	// Set the preferred SAML signing key
-	spPatch = &msgraph.ServicePrincipal{}
+	spPatch = &models.ServicePrincipal{}
 	spPatch.PreferredTokenSigningKeyThumbprint = cert.Thumbprint
 
 	err = graphClient.UpdateServicePrincipal(ctx, spID, spPatch)

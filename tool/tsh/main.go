@@ -19,6 +19,7 @@
 package main
 
 import (
+	_ "github.com/gravitational/teleport/lib/fipscheck"
 	tshcommon "github.com/gravitational/teleport/tool/tsh/common"
 )
 

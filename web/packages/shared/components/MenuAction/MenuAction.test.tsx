@@ -16,9 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { screen } from '@testing-library/react';
-
-import { fireEvent, render } from 'design/utils/testing';
+import {
+  fireEvent,
+  mockOffsetParent,
+  render,
+  screen,
+  userEvent,
+} from 'design/utils/testing';
 
 import { MenuIcon, MenuItem } from '.';
 
@@ -61,4 +65,47 @@ const menuListCss = {
 test('menuActionProps is respected', () => {
   render(<MenuIcon buttonIconProps={menuListCss} />);
   expect(screen.getByTestId('button')).toHaveStyle(menuListCss.style);
+});
+
+describe('keyboard navigation', () => {
+  mockOffsetParent();
+
+  const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+    render(
+      <MenuIcon buttonIconProps={{ 'aria-label': 'Options' }}>
+        <MenuItem as="button">Edit</MenuItem>
+        <MenuItem as="button">Delete</MenuItem>
+      </MenuIcon>
+    );
+    await user.click(screen.getByRole('button', { name: 'Options' }));
+  };
+
+  test('tab moves focus through menu items and wraps around', async () => {
+    const user = userEvent.setup();
+    await openMenu(user);
+    expect(screen.getByRole('menu')).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveFocus();
+
+    // Focus wraps around at the end of the menu.
+    await user.tab();
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+
+    await user.tab({ shift: true });
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveFocus();
+  });
+
+  test('escape closes the menu and restores focus to the trigger', async () => {
+    const user = userEvent.setup();
+    await openMenu(user);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Options' })).toHaveFocus();
+  });
 });

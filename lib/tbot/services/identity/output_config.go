@@ -66,9 +66,8 @@ type OutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	// Cluster allows certificates to be generated for a leaf cluster of the
 	// cluster that the bot is connected to. These certificates can be used
@@ -90,6 +89,11 @@ type OutputConfig struct {
 	//
 	// Defaults to false.
 	AllowReissue bool `yaml:"allow_reissue,omitempty"`
+
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -114,12 +118,26 @@ func (o *OutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *OutputConfig) CheckAndSetDefaults() error {
+func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
 	if err := o.Destination.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating destination")
+	}
+
+	if scoped {
+		switch {
+		case o.AllowReissue:
+			return trace.BadParameter("allow_reissue: not supported with scopes")
+		case o.Cluster != "":
+			return trace.BadParameter("cluster: not supported with scopes")
+		case o.DelegationSessionID != "":
+			return trace.BadParameter("delegation_session_id: not supported with scopes")
+		}
 	}
 
 	if _, ok := o.Destination.(*destination.Directory); !ok {

@@ -1,0 +1,7 @@
+type: workload-identity-x509
+selector:
+  name: my-workload-identity
+destination:
+  type: memory
+trust_domains:
+  - app_client

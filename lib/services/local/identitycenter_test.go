@@ -153,13 +153,13 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				// WHEN I modify the backend record for that resource...
 				tmpResource, err := test.getResource(ctx, uut, resourceID)
 				require.NoError(t, err)
-				tmpResource.GetMetadata().Labels = map[string]string{"update": "1"}
+				tmpResource.GetMetadata().SetLabels(map[string]string{"update": "1"})
 				updatedResource, err := test.updateResource(ctx, uut, tmpResource)
 				require.NoError(t, err)
 
 				// EXPECT that any attempt to update backend via the original in-memory
 				// version of the resource fails with a comparison error
-				createdResource.GetMetadata().Labels = map[string]string{"update": "2"}
+				createdResource.GetMetadata().SetLabels(map[string]string{"update": "2"})
 				_, err = test.updateResource(ctx, uut, createdResource)
 				require.True(t, trace.IsCompareFailed(err), "expected a compare failed error, got %T (%s)", err, err)
 
@@ -167,11 +167,11 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				// rather than failed update
 				r, err := test.getResource(ctx, uut, resourceID)
 				require.NoError(t, err)
-				require.Equal(t, "1", r.GetMetadata().Labels["update"])
+				require.Equal(t, "1", r.GetMetadata().GetLabels()["update"])
 
 				// WHEN I attempt update the backend via the latest revision of the
 				// record...
-				updatedResource.GetMetadata().Labels["update"] = "3"
+				updatedResource.GetMetadata().GetLabels()["update"] = "3"
 				_, err = test.updateResource(ctx, uut, updatedResource)
 
 				// EXPECT the update to succeed, and the backend record to have been
@@ -179,7 +179,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				require.NoError(t, err)
 				r, err = test.getResource(ctx, uut, resourceID)
 				require.NoError(t, err)
-				require.Equal(t, "3", r.GetMetadata().Labels["update"])
+				require.Equal(t, "3", r.GetMetadata().GetLabels()["update"])
 			})
 
 			t.Run("UnconditionalUpsert", func(t *testing.T) {
@@ -203,7 +203,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				// any changes to it...
 				tmpResource, err := test.getResource(ctx, uut, resourceID)
 				require.NoError(t, err)
-				tmpResource.GetMetadata().Labels = map[string]string{"update": "1"}
+				tmpResource.GetMetadata().SetLabels(map[string]string{"update": "1"})
 				_, err = test.updateResource(ctx, uut, tmpResource)
 				require.NoError(t, err)
 
@@ -214,7 +214,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				require.True(t, trace.IsCompareFailed(err), "expected a compare failed error, got %T (%s)", err, err)
 
 				// WHEN I attempt to Upsert the modified original resource
-				originalResource.GetMetadata().Labels = map[string]string{"update": "2"}
+				originalResource.GetMetadata().SetLabels(map[string]string{"update": "2"})
 				_, err = test.upsertResource(ctx, uut, originalResource)
 
 				// EXPECT that an upsert will succeed, even though the underlying
@@ -225,7 +225,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				// upsert
 				r, err := test.getResource(ctx, uut, resourceID)
 				require.NoError(t, err)
-				require.Equal(t, "2", r.GetMetadata().Labels["update"])
+				require.Equal(t, "2", r.GetMetadata().GetLabels()["update"])
 			})
 
 			t.Run("DeleteAllResources", func(t *testing.T) {
@@ -269,78 +269,78 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 
 func makeTestIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.Account {
 	t.Helper()
-	created, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+	created, err := svc.CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
 		Kind:     types.KindIdentityCenterAccount,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: id},
-		Spec: &identitycenterv1.AccountSpec{
+		Metadata: headerv1.Metadata_builder{Name: id}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:          "aws-account-id-" + id,
 			Arn:         fmt.Sprintf("arn:aws:sso::%s:", id),
 			Description: "Test account " + id,
 			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-				{
+				identitycenterv1.PermissionSetInfo_builder{
 					Name: "dummy",
 					Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return created
 }
 
 func makeTestIdentityCenterPermissionSet(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.PermissionSet {
 	t.Helper()
-	created, err := svc.CreatePermissionSet(ctx, &identitycenterv1.PermissionSet{
+	created, err := svc.CreatePermissionSet(ctx, identitycenterv1.PermissionSet_builder{
 		Kind:     types.KindIdentityCenterPermissionSet,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: id},
-		Spec: &identitycenterv1.PermissionSetSpec{
+		Metadata: headerv1.Metadata_builder{Name: id}.Build(),
+		Spec: identitycenterv1.PermissionSetSpec_builder{
 			Arn:         fmt.Sprintf("arn:aws:sso:::permissionSet/ic-instance/%s", id),
 			Name:        "aws-permission-set-" + id,
 			Description: "Test permission set " + id,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return created
 }
 
 func makeTestIdentityCenterAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.AccountAssignment {
 	t.Helper()
-	created, err := svc.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+	created, err := svc.CreateIdentityCenterAccountAssignment(ctx, identitycenterv1.AccountAssignment_builder{
 		Kind:     types.KindIdentityCenterAccountAssignment,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: id},
-		Spec: &identitycenterv1.AccountAssignmentSpec{
+		Metadata: headerv1.Metadata_builder{Name: id}.Build(),
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
 			Display: "Some-Permission-set on Some-AWS-account",
-			PermissionSet: &identitycenterv1.PermissionSetInfo{
+			PermissionSet: identitycenterv1.PermissionSetInfo_builder{
 				Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
 				Name: "some permission set",
-			},
+			}.Build(),
 			AccountName: "Some Account Name",
 			AccountId:   "some account id",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return created
 }
 
 func makeTestIdentityCenterPrincipalAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenterPrincipalAssignments, id string) *identitycenterv1.PrincipalAssignment {
 	t.Helper()
-	created, err := svc.CreatePrincipalAssignment(ctx, &identitycenterv1.PrincipalAssignment{
+	created, err := svc.CreatePrincipalAssignment(ctx, identitycenterv1.PrincipalAssignment_builder{
 		Kind:     types.KindIdentityCenterPrincipalAssignment,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: id},
-		Spec: &identitycenterv1.PrincipalAssignmentSpec{
+		Metadata: headerv1.Metadata_builder{Name: id}.Build(),
+		Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
 			PrincipalType:    identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			PrincipalId:      id,
 			ExternalIdSource: "scim",
 			ExternalId:       "some external id",
-		},
-		Status: &identitycenterv1.PrincipalAssignmentStatus{
+		}.Build(),
+		Status: identitycenterv1.PrincipalAssignmentStatus_builder{
 			ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return created
 }

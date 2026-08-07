@@ -14,16 +14,27 @@ import (
 )
 
 type commandDataT struct {
-	_              structs.HostLayout
-	Pid            uint64
-	Ppid           uint64
-	Command        [16]uint8
-	Type           uint32
-	Argv           [1024]uint8
-	Retval         int32
-	Cgroup         uint64
-	AuditSessionId uint32
-	_              [4]byte
+	_                structs.HostLayout
+	Pid              uint64
+	Ppid             uint64
+	Command          [16]uint8
+	Filename         [512]uint8
+	Args             [20480]uint8
+	ArgsLen          uint32
+	ArgsTruncated    bool
+	FailedToReadArgs bool
+	_                [2]byte
+	Cgroup           uint64
+	AuditSessionId   uint32
+	ReturnCode       int32
+}
+
+type commandInflightExecT struct {
+	_           structs.HostLayout
+	ValidUnsent bool
+	Filename    [512]uint8
+	_           [7]byte
+	Argv        uint64
 }
 
 // loadCommand returns the embedded CollectionSpec for command.
@@ -68,6 +79,7 @@ type commandSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type commandProgramSpecs struct {
+	BprmExecveExit                     *ebpf.ProgramSpec `ebpf:"bprm_execve_exit"`
 	TracepointSyscallsSysEnterExecve   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execve"`
 	TracepointSyscallsSysEnterExecveat *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_execveat"`
 	TracepointSyscallsSysExitExecve    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_execve"`
@@ -79,6 +91,7 @@ type commandProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type commandMapSpecs struct {
 	ExecveEvents        *ebpf.MapSpec `ebpf:"execve_events"`
+	InflightExec        *ebpf.MapSpec `ebpf:"inflight_exec"`
 	LostCounter         *ebpf.MapSpec `ebpf:"lost_counter"`
 	LostDoorbell        *ebpf.MapSpec `ebpf:"lost_doorbell"`
 	MonitoredSessionids *ebpf.MapSpec `ebpf:"monitored_sessionids"`
@@ -112,6 +125,7 @@ func (o *commandObjects) Close() error {
 // It can be passed to loadCommandObjects or ebpf.CollectionSpec.LoadAndAssign.
 type commandMaps struct {
 	ExecveEvents        *ebpf.Map `ebpf:"execve_events"`
+	InflightExec        *ebpf.Map `ebpf:"inflight_exec"`
 	LostCounter         *ebpf.Map `ebpf:"lost_counter"`
 	LostDoorbell        *ebpf.Map `ebpf:"lost_doorbell"`
 	MonitoredSessionids *ebpf.Map `ebpf:"monitored_sessionids"`
@@ -120,6 +134,7 @@ type commandMaps struct {
 func (m *commandMaps) Close() error {
 	return _CommandClose(
 		m.ExecveEvents,
+		m.InflightExec,
 		m.LostCounter,
 		m.LostDoorbell,
 		m.MonitoredSessionids,
@@ -137,6 +152,7 @@ type commandVariables struct {
 //
 // It can be passed to loadCommandObjects or ebpf.CollectionSpec.LoadAndAssign.
 type commandPrograms struct {
+	BprmExecveExit                     *ebpf.Program `ebpf:"bprm_execve_exit"`
 	TracepointSyscallsSysEnterExecve   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execve"`
 	TracepointSyscallsSysEnterExecveat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_execveat"`
 	TracepointSyscallsSysExitExecve    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_execve"`
@@ -145,6 +161,7 @@ type commandPrograms struct {
 
 func (p *commandPrograms) Close() error {
 	return _CommandClose(
+		p.BprmExecveExit,
 		p.TracepointSyscallsSysEnterExecve,
 		p.TracepointSyscallsSysEnterExecveat,
 		p.TracepointSyscallsSysExitExecve,

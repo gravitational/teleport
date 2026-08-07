@@ -7,6 +7,7 @@ tags:
  - identity-security
  - access-risks
 enterprise: Identity Security
+page_type: how-to
 ---
 
 Understand access patterns within your Okta organization using Teleport Identity Security. 
@@ -20,6 +21,9 @@ for audit and investigation. This functionality enables you to answer queries su
 - Which API tokens exist and who owns them?
 - What admin actions have been performed recently?
 - Is my upstream IDP being comprised, and are there any suspicious login patterns?
+
+In this guide, you will set up the Okta integration with Teleport Access Graph
+and use it to analyze Okta access patterns.
 
 (!docs/pages/includes/policy/access-graph.mdx!)
 
@@ -225,7 +229,7 @@ SELECT * FROM access_path WHERE standing_privileges >= 1 AND resource_labels @> 
 
 After enabling system log export, Okta audit events appear in the
 [Identity Activity Center](../usage/investigate.mdx).
-Navigate to **Identity Security** > **Activity Center** in the Teleport Web UI to search
+Navigate to **Identity Security** > **Investigate** in the Teleport Web UI to search
 and investigate Okta system log events alongside activity from other connected platforms.
 
 The Identity Activity Center normalizes Okta system logs alongside audit data from AWS,

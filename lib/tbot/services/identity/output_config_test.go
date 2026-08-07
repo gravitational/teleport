@@ -32,11 +32,11 @@ func TestIdentityOutput_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: OutputConfig{
-				Destination:   dest,
-				Roles:         []string{"access"},
-				Cluster:       "leaf.example.com",
-				SSHConfigMode: SSHConfigModeOff,
-				AllowReissue:  true,
+				Destination:         dest,
+				Cluster:             "leaf.example.com",
+				SSHConfigMode:       SSHConfigModeOff,
+				AllowReissue:        true,
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -60,7 +60,6 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *OutputConfig {
 				return &OutputConfig{
 					Destination:   destination.NewMemory(),
-					Roles:         []string{"access"},
 					SSHConfigMode: SSHConfigModeOn,
 				}
 			},
@@ -95,6 +94,74 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "ssh_config: unrecognized value \"invalid\"",
+		},
+		{
+			name: "roles is no longer supported",
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:     destination.NewMemory(),
+					SSHConfigMode:   SSHConfigModeOn,
+					DeprecatedRoles: []string{"access"},
+				}
+			},
+			wantErr: "roles: the roles field is no longer supported",
+		},
+		{
+			name:   "scoped valid",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+				}
+			},
+			want: &OutputConfig{
+				Destination:   destination.NewMemory(),
+				SSHConfigMode: SSHConfigModeOn,
+			},
+		},
+		{
+			name:   "scoped with roles",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:     destination.NewMemory(),
+					DeprecatedRoles: []string{"access"},
+				}
+			},
+			wantErr: "roles: the roles field is no longer supported",
+		},
+		{
+			name:   "scoped with allow_reissue",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:  destination.NewMemory(),
+					AllowReissue: true,
+				}
+			},
+			wantErr: "allow_reissue: not supported with scopes",
+		},
+		{
+			name:   "scoped with delegation_session_id",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:         destination.NewMemory(),
+					DelegationSessionID: "very-cool-delegation-session-id",
+				}
+			},
+			wantErr: "delegation_session_id: not supported with scopes",
+		},
+		{
+			name:   "scoped with cluster",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					Cluster:     "leaf.example.com",
+				}
+			},
+			wantErr: "cluster: not supported with scopes",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

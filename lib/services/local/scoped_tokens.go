@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"errors"
 	"slices"
 	"time"
 
@@ -28,8 +27,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -48,50 +47,29 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc     *generic.ServiceWrapper[*joiningv1.ScopedToken]
-	backend backend.Backend
+	svc            *generic.ScopeAwareServiceWrapper[*joiningv1.ScopedToken]
+	scopesFeatures scopes.Features
 }
 
 // NewScopedTokenService creates a new ScopedTokenService.
-func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
+func NewScopedTokenService(b backend.Backend, scopesFeatures scopes.Features) (*ScopedTokenService, error) {
 	const pageLimit = 100
-	svc, err := generic.NewServiceWrapper(generic.ServiceConfig[*joiningv1.ScopedToken]{
-		Backend:       b,
-		PageLimit:     pageLimit,
-		ResourceKind:  types.KindScopedToken,
-		BackendPrefix: backend.NewKey(scopedTokenPrefix),
-		MarshalFunc:   services.MarshalProtoResource[*joiningv1.ScopedToken],
-		UnmarshalFunc: services.UnmarshalProtoResource[*joiningv1.ScopedToken],
+	svc, err := generic.NewScopeAwareServiceWrapper(generic.ScopeAwareServiceWrapperConfig[*joiningv1.ScopedToken]{
+		ScopedOnly:          true,
+		Backend:             b,
+		PageLimit:           pageLimit,
+		ResourceKind:        types.KindScopedToken,
+		ScopedBackendPrefix: backend.NewKey(scopedTokenPrefix),
+		MarshalFunc:         services.MarshalProtoResource[*joiningv1.ScopedToken],
+		UnmarshalFunc:       services.UnmarshalProtoResource[*joiningv1.ScopedToken],
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &ScopedTokenService{
-		svc:     svc,
-		backend: b,
-	}, nil
-}
-
-func itemFromScopedToken(token *joiningv1.ScopedToken) (backend.Item, error) {
-	key := backend.NewKey(scopedTokenPrefix, token.GetMetadata().GetName())
-	value, err := services.MarshalProtoResource(token)
-	if err != nil {
-		return backend.Item{}, trace.Wrap(err)
-	}
-
-	// need to make sure expires is the zero value of [time.Time] unless an
-	// expiry is explicitly set, otherwise the backend item will be created
-	// in an expired state
-	var expires time.Time
-	if ex := token.GetMetadata().GetExpires(); ex != nil {
-		expires = ex.AsTime()
-	}
-	return backend.Item{
-		Key:      key,
-		Value:    value,
-		Expires:  expires,
-		Revision: token.GetMetadata().GetRevision(),
+		svc:            svc,
+		scopesFeatures: scopesFeatures,
 	}, nil
 }
 
@@ -103,47 +81,32 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
+	if err := maybeInitBoundKeypair(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := joining.StrongValidateToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := itemFromScopedToken(token)
+	created, err := s.svc.CreateResource(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       backend.NewKey(scopedTokenPrefix, token.GetMetadata().GetName()),
-			Condition: backend.NotExists(),
-			Action:    backend.Put(item),
-		},
-		{
-			Key:       backend.NewKey(tokensPrefix, token.GetMetadata().GetName()),
-			Condition: backend.NotExists(),
-			// the second action is a no-op because we only need to
-			// execute a single action to create the scoped token,
-			// but both conditions must be met
-			Action: backend.Nop(),
-		},
-	})
-	if err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return nil, trace.AlreadyExists("scoped token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	created := proto.CloneOf(req.GetToken())
-	created.Metadata.Revision = revision
-	return &joiningv1.CreateScopedTokenResponse{
+	return joiningv1.CreateScopedTokenResponse_builder{
 		Token: created,
-	}, nil
+	}.Build(), nil
 }
 
 // GetScopedToken finds and returns a scoped token by name.
 func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.GetScopedTokenResponse, error) {
-	token, err := s.svc.GetResource(ctx, req.GetName())
+	qn := scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.svc.GetResource(ctx, qn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,7 +118,7 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	if !req.GetWithSecret() {
 		setScopedTokenWithoutSecret(token)
 	}
-	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
+	return joiningv1.GetScopedTokenResponse_builder{Token: token}.Build(), nil
 }
 
 // tokenReuseDuration is how long a scoped token can be reused by the host that consumed it
@@ -168,23 +131,21 @@ const tokenReuseDuration = time.Minute * 30
 // retry a failed join due to spurious errors even after the token has been
 // consumed.
 func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error) {
-	if err := joining.ValidateTokenForUse(token); err != nil {
+	if err := joining.ValidateTokenForUse(token, s.scopesFeatures); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if joining.TokenUsageMode(token.Spec.UsageMode) != joining.TokenUsageModeSingle {
+	if joining.TokenUsageMode(token.GetSpec().GetUsageMode()) != joining.TokenUsageModeSingle {
 		return token, nil
 	}
 
 	// make sure the correct, non-nil usage status is set
-	token.Status = cmp.Or(token.Status, &joiningv1.ScopedTokenStatus{})
-	token.Status.Usage = cmp.Or(token.Status.Usage, &joiningv1.UsageStatus{})
-	if token.Status.Usage.Status == nil {
-		token.Status.Usage.Status = &joiningv1.UsageStatus_SingleUse{
-			SingleUse: &joiningv1.SingleUseStatus{},
-		}
+	token.SetStatus(cmp.Or(token.GetStatus(), &joiningv1.ScopedTokenStatus{}))
+	token.GetStatus().SetUsage(cmp.Or(token.GetStatus().GetUsage(), &joiningv1.UsageStatus{}))
+	if !token.GetStatus().GetUsage().HasStatus() {
+		token.GetStatus().GetUsage().SetSingleUse(&joiningv1.SingleUseStatus{})
 	}
-	usage := token.Status.Usage.GetSingleUse()
+	usage := token.GetStatus().GetUsage().GetSingleUse()
 	if usage == nil {
 		return nil, trace.Errorf("single use token does not have a single use status")
 	}
@@ -200,9 +161,9 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 	}
 
 	// set the public key if this is the first time this token has been used
-	usage.UsedByFingerprint = fp[:]
-	usage.UsedAt = timestamppb.New(time.Now())
-	usage.ReusableUntil = timestamppb.New(time.Now().Add(tokenReuseDuration))
+	usage.SetUsedByFingerprint(fp[:])
+	usage.SetUsedAt(timestamppb.New(time.Now()))
+	usage.SetReusableUntil(timestamppb.New(time.Now().Add(tokenReuseDuration)))
 
 	token, err := s.svc.ConditionalUpdateResource(ctx, token)
 	if err != nil {
@@ -212,21 +173,6 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 	return token, nil
 }
 
-func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
-	if filter == nil {
-		return true
-	}
-
-	switch filter.Mode {
-	case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
-		return scopes.ResourceScope(scope).IsSubjectToPolicyScope(filter.Scope)
-	case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
-		return scopes.PolicyScope(scope).AppliesToResourceScope(filter.Scope)
-	}
-
-	return true
-}
-
 // ListScopedTokens retrieves a paginated list of scoped join tokens.
 func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	// we only want to return filters if at least one of the filters
@@ -234,10 +180,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 	// backend can choose to perform a simple list operation instead
 	// of a list with filter
 	switch {
-	case req.ResourceScope != nil:
-	case req.AssignedScope != nil:
-	case len(req.Roles) > 0:
-	case len(req.Labels) > 0:
+	case req.HasScopeFilter():
+	case req.HasAssignedScopeFilter():
+	case len(req.GetRoles()) > 0:
+	case len(req.GetLabels()) > 0:
 	default:
 		tokens, cursor, err := s.svc.ListResources(ctx, int(req.GetLimit()), req.GetCursor())
 
@@ -247,23 +193,18 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		if !req.GetWithSecrets() {
 			setScopedTokenWithoutSecret(tokens...)
 		}
-		return &joiningv1.ListScopedTokensResponse{
+		return joiningv1.ListScopedTokensResponse_builder{
 			Tokens: tokens,
 			Cursor: cursor,
-		}, nil
+		}.Build(), nil
 	}
 
-	if req.GetAssignedScope().GetScope() != "" {
-		if err := scopes.WeakValidate(req.GetAssignedScope().GetScope()); err != nil {
-			return nil, trace.BadParameter("invalid scope for assigned filter: %s", req.GetAssignedScope().GetScope())
-		}
-
+	if err := scopes.ValidateFilter(req.GetAssignedScopeFilter()); err != nil {
+		return nil, trace.Wrap(err, "invalid assigned scope filter")
 	}
 
-	if req.GetResourceScope().GetScope() != "" {
-		if err := scopes.WeakValidate(req.GetResourceScope().GetScope()); err != nil {
-			return nil, trace.BadParameter("invalid scope for resource filter: %s", req.GetResourceScope().GetScope())
-		}
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err, "invalid scope filter")
 	}
 
 	filterRoles, err := types.NewTeleportRoles(req.GetRoles())
@@ -273,7 +214,7 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 
 	filterFn := func(token *joiningv1.ScopedToken) bool {
 		if len(req.GetRoles()) > 0 {
-			roles, err := types.NewTeleportRoles(token.Spec.Roles)
+			roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
 			if err != nil {
 				return false
 			}
@@ -283,11 +224,11 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 			}
 		}
 
-		if !evalScopeFilter(req.GetAssignedScope(), token.Spec.AssignedScope) {
+		if !scopes.MatchScope(req.GetAssignedScopeFilter(), token.GetSpec().GetAssignedScope()) {
 			return false
 		}
 
-		if !evalScopeFilter(req.GetResourceScope(), token.Scope) {
+		if !scopes.MatchScope(req.GetScopeFilter(), token.GetScope()) {
 			return false
 		}
 
@@ -313,23 +254,34 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		setScopedTokenWithoutSecret(tokens...)
 	}
 
-	return &joiningv1.ListScopedTokensResponse{
+	return joiningv1.ListScopedTokensResponse_builder{
 		Tokens: tokens,
 		Cursor: cursor,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteScopedToken deletes a scoped token by name.
 func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error) {
-	return nil, trace.Wrap(s.svc.DeleteResource(ctx, req.GetName()))
+	qn := scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.Wrap(s.svc.DeleteResource(ctx, qn))
 }
 
 // UpsertScopedToken updates or creates a scoped token. If updating an existing token, the scope and status must not be modified.
 func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error) {
 	tokenUpsert := req.GetToken()
 
+	qn := scopes.QualifiedName{Scope: tokenUpsert.GetScope(), Name: tokenUpsert.GetMetadata().GetName()}
+	if err := qn.StrongValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// We handle 4 retry attempts to try and handle some concurrency. Handling more retries than this
 	// indicates that something may be going wrong.
+	//
+	// TODO(scopes): reconsider upsert behavior now that scoped tokens are namespaced.
 	for attempt := range maxTokenUpsertAttempts {
 		if attempt != 0 {
 			select {
@@ -339,7 +291,7 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			}
 		}
 
-		existingToken, err := s.svc.GetResource(ctx, tokenUpsert.GetMetadata().GetName())
+		existingToken, err := s.svc.GetResource(ctx, qn)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -355,11 +307,11 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			// Use conditional update with revision checking to ensure the token hasn't changed since we validated it.
 			// This prevents race conditions where the token could be deleted and recreated with
 			// different properties between our validation check and the write.
-			tokenUpsert.GetMetadata().Revision = existingToken.GetMetadata().GetRevision()
+			tokenUpsert.GetMetadata().SetRevision(existingToken.GetMetadata().GetRevision())
 
 			// The status and its secret shouldn't ever change, so preserve it when updates occur. The secret is
 			// should not be changed after creation
-			tokenUpsert.Status = existingToken.GetStatus()
+			tokenUpsert.SetStatus(existingToken.GetStatus())
 
 			if err := joining.StrongValidateToken(tokenUpsert); err != nil {
 				return nil, trace.Wrap(err)
@@ -373,12 +325,16 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 				return nil, trace.Wrap(err)
 			}
 
-			return &joiningv1.UpsertScopedTokenResponse{
+			return joiningv1.UpsertScopedTokenResponse_builder{
 				Token: upsertedToken,
-			}, nil
+			}.Build(), nil
 		}
 
 		if err := maybeSetTokenSecret(tokenUpsert); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := maybeInitBoundKeypair(tokenUpsert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -396,9 +352,9 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			return nil, trace.Wrap(err)
 		}
 
-		return &joiningv1.UpsertScopedTokenResponse{
+		return joiningv1.UpsertScopedTokenResponse_builder{
 			Token: createdToken,
-		}, nil
+		}.Build(), nil
 	}
 
 	return nil, trace.LimitExceeded("exceeded max retries attempting to upsert scoped token - too many concurrent modifications")
@@ -408,7 +364,12 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joiningv1.UpdateScopedTokenRequest) (*joiningv1.UpdateScopedTokenResponse, error) {
 	tokenUpdate := req.GetToken()
 
-	existingToken, err := s.svc.GetResource(ctx, tokenUpdate.GetMetadata().GetName())
+	qn := scopes.QualifiedName{Scope: tokenUpdate.GetScope(), Name: tokenUpdate.GetMetadata().GetName()}
+	if err := qn.StrongValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existingToken, err := s.svc.GetResource(ctx, qn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -419,7 +380,7 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 
 	// The status and its secret shouldn't ever change, so preserve it when updates occur. The secret
 	// should not be changed after creation.
-	tokenUpdate.Status = existingToken.GetStatus()
+	tokenUpdate.SetStatus(existingToken.GetStatus())
 
 	if err := joining.StrongValidateToken(tokenUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -429,15 +390,81 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &joiningv1.UpdateScopedTokenResponse{
+	return joiningv1.UpdateScopedTokenResponse_builder{
 		Token: updatedToken,
-	}, nil
+	}.Build(), nil
+}
+
+// PatchScopedToken uses the supplied function to attempt to patch a scoped
+// token resource. Up to 3 update attempts will be made if the conditional
+// update fails due to a revision comparison failure.
+func (s *ScopedTokenService) PatchScopedToken(
+	ctx context.Context,
+	tokenName scopes.QualifiedName,
+	updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
+) (*joiningv1.ScopedToken, error) {
+	const iterLimit = 3
+
+	if err := tokenName.StrongValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for range iterLimit {
+		existing, err := s.svc.GetResource(ctx, tokenName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clone := proto.CloneOf(existing)
+		updated, err := updateFn(clone)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := joining.ValidateTokenUpdate(existing, updated); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updatedMetadata := updated.GetMetadata()
+		existingMetadata := existing.GetMetadata()
+
+		if updatedMetadata.GetRevision() != existingMetadata.GetRevision() {
+			return nil, trace.BadParameter("metadata.revision: cannot be patched")
+		}
+
+		if err := joining.StrongValidateToken(updated); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret, err := s.svc.ConditionalUpdateResource(ctx, updated)
+		if trace.IsCompareFailed(err) {
+			continue
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	}
+
+	return nil, trace.CompareFailed("failed to update provision token within %v iterations", iterLimit)
 }
 
 func setScopedTokenWithoutSecret(token ...*joiningv1.ScopedToken) {
 	for _, t := range token {
-		if t != nil && t.Status != nil {
-			t.Status.Secret = ""
+		if t == nil {
+			continue
+		}
+
+		if ob := t.GetSpec().GetBoundKeypair().GetOnboarding(); ob != nil {
+			ob.SetRegistrationSecret("")
+		}
+
+		if t.HasStatus() {
+			t.GetStatus().SetSecret("")
+
+			if t.GetStatus().GetUsage().GetBoundKeypair() != nil {
+				t.GetStatus().GetUsage().GetBoundKeypair().SetRegistrationSecret("")
+			}
 		}
 	}
 }
@@ -465,17 +492,31 @@ func (p *scopedTokenParser) parse(event backend.Event) (types.Resource, error) {
 		}
 		return types.Resource153ToLegacy(scopedToken), nil
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(scopedTokenPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key)
+		key := event.Item.Key.TrimPrefix(backend.NewKey(scopedTokenPrefix))
+
+		if len(key.Components()) != 2 {
+			return nil, trace.BadParameter("malformed scoped token key %q", event.Item.Key.String())
 		}
-		return &types.ResourceHeader{
+
+		encodedScope := key.Components()[0]
+		name := key.Components()[1]
+		if encodedScope == "" || name == "" {
+			return nil, trace.NotFound("failed parsing %q", event.Item.Key.String())
+		}
+
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed decoding scope from scoped token key %q", event.Item.Key.String())
+		}
+
+		return types.Resource153ToLegacy(joiningv1.ScopedToken_builder{
 			Kind:    types.KindScopedToken,
 			Version: types.V1,
-			Metadata: types.Metadata{
+			Scope:   scope,
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-		}, nil
+			}.Build(),
+		}.Build()), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -516,20 +557,92 @@ func (p *staticScopedTokenParser) parse(event backend.Event) (types.Resource, er
 	}
 }
 
+// maybeInitBoundKeypair performs basic initialization tasks for bound keypair
+// tokens, like generating an initial joining secret.
+func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
+	if token.GetSpec().GetJoinMethod() != string(types.JoinMethodBoundKeypair) {
+		// Nothing to do
+		return nil
+	}
+
+	if token.GetSpec().GetBoundKeypair() == nil {
+		return trace.BadParameter("bound_keypair tokens require a non-nil spec.bound_keypair")
+	}
+
+	spec := token.GetSpec().GetBoundKeypair()
+
+	// Initialize a few fields to default values if needed.
+	// Unlike ProvisionTokenV2, we won't bother to require `spec.Recovery` and
+	// can assume defaults. (That field is initialized automatically anyway.)
+
+	if spec.GetRecovery() == nil {
+		spec.SetRecovery(&joiningv1.BoundKeypairSpec_RecoverySpec{})
+	}
+
+	// Tokens should have a limit of 1 at creation to allow first use without
+	// additional parameters. No mode is needed; "" is mapped to
+	// `RecoveryModeStandard` at join time, and a registration secret is
+	// generated if needed.
+	if spec.GetRecovery().GetLimit() == 0 {
+		spec.GetRecovery().SetLimit(1)
+	}
+
+	if spec.GetOnboarding() == nil {
+		spec.SetOnboarding(&joiningv1.BoundKeypairSpec_OnboardingSpec{})
+	}
+
+	if token.GetStatus() == nil {
+		token.SetStatus(&joiningv1.ScopedTokenStatus{})
+	}
+
+	status := token.GetStatus().GetUsage().GetBoundKeypair()
+	if status == nil {
+		status = &joiningv1.BoundKeypairStatus{}
+		token.GetStatus().SetUsage(joiningv1.UsageStatus_builder{
+			BoundKeypair: proto.ValueOrDefault(status),
+		}.Build())
+	}
+
+	// If necessary, generate a registration secret.
+
+	// If the token already has a key configured (either bound or preregistered)
+	// we don't want to generate a secret.
+	if status.GetBoundPublicKey() != "" || spec.GetOnboarding().GetInitialPublicKey() != "" {
+		// Nothing to do here; any initial key binding occurs at join time, not
+		// here.
+		return nil
+	}
+
+	// If the user specified their own secret, copy that into status.
+	if secret := spec.GetOnboarding().GetRegistrationSecret(); secret != "" {
+		status.SetRegistrationSecret(secret)
+		return nil
+	}
+
+	// Otherwise, with no pre-registered key and no preexisting secret, generate
+	// one here.
+	s, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	status.SetRegistrationSecret(s)
+	return nil
+}
+
 // maybeSetTokenSecret sets a random secret if not provided.
 func maybeSetTokenSecret(token *joiningv1.ScopedToken) error {
-
 	if token.GetSpec().GetJoinMethod() == string(types.JoinMethodToken) {
-		if token.Status == nil {
-			token.Status = &joiningv1.ScopedTokenStatus{}
+		if !token.HasStatus() {
+			token.SetStatus(&joiningv1.ScopedTokenStatus{})
 		}
 
-		if token.Status.Secret == "" {
+		if token.GetStatus().GetSecret() == "" {
 			secret, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 			if err != nil {
 				return trace.Wrap(err, "generating token secret")
 			}
-			token.Status.Secret = secret
+			token.GetStatus().SetSecret(secret)
 		}
 	}
 

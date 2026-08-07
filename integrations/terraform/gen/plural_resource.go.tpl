@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package legacy
 
 import (
 	"context"
@@ -24,6 +24,9 @@ import (
     "encoding/hex"
 {{- end }}
 	"fmt"
+{{- if .DefaultSubKind }}
+	"strings"
+{{- end }}
 {{- if .StatePoll }}
 	"time"
 {{- end }}
@@ -37,7 +40,6 @@ import (
 	{{ if .ConvertPackagePath -}}
     convert "{{.ConvertPackagePath}}"
     {{- end}}
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -51,6 +53,7 @@ import (
 {{- end }}
 
 	{{ schemaImport . }}
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
 // resourceTeleport{{.Name}}Type is the resource metadata type
@@ -69,7 +72,7 @@ func (r resourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.Sch
 // NewResource creates the empty resource
 func (r resourceTeleport{{.Name}}Type) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
 	return resourceTeleport{{.Name}}{
-		p: *(p.(*Provider)),
+		p: p.(Provider),
 	}, nil
 }
 
@@ -88,9 +91,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 
 	{{- if .SaveSpecStateFromPlan}}
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
 		return
 	}
 	{{end}}
@@ -126,7 +129,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 {{- if .ConvertPackagePath}}
 	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
 		return
 	}
 {{- else }}
@@ -140,8 +143,13 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 {{- if .HasCheckAndSetDefaults }}
 	err = {{.VarName}}Resource.CheckAndSetDefaults()
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
 		return
+	}
+{{- end}}
+{{- if .DefaultSubKind}}
+	if {{.VarName}}Resource.SubKind == "" {
+		{{.VarName}}Resource.SubKind = {{.DefaultSubKind}}
 	}
 {{- end}}
 
@@ -149,8 +157,21 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	idPrefix := {{.VarName}}Resource.{{ join (slice (split .IDPrefix ".") 1) "." }}
 	{{ end -}}
 	id := {{.VarName}}Resource.Metadata.Name
+{{- if .RequestWrapper}}
 
-	_, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	_, err = r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: id,
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}Resource.SubKind,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
+{{- else}}
+
+	_, err = r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+{{- end}}
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			{{ if .IDPrefix -}}
@@ -159,17 +180,24 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			existErr := fmt.Sprintf("{{.Name}} exists in Teleport. Either remove it (tctl rm {{.Kind}}/%v)"+
 				" or import it to the existing state (terraform import {{.TerraformResourceType}}.%v %v)", id, id, id)
 
-			resp.Diagnostics.Append(diagFromErr("{{.Name}} exists in Teleport", trace.Errorf(existErr)))
+			resp.Diagnostics.Append(tfdiag.DiagFromErr("{{.Name}} exists in Teleport", trace.Errorf(existErr)))
 			return
 		}
 
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+{{- if .RequestWrapper}}
 
-	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client.{{.CreateMethod}}(ctx, {{.VarName}}Resource)
+	_, err = r.p.Client().{{.CreateMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.CreateRequest}}{
+		{{.RequestWrapper.RequestResourceField}}: {{.VarName}}Resource,
+	})
+{{- else}}
+
+	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client().{{.CreateMethod}}(ctx, {{.VarName}}Resource)
+{{- end}}
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error creating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error creating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 	{{- if .IsPlainStruct }}
@@ -184,26 +212,41 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- end }}
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
+	retry, err := r.p.Retry()
 	if err != nil {
 		return
 	}
 	for {
 		tries = tries + 1
-		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{- if .RequestWrapper}}
+		{{.VarName}}GetResp, getErr := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+			Name: id,
+			{{- if .DefaultSubKind}}
+			SubKind: {{.VarName}}Resource.SubKind,
+			{{- end}}
+			{{- if ne .WithSecrets ""}}
+			WithSecrets: {{.WithSecrets}},
+			{{- end}}
+		})
+		err = getErr
+		if err == nil {
+		{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{.VarName}}I = {{.VarName}}GetResp
+		{{- else }}
+			{{.VarName}}I = {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+		{{- end}}
+		}
+	{{- else}}
+		{{.VarName}}I, err = r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{- end}}
 		if trace.IsNotFound(err) {
 		    select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
+			    resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
 				return
 			case <-retry.After():
 			}
-			if tries >= r.p.RetryConfig.MaxTries {
+			if tries >= r.p.MaxRetries() {
 				diagMessage := fmt.Sprintf("Error reading {{.Name}} (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "{{.Kind}}")
 				return
@@ -214,7 +257,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 
@@ -223,7 +266,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{else -}}
 	{{.VarName}}Resource, ok := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	if !ok {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
 		return
 	}
 	{{- end}}
@@ -270,10 +313,30 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
 		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
 		Refresh: func() (any, string, error) {
-			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
+		{{- if .RequestWrapper }}
+			{{ .VarName }}Resp, err := r.p.Client().{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
+				Name: id,
+				{{- if .DefaultSubKind }}
+				SubKind: {{ .VarName }}Resource.SubKind,
+				{{- end }}
+				{{- if ne .WithSecrets "" }}
+				WithSecrets: {{ .WithSecrets }},
+				{{- end }}
+			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
+			{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{.VarName}} := {{.VarName}}Resp
+			{{- else }}
+			{{ .VarName }} := {{ .VarName }}Resp.Get{{ .RequestWrapper.RequestResourceField }}()
+			{{- end}}
+		{{- else }}
+			{{ .VarName }}, err := r.p.Client().{{ .GetMethod }}(ctx, id)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+		{{- end }}
 
 			if {{ .VarName }} == nil {
 				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
@@ -300,7 +363,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 
 	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
 	}
 {{- end }}
 }
@@ -336,17 +399,48 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
+{{- if .RequestWrapper}}
 
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: id.Value,
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
+{{- else}}
+
+	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+{{- end}}
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+{{- if .RequestWrapper}}
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}I := {{.VarName}}GetResp
+	{{- else }}
+	{{.VarName}}I := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end}}
+{{- end}}
 	{{if .IsPlainStruct -}}
 	{{.VarName}} := {{.VarName}}I
 	{{else if .ConvertPackagePath -}}
@@ -381,6 +475,22 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
+{{- if .SaveSpecStateFromPlan}}
+
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
+		return
+	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error copying {{.Name}} spec", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+
+{{- end}}
+
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
 	resp.Diagnostics.Append(diags...)
@@ -391,7 +501,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 {{- if .ConvertPackagePath}}
 	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
 		return
 	}
 {{- else }}
@@ -404,8 +514,13 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 	{{if .HasCheckAndSetDefaults -}}
 	if err := {{.VarName}}Resource.CheckAndSetDefaults(); err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", err, "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error updating {{.Name}}", err, "{{.Kind}}"))
 		return
+	}
+	{{- end}}
+	{{- if .DefaultSubKind}}
+	if {{.VarName}}Resource.SubKind == "" {
+		{{.VarName}}Resource.SubKind = {{.DefaultSubKind}}
 	}
 	{{- end}}
 	{{ if .IDPrefix -}}
@@ -413,20 +528,49 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	idPrefix := {{.VarName}}Resource.{{$idPrefix}}
 	{{ end -}}
 	name := {{.VarName}}Resource.Metadata.Name
+{{- if .RequestWrapper}}
 
-	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}BeforeResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: name,
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}Resource.SubKind,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
 		return
 	}
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}Before := {{.VarName}}BeforeResp
+	{{- else }}
+	{{.VarName}}Before := {{.VarName}}BeforeResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end}}
+{{- else}}
+
+	{{.VarName}}Before, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
+		return
+	}
+{{- end}}
 	{{- $VarName := .VarName }}
 	{{- range $field := .PropagatedFields }}
 	{{ $VarName }}Resource.{{ $field }} = {{ $VarName }}Before.{{ $field }}
 	{{- end }}
+{{- if .RequestWrapper}}
 
-	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client.{{.UpdateMethod}}(ctx, {{.VarName}}Resource)
+	_, err = r.p.Client().{{.UpdateMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.UpdateRequest}}{
+		{{.RequestWrapper.RequestResourceField}}: {{.VarName}}Resource,
+	})
+{{- else}}
+
+	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client().{{.UpdateMethod}}(ctx, {{.VarName}}Resource)
+{{- end}}
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", err, "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error updating {{.Name}}", err, "{{.Kind}}"))
 		return
 	}
 
@@ -442,20 +586,35 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{- end }}
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
+	retry, err := r.p.Retry()
 	if err != nil {
 		return
 	}
 	for {
 		tries = tries + 1
-		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{- if .RequestWrapper}}
+		{{.VarName}}GetResp, getErr := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+			Name: name,
+			{{- if .DefaultSubKind}}
+			SubKind: {{.VarName}}Resource.SubKind,
+			{{- end}}
+			{{- if ne .WithSecrets ""}}
+			WithSecrets: {{.WithSecrets}},
+			{{- end}}
+		})
+		err = getErr
+		if err == nil {
+		{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{.VarName}}I = {{.VarName}}GetResp
+		{{- else }}
+			{{.VarName}}I = {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+		{{- end}}
+		}
+	{{- else}}
+		{{.VarName}}I, err = r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{- end}}
 		if err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
+			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
 			return
 		}
 		if {{.VarName}}Before.GetMetadata().Revision != {{.VarName}}I.GetMetadata().Revision || {{.HasStaticID}} {
@@ -464,11 +623,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
+		    resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
 			return
 		case <-retry.After():
 		}
-		if tries >= r.p.RetryConfig.MaxTries {
+		if tries >= r.p.MaxRetries() {
 			diagMessage := fmt.Sprintf("Error reading {{.Name}} (tried %d times) - state outdated, please import resource", tries)
 			resp.Diagnostics.AddError(diagMessage, "{{.Kind}}")
 			return
@@ -480,15 +639,27 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{else -}}
 	{{.VarName}}Resource, ok := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	if !ok {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
 		return
 	}
 	{{- end}}
+
+{{- if .ConvertPackagePath}}
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+{{- else }}
+	{{.VarName}} = {{.VarName}}Resource
+{{- end }}
+
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+{{- if .SaveSpecStateFromPlan}}
+
+	plan.Attrs["spec"] = specFromPlan
+{{- end}}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -511,10 +682,30 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
 		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
 		Refresh: func() (any, string, error) {
-			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, name)
+		{{- if .RequestWrapper }}
+			{{ .VarName }}Resp, err := r.p.Client().{{ .GetMethod }}(ctx, &{{ .ProtoPackage }}.{{ .RequestWrapper.GetRequest }}{
+				Name: name,
+				{{- if .DefaultSubKind }}
+				SubKind: {{ .VarName }}Resource.SubKind,
+				{{- end }}
+				{{- if ne .WithSecrets "" }}
+				WithSecrets: {{ .WithSecrets }},
+				{{- end }}
+			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
+			{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+			{{ .VarName }} := {{ .VarName }}Resp
+			{{- else }}
+			{{ .VarName }} := {{ .VarName }}Resp.Get{{ .RequestWrapper.RequestResourceField }}()
+			{{- end}}
+		{{- else }}
+			{{ .VarName }}, err := r.p.Client().{{ .GetMethod }}(ctx, name)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+		{{- end }}
 
 			if {{ .VarName }} == nil {
 				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
@@ -541,7 +732,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 
 	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
 	}
 {{- end }}
 }
@@ -570,10 +761,31 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.State.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
+{{- if .RequestWrapper}}
 
-	err := r.p.Client.{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value)
+	_, err := r.p.Client().{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
+		Name: id.Value,
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
+		{{- end}}
+	})
+{{- else}}
+
+	err := r.p.Client().{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value)
+{{- end}}
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting {{.TypeName}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting {{.TypeName}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 
@@ -583,18 +795,47 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 {{if not .WithoutImportState -}}
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	{{if .IDPrefix -}}
-	idPrefix, name, err := parseID(req.ID)
+{{- if .DefaultSubKind}}
+	subKind := {{.DefaultSubKind}}
+	name := req.ID
+	if before, after, ok := strings.Cut(req.ID, "/"); ok {
+		subKind = before
+		name = after
+	}
+{{- end}}
+{{- if .RequestWrapper}}
+	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: {{if .DefaultSubKind}}name{{else}}req.ID{{end}},
+		{{- if .DefaultSubKind}}
+		SubKind: subKind,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error parsing Member ID", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
-	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}idPrefix, name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
-	{{else -}}
-	{{.VarName}}, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}req.ID{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
-	{{end -}}
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}} := {{.VarName}}GetResp
+	{{- else }}
+	{{.VarName}} := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end}}
+{{- else}}
+	{{- if .IDPrefix}}
+	idPrefix, name, err := parseID(req.ID)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error parsing Member ID", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+	{{.VarName}}, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}idPrefix, name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{- else}}
+	{{.VarName}}, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}req.ID{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{- end}}
+{{- end}}
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 
@@ -635,5 +876,80 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+{{- end}}
+
+{{- if not .WithoutModifyPlan }}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, config, {{.VarName}})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+{{- if .ConvertPackagePath }}
+
+	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
+		return
+	}
+{{- else }}
+
+	{{.VarName}}Resource := {{.VarName}}
+{{- end }}
+
+{{- if .ForceSetKind }}
+	{{.VarName}}Resource.Kind = {{.ForceSetKind}}
+{{- end}}
+
+{{- if .HasCheckAndSetDefaults }}
+
+	if err := {{.VarName}}Resource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+{{- end }}
+
+{{- if .ConvertPackagePath}}
+
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+{{- else}}
+
+	{{.VarName}} = {{.VarName}}Resource
+{{- end }}
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}ToTerraformPreserveUnknown(ctx, {{.VarName}}, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 {{- end}}

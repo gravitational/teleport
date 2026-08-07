@@ -31,7 +31,7 @@ data:
     sed -i 's!/sbin/nologin!/busybox/sh!' /etc/passwd
     cp /etc/teleport-config/teleport.yaml /etc/teleport.yaml
     nodename="$( hostname )-$REPLICA"
-    echo "    NODENAME: ${nodename}" >> /etc/teleport.yaml
+    echo "    NODENAME: foobar,foobaz,${nodename},barbaz" >> /etc/teleport.yaml
     echo "    POD: $( hostname )" >> /etc/teleport.yaml
     echo "  listen_addr: '0.0.0.0:30$REPLICA'" >> /etc/teleport.yaml
     cat /etc/teleport.yaml

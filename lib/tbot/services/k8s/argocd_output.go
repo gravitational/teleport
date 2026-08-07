@@ -29,9 +29,9 @@ import (
 	"maps"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,7 +52,7 @@ import (
 // ArgoCDServiceBuilder builds a new ArgoCDOutput.
 func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

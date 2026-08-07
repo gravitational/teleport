@@ -111,7 +111,7 @@ export const JoinTokenIAMForm = ({
           <FieldInput
             label="ARN"
             toolTipContent={`The joining nodes must match this ARN. Supports wildcards "*" and "?"`}
-            placeholder="arn:aws:iam::account-id:role/*"
+            placeholder="arn:aws:sts::<account-id>:assumed-role/<role-name>/*"
             value={rule.aws_arn}
             onChange={e => setTokenRulesField(index, 'aws_arn', e.target.value)}
             readonly={readonly}

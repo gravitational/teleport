@@ -33,6 +33,11 @@ export enum RequestKind {
   LongTerm = 2,
 }
 
+export type UserDisplay = {
+  primary?: string;
+  secondary?: string;
+};
+
 /**
  * LongTermResourceGrouping contains information about how resources can be grouped
  * for long-term Access Requests.
@@ -64,6 +69,7 @@ export interface AccessRequest {
   id: string;
   state: RequestState;
   user: string;
+  userDisplay?: UserDisplay;
   expires: Date;
   expiresDuration: string;
   created: Date;
@@ -92,6 +98,7 @@ export interface AccessRequest {
 
 export interface AccessRequestReview {
   author: string;
+  authorDisplay?: UserDisplay;
   roles: string[];
   state: RequestState;
   reason: string;
@@ -102,6 +109,7 @@ export interface AccessRequestReview {
 
 export interface AccessRequestReviewer {
   name: string;
+  display?: UserDisplay;
   state: RequestState;
 }
 
@@ -149,6 +157,10 @@ type AwsConsoleConstraints = {
   role_arns: string[];
 };
 
+type SshConstraints = {
+  logins: string[];
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -161,9 +173,15 @@ export type ResourceConstraints = BaseResourceConstraints &
   (
     | {
         aws_console: AwsConsoleConstraints;
+        ssh?: never;
       }
     | {
         aws_console?: never;
+        ssh: SshConstraints;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
       }
   );
 

@@ -7,11 +7,12 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
-This guide demonstrates how to enroll a Kubernetes cluster as a Teleport
-resource by deploying the Teleport Kubernetes Service on the Kubernetes cluster
-you want to protect. 
+In this guide, you will enroll a Kubernetes cluster as a Teleport resource by
+deploying the Teleport Kubernetes Service on the Kubernetes cluster you want to
+protect. 
 
 ## How it works
 
@@ -166,7 +167,7 @@ To set up and test access:
    <Var name="admin@example.com"/> to your Teleport username:
 
    ```code
-   $ tsh login --proxy=<Var name="teleport.example.com"/>:443 --auth=local --user=<Var name="admin@example.com"/> <Var name="teleport.example.com"/>
+   $ tsh login --proxy=<Var name="teleport.example.com"/>:443 --auth=local --user=<Var name="admin@example.com"/>
    ```
 
    List Kubernetes clusters available for you to access:

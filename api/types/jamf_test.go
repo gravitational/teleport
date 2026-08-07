@@ -60,8 +60,8 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				Inventory: []*types.JamfInventoryEntry{
 					{
 						FilterRsql:        `general.remoteManagement.managed==true and general.platform=="Mac"`,
-						SyncPeriodPartial: types.Duration(4 * time.Hour),
-						SyncPeriodFull:    types.Duration(48 * time.Hour),
+						SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 						OnMissing:         "DELETE",
 					},
 					{
@@ -106,8 +106,8 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				spec.Inventory = []*types.JamfInventoryEntry{
 					validEntry,
 					{
-						SyncPeriodPartial: types.Duration(12 * time.Hour),
-						SyncPeriodFull:    types.Duration(8 * time.Hour),
+						SyncPeriodPartial: types.DurationStringForJamfSpecV1(12 * time.Hour),
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(8 * time.Hour),
 					},
 				}
 			}),
@@ -132,7 +132,7 @@ func TestValidateJamfSpecV1(t *testing.T) {
 					validEntry,
 					{
 						SyncPeriodPartial: -1,
-						SyncPeriodFull:    types.Duration(8 * time.Hour),
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(8 * time.Hour),
 					},
 				}
 			}),
@@ -143,7 +143,7 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				spec.Inventory = []*types.JamfInventoryEntry{
 					validEntry,
 					{
-						SyncPeriodPartial: types.Duration(12 * time.Hour),
+						SyncPeriodPartial: types.DurationStringForJamfSpecV1(12 * time.Hour),
 						SyncPeriodFull:    -1,
 					},
 				}
@@ -160,6 +160,47 @@ func TestValidateJamfSpecV1(t *testing.T) {
 					},
 				}
 			}),
+		},
+		{
+			name: "inventory valid device_type computers",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "computers",
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory valid device_type mobile_devices",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "mobile_devices",
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory empty device_type",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "",
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory invalid device_type",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "banana",
+					},
+				}
+			}),
+			wantErr: "device_type",
 		},
 	}
 	for _, test := range tests {

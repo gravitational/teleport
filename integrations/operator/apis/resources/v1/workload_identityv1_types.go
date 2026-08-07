@@ -62,16 +62,16 @@ type TeleportWorkloadIdentityV1List struct {
 // [workloadidentityv1.WorkloadIdentity] and implements the necessary interface
 // methods used by the TeleportResourceReconciler.
 func (l *TeleportWorkloadIdentityV1) ToTeleport() *workloadidentityv1.WorkloadIdentity {
-	resource := &workloadidentityv1.WorkloadIdentity{
+	resource := workloadidentityv1.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		},
+		}.Build(),
 		Spec: (*workloadidentityv1.WorkloadIdentitySpec)(l.Spec),
-	}
+	}.Build()
 	return resource
 }
 

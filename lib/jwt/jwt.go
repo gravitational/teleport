@@ -43,6 +43,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -466,6 +467,133 @@ func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 	}
 
 	return k.sign(claims, nil)
+}
+
+const expirationDBSCChallenge = 60 * time.Second
+
+// SignDBSCChallenge creates a signed challenge.
+func (k *Key) SignDBSCChallenge(sessionID string) (string, error) {
+	if sessionID == "" {
+		return "", trace.BadParameter("session ID required")
+	}
+
+	claims := Claims{
+		Claims: jwt.Claims{
+			Subject:   sessionID,
+			Issuer:    k.config.ClusterName,
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(k.config.Clock.Now().Add(expirationDBSCChallenge)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		},
+	}
+
+	return k.sign(claims, nil)
+}
+
+// DBSCChallengeVerifyParams are the parameters needed to verify a DBSC challenge.
+type DBSCChallengeVerifyParams struct {
+	// RawToken is the challenge JWT.
+	RawToken string
+	// SessionID is the expected session ID.
+	SessionID string
+}
+
+// VerifyDBSCChallenge verifies a DBSC challenge was signed by this cluster.
+func (k *Key) VerifyDBSCChallenge(p DBSCChallengeVerifyParams) error {
+	if p.RawToken == "" {
+		return trace.BadParameter("challenge token required")
+	}
+	if p.SessionID == "" {
+		return trace.BadParameter("session ID required")
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:  k.config.ClusterName,
+		Subject: p.SessionID,
+		Time:    k.config.Clock.Now(),
+	}
+
+	_, err := k.verify(p.RawToken, expectedClaims)
+	return trace.Wrap(err)
+}
+
+// ValidateDBSCProofHeader validates the header of a DBSC proof JWT.
+// It checks that there is exactly one header, the algorithm is ES256 or RS256,
+// and the typ header is "dbsc+jwt".
+func ValidateDBSCProofHeader(tok *jwt.JSONWebToken) error {
+	if len(tok.Headers) != 1 {
+		return trace.BadParameter("invalid DBSC response JWT header count")
+	}
+
+	header := tok.Headers[0]
+	if header.Algorithm != string(jose.ES256) && header.Algorithm != string(jose.RS256) {
+		return trace.BadParameter("invalid DBSC response alg %q", header.Algorithm)
+	}
+
+	typ, ok := header.ExtraHeaders[jose.HeaderKey("typ")]
+	if !ok {
+		return trace.BadParameter("missing typ header in DBSC response")
+	}
+
+	typValue, ok := typ.(string)
+	if !ok || typValue != "dbsc+jwt" {
+		return trace.BadParameter("invalid typ header %v in DBSC response", typ)
+	}
+
+	return nil
+}
+
+// VerifyDBSCChallengeParams contains the parameters needed to verify a DBSC challenge
+// against a set of CA key pairs.
+type VerifyDBSCChallengeParams struct {
+	// Challenge is the challenge JWT string (the jti claim from the browser's response).
+	Challenge string
+	// SessionID is the expected session ID.
+	SessionID string
+	// ClusterName is the cluster name used as the issuer.
+	ClusterName string
+	// Clock is used for time validation.
+	Clock clockwork.Clock
+	// KeyPairs are the trusted JWT key pairs from the CA.
+	KeyPairs []*types.JWTKeyPair
+}
+
+// VerifyDBSCChallengeWithCA verifies that a DBSC challenge was signed by one of the
+// cluster's trusted JWT keys.
+func VerifyDBSCChallengeWithCA(p VerifyDBSCChallengeParams) error {
+	if len(p.KeyPairs) == 0 {
+		return trace.BadParameter("no JWT keys found in CA")
+	}
+
+	var errs []error
+	for _, kp := range p.KeyPairs {
+		publicKey, err := keys.ParsePublicKey(kp.PublicKey)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		key, err := New(&Config{
+			Clock:       p.Clock,
+			PublicKey:   publicKey,
+			ClusterName: p.ClusterName,
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
+			RawToken:  p.Challenge,
+			SessionID: p.SessionID,
+		})
+		if err == nil {
+			return nil
+		}
+		errs = append(errs, trace.Wrap(err))
+	}
+
+	return trace.Wrap(trace.NewAggregate(errs...), "challenge verification failed")
 }
 
 // VerifyParams are the parameters needed to pass the token and data needed to verify.

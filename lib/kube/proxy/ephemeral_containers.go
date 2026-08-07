@@ -144,23 +144,43 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	patchedPod, ephemeralContName, err := f.mergeEphemeralPatchWithCurrentPod(
+	// Fetch the target pod using the user's impersonated identity so
+	// the Kubernetes API server enforces RBAC on `kubernetes_users` / `kubernetes_groups`.
+	pod, err := f.getPodForEphemeralPatch(
 		req.Context(),
+		authCtx,
+		req.Header,
+		authCtx.metaResource.requestedResource.namespace,
+		authCtx.metaResource.requestedResource.resourceName,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	patchedPod, ephemeralContName, err := f.mergeEphemeralPatchWithCurrentPod(
+		pod,
 		mergeEphemeralPatchWithCurrentPodConfig{
-			kubeCluster:   sess.kubeClusterName,
-			kubeNamespace: authCtx.metaResource.requestedResource.namespace,
-			podName:       authCtx.metaResource.requestedResource.resourceName,
-			decoder:       decoder,
-			encoder:       encoder,
-			podPatch:      podPatch,
-			patchType:     reqPatchType,
+			decoder:   decoder,
+			encoder:   encoder,
+			podPatch:  podPatch,
+			patchType: reqPatchType,
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := f.createWaitingContainer(req.Context(), ephemeralContName, authCtx, podPatch, reqPatchType); err != nil {
+	// Resolve the impersonation identity that the caller's headers select.
+	// Stored on the waiting container so the watch path can replay the same impersonation later,
+	// when the original request headers are gone.
+	kubeUser, kubeGroups, err := computeAndValidateImpersonatedPrincipals(
+		authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), req.Header,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := f.createWaitingContainer(req.Context(), ephemeralContName, authCtx, podPatch, reqPatchType, kubeUser, kubeGroups); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -178,36 +198,20 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 // mergeEphemeralPatchWithCurrentPodConfig is a configuration struct for
 // mergeEphemeralPatchWithCurrentPod.
 type mergeEphemeralPatchWithCurrentPodConfig struct {
-	kubeCluster   string
-	kubeNamespace string
-	podName       string
-	decoder       runtime.Decoder
-	encoder       runtime.Encoder
-	podPatch      []byte
-	patchType     apimachinerytypes.PatchType
+	decoder   runtime.Decoder
+	encoder   runtime.Encoder
+	podPatch  []byte
+	patchType apimachinerytypes.PatchType
 }
 
 // mergeEphemeralPatchWithCurrentPod merges the provided patch with the
-// current pod and returns the patched pod.
-// This function gets the current pod from the Kubernetes API server and
-// merges the provided patch with it. The patch is expected to be a strategic
-// merge patch that adds an ephemeral container to the pod.
+// given pod and returns the patched pod.
+// The pod must have been fetched by the caller using a client that respects the requesting user's Kubernetes RBAC.
+// The patch is expected to be a strategic merge patch that adds an ephemeral container to the pod.
 func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
-	ctx context.Context,
+	pod *corev1.Pod,
 	cfg mergeEphemeralPatchWithCurrentPodConfig,
 ) (*corev1.Pod, string, error) {
-	details, err := f.findKubeDetailsByClusterName(cfg.kubeCluster)
-	if err != nil {
-		return nil, "", trace.NotFound("kubernetes cluster %q not found", cfg.kubeCluster)
-	}
-
-	pod, err := details.getKubeClient().CoreV1().
-		Pods(cfg.kubeNamespace).
-		Get(ctx, cfg.podName, metav1.GetOptions{})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
 	podSerializedBuf := &bytes.Buffer{}
 	if err := cfg.encoder.Encode(pod, podSerializedBuf); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -220,18 +224,57 @@ func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	return patchedPod, ephemeralContName, nil
 }
 
-func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType) error {
+// impersonationHeadersFromWaitingContainer materializes Impersonate-User/Impersonate-Group headers
+// from the impersonation captured when the waiting container was created,
+// so getPodForEphemeralPatch can re-apply the same choice on the watch path where no live request headers exist.
+func impersonationHeadersFromWaitingContainer(waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) http.Header {
+	headers := http.Header{}
+	if user := waitingCont.GetSpec().GetKubernetesUser(); user != "" {
+		headers.Set(ImpersonateUserHeader, user)
+	}
+	for _, group := range waitingCont.GetSpec().GetKubernetesGroups() {
+		headers.Add(ImpersonateGroupHeader, group)
+	}
+	return headers
+}
+
+// getPodForEphemeralPatch fetches the target pod using a Kubernetes client
+// that impersonates the requesting user's `kubernetes_users` / `kubernetes_groups`.
+// The Kubernetes API server therefore enforces RBAC on the user's mapped identity for this read, even though
+// the surrounding moderated-session flow synthesizes the patch response locally without forwarding the PATCH itself.
+func (f *Forwarder) getPodForEphemeralPatch(
+	ctx context.Context,
+	authCtx *authContext,
+	headers http.Header,
+	namespace, podName string,
+) (*corev1.Pod, error) {
+	clientSet, _, err := f.impersonatedKubeClient(authCtx, headers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pod, err := clientSet.CoreV1().
+		Pods(namespace).
+		Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pod, nil
+}
+
+func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType, kubeUser string, kubeGroups []string) error {
 	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
 		ephemeralContName,
-		&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
-			Username:      authCtx.User.GetName(),
-			Cluster:       authCtx.kubeClusterName,
-			Namespace:     authCtx.metaResource.requestedResource.namespace,
-			PodName:       authCtx.metaResource.requestedResource.resourceName,
-			ContainerName: ephemeralContName,
-			Patch:         podPatch,
-			PatchType:     string(patchType),
-		})
+		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
+			Username:         authCtx.User.GetName(),
+			Cluster:          authCtx.kubeClusterName,
+			Namespace:        authCtx.metaResource.requestedResource.namespace,
+			PodName:          authCtx.metaResource.requestedResource.resourceName,
+			ContainerName:    ephemeralContName,
+			Patch:            podPatch,
+			PatchType:        string(patchType),
+			KubernetesUser:   kubeUser,
+			KubernetesGroups: kubeGroups,
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -247,16 +290,18 @@ func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.He
 	if err != nil {
 		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
-	restConfig := details.getKubeRestConfig()
 	kubeUser, kubeGroups, err := computeAndValidateImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), headers)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// Clone the shared cached rest config before setting impersonation to avoid
+	// racing with concurrent requests to the same cluster.
+	restConfig := *details.getKubeRestConfig()
 	restConfig.Impersonate = rest.ImpersonationConfig{
 		UserName: kubeUser,
 		Groups:   kubeGroups,
 	}
-	clientSet, err := kubernetes.NewForConfig(restConfig)
+	clientSet, err := kubernetes.NewForConfig(&restConfig)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -284,8 +329,25 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 		return nil, "", trace.CompareFailed("expected *corev1.Pod, got %T", decodedObj)
 	}
 
-	// The last container in the list is the one we just added.
-	ephemeralCont := patchedPod.Spec.EphemeralContainers[len(patchedPod.Spec.EphemeralContainers)-1]
+	// Determine which ephemeral containers the patch added relative to the
+	// pre-patch pod. A strategic merge patch can append more than one entry,
+	// so inspecting only the final element is not enough: every added
+	// container must be accounted for and validated.
+	existing := make(map[string]struct{}, len(pod.Spec.EphemeralContainers))
+	for _, c := range pod.Spec.EphemeralContainers {
+		existing[c.Name] = struct{}{}
+	}
+	var added []corev1.EphemeralContainer
+	for _, c := range patchedPod.Spec.EphemeralContainers {
+		if _, ok := existing[c.Name]; !ok {
+			added = append(added, c)
+		}
+	}
+	if len(added) != 1 {
+		return nil, "", trace.AccessDenied("exactly one ephemeral container may be added per request, got %d", len(added))
+	}
+
+	ephemeralCont := added[0]
 	if !ephemeralCont.TTY {
 		return nil, "", trace.AccessDenied("only interactive ephemeral containers are supported")
 	}
@@ -312,7 +374,7 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 // a session which can be safely waiting on until the moderated session
 // is approved.
 func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession, waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) (*watch.Event, error) {
-	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.Spec.PatchType))
+	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -324,16 +386,24 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 		return nil, trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
+	pod, err := f.getPodForEphemeralPatch(
 		ctx,
+		&sess.authContext,
+		impersonationHeadersFromWaitingContainer(waitingCont),
+		waitingCont.GetSpec().GetNamespace(),
+		waitingCont.GetSpec().GetPodName(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
+		pod,
 		mergeEphemeralPatchWithCurrentPodConfig{
-			kubeCluster:   waitingCont.Spec.Cluster,
-			kubeNamespace: waitingCont.Spec.Namespace,
-			podName:       waitingCont.Spec.PodName,
-			decoder:       decoder,
-			encoder:       encoder,
-			podPatch:      waitingCont.Spec.Patch,
-			patchType:     apimachinerytypes.PatchType(waitingCont.Spec.PatchType),
+			decoder:   decoder,
+			encoder:   encoder,
+			podPatch:  waitingCont.GetSpec().GetPatch(),
+			patchType: apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()),
 		},
 	)
 	if err != nil {
@@ -349,6 +419,12 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 // getUserEphemeralContainersForPod returns a list of ephemeral containers
 // created by the username and are waiting to be created for a given pod.
 func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, username, kubeCluster, namespace, pod string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	if f.cfg.GetScope() != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return without error to prevent
+		// interactive exec from failing
+		return nil, nil
+	}
 	var (
 		list      []*kubewaitingcontainerpb.KubernetesWaitingContainer
 		startPage string
@@ -359,10 +435,10 @@ func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, userna
 			return nil, trace.Wrap(err)
 		}
 		for _, cont := range waitingContainers {
-			if cont.Spec.Username != username ||
-				cont.Spec.Cluster != kubeCluster ||
-				cont.Spec.Namespace != namespace ||
-				cont.Spec.PodName != pod {
+			if cont.GetSpec().GetUsername() != username ||
+				cont.GetSpec().GetCluster() != kubeCluster ||
+				cont.GetSpec().GetNamespace() != namespace ||
+				cont.GetSpec().GetPodName() != pod {
 				continue
 			}
 

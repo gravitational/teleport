@@ -51,6 +51,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -107,6 +108,14 @@ type SessionContextConfig struct {
 	// "GetNodes".
 	UnsafeCachedAuthClient authclient.ReadProxyAccessPoint
 
+	// UnsafeScoopedRoleReader is a scoped role reader. It's authenticated with
+	// the identity of the node, hence it's "unsafe".
+	//
+	// Only use it where the identity of the caller will not affect the result of
+	// the RPC. For example, never call it to get a list of roles and return it
+	// to the user, as it may return more than the user is allowed to see.
+	UnsafeScopedRoleReader services.ScopedRoleReader
+
 	Parent *sessionCache
 	// Resources is a persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -137,6 +146,10 @@ func (c *SessionContextConfig) CheckAndSetDefaults() error {
 
 	if c.Session == nil {
 		return trace.BadParameter("Session required")
+	}
+
+	if c.UnsafeCachedAuthClient == nil {
+		return trace.BadParameter("Scoped role reader required")
 	}
 
 	if c.Log == nil {
@@ -316,7 +329,7 @@ func clusterDialer(remoteCluster reversetunnelclient.Cluster, src, dst net.Addr)
 			dialParams.From = clientSrcAddr
 		}
 		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
-			dialParams.OriginalClientDstAddr = clientSrcAddr
+			dialParams.OriginalClientDstAddr = clientDstAddr
 		}
 
 		return remoteCluster.DialAuthServer(dialParams)
@@ -517,6 +530,37 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	return accessChecker, trace.Wrap(err)
 }
 
+func (c *SessionContext) GetUserScopedAccessCheckerContext(ctx context.Context) (*services.ScopedAccessCheckerContext, error) {
+	cert, err := c.GetSSHCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
+
+	if accessInfo.ScopePin == nil {
+		checker, err := c.GetUserAccessChecker()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return services.NewScopedAccessCheckerContextFromUnscoped(checker), nil
+	}
+
+	checkerCtx, err := services.NewScopedAccessCheckerContext(
+		ctx, accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeScopedRoleReader,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkerCtx, err
+}
+
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
 func (c *SessionContext) GetProxyListenerMode(ctx context.Context) (types.ProxyListenerMode, error) {
 	resp, err := c.cfg.UnsafeCachedAuthClient.GetClusterNetworkingConfig(ctx)
@@ -603,9 +647,10 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
+	expiry := c.cfg.Session.GetEarliestExpiry()
+
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
-	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
@@ -625,11 +670,12 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
-	proxyClient  authclient.ClientI
-	accessPoint  authclient.ReadProxyAccessPoint
-	servers      []utils.NetAddr
-	cipherSuites []uint16
-	clock        clockwork.Clock
+	proxyClient      authclient.ClientI
+	scopedRoleReader services.ScopedRoleReader
+	accessPoint      authclient.ReadProxyAccessPoint
+	servers          []utils.NetAddr
+	cipherSuites     []uint16
+	clock            clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
@@ -637,10 +683,14 @@ type sessionCacheOptions struct {
 	proxySigner multiplexer.PROXYHeaderSigner
 	// See [sessionCache.sessionWatcherStartImmediately]. Used for testing.
 	sessionWatcherStartImmediately bool
+	// See [sessionCache.sessionWatcherInitializedChannel]. Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
 	buildType                           string
+	// See [sessionCache.rootClientDialOptions]. Used for testing.
+	rootClientDialOptions []grpc.DialOption
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -661,21 +711,30 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	}
 
 	cache := &sessionCache{
-		clusterName:                         clusterName.GetClusterName(),
-		proxyClient:                         config.proxyClient,
-		accessPoint:                         config.accessPoint,
-		sessions:                            make(map[string]*SessionContext),
-		resources:                           make(map[string]*sessionResources),
-		authServers:                         config.servers,
-		closer:                              utils.NewCloseBroadcaster(),
-		cipherSuites:                        config.cipherSuites,
-		log:                                 config.logger,
-		clock:                               config.clock,
-		sessionLingeringThreshold:           config.sessionLingeringThreshold,
-		proxySigner:                         config.proxySigner,
-		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
+		clusterName:                      clusterName.GetClusterName(),
+		proxyClient:                      config.proxyClient,
+		scopedRoleReader:                 config.scopedRoleReader,
+		accessPoint:                      config.accessPoint,
+		sessions:                         make(map[string]*SessionContext),
+		resources:                        make(map[string]*sessionResources),
+		authServers:                      config.servers,
+		closer:                           utils.NewCloseBroadcaster(),
+		cipherSuites:                     config.cipherSuites,
+		log:                              config.logger,
+		clock:                            config.clock,
+		sessionLingeringThreshold:        config.sessionLingeringThreshold,
+		proxySigner:                      config.proxySigner,
+		sessionWatcherStartImmediately:   config.sessionWatcherStartImmediately,
+		sessionWatcherInitializedChannel: config.sessionWatcherInitializedChannel,
+		sessionWatcherMarkInitialized: sync.OnceFunc(func() {
+			c := config.sessionWatcherInitializedChannel
+			if c != nil {
+				close(c)
+			}
+		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
 		buildType:                           config.buildType,
+		rootClientDialOptions:               config.rootClientDialOptions,
 	}
 
 	// periodically close expired and unused sessions
@@ -690,13 +749,14 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 // sessionCache handles web session authentication,
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
-	log         *slog.Logger
-	proxyClient authclient.ClientI
-	authServers []utils.NetAddr
-	accessPoint authclient.ReadProxyAccessPoint
-	closer      *utils.CloseBroadcaster
-	clusterName string
-	clock       clockwork.Clock
+	log              *slog.Logger
+	proxyClient      authclient.ClientI
+	authServers      []utils.NetAddr
+	accessPoint      authclient.ReadProxyAccessPoint
+	scopedRoleReader services.ScopedRoleReader
+	closer           *utils.CloseBroadcaster
+	clusterName      string
+	clock            clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
@@ -727,12 +787,22 @@ type sessionCache struct {
 	// backoff used to start the WebSession watcher.
 	// Used for testing.
 	sessionWatcherStartImmediately bool
-
+	// sessionWatcherInitializedChannel is used to signal that the sessionWatcher
+	// received its first OpInit event and is ready to observe updates.
+	// May be nil.
+	// Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
+	// sessionWatcherMarkInitialized safely closes
+	// sessionWatcherInitializedChannel.
+	sessionWatcherMarkInitialized func()
 	// sessionWatcherEventProcessedChannel is used to signal that the
 	// sessionWatcher processed an event.
 	// May be nil.
 	// Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
+	// rootClientDialOptions contains additional gRPC dial options for root clients.
+	// Used for testing.
+	rootClientDialOptions []grpc.DialOption
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -857,6 +927,10 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 				"event", logutils.StringerAttr(event),
 			)
 
+			if event.Type == types.OpInit {
+				s.sessionWatcherMarkInitialized()
+				continue
+			}
 			if event.Type != types.OpPut {
 				continue // We only care about OpPut at the moment.
 			}
@@ -915,6 +989,7 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(ctx context.Context,
 func (s *sessionCache) AuthWithOTP(
 	ctx context.Context,
 	user, pass, otpToken string,
+	scope string,
 	clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
@@ -925,13 +1000,14 @@ func (s *sessionCache) AuthWithOTP(
 			Token:    otpToken,
 		},
 		ClientMetadata: clientMeta,
+		Scope:          scope,
 	})
 }
 
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	ctx context.Context, user, pass string, clientMeta *authclient.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, scope string, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
@@ -939,6 +1015,7 @@ func (s *sessionCache) AuthWithoutOTP(
 			Password: []byte(pass),
 		},
 		ClientMetadata: clientMeta,
+		Scope:          scope,
 	})
 }
 
@@ -948,6 +1025,7 @@ func (s *sessionCache) AuthenticateWebUser(
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
 		ClientMetadata: clientMeta,
+		Scope:          req.Scope,
 	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
@@ -957,7 +1035,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -975,6 +1053,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
@@ -1019,6 +1103,21 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	sctx, ok := i.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return sctx, nil
@@ -1146,11 +1245,32 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	userClient, err := authclient.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
+		DialOpts:             s.rootClientDialOptions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1164,6 +1284,7 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		User:                   session.GetUser(),
 		RootClient:             userClient,
 		UnsafeCachedAuthClient: s.accessPoint,
+		UnsafeScopedRoleReader: s.scopedRoleReader,
 		Parent:                 s,
 		Resources:              s.upsertSessionContext(session.GetUser()),
 		Session:                session,

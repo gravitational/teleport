@@ -217,7 +217,7 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 	}
 
 	now := time.Now()
-	hb := &machineidv1pb.BotInstanceStatusHeartbeat{
+	hb := machineidv1pb.BotInstanceStatusHeartbeat_builder{
 		RecordedAt:   timestamppb.New(now),
 		Hostname:     hostName,
 		IsStartup:    isStartup,
@@ -228,7 +228,7 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		Architecture: runtime.GOARCH,
 		Os:           runtime.GOOS,
 		Kind:         s.cfg.BotKind,
-	}
+	}.Build()
 
 	status := s.cfg.StatusRegistry.OverallStatus()
 	serviceHealth := make([]*machineidv1pb.BotInstanceServiceHealth, 0, len(status.Services))
@@ -238,13 +238,13 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 
 	// Sort the services by name to make tests deterministic.
 	sort.Slice(serviceHealth, func(a, b int) bool {
-		return serviceHealth[a].Service.Name < serviceHealth[b].Service.Name
+		return serviceHealth[a].GetService().GetName() < serviceHealth[b].GetService().GetName()
 	})
 
-	_, err = s.cfg.Client.SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{
+	_, err = s.cfg.Client.SubmitHeartbeat(ctx, machineidv1pb.SubmitHeartbeatRequest_builder{
 		Heartbeat:     hb,
 		ServiceHealth: serviceHealth,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "submitting heartbeat")
 	}
@@ -254,29 +254,29 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 }
 
 func statusToServiceHealth(name string, status *readyz.ServiceStatus) *machineidv1pb.BotInstanceServiceHealth {
-	health := &machineidv1pb.BotInstanceServiceHealth{
-		Service: &machineidv1pb.BotInstanceServiceIdentifier{
+	health := machineidv1pb.BotInstanceServiceHealth_builder{
+		Service: machineidv1pb.BotInstanceServiceIdentifier_builder{
 			Name: trimString(name, 64),
 			Type: status.ServiceType,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	switch status.Status {
 	case readyz.Initializing:
-		health.Status = machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+		health.SetStatus(machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING)
 	case readyz.Healthy:
-		health.Status = machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
+		health.SetStatus(machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY)
 	case readyz.Unhealthy:
-		health.Status = machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+		health.SetStatus(machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY)
 	}
 
 	if status.Reason != "" {
 		reason := trimString(status.Reason, 256)
-		health.Reason = &reason
+		health.SetReason(reason)
 	}
 
 	if status.UpdatedAt != nil {
-		health.UpdatedAt = timestamppb.New(*status.UpdatedAt)
+		health.SetUpdatedAt(timestamppb.New(*status.UpdatedAt))
 	}
 
 	return health

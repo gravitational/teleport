@@ -65,6 +65,11 @@ type ClientInit struct {
 	// nodes join via the proxy address. They must only be trusted if the
 	// incoming join request is authenticated as the Proxy.
 	ProxySuppliedParams *ProxySuppliedParams
+	// HostName is the user-friendly node name of a joining host, sent early so it
+	// can be recorded on the join audit event even when the join is rejected
+	// before the host params are received. It is advisory; the host name used for
+	// issued certificates is carried in HostParams.
+	HostName string
 }
 
 func (i *ClientInit) Check() error {
@@ -128,6 +133,24 @@ func (p *ClientParams) check() error {
 	}
 	if err := p.BotParams.check(); err != nil {
 		return trace.Wrap(err, "checking BotParams")
+	}
+	return nil
+}
+
+// CheckForRole validates that the payload matches the requested SystemRole:
+// an Instance join must carry HostParams, a Bot join must carry BotParams.
+func (p *ClientParams) CheckForRole(role types.SystemRole) error {
+	switch role {
+	case types.RoleInstance:
+		if p.HostParams == nil {
+			return trace.BadParameter("HostParams is required to join as %s", role)
+		}
+	case types.RoleBot:
+		if p.BotParams == nil {
+			return trace.BadParameter("BotParams is required to join as %s", role)
+		}
+	default:
+		return trace.NotImplemented("new join service only supports Instance and Bot system roles, client requested %s", role)
 	}
 	return nil
 }
@@ -551,6 +574,8 @@ type HostResult struct {
 	// ImmutableLabels are the immutable labels that have been assigned to
 	// the host.
 	ImmutableLabels *joiningv1.ImmutableLabels
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult
 }
 
 // BotResult holds results for bot joining.

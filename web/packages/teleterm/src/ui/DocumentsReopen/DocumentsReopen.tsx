@@ -42,6 +42,7 @@ export function DocumentsReopen(props: {
     <DialogConfirmation
       open={!props.hidden}
       keepInDOMAfterClose
+      trapFocus
       onClose={props.onDiscard}
       dialogCss={() => ({
         maxWidth: '400px',

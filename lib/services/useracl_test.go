@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 )
 
 func TestNewUserACL(t *testing.T) {
@@ -70,6 +71,14 @@ func TestNewUserACL(t *testing.T) {
 		{
 			Resources: []string{types.KindInferenceSecret},
 			Verbs:     RW(),
+		},
+		{
+			Resources: []string{types.KindBeam},
+			Verbs:     RW(),
+		},
+		{
+			Resources: []string{types.KindMobileDevice},
+			Verbs:     []string{types.VerbCreateEnrollToken},
 		},
 	})
 
@@ -121,6 +130,7 @@ func TestNewUserACL(t *testing.T) {
 
 	require.Empty(t, cmp.Diff(userContext.Billing, denied))
 	require.True(t, userContext.Clipboard)
+	require.Empty(t, userContext.WebTerminalClipboardMode)
 	require.True(t, userContext.DesktopSessionRecording)
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
@@ -132,6 +142,11 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.InferenceModel, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.InferencePolicy, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.InferenceSecret, allowedRW))
+
+	// beams should be denied without the Beams entitlement
+	require.Empty(t, cmp.Diff(userContext.Beam, denied))
+
+	require.True(t, userContext.MobileDevice.CreateEnrollToken)
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
@@ -189,6 +204,7 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Bots, allowedRW))
 	require.True(t, userContext.Clipboard)
+	require.Empty(t, userContext.WebTerminalClipboardMode)
 	require.True(t, userContext.DesktopSessionRecording)
 
 	// cloud-specific asserts
@@ -310,4 +326,31 @@ func TestNewAccessGraph(t *testing.T) {
 		expectedAccessGraphSettings := ResourceAccess{false, true, true, false, false, false}
 		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, expectedAccessGraphSettings))
 	})
+}
+
+func TestNewUserACLBeams(t *testing.T) {
+	t.Parallel()
+	user := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	role := &types.RoleV6{}
+	role.SetNamespaces(types.Allow, []string{"*"})
+	role.SetRules(types.Allow, []types.Rule{
+		{
+			Resources: []string{"*"},
+			Verbs:     RW(),
+		},
+	})
+
+	roleSet := []types.Role{role}
+
+	userContext := NewUserACL(user, roleSet, proto.Features{
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.Beams): &proto.EntitlementInfo{
+				Enabled: true,
+			},
+		},
+	}, false, false)
+	expected := ResourceAccess{true, true, true, true, true, false}
+	require.Empty(t, cmp.Diff(userContext.Beam, expected))
 }

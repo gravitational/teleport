@@ -81,6 +81,9 @@ type ScopedRoleWriter interface {
 	// UpdateScopedRole updates a scoped role.
 	UpdateScopedRole(context.Context, *scopedaccessv1.UpdateScopedRoleRequest) (*scopedaccessv1.UpdateScopedRoleResponse, error)
 
+	// UpsertScopedRole creates or updates a scoped role.
+	UpsertScopedRole(context.Context, *scopedaccessv1.UpsertScopedRoleRequest) (*scopedaccessv1.UpsertScopedRoleResponse, error)
+
 	// DeleteScopedRole deletes a scoped role.
 	DeleteScopedRole(context.Context, *scopedaccessv1.DeleteScopedRoleRequest) (*scopedaccessv1.DeleteScopedRoleResponse, error)
 }
@@ -98,6 +101,12 @@ type ScopedRoleAssignmentReader interface {
 type ScopedRoleAssignmentWriter interface {
 	// CreateScopedRoleAssignment creates a new scoped role assignment.
 	CreateScopedRoleAssignment(context.Context, *scopedaccessv1.CreateScopedRoleAssignmentRequest) (*scopedaccessv1.CreateScopedRoleAssignmentResponse, error)
+
+	// UpdateScopedRoleAssignment updates an existing scoped role assignment.
+	UpdateScopedRoleAssignment(context.Context, *scopedaccessv1.UpdateScopedRoleAssignmentRequest) (*scopedaccessv1.UpdateScopedRoleAssignmentResponse, error)
+
+	// UpsertScopedRoleAssignment creates or updates a scoped role assignment.
+	UpsertScopedRoleAssignment(context.Context, *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error)
 
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(context.Context, *scopedaccessv1.DeleteScopedRoleAssignmentRequest) (*scopedaccessv1.DeleteScopedRoleAssignmentResponse, error)

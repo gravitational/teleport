@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/tunnel"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -48,7 +50,7 @@ func TunnelServiceBuilder(
 	leeway time.Duration,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &TunnelService{
@@ -108,8 +110,20 @@ func (s *TunnelService) Run(ctx context.Context) error {
 		}()
 	}
 
-	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	var lpCfg alpnproxy.LocalProxyConfig
+	err := tunnel.RetryInitialization(ctx, s.log, s.statusReporter, func(ctx context.Context) error {
+		var proxyErr error
+		lpCfg, proxyErr = s.buildLocalProxyConfig(ctx)
+		return proxyErr
+	})
 	if err != nil {
+		// If the context got canceled do not to pollute
+		// the shutdown with that error. Similar to what is
+		// being done at the end of this function.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+
 		return trace.Wrap(err, "building local proxy config")
 	}
 	lpCfg.Listener = l
@@ -128,7 +142,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	// lp.Start will block and continues to block until lp.Close() is called.
 	// Despite taking a context, it will not exit until the first connection is
 	// made after the context is canceled.
-	var errCh = make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		errCh <- lp.Start(ctx)
 	}()
@@ -267,9 +281,11 @@ func (s *TunnelService) issueCert(
 	// routeToApp once.
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
-		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
+	}
+	if s.cfg.DelegationSessionID != "" {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {

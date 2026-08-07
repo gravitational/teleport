@@ -27,10 +27,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -221,106 +223,146 @@ func TestListPlugins(t *testing.T) {
 	})
 }
 
-func TestPlugins_validate_okta(t *testing.T) {
+func TestPlugins_invalid_create_and_update(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
-	dummyStaticCreds := &types.PluginCredentialsV1{
-		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
-			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
-				Labels: map[string]string{"test_cred_label_1": "test_cred_value_1"},
+	validSlackPlugin := func(name string) *types.PluginV1 {
+		return types.NewPluginV1(
+			types.Metadata{Name: name},
+			types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: "#general",
+					},
+				},
 			},
-		},
+			nil,
+		)
 	}
 
-	setupServiceFn := func() *PluginsService {
-		mem, err := memory.New(memory.Config{
-			Context: ctx,
-			Clock:   clockwork.NewFakeClock(),
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() { mem.Close() })
-
-		return NewPluginsService(mem)
-	}
-
-	// SyncSettings validation
 	for _, tt := range []struct {
 		desc         string
-		syncSettings *types.PluginOktaSyncSettings
+		mutate       func(*types.PluginV1)
 		requireErrFn func(t require.TestingT, err error, msgAndArgs ...any)
 	}{
 		{
-			desc:         "nil_sync_settings_is_ok",
-			syncSettings: nil,
-			requireErrFn: require.NoError,
-		},
-		{
-			desc:         "empty_sync_settings_is_ok",
-			syncSettings: &types.PluginOktaSyncSettings{},
-			requireErrFn: require.NoError,
-		},
-		{
-			desc: "time_between_imports_has_to_be_a_duration",
-			syncSettings: &types.PluginOktaSyncSettings{
-				TimeBetweenImports: "not-a-duration",
+			desc: "empty_fallback_channel",
+			mutate: func(p *types.PluginV1) {
+				p.Spec.GetSlackAccessPlugin().FallbackChannel = ""
 			},
 			requireErrFn: func(t require.TestingT, err error, msgAndArgs ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, `time_between_imports is not valid: time: invalid duration "not-a-duration"`)
+				require.Error(t, err, msgAndArgs...)
+				require.True(t, trace.IsBadParameter(err), msgAndArgs...)
+				require.ErrorContains(t, err, "fallback_channel must be set", msgAndArgs...)
 			},
-		},
-		{
-			desc: "time_between_imports_has_to_be_positive",
-			syncSettings: &types.PluginOktaSyncSettings{
-				TimeBetweenImports: "-20s",
-			},
-			requireErrFn: func(t require.TestingT, err error, msgAndArgs ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, `time_between_imports "-20s" cannot be a negative value`)
-			},
-		},
-		{
-			desc: "time_between_imports_ok",
-			syncSettings: &types.PluginOktaSyncSettings{
-				TimeBetweenImports: "3h",
-			},
-			requireErrFn: require.NoError,
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
-			svc := setupServiceFn()
+			ctx := t.Context()
+			mem, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clockwork.NewFakeClock(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { mem.Close() })
+			svc := NewPluginsService(mem)
 
-			plugin1 := types.NewPluginV1(types.Metadata{Name: "test_plugin_1"}, types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettings{
-						OrgUrl: "https://my.okta.org.example.com",
-					},
-				},
-			}, nil)
-			plugin1.Credentials = dummyStaticCreds
-
-			plugin1.Spec.GetOkta().SyncSettings = tt.syncSettings
-			err := svc.CreatePlugin(ctx, plugin1)
+			plugin := validSlackPlugin("test_plugin")
+			tt.mutate(plugin)
+			err = svc.CreatePlugin(ctx, plugin)
 			tt.requireErrFn(t, err, "CreatePlugin")
 
-			// Make sure the plugin is in the backend and refresh the revision, so
-			// UpdatePlugin can be tested.
 			if err != nil {
-				plugin1.Spec.GetOkta().SyncSettings = nil
-				err = svc.CreatePlugin(ctx, plugin1)
-				require.NoError(t, err)
+				plugin = validSlackPlugin("test_plugin")
+				require.NoError(t, svc.CreatePlugin(ctx, plugin))
 			}
-			p, err := svc.GetPlugin(ctx, plugin1.GetName(), true)
+			p, err := svc.GetPlugin(ctx, plugin.GetName(), true)
 			require.NoError(t, err)
 			require.IsType(t, &types.PluginV1{}, p)
-			plugin1 = p.(*types.PluginV1)
+			plugin = p.(*types.PluginV1)
 
-			plugin1.Spec.GetOkta().SyncSettings = tt.syncSettings
-			_, err = svc.UpdatePlugin(ctx, plugin1)
+			tt.mutate(plugin)
+			_, err = svc.UpdatePlugin(ctx, plugin)
 			tt.requireErrFn(t, err, "UpdatePlugin")
 		})
 	}
+}
+
+func TestPlugins_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewPluginsService(mem)
+
+	createApp := func(name string) {
+		dummyStaticCreds := &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{"test_cred_label_1": "test_cred_value_1"},
+				},
+			},
+		}
+
+		plugin := types.NewPluginV1(types.Metadata{Name: name}, types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: "https://my.okta.org.example.com",
+				},
+			},
+		}, nil)
+		require.NoError(t, err)
+
+		plugin.Credentials = dummyStaticCreds
+
+		err = service.CreatePlugin(ctx, plugin)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(pluginsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createApp(key)
+		}
+	}
+
+	page1, next, err := service.ListPlugins(ctx, pageLimit, "", false)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListPlugins(ctx, pageLimit, next, false)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListPlugins(ctx, pageLimit, next, false)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.Plugin{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }

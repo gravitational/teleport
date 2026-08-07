@@ -39,7 +39,7 @@ const (
 
 // IDTokenValidator can be used to validate env0 OIDC tokens.
 type IDTokenValidator struct {
-	validator *oidc.CachingTokenValidator[*IDTokenClaims]
+	validator *oidc.CachingTokenValidator[*IDTokenClaims, oidc.StandardValidatorKey]
 }
 
 // ValidateToken validates an env0 OIDC token using a remote, cached OIDC
@@ -48,7 +48,7 @@ func (v *IDTokenValidator) ValidateToken(
 	ctx context.Context,
 	token []byte,
 ) (*IDTokenClaims, error) {
-	validator, err := v.validator.GetValidator(ctx, env0IssuerURL, env0Audience)
+	validator, err := v.validator.GetValidatorWithKey(ctx, oidc.NewStandardValidatorKey(env0IssuerURL, env0Audience))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,7 +69,7 @@ func (v *IDTokenValidator) ValidateToken(
 
 // NewOIDCTokenValidator constructs a KubernetesOIDCTokenValidator.
 func NewIDTokenValidator() (*IDTokenValidator, error) {
-	validator, err := oidc.NewCachingTokenValidator[*IDTokenClaims](clockwork.NewRealClock())
+	validator, err := oidc.NewCachingTokenValidator[*IDTokenClaims, oidc.StandardValidatorKey](clockwork.NewRealClock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

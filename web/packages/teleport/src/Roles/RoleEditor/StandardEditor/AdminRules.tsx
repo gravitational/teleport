@@ -94,7 +94,7 @@ const AdminRule = memo(function AdminRule({
 }: SectionPropsWithDispatch<RuleModel, AdminRuleValidationResult>) {
   const { id, resources, verbs, allVerbs, where, hideValidationErrors } = value;
   const theme = useTheme();
-  function setResources(resources: readonly ResourceKindOption[]) {
+  function setResources(resources: ResourceKindOption[]) {
     dispatch({
       type: ActionType.SetAdminRuleResources,
       payload: { id, resources },
@@ -173,7 +173,7 @@ const AdminRule = memo(function AdminRule({
   );
 });
 
-function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
+function getTitleSegments(resources: ResourceKindOption[]): string[] {
   switch (resources.length) {
     case 0:
       return ['Admin Rule'];

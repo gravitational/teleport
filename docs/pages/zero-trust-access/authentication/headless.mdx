@@ -5,6 +5,7 @@ tags:
  - how-to
  - zero-trust
  - privileged-access
+page_type: how-to
 ---
 
 Headless Authentication provides a secure way to authenticate with Teleport on
@@ -28,6 +29,9 @@ For example:
   In the future, Headless Authentication will be extended to other `tsh` commands.
 </Admonition>
 
+In this guide, you will enable headless authentication on your cluster and go
+through a headless authentication flow.
+
 ## How it works
 
 In the Headless Authentication flow, a user on a remote machine requests headless
@@ -46,7 +50,7 @@ to reduce the impact of exfiltration.
 ## Prerequisites
 
 - A Teleport cluster with [WebAuthn](../management/security/idp-compromise.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../sso/sso-for-mfa.mdx) configured.
-- Machines for Headless Authentication activities have [Linux](../../installation/installation.mdx), [macOS](../../installation/installation.mdx) or [Windows](../../installation/installation.mdx) `tsh` binary installed.
+- Machines for Headless Authentication activities have [Linux](../../installation/single-machine/single-machine.mdx), [macOS](../../installation/single-machine/single-machine.mdx) or [Windows](../../installation/single-machine/single-machine.mdx) `tsh` binary installed.
 - Machines used to approve Headless Authentication requests have a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary installed.
 - Optional: Teleport Connect for [seamless Headless Authentication approval](#optional-teleport-connect).

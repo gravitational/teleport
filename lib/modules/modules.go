@@ -66,6 +66,8 @@ type Features struct {
 	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
 	// license file).
 	CloudAnonymizationKey []byte
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -79,7 +81,7 @@ type Features struct {
 	// AccessGraph enables the usage of access graph.
 	// NOTE: this is a legacy flag that is currently used to signal
 	// that Access Graph integration is *enabled* on a cluster.
-	// *Access* to the feature is gated on the `Policy` flag.
+	// *Access* to the feature is gated on the `AccessGraph` entitlement.
 	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// AccessMonitoringConfigured contributes to the enablement of access monitoring.
@@ -141,22 +143,19 @@ func (f Features) ToProto() *proto.Features {
 		},
 		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
 		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
+		BeamsUI:              f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled,
 	}
 }
 
-// EntitlementsToProto takes the features.Entitlements object and returns a proto version. If not present on Features, the
-// proto entitlement will default to false
+// EntitlementsToProto takes the features.Entitlements object and returns a
+// proto version. Missing split identity security entitlements fall back to the
+// legacy Policy entitlement.
 func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
 	all := entitlements.AllEntitlements
 	result := make(map[string]*proto.EntitlementInfo, len(all))
 
 	for _, e := range all {
-		al, ok := f.Entitlements[e]
-		if !ok {
-			result[string(e)] = &proto.EntitlementInfo{}
-			continue
-		}
-
+		al := f.GetEntitlement(e)
 		result[string(e)] = &proto.EntitlementInfo{
 			Enabled: al.Enabled,
 			Limit:   al.Limit,
@@ -166,31 +165,56 @@ func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
 	return result
 }
 
-// GetEntitlement takes an entitlement and returns either the Features entitlement, or if not present, a false entitlement
+// GetEntitlement returns the requested entitlement. For compatibility with
+// licenses that predate the identity security entitlement split, a missing
+// AccessGraph, ActivityCenter, or SessionSummaries entitlement falls back to an
+// enabled legacy Policy entitlement.
 func (f Features) GetEntitlement(e entitlements.EntitlementKind) EntitlementInfo {
 	al, ok := f.Entitlements[e]
-	if !ok {
-		return EntitlementInfo{}
+	if ok {
+		return EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
 	}
 
-	return EntitlementInfo{
-		Enabled: al.Enabled,
-		Limit:   al.Limit,
+	if isLegacyPolicyFallbackEntitlement(e) && f.Entitlements[entitlements.Policy].Enabled {
+		return EntitlementInfo{Enabled: true}
 	}
+
+	return EntitlementInfo{}
 }
 
-// GetProtoEntitlement takes a proto features set and an entitlement and returns either the proto features entitlement,
-// or if not present, a false entitlement
+// GetProtoEntitlement returns the requested proto entitlement. For
+// compatibility with clusters that predate the identity security entitlement
+// split, a missing AccessGraph, ActivityCenter, or SessionSummaries entitlement
+// falls back to an enabled legacy Policy entitlement or Policy proto field.
 func GetProtoEntitlement(f *proto.Features, e entitlements.EntitlementKind) *proto.EntitlementInfo {
 	fE := f.GetEntitlements()
 	al, ok := fE[string(e)]
-	if !ok {
-		return &proto.EntitlementInfo{}
+	if ok {
+		return &proto.EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
 	}
 
-	return &proto.EntitlementInfo{
-		Enabled: al.Enabled,
-		Limit:   al.Limit,
+	if isLegacyPolicyFallbackEntitlement(e) {
+		policy, hasPolicyEntitlement := fE[string(entitlements.Policy)]
+		if policy.GetEnabled() || !hasPolicyEntitlement && f.GetPolicy().GetEnabled() {
+			return &proto.EntitlementInfo{Enabled: true}
+		}
+	}
+
+	return &proto.EntitlementInfo{}
+}
+
+func isLegacyPolicyFallbackEntitlement(e entitlements.EntitlementKind) bool {
+	switch e {
+	case entitlements.AccessGraph, entitlements.ActivityCenter, entitlements.SessionSummaries:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -252,8 +276,6 @@ type AccessListAndMembersGetter interface {
 type Modules interface {
 	// PrintVersion prints teleport version
 	PrintVersion()
-	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
 	// SetFeatures set features queried from Cloud
@@ -264,6 +286,8 @@ type Modules interface {
 	IsEnterpriseBuild() bool
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
+	// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+	IsFIPSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -406,8 +430,9 @@ func (p *defaultModules) Features() Features {
 func (p *defaultModules) SetFeatures(f Features) {
 }
 
-func (p *defaultModules) IsBoringBinary() bool {
-	return IsBoringBinary()
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *defaultModules) IsFIPSBuild() bool {
+	return IsFIPSBuild()
 }
 
 // AttestHardwareKey attests a hardware key.

@@ -139,6 +139,13 @@ func TestAccessReviewConditionsIsEmpty(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "submit_for_users",
+			arc: AccessReviewConditions{
+				SubmitForUsers: []string{"test"},
+			},
+			expected: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -990,6 +997,23 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 	}
 }
 
+func TestUnmarshalCreateHostUserModeText(t *testing.T) {
+	for _, tc := range []struct {
+		input    string
+		expected CreateHostUserMode
+	}{
+		{input: "off", expected: CreateHostUserMode_HOST_USER_MODE_OFF},
+		{input: "", expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED},
+		{input: "keep", expected: CreateHostUserMode_HOST_USER_MODE_KEEP},
+		{input: "insecure-drop", expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP},
+	} {
+		var got CreateHostUserMode
+		err := got.UnmarshalText([]byte(tc.input))
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
+	}
+}
+
 func TestUnmarshallCreateDatabaseUserModeJSON(t *testing.T) {
 	for _, tc := range []struct {
 		input    any
@@ -1027,6 +1051,76 @@ func TestUnmarshallCreateDatabaseUserModeYAML(t *testing.T) {
 		{input: 3, expected: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP},
 	} {
 		var got CreateDatabaseUserMode
+		err := yaml.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
+func TestMarshalWebTerminalClipboardModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    WebTerminalClipboardMode
+		expected string
+	}{
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, expected: ""},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, expected: "unrestricted"},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY, expected: "no-copy"},
+	} {
+		got, err := json.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%q", tc.expected), string(got))
+	}
+}
+
+func TestMarshalWebTerminalClipboardModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    WebTerminalClipboardMode
+		expected string
+	}{
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, expected: `""`},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, expected: "unrestricted"},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY, expected: "no-copy"},
+	} {
+		got, err := yaml.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
+	}
+}
+
+func TestUnmarshalWebTerminalClipboardModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    any
+		expected WebTerminalClipboardMode
+	}{
+		{input: `""`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: `"unrestricted"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: `"no-copy"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+		{input: 0, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: 1, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: 2, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+	} {
+		var got WebTerminalClipboardMode
+		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
+func TestUnmarshalWebTerminalClipboardModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    any
+		expected WebTerminalClipboardMode
+	}{
+		{input: `""`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: `"unrestricted"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: "unrestricted", expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: `"no-copy"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+		{input: "no-copy", expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+		{input: 0, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: 1, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: 2, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+	} {
+		var got WebTerminalClipboardMode
 		err := yaml.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
 		require.NoError(t, err)
 		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
@@ -1107,6 +1201,15 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 				},
 			}),
 			requireError: requireBadParameterContains("validating ip_sans[1]: invalid CIDR address: llama"),
+		},
+		{
+			name: "web terminal clipboard mode: invalid",
+			role: newRole(t, RoleSpecV6{
+				Options: RoleOptions{
+					WebTerminalClipboardMode: WebTerminalClipboardMode(99),
+				},
+			}),
+			requireError: requireBadParameterContains("invalid web terminal clipboard mode"),
 		},
 	}
 
@@ -1400,4 +1503,32 @@ func TestRoleGitHubPermissions(t *testing.T) {
 	require.Equal(t, LabelMatchers{Labels: Labels{
 		GitHubOrgLabel: []string{"jedi", "night-watch"},
 	}}, denyMatchers)
+}
+
+func TestRoleBeamLabelMatchers(t *testing.T) {
+	role, err := NewRole("beam-role", RoleSpecV6{
+		Allow: RoleConditions{
+			BeamLabels:           Labels{"env": []string{"prod"}},
+			BeamLabelsExpression: `labels["env"] == "prod"`,
+		},
+		Deny: RoleConditions{
+			BeamLabels:           Labels{"owner": []string{"alice"}},
+			BeamLabelsExpression: `labels["owner"] == "alice"`,
+		},
+	})
+	require.NoError(t, err)
+
+	allowMatchers, err := role.GetLabelMatchers(Allow, KindBeam)
+	require.NoError(t, err)
+	require.Equal(t, LabelMatchers{
+		Labels:     Labels{"env": []string{"prod"}},
+		Expression: `labels["env"] == "prod"`,
+	}, allowMatchers)
+
+	denyMatchers, err := role.GetLabelMatchers(Deny, KindBeam)
+	require.NoError(t, err)
+	require.Equal(t, LabelMatchers{
+		Labels:     Labels{"owner": []string{"alice"}},
+		Expression: `labels["owner"] == "alice"`,
+	}, denyMatchers)
 }

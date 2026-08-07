@@ -64,7 +64,7 @@ func (o *JWTOutputConfig) Init(ctx context.Context) error {
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityJWTService values and sets any defaults.
-func (o *JWTOutputConfig) CheckAndSetDefaults() error {
+func (o *JWTOutputConfig) CheckAndSetDefaults(scoped bool) error {
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

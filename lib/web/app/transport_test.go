@@ -39,6 +39,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -93,7 +94,7 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 				caCert:      caCert,
 				clusterName: clusterName,
 			},
-			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
+			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName, "testapp"),
 			integrationAppHandler: &mockIntegrationAppHandler{},
 		}
 	}
@@ -296,7 +297,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -349,7 +350,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 			Resource: "root",
 		}
 
-		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster)
+		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 		b, _ := pem.Decode(clientCertPEM)
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
@@ -472,7 +473,7 @@ func Test_transport_with_integration(t *testing.T) {
 
 	integrationAppHandler := &mockIntegrationAppHandler{}
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -575,6 +576,109 @@ func Test_isAppServerDialable(t *testing.T) {
 			clusterClient, _ := clusterGetter.Cluster(ctx, "")
 			got := isAppServerDialable(ctx, clusterClient, tt.app())
 			require.Equal(t, tt.match, got, tt.app())
+		})
+	}
+}
+
+func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
+	t.Helper()
+	return func() types.AppServer {
+		app, err := types.NewAppV3(
+			types.Metadata{
+				Name:      "test-app",
+				Namespace: apidefaults.Namespace,
+				Labels: map[string]string{
+					types.OriginLabel: origin,
+				},
+			},
+			types.AppSpecV3{
+				URI: "https://app.localhost",
+			},
+		)
+		require.NoError(t, err)
+
+		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+		require.NoError(t, err)
+
+		return appServer
+	}
+}
+
+type mockClusterGetter struct {
+	reversetunnelclient.ClusterGetter
+	cluster *mockCluster
+}
+
+func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return p.cluster, nil
+}
+
+type mockCluster struct {
+	reversetunnelclient.Cluster
+	dialErr            error
+	dialParamsReceived reversetunnelclient.DialParams
+}
+
+func (r *mockCluster) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	r.dialParamsReceived = params
+	if r.dialErr != nil {
+		return nil, r.dialErr
+	}
+
+	return &mockDialConn{}, nil
+}
+
+func (r *mockCluster) GetName() string {
+	return "mockCluster"
+}
+
+type mockDialConn struct {
+	net.Conn
+}
+
+func (c *mockDialConn) Close() error {
+	return nil
+}
+
+func Test_dialAppServer_setsTargetScope(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app"},
+		types.AppSpecV3{URI: "https://app.localhost"},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		scope     string
+		wantScope string
+	}{
+		{
+			name:      "scope threaded into dial params",
+			scope:     "/staging/test",
+			wantScope: "/staging/test",
+		},
+		{
+			name:      "empty scope by default",
+			scope:     "",
+			wantScope: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appServer, err := types.NewAppServerV3(
+				types.Metadata{Name: "test-app"},
+				types.AppServerSpecV3{HostID: "host-1", App: app},
+				tt.scope,
+			)
+			require.NoError(t, err)
+
+			cluster := &mockCluster{}
+			_, err = dialAppServer(t.Context(), cluster, appServer)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantScope, cluster.dialParamsReceived.TargetScope)
 		})
 	}
 }

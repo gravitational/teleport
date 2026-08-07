@@ -28,8 +28,10 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -118,13 +120,17 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				InsecureMode:             process.Config.InsecureMode,
-				Component:                teleport.ComponentWindowsDesktop,
-				HostUUID:                 conn.HostID(),
-				Resolver:                 conn.TunnelProxyResolver(),
-				Client:                   conn.Client,
-				AccessPoint:              accessPoint,
-				AuthMethods:              conn.ClientAuthMethods(),
+				InsecureMode: process.Config.InsecureMode,
+				Component:    teleport.ComponentWindowsDesktop,
+				HostUUID:     conn.HostID(),
+				Resolver:     conn.TunnelProxyResolver(),
+				Client:       conn.Client,
+				AccessPoint:  accessPoint,
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return conn.ClientSigners(), nil
+					},
+				},
 				Cluster:                  conn.ClusterName(),
 				Server:                   shtl,
 				FIPS:                     process.Config.FIPS,
@@ -160,10 +166,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	clusterName := conn.ClusterName()
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		ClusterName:    clusterName,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		ScopesFeatures: process.scopesFeatures,
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			// Ignore the global device_trust.mode toggle, but allow role-based
 			// settings to be applied.

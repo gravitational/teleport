@@ -85,20 +85,20 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 		int(limit),
 		values.Get("startKey"),
 		func(ctx context.Context, pageSize int, pageToken string) ([]*types.UserV2, string, error) {
-			resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
+			resp, err := clt.ListUsers(r.Context(), userspb.ListUsersRequest_builder{
 				PageSize:  int32(pageSize),
 				PageToken: pageToken,
 				Filter: &types.UserFilter{
 					SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
 					SkipSystemUsers: true,
 				},
-			})
+			}.Build())
 
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
 
-			return resp.Users, resp.NextPageToken, nil
+			return resp.GetUsers(), resp.GetNextPageToken(), nil
 		})
 
 	if err != nil {

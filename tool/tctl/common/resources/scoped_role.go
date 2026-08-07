@@ -23,10 +23,12 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -51,13 +53,10 @@ func (c *scopedRoleCollection) Resources() []types.Resource {
 }
 
 func (c *scopedRoleCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name"}
+	headers := []string{"ID"}
 	rows := make([][]string, len(c.roles))
 	for i, item := range c.roles {
-		rows[i] = []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-		}
+		rows[i] = []string{scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String()}
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
@@ -66,8 +65,8 @@ func (c *scopedRoleCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-func scopedRoleHandler() Handler {
-	return Handler{
+func scopedRoleScopedHandler() ScopedHandler {
+	return ScopedHandler{
 		getHandler:    getScopedRole,
 		createHandler: createScopedRole,
 		updateHandler: updateScopedRole,
@@ -77,25 +76,36 @@ func scopedRoleHandler() Handler {
 }
 
 func createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	if opts.Force {
-		return trace.BadParameter("scoped role creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+	if opts.Force {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRole(ctx, scopedaccessv1.UpsertScopedRoleRequest_builder{
+			Role: r,
+		}.Build())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRole,
+			scopes.QualifiedName{Name: rsp.GetRole().GetMetadata().GetName(), Scope: rsp.GetRole().GetScope()}.String(),
+		)
+		return nil
+	}
+
+	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: r,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf(
 		"%v %q has been created\n",
 		scopedaccess.KindScopedRole,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
@@ -107,50 +117,62 @@ func updateScopedRole(ctx context.Context, client *authclient.Client, raw servic
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.ScopedAccessServiceClient().UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRole(ctx, scopedaccessv1.UpdateScopedRoleRequest_builder{
 		Role: r,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf(
 		"%v %q has been updated\n",
 		scopedaccess.KindScopedRole,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
 }
 
-func getScopedRole(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	if ref.Name != "" {
-		rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-			Name: ref.Name,
-		})
+func getScopedRole(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(scopedaccess.KindScopedRole, subKind)
+	}
+
+	if sqn != nil {
+		rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+			Name:  sqn.Name,
+			Scope: sqn.Scope,
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &scopedRoleCollection{roles: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
+		return &scopedRoleCollection{roles: []*scopedaccessv1.ScopedRole{rsp.GetRole()}}, nil
 	}
 
-	items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
+	items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRolesRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &scopedRoleCollection{roles: items}, nil
 }
 
-func deleteScopedRole(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: ref.Name,
-	}); err != nil {
+func deleteScopedRole(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(scopedaccess.KindScopedRole, subKind)
+	}
+
+	if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		scopedaccess.KindScopedRole,
-		ref.Name,
+		sqn.String(),
 	)
 	return nil
 }

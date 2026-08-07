@@ -21,11 +21,14 @@ package discovery
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 	"testing/synctest"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -33,10 +36,8 @@ import (
 )
 
 type (
-	kalsRequest  = accessgraphv1alpha.KubeAuditLogStreamRequest
-	kalsResponse = accessgraphv1alpha.KubeAuditLogStreamResponse
-	kalsClient   = grpc.BidiStreamingClient[kalsRequest, kalsResponse]
-	kalsServer   = grpc.BidiStreamingServer[kalsRequest, kalsResponse]
+	kalsClient = grpc.BidiStreamingClient[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse]
+	kalsServer = grpc.BidiStreamingServer[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse]
 )
 
 func TestEKSAuditLogWatcher_Init(t *testing.T) {
@@ -84,7 +85,7 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send a single cluster1 to the watcher to reconcile
-		cluster1 := &accessgraphv1alpha.AWSEKSClusterV1{Arn: "test-arn"}
+		cluster1 := accessgraphv1alpha.AWSEKSClusterV1_builder{Arn: "test-arn"}.Build()
 		fetcher1 := &aws_sync.Fetcher{}
 		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}})
 		synctest.Wait()
@@ -99,7 +100,7 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.Equal(t, 1, fetcherTracker.newCount)
 
 		// Add another cluster
-		cluster2 := &accessgraphv1alpha.AWSEKSClusterV1{Arn: "test-arn2"}
+		cluster2 := accessgraphv1alpha.AWSEKSClusterV1_builder{Arn: "test-arn2"}.Build()
 		fetcher2 := &aws_sync.Fetcher{}
 		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}, {fetcher2, cluster2}})
 		synctest.Wait()
@@ -120,12 +121,69 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.Equal(t, 2, fetcherTracker.newCount)
 		require.True(t, f2.done)
 
+		// Add the second cluster back and ensure it starts fresh.
+		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}, {fetcher2, cluster2}})
+		synctest.Wait()
+		require.Len(t, fetcherTracker.fetchers, 2)
+		require.Equal(t, 3, fetcherTracker.newCount)
+		require.True(t, f2.done)
+
 		// Send an empty cluster list. Should stop last fetcher
 		watcher.Reconcile(ctx, []eksAuditLogCluster{})
 		synctest.Wait()
 		require.Empty(t, fetcherTracker.fetchers)
-		require.Equal(t, 2, fetcherTracker.newCount)
+		require.Equal(t, 3, fetcherTracker.newCount)
 		require.True(t, f1.done)
+
+		// Add the two clusters back
+		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}, {fetcher2, cluster2}})
+		synctest.Wait()
+		require.Len(t, fetcherTracker.fetchers, 2)
+		require.Equal(t, 5, fetcherTracker.newCount)
+		require.True(t, f1.done)
+		require.True(t, f2.done)
+
+		// Cancel the watcher and ensure it waits for the fetchers to be done
+		cancel()
+		synctest.Wait()
+		require.ErrorIs(t, err, context.Canceled)
+		require.True(t, f1.done)
+		require.True(t, f2.done)
+	})
+}
+
+func TestEKSAuditLogWatcher_ReconcileWhileDisabled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+
+		fetcherTracker := newFakeFetcherTracker()
+		clientStream := failingKubeAuditLogStream{
+			recvErr: trace.BadParameter("Identity activity center is not configured, cannot process Kube Audit Log stream"),
+		}
+		client := &fakeKubeAuditLogClient{clientStream: &clientStream}
+		watcher := newEKSAuditLogWatcher(client, slog.New(slog.DiscardHandler))
+		watcher.newFetcher = fetcherTracker.newFetcher
+		var err error
+		go func() { err = watcher.Run(ctx) }()
+
+		synctest.Wait()
+
+		// eksAuditLogWatcher should have sent a Config request. The fake
+		// client stream should have returned an error which disables the
+		// watcher, but leaves it draining the reconcile channel.
+
+		require.Len(t, clientStream.sentReqs, 1)
+		require.NotNil(t, clientStream.sentReqs[0].GetConfig())
+
+		// Send a single cluster1 to the watcher to reconcile
+		cluster1 := accessgraphv1alpha.AWSEKSClusterV1_builder{Arn: "test-arn"}.Build()
+		fetcher1 := &aws_sync.Fetcher{}
+		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}})
+		synctest.Wait()
+
+		// Verify that a fetcher was not created/started.
+		_, ok := fetcherTracker.fetchers["test-arn"]
+		require.False(t, ok, "eksAuditLogFetcher created when not enabled")
 
 		cancel()
 		synctest.Wait()
@@ -138,6 +196,7 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 // so that real fetchers are not created, and returns a fake fetcher for
 // testing purposes.
 type fakeFetcherTracker struct {
+	mu       sync.Mutex
 	fetchers map[string]*fakeEksAuditLogFetcher
 	newCount int
 }
@@ -158,9 +217,15 @@ func (fft *fakeFetcherTracker) newFetcher(
 	f := &fakeEksAuditLogFetcher{
 		fetcher: fetcher,
 		cluster: cluster,
-		cleanup: func() { delete(fft.fetchers, cluster.Arn) },
+		cleanup: func() {
+			fft.mu.Lock()
+			defer fft.mu.Unlock()
+			delete(fft.fetchers, cluster.GetArn())
+		},
 	}
-	fft.fetchers[cluster.Arn] = f
+	fft.mu.Lock()
+	defer fft.mu.Unlock()
+	fft.fetchers[cluster.GetArn()] = f
 	fft.newCount++
 	return f
 }
@@ -181,16 +246,14 @@ func (f *fakeEksAuditLogFetcher) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func newKubeAuditLogResponseConfig(cfg *accessgraphv1alpha.KubeAuditLogConfig) *kalsResponse {
-	return &kalsResponse{
-		State: &accessgraphv1alpha.KubeAuditLogStreamResponse_Config{
-			Config: cfg,
-		},
-	}
+func newKubeAuditLogResponseConfig(cfg *accessgraphv1alpha.KubeAuditLogConfig) *accessgraphv1alpha.KubeAuditLogStreamResponse {
+	return accessgraphv1alpha.KubeAuditLogStreamResponse_builder{
+		Config: proto.ValueOrDefault(cfg),
+	}.Build()
 }
 
 func newFakeKubeAuditLogClient(ctx context.Context) *fakeKubeAuditLogClient {
-	tester := grpctest.NewGRPCTester[kalsRequest, kalsResponse](ctx)
+	tester := grpctest.NewGRPCTester[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse](ctx)
 	return &fakeKubeAuditLogClient{
 		clientStream: tester.NewClientStream(),
 		serverStream: tester.NewServerStream(),
@@ -207,4 +270,27 @@ type fakeKubeAuditLogClient struct {
 // Implements KubeAuditLogStream grpc method on the client
 func (c *fakeKubeAuditLogClient) KubeAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (kalsClient, error) {
 	return c.clientStream, nil
+}
+
+// failingKubeAuditLogStream is a kalsClient stream for tests where we need to
+// simulate the server returning an error from the streaming function. This
+// cannot be done with GRPCTester.
+//
+// The only methods implemented are those required for the existing tests
+// (TestEKSAuditLogWatcher_ReconcileWhileDisabled). If the unit under test
+// changes or tests are expanded, other methods may be required to be
+// implemented. For now if those methods are called, it will panic.
+type failingKubeAuditLogStream struct {
+	grpc.ClientStream
+	sentReqs []*accessgraphv1alpha.KubeAuditLogStreamRequest
+	recvErr  error
+}
+
+func (s *failingKubeAuditLogStream) Send(req *accessgraphv1alpha.KubeAuditLogStreamRequest) error {
+	s.sentReqs = append(s.sentReqs, req)
+	return nil
+}
+
+func (s *failingKubeAuditLogStream) Recv() (*accessgraphv1alpha.KubeAuditLogStreamResponse, error) {
+	return nil, s.recvErr
 }

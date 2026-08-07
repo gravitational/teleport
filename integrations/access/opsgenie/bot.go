@@ -45,7 +45,7 @@ type Bot struct {
 // SupportedApps are the apps supported by this bot.
 func (b *Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 

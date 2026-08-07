@@ -24,6 +24,8 @@ import {
   CheckAttemptStatus,
   CheckReportStatus,
   CommandAttemptStatus,
+  DNSReport,
+  DNSZoneStatus,
   RouteConflict,
   RouteConflictReport,
   SSHConfigurationReport,
@@ -36,8 +38,12 @@ import { reportToText } from 'teleterm/services/vnet/diag';
 import {
   makeCheckAttempt,
   makeCheckReport,
+  makeDNSReport,
+  makeDNSZoneResult,
+  makeRecordResult,
   makeReport,
   makeRouteConflict,
+  makeVNetDNSReachability,
 } from 'teleterm/services/vnet/testHelpers';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -63,6 +69,14 @@ type StoryProps = {
   routeConflictAttempt: 'ok' | 'issues-found' | 'error';
   routeConflicts: RouteConflict[];
   routeConflictCommandAttempt: 'ok' | 'error';
+  dnsAttempt:
+    | 'ok'
+    | 'unreachable'
+    | 'ipv6-unreachable'
+    | 'no-ipv6'
+    | 'mixed-zone-issues'
+    | 'both-aaaa-only'
+    | 'error';
   sshConfigAttempt: 'ok' | 'error';
   sshConfigured: boolean;
   userOpenSSHConfigExists: boolean;
@@ -101,6 +115,18 @@ const meta: Meta<StoryProps> = {
     routeConflictCommandAttempt: {
       control: { type: 'inline-radio' },
       options: ['ok', 'error'],
+    },
+    dnsAttempt: {
+      control: { type: 'inline-radio' },
+      options: [
+        'ok',
+        'unreachable',
+        'ipv6-unreachable',
+        'no-ipv6',
+        'mixed-zone-issues',
+        'both-aaaa-only',
+        'error',
+      ],
     },
     sshConfigAttempt: {
       control: { type: 'inline-radio' },
@@ -141,6 +167,7 @@ const meta: Meta<StoryProps> = {
       }),
     ],
     routeConflictCommandAttempt: 'ok',
+    dnsAttempt: 'mixed-zone-issues',
     sshConfigAttempt: 'ok',
     sshConfigured: false,
     userOpenSSHConfigExists: true,
@@ -255,6 +282,196 @@ export function DocumentVnetDiagReport(props: StoryProps) {
       },
     }),
   });
+  const dnsReport: DNSReport = makeDNSReport();
+  const dnsCheckAttempt = makeCheckAttempt({
+    checkReport: makeCheckReport({
+      status: CheckReportStatus.OK,
+      report: { oneofKind: 'dnsReport', dnsReport },
+    }),
+  });
+  switch (props.dnsAttempt) {
+    case 'error':
+      dnsCheckAttempt.status = CheckAttemptStatus.ERROR;
+      dnsCheckAttempt.error = 'something went wrong';
+      break;
+    case 'ok':
+      // Both nameservers reachable, all zones routed correctly.
+      dnsReport.zoneResults = props.dnsZones.map(zone =>
+        makeDNSZoneResult({ zone })
+      );
+      break;
+    case 'unreachable':
+      // Both nameservers unreachable.
+      dnsReport.ipv4Reachability = makeVNetDNSReachability({
+        address: '100.64.0.2:53',
+        reachable: false,
+        respondedA: false,
+        respondedAaaa: false,
+        error:
+          'querying VNet DNS server at 100.64.0.2:53 for A record\n' +
+          '\tlookup vnet-diag-f4b49a465de45626.test: connect: connection refused\n' +
+          'querying VNet DNS server at 100.64.0.2:53 for AAAA record\n' +
+          '\tlookup vnet-diag-aa7634492d2eeb20.test: connect: connection refused',
+      });
+      dnsReport.ipv6Reachability = makeVNetDNSReachability({
+        address: '[fdff:fd74:46c0::2]:53',
+        reachable: false,
+        respondedA: false,
+        respondedAaaa: false,
+        error:
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for A record\n' +
+          '\tlookup vnet-diag-f4b49a465de45626.test: connect: connection refused\n' +
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for AAAA record\n' +
+          '\tlookup vnet-diag-aa7634492d2eeb20.test: connect: connection refused',
+      });
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+    case 'ipv6-unreachable':
+      // IPv6 nameserver unreachable, IPv4 fine. Per-zone still runs.
+      dnsReport.ipv6Reachability = makeVNetDNSReachability({
+        address: '[fdff:fd74:46c0::2]:53',
+        reachable: false,
+        respondedA: false,
+        respondedAaaa: false,
+        error:
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for A record\n' +
+          '\tlookup vnet-diag-e08c7ee8b534d6db.test: connect: network unreachable\n' +
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for AAAA record\n' +
+          '\tlookup vnet-diag-907e5ae789aea710.test: connect: network unreachable',
+      });
+      dnsReport.zoneResults = [
+        ...props.dnsZones.map(zone => makeDNSZoneResult({ zone })),
+        makeDNSZoneResult({
+          zone: 'hijack.zone.test',
+          aRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '1.2.3.4',
+          }),
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '2001:db8::1234',
+          }),
+        }),
+      ];
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+    case 'no-ipv6':
+      // VNet does not serve DNS on IPv6.
+      dnsReport.ipv6Reachability = undefined;
+      dnsReport.ipv4Reachability = makeVNetDNSReachability({
+        address: '100.64.0.2:53',
+        respondedA: true,
+        respondedAaaa: false,
+      });
+      dnsReport.zoneResults = [
+        ...props.dnsZones.map(zone =>
+          makeDNSZoneResult({ zone, aaaaRecord: undefined })
+        ),
+        makeDNSZoneResult({
+          zone: 'hijack.zone.test',
+          aRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '1.2.3.4',
+          }),
+          aaaaRecord: undefined,
+        }),
+      ];
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+    case 'mixed-zone-issues':
+      // Per-zone mixed results.
+      dnsReport.zoneResults = [
+        makeDNSZoneResult({ zone: 'company.test' }),
+        makeDNSZoneResult({
+          zone: 'hijack.zone.test',
+          aRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '1.2.3.4',
+          }),
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '2001:db8::1234',
+          }),
+        }),
+        makeDNSZoneResult({
+          zone: 'mixed.zone.test',
+          aRecord: makeRecordResult(),
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '2001:db8::1234',
+          }),
+        }),
+        makeDNSZoneResult({
+          zone: 'not-registered.zone.test',
+          aRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED,
+          }),
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED,
+          }),
+        }),
+        makeDNSZoneResult({
+          zone: 'staging.test',
+          aRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT,
+            error: 'i/o timeout',
+          }),
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT,
+            error: 'i/o timeout',
+          }),
+        }),
+      ];
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+    case 'both-aaaa-only':
+      // Both nameservers reachable but respond to AAAA only.
+      dnsReport.ipv4Reachability = makeVNetDNSReachability({
+        address: '100.64.0.2:53',
+        respondedA: false,
+        respondedAaaa: true,
+      });
+      dnsReport.ipv6Reachability = makeVNetDNSReachability({
+        address: '[fdff:fd74:46c0::2]:53',
+        respondedA: false,
+        respondedAaaa: true,
+      });
+      dnsReport.zoneResults = [
+        makeDNSZoneResult({ zone: 'company.test', aRecord: undefined }),
+        makeDNSZoneResult({
+          zone: 'hijack.zone.test',
+          aRecord: undefined,
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+            observedIp: '2001:db8::1234',
+          }),
+        }),
+        makeDNSZoneResult({
+          zone: 'not-registered.zone.test',
+          aRecord: undefined,
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED,
+          }),
+        }),
+        makeDNSZoneResult({
+          zone: 'staging.test',
+          aRecord: undefined,
+          aaaaRecord: makeRecordResult({
+            status: DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT,
+            error: 'i/o timeout',
+          }),
+        }),
+      ];
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+  }
+  dnsCheckAttempt.commands.push({
+    status: CommandAttemptStatus.OK,
+    error: '',
+    command: 'scutil --dns',
+    output: scutilOutput,
+  });
+  report.checks.push(dnsCheckAttempt);
   report.checks.push(sshConfigCheckAttempt);
 
   if (props.displayUnsupportedCheckAttempt) {
@@ -307,6 +524,48 @@ export function DocumentVnetDiagReport(props: StoryProps) {
 
   return <Component visible doc={doc} />;
 }
+
+const scutilOutput = `DNS configuration
+
+resolver #1
+  nameserver[0] : 1.1.1.1
+  nameserver[1] : 192.168.1.1
+  if_index : 14 (en0)
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+  order    : 200000
+
+resolver #2
+  domain   : local
+  options  : mdns
+  timeout  : 5
+  flags    : Request A records
+  reach    : 0x00000000 (Not Reachable)
+  order    : 300000
+
+resolver #3
+  domain   : company.test
+  nameserver[0] : fdff:fd74:46c0::2
+  nameserver[1] : 100.64.0.2
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+
+resolver #4
+  domain   : other.test
+  nameserver[0] : fdff:fd74:46c0::2
+  nameserver[1] : 100.64.0.2
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+
+DNS configuration (for scoped queries)
+
+resolver #1
+  nameserver[0] : 1.1.1.1
+  nameserver[1] : 192.168.1.1
+  if_index : 14 (en0)
+  flags    : Scoped, Request A records
+  reach    : 0x00000002 (Reachable)
+`;
 
 const netstatOutput = `Routing tables
 

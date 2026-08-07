@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -63,6 +64,16 @@ type AzureTokenProvider interface {
 	// return cached tokens whenever possible and are safe for concurrent use.
 	// https://github.com/Azure/azure-sdk-for-go/blob/sdk/azidentity/v1.11.0/sdk/azidentity/TOKEN_CACHING.MD
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
+}
+
+// DeltaStore defines an interface for persisting delta links.
+type DeltaStore interface {
+	// Get returns a delta link for the given endpoint.
+	Get(endpoint string) string
+	// Set sets a delta link for the given endpoint.
+	Set(endpoint, deltaLink string)
+	// Clear deletes delta link for the given endpoint.
+	Clear(endpoint string)
 }
 
 func defaultHTTPClient() (*http.Client, error) {
@@ -137,7 +148,7 @@ func (cfg *Config) Validate() error {
 	if cfg.HTTPClient == nil {
 		return trace.BadParameter("HTTPClient must be set")
 	}
-	if err := types.ValidateMSGraphEndpoints("", cfg.GraphEndpoint); err != nil {
+	if err := types.ValidateMSGraphEndpoint(cfg.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -218,7 +229,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 
 	var lastErr error
 	var start time.Time
-	for range maxRetries {
+	for i := range maxRetries {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
@@ -273,12 +284,28 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			"status", resp.StatusCode,
 			"url", req.URL,
 			"client_request_id", requestID,
+			"retry_count", i,
 		)
+
+		retryAfter = retry.Duration()
+		retryAfterFromHeader := time.Duration(0)
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if seconds, err := strconv.Atoi(ra); err != nil {
+				c.logger.WarnContext(ctx, `Failed to parse "Retry-After" header`, "error", err)
+			} else {
+				retryAfterFromHeader = time.Duration(seconds) * time.Second
+				retryAfter = time.Duration(seconds) * time.Second
+			}
+		}
+		retry.Inc()
 
 		graphError, err := readError(respBody, resp.StatusCode)
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
 		} else if graphError != nil {
+			if retryAfterFromHeader > 0 {
+				graphError.RetryAfter = retryAfterFromHeader
+			}
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
@@ -287,14 +314,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		if !isRetriable(resp.StatusCode) {
 			break
 		}
-
-		retryAfter = retry.Duration()
-		if ra := resp.Header.Get("Retry-After"); ra != "" {
-			if seconds, err := strconv.Atoi(ra); err == nil {
-				retryAfter = time.Duration(seconds) * time.Second
-			}
-		}
-		retry.Inc()
 
 		// prepare for the next request attempt by rewinding the body
 		if body != nil {
@@ -367,9 +386,9 @@ func (c *Client) patch(ctx context.Context, uri string, in any) error {
 
 // CreateFederatedIdentityCredential creates a new FederatedCredential.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/application-post-federatedidentitycredentials].
-func (c *Client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
+func (c *Client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *models.FederatedIdentityCredential) (*models.FederatedIdentityCredential, error) {
 	uri := c.endpointURI("applications", appObjectID, "federatedIdentityCredentials")
-	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri.String(), cred)
+	out, err := roundtrip[*models.FederatedIdentityCredential](ctx, c, http.MethodPost, uri.String(), cred)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -378,10 +397,10 @@ func (c *Client) CreateFederatedIdentityCredential(ctx context.Context, appObjec
 
 // CreateServicePrincipalTokenSigningCertificate generates a new token signing certificate for the given service principal.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-addtokensigningcertificate].
-func (c *Client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
+func (c *Client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*models.SelfSignedCertificate, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "addTokenSigningCertificate")
 	in := map[string]string{"displayName": displayName}
-	out, err := roundtrip[*SelfSignedCertificate](ctx, c, http.MethodPost, uri.String(), in)
+	out, err := roundtrip[*models.SelfSignedCertificate](ctx, c, http.MethodPost, uri.String(), in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -391,9 +410,9 @@ func (c *Client) CreateServicePrincipalTokenSigningCertificate(ctx context.Conte
 // GetServicePrincipalByAppId returns the service principal associated with the given application.
 // Note that appID here is the app the application "client ID" ([Application.AppID]), not "object ID" ([Application.ID]).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
-func (c *Client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
+func (c *Client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*models.ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals(appId='%s')", appID))
-	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
+	out, err := roundtrip[*models.ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -402,13 +421,13 @@ func (c *Client) GetServicePrincipalByAppId(ctx context.Context, appID string) (
 
 // GetServicePrincipalsByDisplayName returns the service principals that have the given display name.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
-func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error) {
+func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*models.ServicePrincipal, error) {
 	filter := fmt.Sprintf("displayName eq '%s'", displayName)
 	uri := c.endpointURI("servicePrincipals")
 	uri.RawQuery = url.Values{
 		"$filter": {filter},
 	}.Encode()
-	out, err := roundtrip[oDataListResponse[*ServicePrincipal]](ctx, c, http.MethodGet, uri.String(), nil)
+	out, err := roundtrip[oDataListResponse[*models.ServicePrincipal]](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -417,9 +436,9 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 
 // GetServicePrincipal returns the service principal for the given principal ID.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
-func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
+func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*models.ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
-	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
+	out, err := roundtrip[*models.ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -428,9 +447,9 @@ func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*
 
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignedto]
-func (c *Client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *AppRoleAssignment) (*AppRoleAssignment, error) {
+func (c *Client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *models.AppRoleAssignment) (*models.AppRoleAssignment, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "appRoleAssignedTo")
-	out, err := roundtrip[*AppRoleAssignment](ctx, c, http.MethodPost, uri.String(), assignment)
+	out, err := roundtrip[*models.AppRoleAssignment](ctx, c, http.MethodPost, uri.String(), assignment)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -440,12 +459,12 @@ func (c *Client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string
 // InstantiateApplicationTemplate instantiates an application from the Entra application Gallery,
 // creating a pair of [Application] and [ServicePrincipal].
 // Ref: [https://learn.microsoft.com/en-us/graph/api/applicationtemplate-instantiate].
-func (c *Client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error) {
+func (c *Client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*models.ApplicationServicePrincipal, error) {
 	uri := c.endpointURI("applicationTemplates", appTemplateID, "instantiate")
 	in := map[string]string{
 		"displayName": displayName,
 	}
-	out, err := roundtrip[*ApplicationServicePrincipal](ctx, c, http.MethodPost, uri.String(), in)
+	out, err := roundtrip[*models.ApplicationServicePrincipal](ctx, c, http.MethodPost, uri.String(), in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -455,7 +474,7 @@ func (c *Client) InstantiateApplicationTemplate(ctx context.Context, appTemplate
 // UpdateApplication issues a partial update for an [Application].
 // Note that appID here is the app the application  "object ID" ([Application.ID]), not "client ID" ([Application.AppID]).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/application-update].
-func (c *Client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
+func (c *Client) UpdateApplication(ctx context.Context, appObjectID string, app *models.Application) error {
 	uri := c.endpointURI("applications", appObjectID)
 	return trace.Wrap(c.patch(ctx, uri.String(), app))
 }
@@ -463,10 +482,10 @@ func (c *Client) UpdateApplication(ctx context.Context, appObjectID string, app 
 // GetApplication returns the application with the given app client ID.
 // Note that appID here is the app the application "client ID" ([Application.AppID]) not  "object ID" ([Application.ID]).
 // Ref: [https://learn.microsoft.com/en-us/graph/api/application-get].
-func (c *Client) GetApplication(ctx context.Context, applicationID string) (*Application, error) {
+func (c *Client) GetApplication(ctx context.Context, applicationID string) (*models.Application, error) {
 	applicationIDFilter := fmt.Sprintf("applications(appId='%s')", applicationID)
 	uri := c.endpointURI(applicationIDFilter)
-	out, err := roundtrip[*Application](ctx, c, http.MethodGet, uri.String(), nil)
+	out, err := roundtrip[*models.Application](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,7 +494,7 @@ func (c *Client) GetApplication(ctx context.Context, applicationID string) (*App
 
 // UpdateServicePrincipal issues a partial update for a [ServicePrincipal].
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-update].
-func (c *Client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
+func (c *Client) UpdateServicePrincipal(ctx context.Context, spID string, sp *models.ServicePrincipal) error {
 	uri := c.endpointURI("servicePrincipals", spID)
 	return trace.Wrap(c.patch(ctx, uri.String(), sp))
 }

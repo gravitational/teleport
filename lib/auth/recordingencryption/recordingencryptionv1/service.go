@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
@@ -55,8 +57,9 @@ type ServiceConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
-	// SessionStreamer is a streamer for session events.
-	SessionStreamer events.SessionStreamer
+	// OnUploadComplete is called after an upload completes to find or recover the
+	// session end event.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -68,12 +71,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("uploader is required")
 	case cfg.KeyRotater == nil:
 		return nil, trace.BadParameter("key rotater is required")
-	case cfg.SessionStreamer == nil:
-		return nil, trace.BadParameter("session streamer is required")
 	case cfg.RecordingMetadataProvider == nil:
 		return nil, trace.BadParameter("recording metadata provider is required")
 	case cfg.SessionSummarizerProvider == nil:
 		return nil, trace.BadParameter("session summarizer provider is required")
+	case cfg.OnUploadComplete == nil:
+		return nil, trace.BadParameter("on upload complete callback is required")
 	}
 
 	if cfg.Logger == nil {
@@ -87,7 +90,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		rotater:                   cfg.KeyRotater,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 		recordingMetadataProvider: cfg.RecordingMetadataProvider,
-		streamer:                  cfg.SessionStreamer,
+		onUploadComplete:          cfg.OnUploadComplete,
 	}, nil
 }
 
@@ -99,56 +102,54 @@ type Service struct {
 	logger   *slog.Logger
 	uploader events.MultipartUploader
 	rotater  KeyRotater
-	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// sessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
-	// RecordingMetadataProvider is a provider of the recording metadata service.
+	// recordingMetadataProvider is a provider of the recording metadata service.
 	recordingMetadataProvider *recordingmetadata.Provider
-	streamer                  events.SessionStreamer
+	// onUploadComplete is called after an upload completes to find or recover the
+	// session end event for post-processing.
+	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
-	return &recordingencryptionv1.Upload{
+	return recordingencryptionv1.Upload_builder{
 		UploadId:    upload.ID,
 		SessionId:   upload.SessionID.String(),
 		InitiatedAt: timestamppb.New(upload.Initiated),
-	}
+	}.Build()
 }
 
 func protoAsStreamUpload(upload *recordingencryptionv1.Upload) (events.StreamUpload, error) {
-	sessionID, err := session.ParseID(upload.SessionId)
+	sessionID, err := session.ParseID(upload.GetSessionId())
 	if err != nil {
 		return events.StreamUpload{}, trace.Wrap(err)
 	}
 
 	return events.StreamUpload{
-		ID:        upload.UploadId,
+		ID:        upload.GetUploadId(),
 		SessionID: *sessionID,
-		Initiated: upload.InitiatedAt.AsTime(),
+		Initiated: upload.GetInitiatedAt().AsTime(),
 	}, nil
 }
 
 func protoAsStreamPart(part *recordingencryptionv1.Part) events.StreamPart {
 	return events.StreamPart{
-		Number:       part.PartNumber,
-		ETag:         part.Etag,
+		Number:       part.GetPartNumber(),
+		ETag:         part.GetEtag(),
 		LastModified: time.Now(),
 	}
 }
 
 // CreateUpload begins a multipart upload for an encrypted session recording.
 func (s *Service) CreateUpload(ctx context.Context, req *recordingencryptionv1.CreateUploadRequest) (*recordingencryptionv1.CreateUploadResponse, error) {
-	authCtx, err := s.auth.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !authz.IsLocalOrRemoteService(*authCtx) {
-		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
+	if err := s.authorizeUpload(ctx); err != nil {
+		return nil, trace.AccessDenied("access denied")
 	}
 
-	s.logger.DebugContext(ctx, "creating encrypted session upload", "session_id", req.SessionId)
-	sessionID, err := session.ParseID(req.SessionId)
+	s.logger.DebugContext(ctx, "creating encrypted session upload", "session_id", req.GetSessionId())
+	sessionID, err := session.ParseID(req.GetSessionId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,69 +159,69 @@ func (s *Service) CreateUpload(ctx context.Context, req *recordingencryptionv1.C
 		return nil, trace.Wrap(err, "creating encrypted recording upload")
 	}
 
-	return &recordingencryptionv1.CreateUploadResponse{
+	return recordingencryptionv1.CreateUploadResponse_builder{
 		Upload: streamUploadAsProto(*upload),
-	}, nil
+	}.Build(), nil
 }
 
 // UploadPart uploads an encrypted session recording part to the given upload ID.
 func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.UploadPartRequest) (*recordingencryptionv1.UploadPartResponse, error) {
-	authCtx, err := s.auth.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !authz.IsLocalOrRemoteService(*authCtx) {
-		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
-	}
-
-	s.logger.DebugContext(ctx, "uploading encrypted session part", "upload_id", req.Upload.UploadId, "session_id", req.Upload.SessionId, "part_number", req.PartNumber)
-	upload, err := protoAsStreamUpload(req.Upload)
-	if err != nil {
+	if err := validateUpload(req.GetUpload()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.uploader.ReserveUploadPart(ctx, upload, req.PartNumber); err != nil {
+	if err := s.authorizeUpload(ctx); err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	s.logger.DebugContext(ctx, "uploading encrypted session part", "upload_id", req.GetUpload().GetUploadId(), "session_id", req.GetUpload().GetSessionId(), "part_number", req.GetPartNumber())
+	upload, err := protoAsStreamUpload(req.GetUpload())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.uploader.ReserveUploadPart(ctx, upload, req.GetPartNumber()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// If upload part is not at least the minimum upload part size, append an empty part
 	// to pad up to the minimum upload size.
-	part := req.Part
-	if !req.IsLast && len(part) < events.MinUploadPartSizeBytes {
+	part := req.GetPart()
+	if !req.GetIsLast() && len(part) < events.MinUploadPartSizeBytes {
 		part = events.PadUploadPart(part, events.MinUploadPartSizeBytes)
 	}
 
-	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))
+	streamPart, err := s.uploader.UploadPart(ctx, upload, req.GetPartNumber(), bytes.NewReader(part))
 	if err != nil {
 		return nil, trace.Wrap(err, "uploading encrypted recording part")
 	}
 
-	return &recordingencryptionv1.UploadPartResponse{
-		Part: &recordingencryptionv1.Part{
+	return recordingencryptionv1.UploadPartResponse_builder{
+		Part: recordingencryptionv1.Part_builder{
 			PartNumber: streamPart.Number,
 			Etag:       streamPart.ETag,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // CompleteUpload marks a given encrypted session upload as complete.
 func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1.CompleteUploadRequest) (*recordingencryptionv1.CompleteUploadResponse, error) {
-	authCtx, err := s.auth.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !authz.IsLocalOrRemoteService(*authCtx) {
-		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
-	}
-
-	s.logger.DebugContext(ctx, "completing encrypted session upload", "upload_id", req.Upload.UploadId, "session_id", req.Upload.SessionId, "parts", len(req.Parts))
-	upload, err := protoAsStreamUpload(req.Upload)
-	if err != nil {
+	if err := validateUpload(req.GetUpload()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	parts := make([]events.StreamPart, len(req.Parts))
-	for idx, part := range req.Parts {
+	if err := s.authorizeUpload(ctx); err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	s.logger.DebugContext(ctx, "completing encrypted session upload", "upload_id", req.GetUpload().GetUploadId(), "session_id", req.GetUpload().GetSessionId(), "parts", len(req.GetParts()))
+	upload, err := protoAsStreamUpload(req.GetUpload())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parts := make([]events.StreamPart, len(req.GetParts()))
+	for idx, part := range req.GetParts() {
 		parts[idx] = protoAsStreamPart(part)
 	}
 
@@ -228,7 +229,11 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 		return nil, trace.Wrap(err)
 	}
 
-	sessionEnd, err := events.FindSessionEndEvent(ctx, s.streamer, upload.SessionID)
+	if s.onUploadComplete == nil {
+		return &recordingencryptionv1.CompleteUploadResponse{}, nil
+	}
+
+	sessionEnd, err := s.onUploadComplete(ctx, upload.SessionID)
 	if err != nil || sessionEnd == nil {
 		return &recordingencryptionv1.CompleteUploadResponse{}, nil
 	}
@@ -254,10 +259,13 @@ func (s *Service) authorizeKeyRotation(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return trace.AccessDenied("Key rotation can only be performed by admins")
+	if err := authCtx.CheckAccessToKind(types.KindRecordingEncryption, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -311,7 +319,52 @@ func (s *Service) GetRotationState(ctx context.Context, req *recordingencryption
 		return nil, trace.Wrap(err)
 	}
 
-	return &recordingencryptionv1.GetRotationStateResponse{
+	return recordingencryptionv1.GetRotationStateResponse_builder{
 		KeyPairStates: states,
-	}, nil
+	}.Build(), nil
+}
+
+func validateUpload(upload *recordingencryptionv1.Upload) error {
+	switch {
+	case upload == nil:
+		return trace.BadParameter("upload is required")
+	case upload.GetUploadId() == "":
+		return trace.BadParameter("upload.upload_id is required")
+	case upload.GetSessionId() == "":
+		return trace.BadParameter("upload.session_id is required")
+	}
+	return nil
+}
+
+// authorizeUpload verifies that the caller is allowed to write encrypted
+// session recording data.  Two conditions must both be satisfied:
+//
+//  1. Identity: the request must come from a local Teleport server (a
+//     [authz.BuiltinRole] whose [authz.BuiltinRole.IsServer] returns true).
+//     This excludes unauthenticated clients, regular users, remote (leaf
+//     cluster) services, and non-server system roles such as RoleAdmin.
+//
+//  2. RBAC: the server's role set must hold create and update permission on
+//     [types.KindEvent] in the default namespace.  Server roles that manage
+//     session recordings (e.g. RoleProxy) satisfy this requirement through
+//     their built-in rule definitions.
+func (s *Service) authorizeUpload(ctx context.Context) error {
+	authCtx, err := s.auth.Authorize(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	role, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("this request can be only executed by a Teleport server")
+	}
+
+	var errs []error
+	for _, verb := range []string{types.VerbCreate, types.VerbUpdate} {
+		if err := authCtx.CheckAccessToKind(types.KindEvent, verb); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }

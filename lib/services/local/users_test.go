@@ -25,8 +25,11 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -291,27 +295,27 @@ func TestNotificationCleanupOnUserDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a notification for this user.
-	testNotification := &notificationsv1.Notification{
+	testNotification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
+		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
-		},
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+		Metadata: headerv1.Metadata_builder{
 			Labels: map[string]string{types.NotificationTitleLabel: "test"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	notif, err := notificationsSvc.CreateUserNotification(ctx, testNotification)
 	require.NoError(t, err)
 
 	// Create a notification state for this user.
-	userNotificationState := &notificationsv1.UserNotificationState{
-		Spec: &notificationsv1.UserNotificationStateSpec{
+	userNotificationState := notificationsv1.UserNotificationState_builder{
+		Spec: notificationsv1.UserNotificationStateSpec_builder{
 			NotificationId: notif.GetMetadata().GetName(),
-		},
-		Status: &notificationsv1.UserNotificationStateStatus{
+		}.Build(),
+		Status: notificationsv1.UserNotificationStateStatus_builder{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = notificationsSvc.UpsertUserNotificationState(ctx, username, userNotificationState)
 	require.NoError(t, err)
 
@@ -573,6 +577,20 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
 	require.NoError(t, err)
 
+	var metadataRequests atomic.Int64
+	idpMetadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metadataRequests.Add(1)
+		_, err := w.Write([]byte(entityDescriptor))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(idpMetadataServer.Close)
+
+	samlConnectorWithMatchingSSOAndSSOMFAIdP := newSAMlConenctorWithEDURL(t, identity, "samlConnectorWithMatchingSSOAndSSOMFAIdP", idpMetadataServer.URL, idpMetadataServer.URL)
+	samlConnectorWithDifferentSSOAndSSOMFAIdP := newSAMlConenctorWithEDURL(t, identity, "samlConnectorWithDifferentSSOAndSSOMFAIdP", idpMetadataServer.URL, idpMetadataServer.URL+"/mfa")
+
+	// Reset so we can check the GetMFADevices does not call the endpoint.
+	metadataRequests.Store(0)
+
 	oidcConnector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
 		ClientSecret: "678910",
@@ -619,6 +637,28 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 				DisplayName:   samlConnector.GetDisplay(),
 			},
 		}, {
+			name: "saml user, with entity descriptor URL, matching SSO and SSO MFA IdP URL",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetName(),
+				DisplayName:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetDisplay(),
+			},
+		}, {
+			name: "saml user, with entity descriptor URL, different SSO and SSO MFA IdP URL",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetName(),
+				DisplayName:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetDisplay(),
+			},
+		}, {
 			name: "oidc user",
 			connectorRef: &types.ConnectorRef{
 				Type: "oidc",
@@ -644,6 +684,8 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 
 			devs, err := identity.GetMFADevices(ctx, "alice", true /* withSecrets */)
 			require.NoError(t, err)
+			// Expected zero attempts to fetch the entity descriptor.
+			require.Zero(t, metadataRequests.Load())
 
 			if test.expectSSODevice == nil {
 				assert.Empty(t, devs)
@@ -1357,15 +1399,15 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	// Validate that no users returns an empty page.
 	rsp, err := identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
-	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.GetUsers(), "users returned from listing when no users exist")
+	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no users exist")
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{
 		WithSecrets: true,
-	})
+	}.Build())
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
-	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.GetUsers(), "users returned from listing when no users exist")
+	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no users exist")
 
 	// Validate that listing works when there is only a single user
 	user, err := types.NewUser("fish0")
@@ -1377,13 +1419,13 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
+	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no more users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.GetUsers(), cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{WithSecrets: true})
+	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{WithSecrets: true}.Build())
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
+	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.GetUsers()), "not all users returned from listing operation")
 
 	// Create a number of users.
 	usernames := []string{"llama", "alpaca", "fox", "fish", "fish+", "fish2"}
@@ -1423,21 +1465,21 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	// List a few users at a time and validate that all users are eventually returned.
 	var retrieved []*types.UserV2
-	req := userspb.ListUsersRequest{
+	req := userspb.ListUsersRequest_builder{
 		PageSize: 2,
-	}
+	}.Build()
 	for {
-		rsp, err := identity.ListUsers(ctx, &req)
+		rsp, err := identity.ListUsers(ctx, req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		for _, user := range rsp.Users {
+		for _, user := range rsp.GetUsers() {
 			assert.Empty(t, user.GetLocalAuth(), "expected no secrets to be returned with user %s", user.GetName())
 		}
 
-		retrieved = append(retrieved, rsp.Users...)
+		retrieved = append(retrieved, rsp.GetUsers()...)
 
-		req.PageToken = rsp.NextPageToken
-		if req.PageToken == "" {
+		req.SetPageToken(rsp.GetNextPageToken())
+		if req.GetPageToken() == "" {
 			break
 		}
 
@@ -1452,14 +1494,14 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
 	// Validate that listing all users at once returns all expected users with secrets.
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{
 		PageSize:    200,
 		WithSecrets: true,
-	})
+	}.Build())
 	require.NoError(t, err, "unexpected error listing users")
-	assert.Empty(t, rsp.NextPageToken, "got a next page token when page size was greater than number of items")
+	assert.Empty(t, rsp.GetNextPageToken(), "got a next page token when page size was greater than number of items")
 
-	users := rsp.Users
+	users := rsp.GetUsers()
 
 	slices.SortFunc(users, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
@@ -1471,18 +1513,18 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	// List a few users at a time and validate that all users are eventually returned with their secrets.
 	retrieved = nil
-	req = userspb.ListUsersRequest{
+	req = userspb.ListUsersRequest_builder{
 		PageSize:    2,
 		WithSecrets: true,
-	}
+	}.Build()
 	for {
-		rsp, err := identity.ListUsers(ctx, &req)
+		rsp, err := identity.ListUsers(ctx, req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		retrieved = append(retrieved, rsp.Users...)
+		retrieved = append(retrieved, rsp.GetUsers()...)
 
-		req.PageToken = rsp.NextPageToken
-		if req.PageToken == "" {
+		req.SetPageToken(rsp.GetNextPageToken())
+		if req.GetPageToken() == "" {
 			break
 		}
 
@@ -1505,13 +1547,13 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	clock.Advance(time.Hour)
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{
 		WithSecrets: true,
-	})
+	}.Build())
 	assert.NoError(t, err, "got an error while listing over an expired user")
-	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing all users")
+	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing all users")
 
-	retrieved = rsp.Users
+	retrieved = rsp.GetUsers()
 
 	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
@@ -1745,6 +1787,69 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// An SSO MFA device cannot be created. Instead it is deduced based on the MFA settings being
+	// enabled in the SSO connector spec. It is simulated by creating a SAML connector below.
+	samlConnectorWithSSOMFA, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnectorWithSSOMFA)
+	require.NoError(t, err)
+
+	// Update bob to be an SSO user by setting CreatedBy matching with samlConnectorWithSSOMFA.
+	// This will start resolving bob's SSO MFA device.
+	bob1, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	bob1.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: bob1.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.UpdateUser(ctx, bob1)
+	require.NoError(t, err)
+
+	// Weakest device still remains the TOTP.
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// Delete TOTP device
+	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
+	require.NoError(t, err)
+
+	// Expect the new weakest device to be SSO MFA.
+	got, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
+
+	// New SAML user that has a referenced connector with MFA settings enabled should
+	// get the MFADeviceKind_MFA_DEVICE_KIND_SSO at the time of resource creation.
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+	alice.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: alice.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.CreateUser(ctx, alice)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
 }
 
 func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
@@ -1753,35 +1858,71 @@ func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	// Verify create.
-	sd := &services.SSOMFASessionData{
+	sd := &services.MFASessionData{
 		RequestID:     "request",
 		Username:      "alice",
 		ConnectorID:   "saml",
 		ConnectorType: "saml",
 	}
-	err := identity.UpsertSSOMFASessionData(ctx, sd)
+	err := identity.UpsertMFASessionData(ctx, sd)
 	require.NoError(t, err)
 
 	// Verify read.
-	got, err := identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	got, err := identity.GetMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
 	if diff := cmp.Diff(sd, got); diff != "" {
-		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("GetMFASessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify update.
 	sd.Token = "token"
-	err = identity.UpsertSSOMFASessionData(ctx, sd)
+	err = identity.UpsertMFASessionData(ctx, sd)
 	require.NoError(t, err)
-	got, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	got, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
 	if diff := cmp.Diff(sd, got); diff != "" {
-		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("GetMFASessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify delete.
-	err = identity.DeleteSSOMFASessionData(ctx, sd.RequestID)
+	err = identity.DeleteMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
-	_, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	_, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.True(t, trace.IsNotFound(err))
+}
+
+const entityDescriptor = `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="samlSSOIdP">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://localhost:65535/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+// newSAMlConenctorWithEDURL returns a new SAML connector configured with Entity Descriptor URL.
+// It expects the endpoint configured in `samlEDURL` and `samlMFAEDURL` to serve a valid SAML metadata.
+func newSAMlConenctorWithEDURL(t *testing.T, idSvc *local.IdentityService, name, samlEDURL, samlMFAEDURL string) types.SAMLConnector {
+	t.Helper()
+
+	connector, err := types.NewSAMLConnector(name, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://localhost:65535/sso", // not called
+		EntityDescriptorURL:      samlEDURL,
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled:             true,
+			EntityDescriptorUrl: samlMFAEDURL,
+		},
+	})
+	require.NoError(t, err)
+	upserted, err := idSvc.UpsertSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	// Check that entity descriptor was fetched and set, i.e. URL was followed in general connector validation path.
+	require.NotEmpty(t, upserted.GetEntityDescriptor())
+	require.NotNil(t, upserted.GetMFASettings())
+	require.NotEmpty(t, upserted.GetMFASettings().EntityDescriptor)
+
+	return upserted
 }

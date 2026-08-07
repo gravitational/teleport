@@ -648,7 +648,8 @@ func parseNewFile(line string) (*newFileCmd, error) {
 	//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 	//   * https://github.com/openssh/openssh-portable/commit/6010c03
 	c.Name = parts[2]
-	if len(c.Name) == 0 || strings.HasPrefix(c.Name, string(filepath.Separator)) || c.Name == "." || c.Name == ".." {
+	if len(c.Name) == 0 || c.Name == "." || c.Name == ".." ||
+		strings.ContainsRune(c.Name, '/') || strings.ContainsRune(c.Name, '\\') {
 		return nil, trace.BadParameter("invalid name")
 	}
 

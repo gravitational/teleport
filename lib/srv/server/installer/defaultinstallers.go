@@ -39,7 +39,8 @@ curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
 
 chmod +x "$TEMP_INSTALLER_SCRIPT"
 
-sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+envs=$(awk 'BEGIN { for (name in ENVIRON) if (name ~ /^[A-Za-z_][A-Za-z0-9_]*$/) { list = list sep name; sep = "," } print list }')
+sudo --preserve-env="$envs" "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
 rm "$TEMP_INSTALLER_SCRIPT"`
 )
 
@@ -67,7 +68,8 @@ set +x
 TELEPORT_BINARY=/usr/local/bin/teleport
 [ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
 
-sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
+envs=$(awk 'BEGIN { for (name in ENVIRON) if (name ~ /^[A-Za-z_][A-Za-z0-9_]*$/) { list = list sep name; sep = "," } print list }')
+sudo --preserve-env="$envs" "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
 
 	argsList = []string{
 		"install", "autodiscover-node",

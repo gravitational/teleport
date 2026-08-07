@@ -26,6 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
@@ -39,9 +40,8 @@ type TunnelConfig struct {
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
 	Listen string `yaml:"listen"`
-	// Roles is the list of roles to request for the tunnel.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 	// Service is the service name of the Teleport database. Generally this is
 	// the name of the Teleport resource. This field is required for all types
 	// of database.
@@ -50,6 +50,11 @@ type TunnelConfig struct {
 	Database string `yaml:"database"`
 	// Username is the database username to proxy as.
 	Username string `yaml:"username"`
+
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -88,7 +93,13 @@ func (s *TunnelConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (s *TunnelConfig) CheckAndSetDefaults() error {
+func (s *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(s.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", TunnelServiceType)
+	}
 	switch {
 	case s.Listen == "" && s.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")

@@ -30,7 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/lib/sshutils/networking"
+	"github.com/gravitational/teleport/session/networking"
 )
 
 // ConnectionContext manages connection-level state.
@@ -149,6 +149,7 @@ func (c *ConnectionContext) StartAgentChannel() (*AgentChannel, error) {
 		return nil, trace.Wrap(err)
 	}
 	go ssh.DiscardRequests(reqC)
+	go io.Copy(io.Discard, ch.Stderr())
 	return &AgentChannel{
 		ExtendedAgent: agent.NewClient(ch),
 		ch:            ch,

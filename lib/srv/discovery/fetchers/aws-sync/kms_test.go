@@ -162,7 +162,7 @@ func TestPollAWSKMS(t *testing.T) {
 
 func requireResourceEqual(t *testing.T, want, got *Resources) {
 	tagCmp := func(a, b *pb.AWSTag) bool {
-		return a.Key < b.Key
+		return a.GetKey() < b.GetKey()
 	}
 	opts := []cmp.Option{
 		protocmp.Transform(),
@@ -207,10 +207,10 @@ func kmsMockToProto(c *mocks.KMSClient, accountID, region string) (*Resources, e
 		}
 		var tags []*pb.AWSTag
 		for key, val := range k.Tags {
-			tag := &pb.AWSTag{Key: key, Value: wrapperspb.String(val)}
+			tag := pb.AWSTag_builder{Key: key, Value: wrapperspb.String(val)}.Build()
 			tags = append(tags, tag)
 		}
-		key := &pb.AWSKMSKeyV1{
+		key := pb.AWSKMSKeyV1_builder{
 			Arn:                k.ARN,
 			CreatedAt:          timestamppb.New(k.CreationDate),
 			AccountId:          accountID,
@@ -220,10 +220,10 @@ func kmsMockToProto(c *mocks.KMSClient, accountID, region string) (*Resources, e
 			Aliases:            k.Aliases,
 			Tags:               tags,
 			MultiRegionKeyType: string(k.MultiType),
-		}
+		}.Build()
 		if k.DescribeKeyErr != nil {
-			key.Arn = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID)
-			key.CreatedAt = nil
+			key.SetArn(fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID))
+			key.ClearCreatedAt()
 		}
 		keys = append(keys, key)
 		errs = append(errs, k.DescribeKeyErr, k.TagsErr, k.AliasesErr, k.PolicyErr)

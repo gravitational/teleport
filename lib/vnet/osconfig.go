@@ -41,6 +41,8 @@ type osConfigState struct {
 	platformOSConfigState platformOSConfigState
 }
 
+type configureOSFn func(ctx context.Context, oc *osConfig, _ *osConfigState) error
+
 func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfigState) error {
 	return trace.Wrap(platformConfigureOS(ctx, osConfig, &osConfigState.platformOSConfigState))
 }
@@ -48,11 +50,16 @@ func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfi
 type osConfigurator struct {
 	remoteOSConfigProvider *osConfigProvider
 	osConfigState          osConfigState
+	configureOS            configureOSFn
 }
 
-func newOSConfigurator(remoteOSConfigProvider *osConfigProvider) *osConfigurator {
+func newOSConfigurator(remoteOSConfigProvider *osConfigProvider, fn configureOSFn) *osConfigurator {
+	if fn == nil {
+		fn = configureOS
+	}
 	return &osConfigurator{
 		remoteOSConfigProvider: remoteOSConfigProvider,
+		configureOS:            fn,
 	}
 }
 
@@ -61,7 +68,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := configureOS(ctx, desiredOSConfig, &c.osConfigState); err != nil {
+	if err := c.configureOS(ctx, desiredOSConfig, &c.osConfigState); err != nil {
 		return trace.Wrap(err, "configuring OS")
 	}
 	return nil
@@ -69,7 +76,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 
 func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	// configureOS is meant to be called with an empty config to deconfigure anything necessary.
-	return trace.Wrap(configureOS(ctx, &osConfig{}, &c.osConfigState))
+	return trace.Wrap(c.configureOS(ctx, &osConfig{}, &c.osConfigState))
 }
 
 // runOSConfigurationLoop will keep running until ctx is canceled or an
@@ -126,7 +133,11 @@ func tunIPv6ForPrefix(ipv6Prefix string) (string, error) {
 	return addr.Next().String(), nil
 }
 
-func runCommand(ctx context.Context, path string, args ...string) error {
+// runCommand is a test seam aliased to shellOut.
+var runCommand = shellOut
+
+// shellOut runs path with args. Errors include combined stdout/stderr.
+func shellOut(ctx context.Context, path string, args ...string) error {
 	cmdString := strings.Join(append([]string{path}, args...), " ")
 	log.DebugContext(ctx, "Running command", "cmd", cmdString)
 	cmd := exec.CommandContext(ctx, path, args...)

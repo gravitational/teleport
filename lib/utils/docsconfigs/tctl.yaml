@@ -7,7 +7,7 @@ introduction: |-
   such as creating new user roles or connecting to trusted clusters.
 
   For a conceptual overview of `tctl`, see [Getting Started with
-  `tctl`](../../zero-trust-access/infrastructure-as-code/using-tctl.mdx).
+  `tctl`](../../configuration/using-tctl.mdx).
 
 flag_default_overrides:
   - full_command: tctl recordings download

@@ -23,11 +23,9 @@ package privilegedupdater
 
 import (
 	"crypto/x509"
-	"errors"
+	"crypto/x509/pkix"
 	"fmt"
-	"os"
 	"slices"
-	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -40,30 +38,8 @@ const (
 	cmsgSignerCertInfoParam = 7
 )
 
-// verifySignature checks if the update is signed by the same entity as the running service.
+// verifySignature checks if the update is signed by Teleport.
 func verifySignature(updatePath string) error {
-	servicePath, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	servicePathPtr, err := windows.UTF16PtrFromString(servicePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err = verifyTrust(servicePathPtr); err != nil {
-		if errors.Is(err, syscall.Errno(windows.TRUST_E_NOSIGNATURE)) {
-			log.Warn("service is not signed, skipping signature verification")
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	serviceCert, err := getCert(servicePathPtr)
-	if err != nil {
-		return trace.Wrap(err, "getting service certificate")
-	}
-
 	updatePathPtr, err := windows.UTF16PtrFromString(updatePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,8 +52,8 @@ func verifySignature(updatePath string) error {
 		return trace.Wrap(err, "getting update certificate")
 	}
 
-	if !compareSubjectProperties(serviceCert, updateCert) {
-		return trace.BadParameter("signature verification failed: update and service subjects do not match (service: %s, update: %s)", logCert(serviceCert), logCert(updateCert))
+	if !hasTeleportSubject(updateCert) {
+		return trace.BadParameter("signature verification failed: update subject does not match Teleport subject (teleport: %s, update: %s)", logCert(teleportCert), logCert(updateCert))
 	}
 
 	return nil
@@ -158,12 +134,8 @@ func getCert(path *uint16) (*x509.Certificate, error) {
 	return cert, trace.Wrap(err)
 }
 
-// compareSubjectProperties checks whether two certificates appear to belong to the same publisher by comparing a subset
-// of their X.509 Subject fields.
+// hasTeleportSubject checks whether updateCert has the expected Teleport publisher subject by comparing a subset of X.509 Subject fields.
 // The cert validity must be checked first with verifyTrust.
-//
-// For Teleport's Windows signing certificate the subject typically looks like:
-// CN="Gravitational, Inc.", O="Gravitational, Inc.", L="Oakland", ST="California", C="US"
 //
 // Security notes:
 //   - This does NOT provide cryptographic authenticity guarantees. An attacker could theoretically obtain a certificate
@@ -181,17 +153,27 @@ func getCert(path *uint16) (*x509.Certificate, error) {
 //     https://github.com/electron-userland/electron-builder/blob/02e59ba8a3b02e1b3ab20035ff43f48ea20880b7/packages/electron-updater/src/windowsExecutableCodeSignatureVerifier.ts#L69-L85
 //   - Tailscale verifies only the CN:
 //     https://github.com/tailscale/tailscale/blob/3ec5be3f510f74738179c1023468343a62a7e00f/clientupdate/clientupdate_windows.go#L70-L74
-func compareSubjectProperties(cert1, cert2 *x509.Certificate) bool {
-	if cert1 == nil || cert2 == nil {
+func hasTeleportSubject(updateCert *x509.Certificate) bool {
+	if updateCert == nil {
 		return false
 	}
 
-	s1, s2 := cert1.Subject, cert2.Subject
+	s1, s2 := teleportCert.Subject, updateCert.Subject
 	return s1.CommonName == s2.CommonName &&
 		slices.Equal(s1.Organization, s2.Organization) &&
 		slices.Equal(s1.Locality, s2.Locality) &&
 		slices.Equal(s1.Province, s2.Province) &&
 		slices.Equal(s1.Country, s2.Country)
+}
+
+var teleportCert = &x509.Certificate{
+	Subject: pkix.Name{
+		CommonName:   "Gravitational, Inc.",
+		Organization: []string{"Gravitational, Inc."},
+		Locality:     []string{"Oakland"},
+		Province:     []string{"California"},
+		Country:      []string{"US"},
+	},
 }
 
 func logCert(cert *x509.Certificate) string {

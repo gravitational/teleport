@@ -16,7 +16,8 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
-- Deny rules should be avoided on roles granted through Access Lists.
+- Deny rules should be avoided on roles granted through [Access
+Lists](./access-lists.mdx#access-lists-and-deny-rules).
 
 You can use any of the following to manage Teleport roles and other dynamic
 resources:
@@ -27,7 +28,7 @@ resources:
 - [Custom API clients](../../zero-trust-access/api/rbac.mdx)
 
 To read more about managing dynamic resources, see the [Dynamic
-Resources](../../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx) guide.
+Resources](../../configuration/configuration.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
@@ -58,6 +59,7 @@ user:
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
 | `ssh_port_forwarding` | Allow TCP port forwarding | Logical "AND" i.e. if any role denies port forwarding, it's denied |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
+| `web_terminal_clipboard_mode` | Whether users can copy text from an SSH session to the clipboard in the Web UI terminal (`unrestricted` or `no-copy`) | If any of the user's role's is set to `no-copy`, copying is restricted. |
 | `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | The lowest value takes precedence. |
@@ -88,13 +90,13 @@ Teleport provides several preset roles:
 
 ### Role versions
 
-There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+There are currently seven supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`,
+and `v9`.
+
+#### Role v4
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher do not allow joining sessions by default. The
-[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles 'v5` or higher
-must be set to allow for joining sessions.
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
@@ -103,10 +105,22 @@ Label              | `v3` Default   | `v4` and higher Default
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
+#### Role v5
+
+Roles with version `v5` or higher do not allow joining sessions by default. The
+[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles `v5` or higher
+must be set to allow for joining sessions.
+
+#### Role v6
+
 Role v6 introduced a new field, `kubernetes_resources`, that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
+#### Role v7
+
 Role v7 added support for more `kind` values in the `kubernetes_resources` field.
+
+#### Role v8
 
 Role v8 added support for Kubernetes CRDs and introduced changes in how
 `kubernetes_resources` behave and are defined. Role v8 is not compatible with
@@ -116,6 +130,18 @@ cannot interpret the fields specific to v8 roles. Upgrade all agents to v18
 before using role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
+
+The SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
+See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
+
+#### Role v9
+
+Role v9 is supported in Teleport 19 and above. It introduces `app_resources`,
+which controls how requests for HTTP applications are authorized.
+
+For details on access controls for HTTP applications, refer to
+[Application Resources](./app-resources.mdx).
 
 #### Default values for `kubernetes_resources`
 
@@ -128,10 +154,6 @@ Version              |  `kubernetes_resources`
 `v6` |  `[]`
 `v7` |  `[{"kind":"*","name":"*","namespace":"*","verbs":["*"]}]`
 `v8` |  `[{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]},{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}]`
-
-SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
-See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
 
 ## RBAC for infrastructure resources
 
@@ -255,6 +277,7 @@ conditions:
 - `windows_desktop_labels_expression`
 - `group_labels_expression`
 - `workload_identity_labels_expression`
+- `beam_labels_expression`
 
 Check out our
 [predicate language](predicate-language.mdx)
@@ -288,7 +311,7 @@ allow:
 If this rule was declared in the `deny` section of a role definition, it would
 prohibit users from getting a list of active sessions. If a role does not allow
 access to list a resource, the user will not be able to view it in the Web UI
-or remotely with `tctl`.  The only exception is that a user can always view their 
+or remotely with `tctl`.  The only exception is that a user can always view their
 assigned roles and their own user information with `tctl`.  You can see all of the
 available resources and verbs under the `allow` section in the example role
 configuration below.
@@ -523,8 +546,8 @@ spec:
     - resources: [session]
       verbs: [list, read]
       where: >
-        (contains(session.participants, user.metadata.name) || 
-         contains(user.spec.traits["team"], session.server_labels["team"])) && 
+        (contains(session.participants, user.metadata.name) ||
+         contains(user.spec.traits["team"], session.server_labels["team"])) &&
         session.proto == "ssh"
 ```
 
@@ -695,6 +718,11 @@ spec:
 
 ## Access Requests
 
+Access Requests are Teleport's mechanism for just-in-time (JIT) access: rather
+than holding elevated permissions permanently, a user requests them, a reviewer
+approves the request, and the elevated access expires automatically after a
+configurable duration.
+
 The following role fields configure Access Requests. For a full description of
 Access Request configuration fields and their relationship to one another, see
 the [Access Request configuration
@@ -723,10 +751,11 @@ Requests, and like `request`, can fall under `allow` or `deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
+|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx#roles-that-a-reviewer-can-grant-access-to)|
+|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx#where-expressions)|
+|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx#inspecting-requested-resources)|
+|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx#roles-that-a-reviewer-can-grant-access-to)|
+|`review_requests.submit_for_users`|Allows or denies the ability to submit reviews on behalf of other users. Ignores all other `review_requests` conditions if matched. Only to be used by Teleport Access Request plugins.|[Submitting reviews for other users](../../identity-governance/access-requests/access-request-configuration.mdx#submitting-for-other-users)|
 
 ### Client options
 
@@ -736,6 +765,72 @@ The `options` field, a property of `spec`, applies additional settings:
 |---|---|---|
 |`options.request_access`|Configures Teleport client behavior for creating Access Requests|[How clients request access](../../identity-governance/access-requests/access-request-configuration.mdx)|
 |`options.request_prompt`|Configures the prompt that Teleport clients display when a user requests access|[How clients request access](../../identity-governance/access-requests/access-request-configuration.mdx)|
+
+### Example roles
+
+The following examples show common just-in-time access patterns. For the full
+range of configuration options, see the [Access Request configuration
+guide](../../identity-governance/access-requests/access-request-configuration.mdx).
+
+The role below lets a user request temporary access to the `dba` role. The
+`max_duration` field limits how long the elevated access lasts before it
+expires:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: dba-requester
+spec:
+  allow:
+    request:
+      # Users with this role can request temporary access to the `dba` role.
+      roles: ['dba']
+      # Granted access lasts at most 4 hours, then expires automatically.
+      max_duration: 4h
+```
+
+<Admonition type="tip">
+The `max_duration` field caps how long elevated privileges last (up to a maximum of 14 days) 
+so access is granted temporarily rather than permanently
+</Admonition>
+
+To let users request access to specific resources—such as a single server or
+database—rather than a whole role, use `search_as_roles`. Users can search for
+any resource the listed roles can reach, without holding those roles
+permanently:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: db-resource-requester
+spec:
+  allow:
+    request:
+      # Users can search for and request access to any resource the
+      # `db-access` role can reach.
+      search_as_roles: ['db-access']
+      max_duration: 4h
+```
+
+A reviewer role grants the ability to approve or deny requests. Adding
+`preview_as_roles` lets reviewers inspect the resources a requester would gain
+access to before making a decision:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: dba-reviewer
+spec:
+  allow:
+    review_requests:
+      # Users with this role can approve or deny requests for the `dba` role.
+      roles: ['dba']
+      # Allow reviewers to preview the resources the requester would gain.
+      preview_as_roles: ['dba']
+```
 
 ## Role templates
 
@@ -763,13 +858,14 @@ Labels for resources enrolled with Teleport:
 |Role Field|Teleport Resource|
 |---|---|
 |`app_labels`|[Applications](../../enroll-resources/application-access/configuration/controls.mdx)|
-|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx)|
+|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/management/trustedclusters.mdx)|
 |`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
 |`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
 |`workload_identity_labels`|[Workload Identities](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)|
+|`beam_labels`|Beams|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
@@ -787,7 +883,7 @@ Principals a user can assume on infrastructure resources:
 - `windows_desktop_logins`
 
 Teleport principals that a user can impersonate:
-- `impersonate.rules`
+- `impersonate.roles`
 - `impersonate.users`
 
 #### Functions
@@ -818,7 +914,7 @@ sign-on provider.
 |`{{internal.jwt}}`|JWT header used for app access.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
-|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/management/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
@@ -919,6 +1015,15 @@ supported data type.
 
 Refer to your identity provider's documentation for the complete list of
 available claims and attributes.
+
+#### Other template variables
+
+In addition to user traits, you can also use the following variables in role
+templates:
+
+| Variable | Description |
+| - | - |
+| `{{user.metadata.name}}` | The user's Teleport username. Useful for matching resources the user "owns" or is responsible for. |
 
 ### Access Request template functions
 

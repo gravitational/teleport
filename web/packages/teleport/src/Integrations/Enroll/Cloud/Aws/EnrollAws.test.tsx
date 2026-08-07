@@ -23,6 +23,7 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { act, fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import 'shared/components/TextEditor/TextEditor.mock';
+
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ContentMinWidth } from 'teleport/Main/Main';
@@ -96,15 +97,14 @@ describe('EnrollAws', () => {
     );
   });
 
-  test('terraform template renders', async () => {
+  test('info guide renders by default', async () => {
     renderEnrollAws();
 
-    await waitFor(() => {
-      expect(screen.getByText(/module "aws_discovery"/)).toBeInTheDocument();
-    });
+    expect(screen.getByRole('radio', { name: 'Info Guide' })).toBeChecked();
 
-    const editor = screen.getByTestId('mock-text-editor');
-    expect(editor).toHaveTextContent(/module "aws_discovery"/);
+    await waitFor(() => {
+      expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
+    });
   });
 
   test('copy terraform configuration button validates and copies to clipboard', async () => {
@@ -243,7 +243,11 @@ describe('EnrollAws', () => {
       target: { value: 'missing-integration' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /check integration/i }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /check integration/i,
+      })
+    );
 
     // wait until polling fails
     await act(async () => {
@@ -251,7 +255,9 @@ describe('EnrollAws', () => {
     });
 
     expect(
-      screen.getByRole('button', { name: /^view integration$/i })
+      screen.getByRole('button', {
+        name: /^view integration$/i,
+      })
     ).toBeDisabled();
 
     expect(
@@ -268,12 +274,7 @@ describe('EnrollAws', () => {
   test('panel switches between info and terraform tabs', async () => {
     renderEnrollAws();
 
-    expect(
-      screen.getByRole('radio', { name: 'Terraform Configuration' })
-    ).toBeChecked();
-
-    const infoButton = screen.getByRole('radio', { name: 'Info Guide' });
-    fireEvent.click(infoButton);
+    expect(screen.getByRole('radio', { name: 'Info Guide' })).toBeChecked();
 
     await waitFor(() => {
       expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
@@ -290,6 +291,15 @@ describe('EnrollAws', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Reference Links')).not.toBeInTheDocument();
+    });
+
+    const infoButton = screen.getByRole('radio', {
+      name: 'Info Guide',
+    });
+    fireEvent.click(infoButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
     });
   });
 });

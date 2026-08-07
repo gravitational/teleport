@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getErrorMessage } from 'shared/utils/error';
+
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
+import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const commands = {
   'tsh-install': {
@@ -35,7 +37,7 @@ const commands = {
         error => {
           ctx.notificationsService.notifyError({
             title: 'Could not install tsh in PATH',
-            description: `Ran into an error: ${error}`,
+            description: `Ran into an error: ${getErrorMessage(error)}`,
           });
         }
       );
@@ -57,7 +59,7 @@ const commands = {
         error => {
           ctx.notificationsService.notifyError({
             title: 'Could not remove tsh from PATH',
-            description: `Ran into an error: ${error}`,
+            description: `Ran into an error: ${getErrorMessage(error)}`,
           });
         }
       );
@@ -102,11 +104,14 @@ const commands = {
     description: '',
     async run(ctx: IAppContext, args: { clusterUri: ClusterUri }) {
       const { clusterUri } = args;
-      const rootCluster =
-        ctx.clustersService.findRootClusterByResource(clusterUri);
-      await ctx.workspacesService.setActiveWorkspace(rootCluster.uri);
+      const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+      const { isAtDesiredWorkspace } =
+        await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+      if (!isAtDesiredWorkspace) {
+        return;
+      }
       const documentsService =
-        ctx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
+        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
       const doc = documentsService.findClusterDocument(clusterUri);
       if (doc) {
         documentsService.open(doc.uri);

@@ -28,8 +28,8 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/status"
 

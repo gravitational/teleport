@@ -107,9 +107,9 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 	}{
 		{
 			name: "no servers",
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
-			},
+			}.Build(),
 		},
 		{
 			name: "no group, same version",
@@ -119,16 +119,16 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				{version: "1.2.3", roles: agentRoles, updateGroup: "default"},
 				{version: "1.2.3", roles: agentRoles, updateGroup: "default"},
 			},
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"default": {
+					"default": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 4},
+							"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 4}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "control plane servers are ignored",
@@ -137,16 +137,16 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				{version: "1.2.3", roles: types.SystemRoles{types.RoleApp, types.RoleProxy}, updateGroup: "default"},
 				{version: "1.2.3", roles: types.SystemRoles{types.RoleApp, types.RoleKube}, updateGroup: "default"},
 			},
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"default": {
+					"default": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 1},
+							"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "disabled or pinned updaters are ignored",
@@ -155,38 +155,38 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				{version: "1.2.3", roles: agentRoles, updaterStatus: types.UpdaterStatus_UPDATER_STATUS_PINNED, updateGroup: "default"},
 				{version: "1.2.3", roles: agentRoles, updaterStatus: types.UpdaterStatus_UPDATER_STATUS_DISABLED, updateGroup: "default"},
 			},
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"default": {
+					"default": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 1},
+							"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
+					}.Build(),
 				},
 				Omitted: []*autoupdatev1pb.AutoUpdateAgentReportSpecOmitted{
-					{Reason: omissionReasonUpdaterPinned, Count: 1},
-					{Reason: omissionReasonUpdaterDisabled, Count: 1},
+					autoupdatev1pb.AutoUpdateAgentReportSpecOmitted_builder{Reason: omissionReasonUpdaterPinned, Count: 1}.Build(),
+					autoupdatev1pb.AutoUpdateAgentReportSpecOmitted_builder{Reason: omissionReasonUpdaterDisabled, Count: 1}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "reloaded and terminating instances are ignored",
 			fixtures: []fakeServer{
 				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default"},
-				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default", goodbye: &proto.UpstreamInventoryGoodbye{SoftReload: true}},
-				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default", goodbye: &proto.UpstreamInventoryGoodbye{DeleteResources: true}},
+				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default", goodbye: proto.UpstreamInventoryGoodbye_builder{SoftReload: true}.Build()},
+				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default", goodbye: proto.UpstreamInventoryGoodbye_builder{DeleteResources: true}.Build()},
 			},
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"default": {
+					"default": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 1},
+							"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "too recent servers are ignored",
@@ -196,16 +196,16 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default"},
 				{version: "1.2.3", roles: agentRoles, updaterStatus: updaterOK, updateGroup: "default"},
 			},
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"default": {
+					"default": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 1},
+							"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "multiple versions and groups",
@@ -216,27 +216,27 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				{version: "1.2.5", updateGroup: "prod", roles: agentRoles, updaterStatus: updaterOK},
 				{version: "1.2.5", updateGroup: "dev", roles: agentRoles, updaterStatus: updaterOK},
 			},
-			expected: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			expected: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"default": {
+					"default": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 1},
-							"1.2.4": {Count: 1},
+							"1.2.3": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
+							"1.2.4": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					"dev": {
+					}.Build(),
+					"dev": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.5": {Count: 1},
+							"1.2.5": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					"prod": {
+					}.Build(),
+					"prod": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.5": {Count: 2},
+							"1.2.5": autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 2}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 	}
 	for _, tt := range tests {
@@ -265,13 +265,13 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				if status == types.UpdaterStatus_UPDATER_STATUS_UNSPECIFIED {
 					status = types.UpdaterStatus_UPDATER_STATUS_OK
 				}
-				controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
+				controller.RegisterControlStream(stream, proto.UpstreamInventoryHello_builder{
 					Services:         fixture.roles.StringSlice(),
 					ServerID:         uuid.New().String(),
 					Version:          fixture.version,
 					ExternalUpgrader: types.UpgraderKindTeleportUpdate,
 					UpdaterInfo:      &types.UpdaterV2Info{UpdaterStatus: status, UpdateGroup: fixture.updateGroup},
-				})
+				}.Build())
 				if fixture.goodbye != nil {
 					// Sending the message twice is a little hack to make sure that the auth received the goodbye at
 					// least once. Else, the auth might still be in the small frame when it received the message
@@ -335,7 +335,7 @@ func TestServer_reportAgentVersions(t *testing.T) {
 
 	for range testNodeCount {
 		stream := newFakeControlStream()
-		controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
+		controller.RegisterControlStream(stream, proto.UpstreamInventoryHello_builder{
 			Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
 			Version:          "1.2.3",
 			ServerID:         uuid.NewString(),
@@ -344,18 +344,18 @@ func TestServer_reportAgentVersions(t *testing.T) {
 				UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
 				UpdateGroup:   "default",
 			},
-		})
+		}.Build())
 		t.Cleanup(stream.close)
 	}
 	ctx := context.Background()
-	rollout, err := autoupdate.NewAutoUpdateAgentRollout(&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+	rollout, err := autoupdate.NewAutoUpdateAgentRollout(autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 		StartVersion:              "1.2.3",
 		TargetVersion:             "1.2.4",
 		Schedule:                  autoupdate.AgentsScheduleRegular,
 		AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 		Strategy:                  autoupdate.AgentsStrategyHaltOnError,
 		MaintenanceWindowDuration: nil,
-	})
+	}.Build())
 	require.NoError(t, err)
 	_, err = svc.CreateAutoUpdateAgentRollout(ctx, rollout)
 	require.NoError(t, err)

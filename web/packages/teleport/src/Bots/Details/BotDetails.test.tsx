@@ -23,7 +23,6 @@ import { UserEvent } from '@testing-library/user-event';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -31,6 +30,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
   waitForElementToBeRemoved,
@@ -928,7 +928,7 @@ function makeWrapper(options: { customAcl?: ReturnType<typeof makeAcl> }) {
     return (
       <MemoryRouter initialEntries={['/web/bot/test-bot-name']}>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <ContextProvider ctx={ctx}>
               <InfoGuidePanelProvider>
                 <LocationState />

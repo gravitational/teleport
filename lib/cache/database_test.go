@@ -22,11 +22,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServices tests that CRUD operations on DatabaseServices are
@@ -221,4 +223,39 @@ func TestDatabaseObjects(t *testing.T) {
 			return nil
 		},
 	})
+}
+
+func mustCreateDatabaseServer(t testing.TB, hostID, dbName string) types.DatabaseServer {
+	t.Helper()
+
+	databaseServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   hostID,
+		Hostname: "localhost",
+		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost"),
+	})
+	require.NoError(t, err)
+	return databaseServer
+}
+
+var databaseServerRangeFuncs = rangeServersWithTargetNameFuncs[types.DatabaseServer]{
+	newResource: mustCreateDatabaseServer,
+	create: func(ctx context.Context, presence services.Presence, s types.DatabaseServer) error {
+		_, err := presence.UpsertDatabaseServer(ctx, s)
+		return err
+	},
+	delete: func(ctx context.Context, presence services.Presence, s types.DatabaseServer) error {
+		return presence.DeleteDatabaseServer(ctx, s.GetNamespace(), s.GetHostID(), s.GetName())
+	},
+	rangeByName: (*Cache).RangeDatabaseServersWithName,
+}
+
+func TestRangeDatabaseServersWithName(t *testing.T) {
+	t.Parallel()
+	testRangeServersWithTargetName(t, databaseServerRangeFuncs)
+}
+
+func BenchmarkRangeDatabaseServersWithName(b *testing.B) {
+	benchmarkRangeServersWithTargetName(b, databaseServerRangeFuncs)
 }

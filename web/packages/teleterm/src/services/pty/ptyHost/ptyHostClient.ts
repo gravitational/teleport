@@ -33,6 +33,9 @@ export function createPtyHostClient(
   const transport = new GrpcTransport({
     host: address,
     channelCredentials: credentials,
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
   const client = new GrpcClient(transport);
 

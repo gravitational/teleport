@@ -77,7 +77,7 @@ func (s *Server) handleTPMJoin(
 		return solutionMsg.Solution, nil
 	}
 
-	validatedEK, err := tpmjoin.CheckTPMRequest(stream.Context(), tpmjoin.CheckTPMRequestParams{
+	validatedEK, err := tpmjoin.CheckTPMRequest(stream.Context(), s.cfg.Modules, tpmjoin.CheckTPMRequestParams{
 		Token:        ptv2,
 		TPMValidator: s.cfg.AuthService.GetTPMValidator(),
 		EKCert:       tpmInit.EKCert,
@@ -108,9 +108,9 @@ func (s *Server) handleTPMJoin(
 		&tpmInit.ClientParams,
 		provisionToken,
 		validatedEK,
-		&workloadidentityv1.JoinAttrs{
+		workloadidentityv1.JoinAttrs_builder{
 			Tpm: validatedEK.JoinAttrs(),
-		},
+		}.Build(),
 	)
 	return result, trace.Wrap(err)
 }

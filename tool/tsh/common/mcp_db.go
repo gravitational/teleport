@@ -23,8 +23,8 @@ import (
 	"log/slog"
 	"maps"
 	"net"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 

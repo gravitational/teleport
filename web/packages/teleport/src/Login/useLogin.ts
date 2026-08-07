@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { matchPath } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { useAttempt } from 'shared/hooks';
@@ -42,7 +42,10 @@ export default function useLogin() {
   const [showMotd, setShowMotd] = useState<boolean>(() => {
     const redirectUri = history.getRedirectParam();
 
-    if (redirectUri?.includes('headless')) {
+    if (
+      redirectUri?.includes('headless') ||
+      redirectUri?.includes('/mfa/browser')
+    ) {
       return false;
     }
     return !!cfg.getMotd();
@@ -51,6 +54,11 @@ export default function useLogin() {
   function acknowledgeMotd() {
     setShowMotd(false);
   }
+
+  const location = useLocation();
+  const scope: string | null = new URLSearchParams(location.search).get(
+    'scope'
+  );
 
   // onSuccess can receive a device webtoken. If so, it will
   // enable a prompt to allow users to authorize the current
@@ -61,6 +69,7 @@ export default function useLogin() {
     // deviceWebToken will only exist on a login response
     // from enterprise but just in case there is a version mismatch
     // between the webclient and proxy
+    storageService.setScopeSelected(scope != null);
     if (trustedDeviceRequirement === TrustedDeviceRequirement.REQUIRED) {
       session.setDeviceTrustRequired();
     }
@@ -73,7 +82,7 @@ export default function useLogin() {
   useEffect(() => {
     if (session.isValid()) {
       try {
-        const redirectUrlWithBase = new URL(getEntryRoute());
+        const redirectUrlWithBase = new URL(history.getEntryRoute());
         const matched = matchPath(
           cfg.routes.samlIdpSso,
           redirectUrlWithBase.pathname
@@ -98,7 +107,7 @@ export default function useLogin() {
     attemptActions.start();
     storageService.clearLoginTime();
     auth
-      .login(email, password, token)
+      .login(email, password, token, scope || '')
       .then(onSuccess)
       .catch(err => {
         attemptActions.error(err);
@@ -109,7 +118,7 @@ export default function useLogin() {
     attemptActions.start();
     storageService.clearLoginTime();
     auth
-      .loginWithWebauthn(creds)
+      .loginWithWebauthn(creds, scope || '')
       .then(onSuccess)
       .catch(err => {
         attemptActions.error(err);
@@ -119,13 +128,15 @@ export default function useLogin() {
   function onLoginWithSso(provider: AuthProvider, loginHint?: string) {
     attemptActions.start();
     storageService.clearLoginTime();
-    const appStartRoute = getEntryRoute();
-    const ssoUri = cfg.getSsoUrl(
-      provider.url,
-      provider.name,
-      appStartRoute,
-      loginHint
-    );
+    const appStartRoute = history.getEntryRoute();
+    const ssoUri = cfg.getSsoUrl({
+      providerUrl: provider.url,
+      providerName: provider.name,
+      redirect: appStartRoute,
+      loginHint,
+      scope: scope || '',
+    });
+    storageService.setScopeSelected(scope !== null);
     history.push(ssoUri, true);
   }
 
@@ -153,6 +164,7 @@ export default function useLogin() {
     motd,
     showMotd,
     acknowledgeMotd,
+    scope,
   };
 }
 
@@ -177,25 +189,9 @@ function authorizeWithDeviceTrust(token: DeviceWebToken) {
 }
 
 function loginSuccess() {
-  const redirect = getEntryRoute();
+  const redirect = history.getEntryRoute();
   const withPageRefresh = true;
   history.push(redirect, withPageRefresh);
-}
-
-/**
- * getEntryRoute returns a base ensured redirect URL value that is safe
- * for redirect.
- * @returns base ensured URL string.
- */
-function getEntryRoute() {
-  let entryUrl = history.getRedirectParam();
-  if (entryUrl) {
-    entryUrl = history.ensureKnownRoute(entryUrl);
-  } else {
-    entryUrl = cfg.routes.root;
-  }
-
-  return history.ensureBaseUrl(entryUrl);
 }
 
 export type State = ReturnType<typeof useLogin> & {

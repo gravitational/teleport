@@ -18,7 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Route, Routes } from 'react-router';
 
 import Box from 'design/Box/Box';
 
@@ -195,20 +195,21 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/web/bots/instances']}>
-        <TeleportProviderBasic teleportCtx={ctx}>
-          <Routes>
-            <Route
-              path={cfg.routes.botInstances}
-              element={
-                <Box height={820}>
-                  <BotInstances />
-                </Box>
-              }
-            />
-          </Routes>
-        </TeleportProviderBasic>
-      </MemoryRouter>
+      <TeleportProviderBasic
+        teleportCtx={ctx}
+        initialEntries={['/web/bots/instances']}
+      >
+        <Routes>
+          <Route
+            path={cfg.routes.botInstances}
+            element={
+              <Box height={820}>
+                <BotInstances />
+              </Box>
+            }
+          />
+        </Routes>
+      </TeleportProviderBasic>
     </QueryClientProvider>
   );
 }

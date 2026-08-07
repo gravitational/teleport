@@ -21,7 +21,6 @@ import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
@@ -30,6 +29,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
 } from 'design/utils/testing';
 
@@ -106,7 +106,7 @@ describe('Finish', () => {
     expect(
       screen.getByLabelText('Select a cluster to access')
     ).toBeInTheDocument();
-    expect(screen.getByText('To complete the setup')).toBeInTheDocument();
+    expect(screen.getByText('To complete the setup:')).toBeInTheDocument();
   });
 
   test('cluster', async () => {
@@ -192,7 +192,7 @@ function makeWrapper(opts?: {
     return (
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <TrackingProvider disabled={disableTracking}>
               <GitHubK8sFlowProvider intitialState={initialState}>
                 <MemoryRouter>{children}</MemoryRouter>

@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/usertasks"
@@ -46,10 +47,12 @@ import (
 func TestHandlers(t *testing.T) {
 	t.Parallel()
 
+	mockBeamsConfigSvc := newMockBeamsConfigServiceServer(t)
 	registry := plugin.NewRegistry()
 	require.NoError(t, registry.Add(&mockServicesPlugin{
 		mockedServices: []func(grpc.ServiceRegistrar){
 			registerMockSummarizerServiceServer,
+			mockBeamsConfigSvc.register,
 		},
 	}))
 
@@ -77,10 +80,14 @@ func TestHandlers(t *testing.T) {
 	}
 
 	tests := []struct {
-		kind             string
-		makeResource     func(*testing.T, string) types.Resource
-		updateResource   func(*testing.T, types.Resource) types.Resource
-		checkMFARequired require.BoolAssertionFunc
+		kind string
+		// singletonWithVirtualDefault indicates the resource is a singleton and
+		// the get call will return a default even when there is no resource
+		// present in the storage.
+		singletonWithVirtualDefault bool
+		makeResource                func(*testing.T, string) types.Resource
+		updateResource              func(*testing.T, types.Resource) types.Resource
+		checkMFARequired            require.BoolAssertionFunc
 	}{
 		{
 			kind: types.KindDatabase,
@@ -207,23 +214,23 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindUserTask,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+				userTask, err := usertasks.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
 					Integration: name + "-integration",
 					TaskType:    "discover-ec2",
 					IssueType:   "ec2-ssm-invocation-failure",
 					State:       "OPEN",
-					DiscoverEc2: &usertasksv1.DiscoverEC2{
+					DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 						AccountId: "123456789012",
 						Region:    "us-east-1",
 						Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-							"i-123": {
+							"i-123": usertasksv1.DiscoverEC2Instance_builder{
 								InstanceId:      "i-123",
 								DiscoveryConfig: "dc01",
 								DiscoveryGroup:  "dg01",
-							},
+							}.Build(),
 						},
-					},
-				})
+					}.Build(),
+				}.Build())
 				require.NoError(t, err)
 				return types.ProtoResource153ToLegacy(userTask)
 			},
@@ -237,37 +244,79 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindAccessMonitoringRule,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				accessMonitoringRule, err := services.NewAccessMonitoringRuleWithLabels(name, nil, &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				accessMonitoringRule, err := services.NewAccessMonitoringRuleWithLabels(name, nil, accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: &accessmonitoringrulesv1.Notification{
+					Notification: accessmonitoringrulesv1.Notification_builder{
 						Name:       name + "-notification",
 						Recipients: []string{"recipient"},
-					},
-					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+					}.Build(),
+					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 						Integration: name + "-review",
 						Decision:    types.RequestState_APPROVED.String(),
-					},
+					}.Build(),
 					DesiredState: types.AccessMonitoringRuleStateReviewed,
 					Schedules: map[string]*accessmonitoringrulesv1.Schedule{
-						"default": {
-							Time: &accessmonitoringrulesv1.TimeSchedule{
+						"default": accessmonitoringrulesv1.Schedule_builder{
+							Time: accessmonitoringrulesv1.TimeSchedule_builder{
 								Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-									{
+									accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 										Weekday: time.Monday.String(),
 										Start:   "00:00",
 										End:     "23:59",
-									},
+									}.Build(),
 								},
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
-				})
+				}.Build())
 				require.NoError(t, err)
 				return types.ProtoResource153ToLegacy(accessMonitoringRule)
 			},
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindIntegration,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				ig, err := types.NewIntegrationAWSOIDC(
+					types.Metadata{Name: name},
+					&types.AWSOIDCIntegrationSpecV1{
+						RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+					},
+				)
+				require.NoError(t, err)
+				return ig
+			},
+			updateResource: func(t *testing.T, r types.Resource) types.Resource {
+				t.Helper()
+				ig, ok := r.(types.Integration)
+				require.True(t, ok)
+				ig.SetAWSOIDCIntegrationSpec(&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/UpdatedRole",
+				})
+				return ig
+			},
+			checkMFARequired: require.True,
+		},
+		{
+			kind:                        types.KindBeamsConfig,
+			singletonWithVirtualDefault: true,
+			makeResource: func(t *testing.T, _ string) types.Resource {
+				t.Helper()
+				config := services.DefaultBeamsConfig()
+				config.GetSpec().GetLlm().GetAnthropic().SetAppName("my-anthropic")
+				return types.ProtoResource153ToLegacy(config)
+			},
+			updateResource: func(t *testing.T, r types.Resource) types.Resource {
+				t.Helper()
+				config, err := types.ConvertResource[*beamsv1.BeamsConfig](r)
+				require.NoError(t, err)
+				config.GetSpec().GetLlm().GetAnthropic().SetAppName("updated-anthropic")
+				return types.ProtoResource153ToLegacy(config)
+			},
+			checkMFARequired: require.True,
 		},
 	}
 
@@ -281,11 +330,15 @@ func TestHandlers(t *testing.T) {
 			resourcesPrepopulated, err := handler.Get(t.Context(), clt, services.Ref{}, GetOpts{})
 			require.NoError(t, err)
 
-			// TODO(greedy52): update logic for singleton
-			resources := []types.Resource{
-				tt.makeResource(t, fmt.Sprintf("%s-1", tt.kind)),
-				tt.makeResource(t, fmt.Sprintf("%s-2", tt.kind)),
-				tt.makeResource(t, fmt.Sprintf("%s-3", tt.kind)),
+			var resources []types.Resource
+			if tt.singletonWithVirtualDefault {
+				resources = []types.Resource{tt.makeResource(t, "")}
+			} else {
+				resources = []types.Resource{
+					tt.makeResource(t, fmt.Sprintf("%s-1", tt.kind)),
+					tt.makeResource(t, fmt.Sprintf("%s-2", tt.kind)),
+					tt.makeResource(t, fmt.Sprintf("%s-3", tt.kind)),
+				}
 			}
 
 			t.Run("MFARequired", func(t *testing.T) {
@@ -308,6 +361,7 @@ func TestHandlers(t *testing.T) {
 				var expected []types.Resource
 				expected = append(expected, resourcesPrepopulated.Resources()...)
 				expected = append(expected, resources...)
+				expected = sliceutils.DeduplicateKey(expected, types.GetName)
 
 				require.ElementsMatch(t,
 					sliceutils.Map(expected, types.GetName),
@@ -337,12 +391,54 @@ func TestHandlers(t *testing.T) {
 				r := resources[0]
 				require.NoError(t, handler.Delete(t.Context(), clt, services.Ref{Name: r.GetName()}))
 
-				_, err := handler.Get(t.Context(), clt, services.Ref{Name: r.GetName()}, GetOpts{})
-				require.Error(t, err)
-				require.True(t, trace.IsNotFound(err))
+				afterDelete, err := handler.Get(t.Context(), clt, services.Ref{Name: r.GetName()}, GetOpts{})
+				if tt.singletonWithVirtualDefault {
+					require.NoError(t, err)
+					require.Len(t, afterDelete.Resources(), 1)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsNotFound(err))
+				}
 			})
 		})
 	}
+
+	// Shared kind table above generates DNS-1123 valid names; the
+	// two cases below cover the admin-path rejection of mixed-case.
+	t.Run("KindApp/rejects mixed-case name on Create", func(t *testing.T) {
+		handler := Handlers()[types.KindApp]
+		require.NotNil(t, handler)
+
+		app, err := types.NewAppV3(
+			types.Metadata{Name: "MyApp"},
+			types.AppSpecV3{URI: "http://localhost:12345"},
+		)
+		require.NoError(t, err)
+		raw := mustMakeUnknownResource(t, app)
+		err = handler.Create(t.Context(), clt, raw, CreateOpts{})
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("KindApp/rejects mixed-case name on Update", func(t *testing.T) {
+		handler := Handlers()[types.KindApp]
+		require.NotNil(t, handler)
+
+		// Seed a valid record so Update has something to target.
+		seeded, err := types.NewAppV3(
+			types.Metadata{Name: "valid-app-for-update"},
+			types.AppSpecV3{URI: "http://localhost:12345"},
+		)
+		require.NoError(t, err)
+		require.NoError(t, handler.Create(t.Context(), clt, mustMakeUnknownResource(t, seeded), CreateOpts{}))
+
+		bad, err := types.NewAppV3(
+			types.Metadata{Name: "MyApp"},
+			types.AppSpecV3{URI: "http://localhost:12345"},
+		)
+		require.NoError(t, err)
+		err = handler.Update(t.Context(), clt, mustMakeUnknownResource(t, bad), CreateOpts{})
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
 }
 
 func mustMakeUnknownResource(t *testing.T, r types.Resource) services.UnknownResource {

@@ -4,6 +4,15 @@ databases must be able to verify certificates presented by the Teleport Database
 Service. Self-hosted databases also need a certificate/key pair that Teleport
 can verify.
 
+Teleport maintains two separate certificate authorities (CAs) for database
+access: the **Database CA** (`db`), which signs certificates that databases
+present to the Teleport Database Service, and the **Database Client CA**
+(`db_client`), which signs certificates that the Teleport Database Service
+presents to databases. You can export either CA directly with
+`tctl auth export --type=db` or `tctl auth export --type=db-client`, but in
+most cases you won't need to: `tctl auth sign`, described below, retrieves
+the certificates for you and writes them to local files.
+
 By default, the Teleport Database Service trusts certificates issued by a
 certificate authority managed by the Teleport Auth Service. You can either:
 - Configure your self-hosted database to trust this CA, and instruct Teleport to
@@ -29,7 +38,7 @@ the database, follow these instructions on your workstation:
        roles: ["Db"]
    ```
 
-1. Export Teleport's certificate authority and a generate certificate/key pair.
+1. Export Teleport's certificate authority and generate a certificate/key pair.
    This example generates a certificate with a 90-day validity period.
    `db.example.com` is the hostname where the Teleport Database Service can
    reach the {{ dbname }} server.
@@ -40,13 +49,18 @@ the database, follow these instructions on your workstation:
 
    (!docs/pages/includes/database-access/ttl-note.mdx!)
 
-   The command creates 3 files: `server.cas`, `server.crt` and `server.key`.
+   The command creates 3 files:
+   - `server.cas`: The Database Client CA certificate, which your database
+     uses to verify connections from the Teleport Database Service.
+   - `server.crt`: A certificate for your database server, signed by the
+     Database CA.
+   - `server.key`: The private key for the server certificate.
 
 </TabItem>
 <TabItem label="Use a custom CA" >
 
-If the {{ dbname }} database already has a CA that it uses to sign certificates
-, you only need to export a Teleport CA certificate for the database to
+If the {{ dbname }} database already has a CA that it uses to sign certificates,
+you only need to export a Teleport CA certificate for the database to
 authenticate traffic from the Teleport Database Service. You do not need to
 enable `Db` impersonation privileges.
 

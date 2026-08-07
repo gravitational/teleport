@@ -26,8 +26,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/prompt"
@@ -204,15 +204,18 @@ func writeOperationPlan(config OperationConfig) error {
 var operationPlanTemplate = template.Must(template.New("plan").
 	Funcs(template.FuncMap{
 		// used to enumerate the action steps starting from 1 instead of 0.
-		"addOne": func(x int) int { return x + 1 },
+		"addOne":     func(x int) int { return x + 1 },
+		"getSummary": func(a *Action) string { return a.GetSummary() },
+		"getName":    func(a *Action) string { return a.GetName() },
+		"getDetails": func(a *Action) string { return a.GetDetails() },
 	}).
 	Parse(`
 {{- printf "%q" .config.Name }} will perform the following {{ if .showStepNumbers }}actions{{ else }}action{{ end }}:
 
 {{ $global := . }}
 {{- range $index, $action := .config.Actions }}
-{{- if $global.showStepNumbers }}{{ addOne $index }}. {{ end -}}{{$action.GetSummary}}.
-{{$action.GetName}}: {{$action.GetDetails}}
+{{- if $global.showStepNumbers }}{{ addOne $index }}. {{ end -}}{{getSummary $action}}.
+{{getName $action}}: {{getDetails $action}}
 
 {{end -}}
 `))

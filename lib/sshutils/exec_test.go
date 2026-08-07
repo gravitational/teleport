@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 type mockErrorWithExitStatus struct {
@@ -66,7 +66,7 @@ func TestExitCodeFromExecError(t *testing.T) {
 		{
 			name:  "success",
 			input: nil,
-			want:  teleport.RemoteCommandSuccess,
+			want:  reexecconstants.RemoteCommandSuccess,
 		},
 		{
 			name:  "exec exit error",
@@ -76,7 +76,7 @@ func TestExitCodeFromExecError(t *testing.T) {
 		{
 			name:  "exec exit error with unknown sys",
 			input: mockExecExitError{sys: "unknown"},
-			want:  teleport.RemoteCommandFailure,
+			want:  reexecconstants.RemoteCommandFailure,
 		},
 		{
 			name:  "ssh exit error",
@@ -86,7 +86,7 @@ func TestExitCodeFromExecError(t *testing.T) {
 		{
 			name:  "unknown error",
 			input: errors.New("unknown error"),
-			want:  teleport.RemoteCommandFailure,
+			want:  reexecconstants.RemoteCommandFailure,
 		},
 	}
 

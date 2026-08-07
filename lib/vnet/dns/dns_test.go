@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 // that net.Resolver can successfully use the stack to lookup hosts.
 func TestServer(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	defaultIP4 := tcpip.AddrFrom4([4]byte{1, 2, 3, 4})
 	defaultIP6 := tcpip.AddrFrom16([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
@@ -59,7 +59,7 @@ func TestServer(t *testing.T) {
 	// Create two upstream nameservers that are able to resolve A and AAAA records for all names.
 	var upstreamAddrs []string
 	for i := range 2 {
-		upstreamServer, err := NewServer(staticResolver, noUpstreams)
+		upstreamServer, err := NewServer(staticResolver, noUpstreams, slog.Default())
 		require.NoError(t, err)
 		conn, err := net.ListenUDP("udp", udpLocalhost)
 		require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestServer(t *testing.T) {
 		},
 	}
 	upstreams := &stubUpstreamNamservers{nameservers: upstreamAddrs}
-	server, err := NewServer(resolver, upstreams)
+	server, err := NewServer(resolver, upstreams, slog.Default())
 	require.NoError(t, err)
 
 	conn, err := net.ListenUDP("udp", udpLocalhost)

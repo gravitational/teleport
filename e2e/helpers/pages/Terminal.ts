@@ -39,11 +39,47 @@ export class TerminalPage {
     await this.input.pressSequentially(command + '\n');
   }
 
-  async expectSnapshot(name: string) {
-    await this.page.waitForTimeout(500);
-    await expect(this.terminal).toHaveScreenshot(name, {
+  async waitForText(text: string) {
+    await expect(this.terminal).toContainText(text, {
       timeout: TERMINAL_TIMEOUT,
-      maxDiffPixelRatio: 0.02,
     });
+  }
+
+  /**
+   * Selects all of the text rendered in the terminal and copies it.
+   */
+  async copyAllText() {
+    await this.page.evaluate(() => {
+      const xterm = document.querySelector('.xterm');
+      if (!xterm) {
+        throw new Error('xterm element not found');
+      }
+
+      // Blur the active element to avoid copying from the hidden textarea xterm creates for capturing keystrokes
+      (document.activeElement as HTMLElement | null)?.blur();
+
+      const selection = window.getSelection();
+      if (!selection) {
+        throw new Error('window.getSelection() returned null');
+      }
+
+      const range = document.createRange();
+      range.selectNodeContents(xterm);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+
+    await this.page.keyboard.press('ControlOrMeta+C');
+  }
+
+  async writeClipboard(text: string) {
+    await this.page.evaluate(
+      value => navigator.clipboard.writeText(value),
+      text
+    );
+  }
+
+  async readClipboard(): Promise<string> {
+    return this.page.evaluate(() => navigator.clipboard.readText());
   }
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
+import React, { ReactNode, type JSX } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -112,45 +112,43 @@ export default function Table<T>(props: TableProps<T>) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.forEach((item, rowIdx) => {
-      const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
+      const customRow = row?.customRow?.(item);
+      const renderAfter = row?.renderAfter?.(item);
+      const rowKey = row?.getKey?.(item) ?? rowIdx;
+
+      const trContent = customRow
+        ? customRow
+        : columns.flatMap((column, columnIdx) => {
+            if (column.isNonRender) {
+              return []; // does not include this column.
+            }
+
+            const $cell = column.render ? (
+              column.render(item)
+            ) : (
+              <TextCell data={column.key ? item[column.key] : undefined} />
+            );
+
+            return (
+              <React.Fragment key={`${rowKey} ${columnIdx}`}>
+                {$cell}
+              </React.Fragment>
+            );
+          });
+
+      rows.push(
         <tr
-          key={rowIdx}
+          key={rowKey}
           onClick={() => row?.onClick?.(item)}
           style={row?.getStyle?.(item)}
         >
-          {children}
+          {trContent}
         </tr>
       );
 
-      const customRow = row?.customRow?.(item);
-      const renderAfter = row?.renderAfter?.(item);
-
-      if (customRow) {
-        rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
-      } else {
-        const cells = columns.flatMap((column, columnIdx) => {
-          if (column.isNonRender) {
-            return []; // does not include this column.
-          }
-
-          const $cell = column.render ? (
-            column.render(item)
-          ) : (
-            <TextCell data={column.key ? item[column.key] : undefined} />
-          );
-
-          return (
-            <React.Fragment key={`${rowIdx} ${columnIdx}`}>
-              {$cell}
-            </React.Fragment>
-          );
-        });
-        rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
-      }
-
       if (renderAfter) {
         rows.push(
-          <React.Fragment key={`${rowIdx}-after`}>{renderAfter}</React.Fragment>
+          <React.Fragment key={`${rowKey}-after`}>{renderAfter}</React.Fragment>
         );
       }
     });

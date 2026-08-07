@@ -120,3 +120,19 @@ func TestTokenBucketSet_IsRateLimited(t *testing.T) {
 		require.True(t, tbs.IsRateLimited())
 	})
 }
+
+func TestRateSetLenNilReceiver(t *testing.T) {
+	t.Parallel()
+	var rs *RateSet
+	require.Equal(t, 0, rs.Len())
+}
+
+func TestRateSetAdd_RejectsRatesBelowNanosecond(t *testing.T) {
+	rates := NewRateSet()
+
+	require.Error(t, rates.Add(100*time.Nanosecond, 101, 1))
+	require.Error(t, rates.Add(100*time.Nanosecond, 200, 1))
+
+	require.NoError(t, rates.Add(100*time.Nanosecond, 100, 1))
+	require.NoError(t, rates.Add(100*time.Nanosecond, 99, 1))
+}

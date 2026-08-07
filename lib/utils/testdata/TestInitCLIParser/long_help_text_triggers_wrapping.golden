@@ -1,0 +1,14 @@
+usage: widget reconcile [<flags>]
+
+Reconcile the local inventory against the remote source of truth. This operation
+is idempotent and safe to run repeatedly; mismatches are reported but not
+automatically corrected unless --fix is passed.
+
+Flags:
+  -v, --[no-]verbose  Enable verbose output.
+  -c, --config="/etc/widget.yaml"  
+                      Path to config file. ($WIDGET_CONFIG)
+  -t, --tag=TAG ...   Tags to apply. Repeatable.
+      --[no-]fix      Automatically correct any mismatches found during
+                      reconciliation.
+

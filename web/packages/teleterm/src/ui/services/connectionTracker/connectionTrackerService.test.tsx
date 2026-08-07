@@ -18,7 +18,6 @@
 
 import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import 'jest-canvas-mock';
 import { act, ComponentType, createRef } from 'react';
 
 import { render, screen } from 'design/utils/testing';
@@ -235,6 +234,7 @@ test('connection tracker syncs autoUserProvisioning when gateway document is upd
 
   const topBarConnectMyComputerRef = createRef<HTMLDivElement>();
   const topBarAccessRequestRef = createRef<HTMLDivElement>();
+  const desktopSessionControlsRef = createRef<HTMLDivElement>();
   const Component = () => (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
@@ -242,6 +242,7 @@ test('connection tracker syncs autoUserProvisioning when gateway document is upd
           ctx={ctx}
           topBarConnectMyComputerRef={topBarConnectMyComputerRef}
           topBarAccessRequestRef={topBarAccessRequestRef}
+          desktopSessionControlsRef={desktopSessionControlsRef}
         />
       </ResourcesContextProvider>
     </MockAppContextProvider>
@@ -331,6 +332,7 @@ function setupTests(): {
 
   const topBarConnectMyComputerRef = createRef<HTMLDivElement>();
   const topBarAccessRequestRef = createRef<HTMLDivElement>();
+  const desktopSessionControlsRef = createRef<HTMLDivElement>();
   const Component = () => (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
@@ -338,6 +340,7 @@ function setupTests(): {
           ctx={ctx}
           topBarConnectMyComputerRef={topBarConnectMyComputerRef}
           topBarAccessRequestRef={topBarAccessRequestRef}
+          desktopSessionControlsRef={desktopSessionControlsRef}
         />
       </ResourcesContextProvider>
     </MockAppContextProvider>

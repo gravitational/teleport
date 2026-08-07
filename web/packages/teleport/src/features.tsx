@@ -44,6 +44,7 @@ import {
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
 import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
+import { IaCIntegrationSettings } from 'teleport/Discover/Overview/IaCIntegrationSettings';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -69,6 +70,7 @@ import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
 import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
+import { LoginScopePicker } from './Scopes';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
 import { TrustedClusters } from './TrustedClusters';
@@ -77,11 +79,21 @@ import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
 import { WorkloadIdentities } from './WorkloadIdentity/WorkloadIdentities';
 
-// to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
-// However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
-// are usually "always visible"
-export function shouldHideFromNavigation(cfg: Cfg) {
+// shouldHideInaccessibleFeatures returns whether features the user lacks access to
+// should be hidden from the navigation entirely, rather than shown for
+// discoverability. This is the case for dashboard tenants, and when feature
+// hiding is enabled in the license.
+export function shouldHideInaccessibleFeatures(cfg: Cfg) {
   return cfg.isDashboard || cfg.hideInaccessibleFeatures;
+}
+
+// canShowFeature returns whether the user can see a given feature based on their RBAC permissions,
+// whether the feature is discoverable and whether featurehiding is enabled in the license.
+export function canShowFeature(feature: TeleportFeature, flags: FeatureFlags) {
+  if (feature.hasAccess(flags)) {
+    return true;
+  }
+  return !!feature.discoverable && !shouldHideInaccessibleFeatures(cfg);
 }
 
 class AccessRequests implements TeleportFeature {
@@ -139,6 +151,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
   sideNavCategory = SideNavigationCategory.Resources;
   // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
   standalone = true;
+  supportsScopes = true;
 
   route = {
     title: 'Resources',
@@ -249,13 +262,10 @@ export class FeatureBots implements TeleportFeature {
     component: Bots,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.listBots;
-    }
-    return true;
+    return flags.listBots;
   }
 
   navigationItem = {
@@ -283,13 +293,10 @@ export class FeatureBotInstances implements TeleportFeature {
     component: BotInstances,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.listBotInstances;
-    }
-    return true;
+    return flags.listBotInstances;
   }
 
   navigationItem = {
@@ -325,13 +332,10 @@ export class FeatureInstances implements TeleportFeature {
     component: Instances,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.listInstances || flags.listBotInstances;
-    }
-    return true;
+    return flags.listInstances || flags.listBotInstances;
   }
 
   navigationItem = {
@@ -582,13 +586,10 @@ export class FeatureDiscover implements TeleportFeature {
 export class FeatureIntegrations implements TeleportFeature {
   category = NavigationCategory.ZeroTrustAccess;
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.integrations;
-    }
-    return true;
+    return flags.integrations;
   }
 
   route = {
@@ -623,11 +624,10 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
     component: IntegrationEnroll,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.enrollIntegrations;
-    }
-    return true;
+    return flags.enrollIntegrations;
   }
 
   navigationItem = {
@@ -656,16 +656,14 @@ export class FeatureManagedUpdates implements TeleportFeature {
     component: ManagedUpdates,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    const canViewPage =
+    return (
       flags.readAutoUpdateConfig ||
       flags.readAutoUpdateVersion ||
-      flags.readAutoUpdateAgentRollout;
-
-    if (shouldHideFromNavigation(cfg)) {
-      return canViewPage;
-    }
-    return true;
+      flags.readAutoUpdateAgentRollout
+    );
   }
 
   navigationItem = {
@@ -800,13 +798,10 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
     component: WorkloadIdentities,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags): boolean {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.listWorkloadIdentities;
-    }
-    return true;
+    return flags.listWorkloadIdentities;
   }
   navigationItem = {
     title: NavTitle.WorkloadIdentity,
@@ -819,7 +814,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.IdentityGovernance;
+  category = NavigationCategory.ZeroTrustAccess;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -827,11 +822,10 @@ class FeatureDeviceTrust implements TeleportFeature {
     component: DeviceTrustLocked,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.deviceTrust;
-    }
-    return true;
+    return flags.deviceTrust;
   }
 
   navigationItem = {
@@ -873,6 +867,20 @@ export class FeatureIntegrationOverview implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrationOverviewSettings implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Settings',
+    path: cfg.routes.integrationOverviewSettings,
+    component: IaCIntegrationSettings,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -902,6 +910,8 @@ export class FeatureAccount implements TeleportFeature {
       'change password',
     ],
   };
+
+  supportsScopes = true;
 }
 
 export class FeatureHelpAndSupport implements TeleportFeature {
@@ -932,6 +942,24 @@ export class FeatureHelpAndSupport implements TeleportFeature {
       'version',
     ],
   };
+
+  supportsScopes = true;
+}
+
+export class FeatureScopes implements TeleportFeature {
+  route = {
+    title: 'Pick a Scope',
+    path: cfg.routes.scopePicker,
+    exact: true,
+    component: LoginScopePicker,
+  };
+
+  hideNavigation = true;
+  supportsScopes = true;
+
+  hasAccess(): boolean {
+    return cfg.scopesEnabled;
+  }
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
@@ -953,6 +981,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureManagedUpdates(),
@@ -960,12 +989,12 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
     new FeatureIntegrationOverview(),
+    new FeatureIntegrationOverviewSettings(),
 
     // - Identity
     new AccessRequests(),
     new FeatureLocks(),
     new FeatureNewLock(),
-    new FeatureDeviceTrust(),
     new FeatureWorkloadIdentity(),
 
     // - Audit
@@ -976,5 +1005,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureScopes(),
   ];
 }

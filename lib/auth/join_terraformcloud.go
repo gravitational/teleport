@@ -49,7 +49,7 @@ func (a *Server) checkTerraformCloudJoinRequest(
 		return nil, trace.Wrap(err)
 	}
 
-	claims, err := terraformcloud.CheckIDToken(ctx, &terraformcloud.CheckIDTokenParams{
+	claims, err := terraformcloud.CheckIDToken(ctx, a.modules, &terraformcloud.CheckIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.terraformIDTokenValidator,

@@ -73,12 +73,12 @@ func newVerifyJWTAuditEvent(ctx context.Context, req *appauthconfigv1.CreateAppS
 			Code: events.AppAuthConfigVerifySuccessCode,
 			Type: events.AppAuthConfigVerifySuccessEvent,
 		},
-		AppAuthConfig:   req.ConfigName,
+		AppAuthConfig:   req.GetConfigName(),
 		UserMetadata:    authz.ClientUserMetadata(ctx),
 		SessionMetadata: apievents.SessionMetadata{SessionID: sid},
 		AppMetadata: apievents.AppMetadata{
-			AppName: req.App.AppName,
-			AppURI:  req.App.Uri,
+			AppName: req.GetApp().GetAppName(),
+			AppURI:  req.GetApp().GetUri(),
 		},
 		Status: apievents.Status{
 			Success: true,

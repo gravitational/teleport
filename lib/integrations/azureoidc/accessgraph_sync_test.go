@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 type mockClientConfig struct {
@@ -59,29 +59,29 @@ func (c *mockAzureConfigClient) CreateRoleAssignment(ctx context.Context, scope 
 	return nil
 }
 
-func (c *mockAzureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error) {
+func (c *mockAzureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appID string) (*models.ServicePrincipal, error) {
 	if c.cfg.fetchPrincipalErr {
 		return nil, trace.Errorf("failed to fetch principal")
 	}
 	spID := uuid.NewString()
 	appRoleValues := slices.Collect(maps.Keys(requiredGraphRoleNames))
-	var roles []*msgraph.AppRole
+	var roles []*models.AppRole
 	for _, rv := range appRoleValues {
 		roleID := uuid.NewString()
-		roles = append(roles, &msgraph.AppRole{
+		roles = append(roles, &models.AppRole{
 			ID:    &roleID,
 			Value: &rv,
 		})
 	}
-	return &msgraph.ServicePrincipal{
-		DirectoryObject: msgraph.DirectoryObject{
+	return &models.ServicePrincipal{
+		DirectoryObject: models.DirectoryObject{
 			ID: &spID,
 		},
 		AppRoles: roles,
 	}, nil
 }
 
-func (c *mockAzureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment msgraph.AppRoleAssignment) error {
+func (c *mockAzureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment models.AppRoleAssignment) error {
 	if c.cfg.grantAppRoleErr {
 		return fmt.Errorf("failed to grant app role")
 	}

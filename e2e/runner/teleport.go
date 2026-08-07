@@ -23,7 +23,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,13 +33,21 @@ import (
 	"syscall"
 	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
+// clusterName is the name of the Teleport cluster used for E2E testing.
+const clusterName = "teleport-e2e"
+
 type teleportInstance struct {
-	config     *e2eConfig
-	configPath string
-	stateFile  string
-	logFile    string // empty means stdout/stderr
+	log             *slog.Logger
+	teleportBin     string
+	proxyPort       int
+	configPath      string
+	stateFile       string
+	logFile         string // empty means stdout/stderr
+	recordingOwners recordingOwners
 
 	cmd      *exec.Cmd
 	logF     *os.File
@@ -46,7 +56,7 @@ type teleportInstance struct {
 }
 
 func (t *teleportInstance) start(ctx context.Context) error {
-	t.cmd = exec.CommandContext(ctx, t.config.teleportBin, "start", "-c", t.configPath, "--bootstrap", t.stateFile)
+	t.cmd = exec.CommandContext(ctx, t.teleportBin, "start", "-c", t.configPath, "--bootstrap", t.stateFile)
 
 	if t.logFile != "" {
 		f, err := os.Create(t.logFile)
@@ -63,7 +73,7 @@ func (t *teleportInstance) start(ctx context.Context) error {
 
 	t.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	slog.Info("starting teleport with bootstrap state")
+	t.log.Info("starting teleport with bootstrap state")
 	if err := t.cmd.Start(); err != nil {
 		return fmt.Errorf("starting teleport: %w", err)
 	}
@@ -79,7 +89,7 @@ func (t *teleportInstance) start(ctx context.Context) error {
 
 // waitReady polls the proxy's /webapi/ping endpoint until it responds with 200.
 func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration) error {
-	slog.Debug("waiting for teleport to be ready")
+	t.log.Debug("waiting for teleport to be ready")
 
 	client := &http.Client{
 		Timeout: 2 * time.Second,
@@ -96,7 +106,7 @@ func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration)
 		default:
 		}
 
-		resp, err := client.Get(fmt.Sprintf("https://localhost:%d/webapi/ping", t.config.proxyPort))
+		resp, err := client.Get(fmt.Sprintf("https://localhost:%d/webapi/ping", t.proxyPort))
 		if err != nil {
 			return false, nil
 		}
@@ -110,7 +120,7 @@ func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration)
 		return fmt.Errorf("teleport failed to become ready: %w", err)
 	}
 
-	slog.Info("teleport is ready")
+	t.log.Info("teleport is ready")
 
 	return nil
 }
@@ -120,7 +130,7 @@ func (t *teleportInstance) stop() {
 		return
 	}
 
-	slog.Info("stopping teleport")
+	t.log.Info("stopping teleport")
 
 	select {
 	case <-t.waitDone:
@@ -131,7 +141,7 @@ func (t *teleportInstance) stop() {
 		select {
 		case <-t.waitDone:
 		case <-time.After(5 * time.Second):
-			slog.Warn("teleport did not exit gracefully, sending SIGKILL")
+			t.log.Warn("teleport did not exit gracefully, sending SIGKILL")
 			_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
 			<-t.waitDone
 		}
@@ -143,6 +153,7 @@ func (t *teleportInstance) stop() {
 }
 
 type TeleportConfig struct {
+	ClusterName    string
 	DataDir        string
 	AuthServerPort int
 	ProxyPort      int
@@ -152,54 +163,56 @@ type TeleportConfig struct {
 	LogLevel       string
 }
 
-func generateTeleportConfig(templatePath string, config *e2eConfig) (string, error) {
-	teleportConfig := &TeleportConfig{
-		DataDir:        config.dataDir,
-		AuthServerPort: config.authPort,
-		ProxyPort:      config.proxyPort,
-		KeyFilePath:    filepath.Join(config.certsDir, keyFileName),
-		CertFilePath:   filepath.Join(config.certsDir, certFileName),
-		LicenseFile:    config.licenseFile,
-		LogLevel:       config.teleportLogLevel,
-	}
-
-	return renderTemplate(templatePath, teleportConfig)
+func generateTeleportConfig(templatePath, outPath string, data *TeleportConfig) (string, error) {
+	return renderTemplateToPath(templatePath, outPath, data)
 }
 
 type TeleportNodeConfig struct {
+	AuthServerHost string
 	AuthServerPort int
 	SSHServerPort  int
 }
 
-func generateTeleportNodeConfig(templatePath string, config *e2eConfig) (string, error) {
-	nodeConfig := &TeleportNodeConfig{
-		AuthServerPort: config.authPort,
-		SSHServerPort:  config.sshPort,
-	}
-
-	return renderTemplate(templatePath, nodeConfig)
+func generateTeleportNodeConfig(templatePath, outPath string, data *TeleportNodeConfig) (string, error) {
+	return renderTemplateToPath(templatePath, outPath, data)
 }
 
-type StateConfig struct {
-	PasswordHashBase64  string
-	CredentialIDBase64  string
-	PublicKeyCBORBase64 string
-}
-
-func generateStateFile(templatePath string, creds *credentials) (string, error) {
-	stateConfig := &StateConfig{
-		PasswordHashBase64:  creds.passwordHashBase64,
-		CredentialIDBase64:  creds.credentialIDBase64,
-		PublicKeyCBORBase64: creds.publicKeyCBORBase64,
+func resolveDockerHost() (string, error) {
+	dockerHost := os.Getenv("DOCKER_HOST")
+	if dockerHost == "" {
+		return "host.docker.internal", nil
 	}
 
-	return renderTemplate(templatePath, stateConfig)
+	u, err := url.Parse(dockerHost)
+	if err != nil {
+		return "", fmt.Errorf("parsing DOCKER_HOST: %w", err)
+	}
+
+	conn, err := net.Dial("udp", u.Host)
+	if err != nil {
+		return "", fmt.Errorf("dialing docker host: %w", err)
+	}
+	defer conn.Close()
+
+	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
+}
+
+func generateStateFile(templatePath string, state *stateConfig) (string, error) {
+	return renderTemplate(templatePath, state)
 }
 
 func renderTemplate(templatePath string, data any) (string, error) {
-	outPath := strings.TrimSuffix(templatePath, ".tmpl")
+	return renderTemplateToPath(templatePath, strings.TrimSuffix(templatePath, ".tmpl"), data)
+}
 
-	tmpl, err := template.ParseFiles(templatePath)
+func renderTemplateToPath(templatePath, outPath string, data any) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		return "", err
+	}
+
+	tmpl, err := template.New(filepath.Base(templatePath)).
+		Funcs(template.FuncMap{"yamlQuote": yamlQuote}).
+		ParseFiles(templatePath)
 	if err != nil {
 		return "", err
 	}
@@ -219,4 +232,12 @@ func renderTemplate(templatePath string, data any) (string, error) {
 	}
 
 	return outPath, nil
+}
+
+func yamlQuote(v any) (string, error) {
+	out, err := yaml.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
 }

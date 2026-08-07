@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as whatwg from 'whatwg-url';
-
 import {
   AuthenticateWebDeviceDeepURL,
   ConnectMyComputerDeepURL,
@@ -32,7 +30,7 @@ export type DeepLinkParseResult =
   // ergonomic. Unfortunately, `if (!result.ok)` doesn't narrow down the type properly with
   // strictNullChecks off. https://github.com/microsoft/TypeScript/issues/10564
   | DeepLinkParseResultSuccess
-  | ParseError<'malformed-url', { error: TypeError }>
+  | ParseError<'malformed-url', { error: unknown }>
   | ParseError<'unknown-protocol', { protocol: string }>
   | ParseError<'unsupported-url'>;
 
@@ -67,32 +65,32 @@ type ParseError<Reason, AdditionalData = void> = AdditionalData extends void
  * have to be parsed on both ends.
  */
 export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
-  let whatwgURL: whatwg.URL;
+  let parsedURL: URL;
   try {
-    whatwgURL = new whatwg.URL(rawUrl);
+    parsedURL = new URL(rawUrl);
   } catch (error) {
-    if (error instanceof TypeError) {
-      // Invalid URL.
-      return { status: 'error', reason: 'malformed-url', error };
-    }
-    throw error;
-  }
-
-  if (whatwgURL.protocol !== `${CUSTOM_PROTOCOL}:`) {
     return {
       status: 'error',
-      reason: 'unknown-protocol',
-      protocol: whatwgURL.protocol,
+      reason: 'malformed-url',
+      error,
     };
   }
 
-  const { host, hostname, port, username, pathname, searchParams } = whatwgURL;
+  if (parsedURL.protocol !== `${CUSTOM_PROTOCOL}:`) {
+    return {
+      status: 'error',
+      reason: 'unknown-protocol',
+      protocol: parsedURL.protocol,
+    };
+  }
+
+  const { host, hostname, port, username, pathname, searchParams } = parsedURL;
   const baseUrl = {
     host,
     hostname,
     port,
-    // whatwg-url percent-encodes usernames. We decode them here so that the rest of the app doesn't
-    // have to do this. https://url.spec.whatwg.org/#set-the-username
+    // The URL API percent-encodes usernames. We decode them here so that the rest of the app
+    // doesn't have to do this. https://url.spec.whatwg.org/#set-the-username
     username: decodeURIComponent(username),
   };
 

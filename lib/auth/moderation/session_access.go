@@ -99,6 +99,8 @@ func (ctx *SessionAccessContext) GetAccessChecker() (services.AccessChecker, err
 
 // GetIdentifier is used by the `predicate` library to evaluate variable expressions when
 // evaluating policy filters. It deals with evaluating strings like `participant.name` to the appropriate value.
+//
+// Keep in sync with sessionFilterValidationContext.GetIdentifier in lib/services/role.go
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (any, error) {
 	if fields[0] == "user" {
 		if len(fields) == 2 || len(fields) == 3 {
@@ -191,7 +193,7 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 func RoleSupportsModeratedSessions(roles []types.Role) bool {
 	for _, role := range roles {
 		switch role.GetVersion() {
-		case types.V5, types.V6, types.V7, types.V8:
+		case types.V5, types.V6, types.V7, types.V8, types.V9:
 			return true
 		}
 	}

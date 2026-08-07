@@ -65,7 +65,7 @@ type ServiceConfig struct {
 	Emitter apievents.Emitter
 
 	// UsageReporter is the reporter for sending usage events.
-	UsageReporter func() usagereporter.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -105,7 +105,7 @@ type Service struct {
 	backend       services.DiscoveryConfigs
 	clock         clockwork.Clock
 	emitter       apievents.Emitter
-	usageReporter func() usagereporter.UsageReporter
+	usageReporter usagereporter.UsageReporter
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -149,10 +149,10 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 		dcs[i] = conv.ToProto(downgraded)
 	}
 
-	return &discoveryconfigv1.ListDiscoveryConfigsResponse{
+	return discoveryconfigv1.ListDiscoveryConfigsResponse_builder{
 		DiscoveryConfigs: dcs,
 		NextKey:          nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
@@ -166,7 +166,7 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := s.backend.GetDiscoveryConfig(ctx, req.Name)
+	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,7 +347,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
@@ -428,11 +428,11 @@ func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action pre
 	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
 
 	creationMethod := CreationMethodGuided
-	if _, ok := dc.GetMetadata().Labels[types.DiscoveryIACToolLabel]; ok {
+	if _, ok := dc.GetMetadata().Labels[types.IACToolLabel]; ok {
 		creationMethod = CreationMethodIAC
 	}
 
-	s.usageReporter().AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
+	s.usageReporter.AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
 		Action:              action,
 		DiscoveryConfigName: dc.GetName(),
 		ResourceTypes:       resourceTypes,

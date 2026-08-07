@@ -205,6 +205,14 @@ func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, erro
 		return nil, trace.Wrap(err)
 	}
 
+	// if the key ring has an Access Graph TLS certificate, verify it as well
+	if len(keyRing.AccessGraphTLSCert) > 0 {
+		_, err = keyRing.AccessGraphTLSCertValidBefore()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Validate the SSH certificate.
 	if keyRing.Cert != nil {
 		if err := keyRing.CheckCert(); err != nil {
@@ -270,7 +278,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 
 	var scopePin *scopesv1.Pin
 	if profile.Scope != "" {
-		scopePin = &scopesv1.Pin{Scope: profile.Scope}
+		scopePin = scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: profile.Scope}.Build()
 	}
 
 	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),

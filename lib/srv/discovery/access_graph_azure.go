@@ -31,9 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 )
@@ -135,16 +133,14 @@ func azurePushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	upsert *accessgraphv1alpha.AzureResourceList,
 ) error {
-	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+	for i := 0; i < len(upsert.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(upsert.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.AzureEventsStreamRequest{
-				Operation: &accessgraphv1alpha.AzureEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.AzureResourceList{
-						Resources: upsert.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.AzureEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.AzureResourceList_builder{
+					Resources: upsert.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -158,16 +154,14 @@ func azurePushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	toDel *accessgraphv1alpha.AzureResourceList,
 ) error {
-	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+	for i := 0; i < len(toDel.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toDel.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.AzureEventsStreamRequest{
-				Operation: &accessgraphv1alpha.AzureEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.AzureResourceList{
-						Resources: toDel.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.AzureEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.AzureResourceList_builder{
+					Resources: toDel.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -191,9 +185,9 @@ func azurePush(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.AzureEventsStreamRequest{
-			Operation: &accessgraphv1alpha.AzureEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.AzureEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.AzureSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -216,8 +210,7 @@ func (s *Server) getAllTAGSyncAzureFetchers() []*azuresync.Fetcher {
 func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadCh chan struct{}) error {
 	// Check if the access graph is enabled
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	if !accessGraphEntitlementEnabled(&clusterFeatures) {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 

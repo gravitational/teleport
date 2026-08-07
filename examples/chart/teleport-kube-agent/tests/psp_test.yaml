@@ -1,6 +1,10 @@
 suite: PodSecurityPolicy
 templates:
   - psp.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates a PodSecurityPolicy when enabled in values and supported
     capabilities:
@@ -35,7 +39,7 @@ tests:
     asserts:
       - documentIndex: 0
         equal:
-          path: metadata.labels.app\.kubernetes\.io/name
+          path: metadata.labels["app.kubernetes.io/name"]
           value: teleport-kube-agent
       - documentIndex: 0
         equal:

@@ -61,7 +61,7 @@ A wrapper around duration to set up custom marshal/unmarshal
 
 ## Entra ID Groups Provider
 
-Configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for "groups" claim when the user's group membership exceeds 200 max item limit.
+Configures out-of-band user groups provider. For OIDC, it works by following through the groups claim source, which is sent for "groups" claim when the user's group membership exceeds 200 max item limit. For SAML, it works by following through the "groups.link" SAML attribute, which is sent instead of the "groups" SAML attribute, when the user's group membership exceeds 150 max item limit.
 
 
 Example:

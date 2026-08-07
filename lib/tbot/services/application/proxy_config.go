@@ -46,6 +46,10 @@ type ProxyServiceConfig struct {
 	// last and the frequency at which they'll be renewed. For the application
 	// proxy, this is primarily an internal detail.
 	CredentialLifetime bot.CredentialLifetime `yaml:"credential_lifetime,omitempty"`
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use. Primarily used for testing.
 	Listener net.Listener `yaml:"-"`
@@ -84,7 +88,10 @@ func (c *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 
 // CheckAndSetDefaults checks the user-provided configuration against validation
 // rules and sets any default values.
-func (c *ProxyServiceConfig) CheckAndSetDefaults() error {
+func (c *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", ProxyServiceType)
+	}
 	switch {
 	case c.Listen == "" && c.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")

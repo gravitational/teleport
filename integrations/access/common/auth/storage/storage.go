@@ -19,7 +19,6 @@
 package storage
 
 import (
-	"context"
 	"time"
 )
 
@@ -33,10 +32,4 @@ type Credentials struct {
 	// The application must use the refresh token to acquire a new access token
 	// before this time.
 	ExpiresAt time.Time
-}
-
-// Store defines the interface for persisting the short-lived OAuth2 credentials.
-type Store interface {
-	GetCredentials(context.Context) (*Credentials, error)
-	PutCredentials(context.Context, *Credentials) error
 }

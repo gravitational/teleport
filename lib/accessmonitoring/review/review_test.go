@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -57,13 +58,13 @@ func TestInitializeCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mockReq := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+	mockReq := accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 		Subjects:            []string{types.KindAccessRequest},
 		AutomaticReviewName: handler.HandlerName,
-	}
+	}.Build()
 
 	mockResp := []*accessmonitoringrulesv1.AccessMonitoringRule{
-		newApprovedRule("test-rule", "condition"),
+		newApprovedRule("test-rule", "condition", ""),
 	}
 
 	mockClient.On("ListAccessMonitoringRulesWithFilter", mock.Anything, mockReq).
@@ -93,7 +94,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test add rule.
-	rule := newApprovedRule("test-rule", `condition`)
+	rule := newApprovedRule("test-rule", `condition`, "")
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -102,7 +103,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.True(t, proto.Equal(rule, cache.Get()[0]))
 
 	// Test update rule.
-	rule = newApprovedRule("test-rule", `condition-updated`)
+	rule = newApprovedRule("test-rule", `condition-updated`, "")
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -118,8 +119,8 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid automatic approval name.
-	rule = newApprovedRule("test-rule", `condition`)
-	rule.Spec.AutomaticReview.Integration = "invalid"
+	rule = newApprovedRule("test-rule", `condition`, "")
+	rule.GetSpec().GetAutomaticReview().SetIntegration("invalid")
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -127,8 +128,8 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid state.
-	rule = newApprovedRule("test-rule", `condition`)
-	rule.Spec.DesiredState = "invalid"
+	rule = newApprovedRule("test-rule", `condition`, "")
+	rule.GetSpec().SetDesiredState("invalid")
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -136,8 +137,8 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid subject.
-	rule = newApprovedRule("test-rule", `condition`)
-	rule.Spec.Subjects = []string{"invalid"}
+	rule = newApprovedRule("test-rule", `condition`, "")
+	rule.GetSpec().SetSubjects([]string{"invalid"})
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -153,8 +154,8 @@ func TestConflictingRules(t *testing.T) {
 
 	testReqID := uuid.New().String()
 	requesterUserName := "requester"
-	approvedRule := newApprovedRule("approved-rule", "true")
-	deniedRule := newDeniedRule("denied-rule", "true")
+	approvedRule := newApprovedRule("approved-rule", "true", "I APPROVE")
+	deniedRule := newDeniedRule("denied-rule", "true", "I DENY")
 
 	// Configure both an approved and denied rule.
 	cache := accessmonitoring.NewCache()
@@ -177,6 +178,7 @@ func TestConflictingRules(t *testing.T) {
 		requesterUserName,
 		deniedRule.GetMetadata().GetName(),
 		deniedRule.GetSpec().GetAutomaticReview().GetDecision(),
+		deniedRule.GetSpec().GetAutomaticReview().GetReason(),
 		time.Time{},
 	)
 	require.NoError(t, err)
@@ -219,21 +221,22 @@ func TestScheduleRequest(t *testing.T) {
 
 	testRule := newApprovedRule(
 		testRuleName,
-		`true`)
+		`true`,
+		"")
 
-	testRule.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
-		"test-schedule": {
-			Time: &accessmonitoringrulesv1.TimeSchedule{
+	testRule.GetSpec().SetSchedules(map[string]*accessmonitoringrulesv1.Schedule{
+		"test-schedule": accessmonitoringrulesv1.Schedule_builder{
+			Time: accessmonitoringrulesv1.TimeSchedule_builder{
 				Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-					{
+					accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 						Weekday: time.Monday.String(),
 						Start:   "14:00",
 						End:     "15:00",
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	})
 
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
@@ -254,6 +257,7 @@ func TestScheduleRequest(t *testing.T) {
 					requesterUserName,
 					testRuleName,
 					types.RequestState_APPROVED.String(),
+					"",
 					time.Time{},
 				)
 				require.NoError(t, err)
@@ -328,7 +332,8 @@ func TestResourceRequest(t *testing.T) {
 
 	testRule := newApprovedRule(
 		testRuleName,
-		`access_request.spec.resource_labels_intersection["env"].contains("test")`)
+		`access_request.spec.resource_labels_intersection["env"].contains("test")`,
+		"")
 
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
@@ -398,6 +403,7 @@ func TestResourceRequest(t *testing.T) {
 					requesterUserName,
 					testRuleName,
 					types.RequestState_APPROVED.String(),
+					"",
 					time.Time{},
 				)
 				require.NoError(t, err)
@@ -468,15 +474,10 @@ func TestHandleAccessRequest(t *testing.T) {
 
 	testReqID := uuid.New().String()
 
-	// Setup test rule
-	cache := accessmonitoring.NewCache()
-
-	rule := newApprovedRule(testRuleName,
-		fmt.Sprintf(`
-			contains_all(set("%s"), access_request.spec.roles) &&
-			contains_any(user.traits["%s"], set("%s"))`,
-			approvedRole, approvedUserTraitKey, approvedUserTraitVal))
-	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{rule})
+	ruleCondition := fmt.Sprintf(`
+		contains_all(set("%s"), access_request.spec.roles) &&
+		contains_any(user.traits["%s"], set("%s"))`,
+		approvedRole, approvedUserTraitKey, approvedUserTraitVal)
 
 	// Setup approved user login state
 	approvedUserLoginState, err := userloginstate.New(
@@ -500,6 +501,7 @@ func TestHandleAccessRequest(t *testing.T) {
 		description   string
 		requester     string
 		requestedRole string
+		reviewReason  string
 		setupMock     func(m *mockClient)
 		assertErr     require.ErrorAssertionFunc
 	}{
@@ -555,6 +557,7 @@ func TestHandleAccessRequest(t *testing.T) {
 					approvedUserName,
 					testRuleName,
 					types.RequestState_APPROVED.String(),
+					"",
 					time.Time{},
 				)
 				require.NoError(t, err)
@@ -566,10 +569,39 @@ func TestHandleAccessRequest(t *testing.T) {
 			},
 			assertErr: require.NoError,
 		},
+		{
+			description:   "test approved user with custom approval reason",
+			requester:     approvedUserName,
+			requestedRole: approvedRole,
+			reviewReason:  "okay sure, I guess",
+			setupMock: func(m *mockClient) {
+				m.On("GetUserLoginState", mock.Anything, approvedUserName).
+					Return(approvedUserLoginState, nil)
+
+				// Construct the review struct literally so we can validate the appropriate reason
+				// is threaded through to SubmitAccessReview.
+				expectedReview := types.AccessReview{
+					Author:        teleport.SystemAccessApproverUserName,
+					ProposedState: types.RequestState_APPROVED,
+					Reason:        "okay sure, I guess",
+					Created:       time.Time{},
+				}
+
+				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+					RequestID: testReqID,
+					Review:    expectedReview,
+				}).Return(mock.Anything, nil)
+			},
+			assertErr: require.NoError,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
+			cache := accessmonitoring.NewCache()
+			rule := newApprovedRule(testRuleName, ruleCondition, test.reviewReason)
+			cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{rule})
+
 			client := &mockClient{}
 			if test.setupMock != nil {
 				test.setupMock(client)
@@ -595,30 +627,64 @@ func TestHandleAccessRequest(t *testing.T) {
 	}
 }
 
-func newApprovedRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return newReviewRule(name, condition, types.RequestState_APPROVED.String())
-}
-
-func newDeniedRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return newReviewRule(name, condition, types.RequestState_DENIED.String())
-}
-
-func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind: types.KindAccessMonitoringRule,
-		Metadata: &headerv1.Metadata{
-			Name: name,
+func TestNewAccessReviewReason(t *testing.T) {
+	tests := []struct {
+		description          string
+		configuredReason     string
+		expectedReviewReason string
+	}{
+		{
+			description:          "review with default reason",
+			configuredReason:     "",
+			expectedReviewReason: `Access request has been automatically approved by "@teleport-access-approval-bot". User "user" is approved by access_monitoring_rule "rule-name".`,
 		},
-		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+		{
+			description:          "review with configured reason",
+			configuredReason:     "i approve this request",
+			expectedReviewReason: "i approve this request",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			review, err := newAccessReview(
+				"user",
+				"rule-name",
+				types.RequestState_APPROVED.String(),
+				test.configuredReason,
+				time.Time{},
+			)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedReviewReason, review.Reason)
+		})
+	}
+}
+
+func newApprovedRule(name, condition, reason string) *accessmonitoringrulesv1.AccessMonitoringRule {
+	return newReviewRule(name, condition, types.RequestState_APPROVED.String(), reason)
+}
+
+func newDeniedRule(name, condition, reason string) *accessmonitoringrulesv1.AccessMonitoringRule {
+	return newReviewRule(name, condition, types.RequestState_DENIED.String(), reason)
+}
+
+func newReviewRule(name, condition, decision, reason string) *accessmonitoringrulesv1.AccessMonitoringRule {
+	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
+		Kind: types.KindAccessMonitoringRule,
+		Metadata: headerv1.Metadata_builder{
+			Name: name,
+		}.Build(),
+		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 			Subjects:     []string{types.KindAccessRequest},
 			Condition:    condition,
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
-			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+			AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 				Integration: handlerName,
 				Decision:    decision,
-			},
-		},
-	}
+				Reason:      reason,
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // mockClient is a mock implementation of the Teleport API client.
@@ -641,7 +707,7 @@ func (m *mockClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, re
 	error,
 ) {
 	// Expect zero value page size for testing.
-	req.PageSize = 0
+	req.SetPageSize(0)
 
 	args := m.Called(ctx, req)
 	rules, ok := args.Get(0).([]*accessmonitoringrulesv1.AccessMonitoringRule)

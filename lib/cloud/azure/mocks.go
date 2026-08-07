@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
@@ -538,16 +539,53 @@ func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcomput
 	}, m.GetErr
 }
 
-// ARMComputeScaleSetMock mocks armcompute.VirtualMachineScaleSetVMsClient.
-type ARMScaleSetMock struct {
+// ARMScaleSetVMsMock mocks armcompute.VirtualMachineScaleSetVMsClient.
+type ARMScaleSetVMsMock struct {
 	GetResult armcompute.VirtualMachineScaleSetVM
 	GetErr    error
+	ListErr   error
 }
 
-func (m *ARMScaleSetMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
+func (m *ARMScaleSetVMsMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
 	return armcompute.VirtualMachineScaleSetVMsClientGetResponse{
 		VirtualMachineScaleSetVM: m.GetResult,
 	}, m.GetErr
+}
+
+func (m *ARMScaleSetVMsMock) NewListPager(resourceGroupName string, virtualMachineScaleSetName string, options *armcompute.VirtualMachineScaleSetVMsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetVMsClientListResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetVMsClientListResponse, error) {
+		return armcompute.VirtualMachineScaleSetVMsClientListResponse{
+			VirtualMachineScaleSetVMListResult: armcompute.VirtualMachineScaleSetVMListResult{
+				Value: []*armcompute.VirtualMachineScaleSetVM{&m.GetResult},
+			},
+		}, m.ListErr
+	})
+}
+
+// ARMScaleSetsMock mocks armcompute.VirtualMachineScaleSetsClient.
+type ARMScaleSetsMock struct {
+	ScaleSetRecords []*armcompute.VirtualMachineScaleSet
+	ListErr         error
+}
+
+func (m *ARMScaleSetsMock) NewListPager(resourceGroupName string, options *armcompute.VirtualMachineScaleSetsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetsClientListResponse, error) {
+		return armcompute.VirtualMachineScaleSetsClientListResponse{
+			VirtualMachineScaleSetListResult: armcompute.VirtualMachineScaleSetListResult{
+				Value: m.ScaleSetRecords,
+			},
+		}, m.ListErr
+	})
+}
+
+func (m *ARMScaleSetsMock) NewListAllPager(options *armcompute.VirtualMachineScaleSetsClientListAllOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListAllResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetsClientListAllResponse, error) {
+		return armcompute.VirtualMachineScaleSetsClientListAllResponse{
+			VirtualMachineScaleSetListWithLinkResult: armcompute.VirtualMachineScaleSetListWithLinkResult{
+				Value: m.ScaleSetRecords,
+			},
+		}, m.ListErr
+	})
 }
 
 // ARMSQLServerMock mocks armSQLServerClient
@@ -725,4 +763,59 @@ func NewUserAssignedIdentity(subscription, resourceGroupName, resourceName, clie
 			ClientID: &clientID,
 		},
 	}
+}
+
+// ARMNetworkMock mocks armnetwork.InterfacesClient.
+type ARMNetworkMock struct {
+	// NetworkInterfaces maps resource group name to the standalone NICs in it.
+	NetworkInterfaces map[string][]*armnetwork.Interface
+	// VMSSNetworkInterfaces maps "<resourceGroup>/<scaleSetName>" to the NICs
+	// of that uniform scale set.
+	VMSSNetworkInterfaces map[string][]*armnetwork.Interface
+	// VMSSListErrs maps scale set names to an error returned when listing
+	// that scale set's NICs.
+	VMSSListErrs map[string]error
+	// NoAuth indicates that the mock should return an access denied error
+	// for all requests.
+	NoAuth bool
+}
+
+// Fail if ARMNetworkMock does not implement networkInterfacesLister.
+var _ networkInterfacesLister = (*ARMNetworkMock)(nil)
+
+func (m *ARMNetworkMock) NewListPager(resourceGroup string, _ *armnetwork.InterfacesClientListOptions) *runtime.Pager[armnetwork.InterfacesClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armnetwork.InterfacesClientListResponse, error) {
+		return armnetwork.InterfacesClientListResponse{
+			InterfaceListResult: armnetwork.InterfaceListResult{
+				Value: m.NetworkInterfaces[resourceGroup],
+			},
+		}, nil
+	})
+}
+
+func (m *ARMNetworkMock) NewListAllPager(_ *armnetwork.InterfacesClientListAllOptions) *runtime.Pager[armnetwork.InterfacesClientListAllResponse] {
+	return newPagerHelper(m.NoAuth, func() (armnetwork.InterfacesClientListAllResponse, error) {
+		var allNics []*armnetwork.Interface
+		for _, nics := range m.NetworkInterfaces {
+			allNics = append(allNics, nics...)
+		}
+		return armnetwork.InterfacesClientListAllResponse{
+			InterfaceListResult: armnetwork.InterfaceListResult{
+				Value: allNics,
+			},
+		}, nil
+	})
+}
+
+func (m *ARMNetworkMock) NewListVirtualMachineScaleSetNetworkInterfacesPager(resourceGroup, scaleSetName string, _ *armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesOptions) *runtime.Pager[armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse] {
+	return newPagerHelper(m.NoAuth, func() (armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse, error) {
+		if err := m.VMSSListErrs[scaleSetName]; err != nil {
+			return armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{}, err
+		}
+		return armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{
+			InterfaceListResult: armnetwork.InterfaceListResult{
+				Value: m.VMSSNetworkInterfaces[resourceGroup+"/"+scaleSetName],
+			},
+		}, nil
+	})
 }

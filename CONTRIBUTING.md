@@ -1,7 +1,7 @@
 # Contributing A Patch
 
-If you're interesting in working on an existing issue, such as one of the
-[`good-starter-issue`](https://github.com/gravitational/teleport/issues?q=is%3Aopen+is%3Aissue+label%3Agood-starter-issue),
+If you're interested in working on an existing issue, such as one of the
+[`good-starter-issue`](https://github.com/gravitational/teleport/issues?q=is%3Aopen+is%3Aissue+label%3Agood-starter-issue)
 ones, simply respond to the issue and express interest in working on it. This
 helps other people know that the issue is active, and hopefully prevents
 duplicated efforts.

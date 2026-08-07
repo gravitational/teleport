@@ -30,9 +30,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"

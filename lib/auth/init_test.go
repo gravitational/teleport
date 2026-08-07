@@ -53,6 +53,7 @@ import (
 	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
@@ -201,7 +202,8 @@ func TestBadIdentity(t *testing.T) {
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	suiteName := func(suite types.SignatureAlgorithmSuite) string {
 		suiteName, err := suite.MarshalText()
@@ -214,15 +216,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		assert.Equal(t, suiteName(expected), suiteName(actual))
 	}
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.HSM: {Enabled: true},
-			},
-		},
-	})
-
-	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) auth.InitConfig {
+	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm, cloud bool) auth.InitConfig {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
 		if hsm {
@@ -243,6 +237,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 
 			cfg.BootstrapResources = append(cfg.BootstrapResources, ca)
 		}
+
+		cfg.Modules = &modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud: cloud,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.HSM: {Enabled: true},
+				},
+			},
+		}
+
 		return cfg
 	}
 
@@ -297,21 +301,10 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			t.Run(origin, func(t *testing.T) {
 				for desc, tc := range testCases {
 					t.Run(desc, func(t *testing.T) {
-						if tc.cloud {
-							modulestest.SetTestModules(t, modulestest.Modules{
-								TestFeatures: modules.Features{
-									Cloud: true,
-									Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-										entitlements.HSM: {Enabled: true},
-									},
-								},
-							})
-						}
-
 						// Assert that a fresh cluster with no signature_algorithm_suite
 						// configured gets the expected default suite, whether
 						// or not anything else in the cluster auth preference is set.
-						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm)
+						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm, tc.cloud)
 						auth1, err := auth.Init(ctx, cfg)
 						require.NoError(t, err)
 						t.Cleanup(func() { auth1.Close() })
@@ -378,16 +371,6 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 	t.Run("upsert", func(t *testing.T) {
 		for desc, tc := range testCases {
 			t.Run(desc, func(t *testing.T) {
-				if tc.cloud {
-					modulestest.SetTestModules(t, modulestest.Modules{
-						TestFeatures: modules.Features{
-							Cloud: true,
-							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-								entitlements.HSM: {Enabled: true},
-							},
-						},
-					})
-				}
 				cfg := authtest.AuthServerConfig{
 					Dir:  t.TempDir(),
 					FIPS: tc.fips,
@@ -396,6 +379,14 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						SecondFactor: constants.SecondFactorOn,
 						Webauthn: &types.Webauthn{
 							RPID: "teleport.example.com",
+						},
+					},
+					Modules: &modulestest.Modules{
+						TestFeatures: modules.Features{
+							Cloud: tc.cloud,
+							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+								entitlements.HSM: {Enabled: true},
+							},
 						},
 					},
 				}
@@ -964,7 +955,9 @@ func TestInitCertFailureRecovery(t *testing.T) {
 
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+
+	ctx := t.Context()
 
 	presetRoleNames := []string{
 		teleport.PresetEditorRoleName,
@@ -973,18 +966,20 @@ func TestPresets(t *testing.T) {
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
+		teleport.PresetAccessPluginWithReviewRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
 		teleport.PresetMCPUserRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+		as := newTestAuthServer(ctx, t, testModules)
 
-		err := auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err := auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -996,14 +991,16 @@ func TestPresets(t *testing.T) {
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+
+		as := newTestAuthServer(ctx, t, testModules)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
 		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -1019,7 +1016,9 @@ func TestPresets(t *testing.T) {
 
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+
+		as := newTestAuthServer(ctx, t, testModules)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1044,7 +1043,7 @@ func TestPresets(t *testing.T) {
 		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1069,7 +1068,8 @@ func TestPresets(t *testing.T) {
 	// Don't set a default allow rule if the resource is present in the role.
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+		as := newTestAuthServer(ctx, t, testModules)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1106,7 +1106,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1285,9 +1285,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-		})
+		testModules := modulestest.EnterpriseModules()
 
 		enterprisePresetRoleNames := append([]string{
 			teleport.PresetGroupAccessRoleName,
@@ -1297,29 +1295,32 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
 			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
+			teleport.PresetBeamUserRoleName,
+			teleport.PresetBeamAdminRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
 			teleport.SystemIdentityCenterAccessRoleName,
+			teleport.SystemBeamRoleName,
 		}
 
 		enterpriseUsers := []types.User{
-			services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
+			services.NewSystemAutomaticAccessBotUser(testModules.BuildType()),
 		}
 
 		t.Run("EmptyCluster", func(t *testing.T) {
-			as := newTestAuthServer(ctx, t)
+			as := newTestAuthServer(ctx, t, testModules)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
 			for range 2 {
-				err := auth.CreatePresetRoles(ctx, modules.BuildEnterprise, as)
+				err := auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 				require.NoError(t, err)
 
-				err = auth.CreatePresetUsers(ctx, modules.BuildEnterprise, as)
+				err = auth.CreatePresetUsers(ctx, testModules.BuildType(), as)
 				require.NoError(t, err)
 			}
 
@@ -1337,12 +1338,12 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, modules.BuildEnterprise, enterprisePresetRoleNames, enterpriseSystemRoleNames)
+			upsertRoleTest(t, testModules.BuildType(), enterprisePresetRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
-			ctx := context.Background()
-			sysUser := services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise).(*types.UserV2)
+			ctx := t.Context()
+			sysUser := services.NewSystemAutomaticAccessBotUser(testModules.BuildType()).(*types.UserV2)
 
 			// GIVEN a user database...
 			manager := newMockUserManager(t)
@@ -1364,7 +1365,7 @@ func TestPresets(t *testing.T) {
 				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
-			err := auth.CreatePresetUsers(ctx, modules.BuildEnterprise, manager)
+			err := auth.CreatePresetUsers(ctx, testModules.BuildType(), manager)
 
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
@@ -1375,19 +1376,17 @@ func TestPresets(t *testing.T) {
 }
 
 func TestDashboardMode(t *testing.T) {
+	t.Parallel()
 
-	testModules := modulestest.Modules{
+	conf := setupConfig(t)
+	// dashboard mode is determined via cloud and recovery codes
+	conf.Modules = &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud:         false,
 			RecoveryCodes: true,
 		},
 	}
-
-	// dashboard mode is determined via cloud and recovery codes
-	modulestest.SetTestModules(t, testModules)
-
-	conf := setupConfig(t)
 	ctx := t.Context()
 	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
@@ -1401,7 +1400,7 @@ func TestDashboardMode(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that preset roles were NOT created in dashboard mode
-	presetRoles := auth.GetPresetRoles(testModules.BuildType())
+	presetRoles := auth.GetPresetRoles(conf.Modules.BuildType())
 
 	for _, role := range presetRoles {
 		_, err := authServer.GetRole(ctx, role.GetName())
@@ -1409,7 +1408,7 @@ func TestDashboardMode(t *testing.T) {
 	}
 
 	// verify preset users were NOT created in dashboard mode
-	presetUsers := auth.GetPresetUsers(testModules.BuildType())
+	presetUsers := auth.GetPresetUsers(conf.Modules.BuildType())
 
 	for _, user := range presetUsers {
 		_, err := authServer.GetUser(ctx, user.GetName(), false)
@@ -1760,7 +1759,7 @@ func TestInit_bootstrap(t *testing.T) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
-						hcc.Spec.HealthyThreshold = 9000
+						hcc.GetSpec().SetHealthyThreshold(9000)
 					}),
 				)
 			},
@@ -1908,6 +1907,48 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	badTokenYAML = `kind: token
+version: v2
+metadata:
+  name: iam-token-without-orgid-but-ous
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+   - aws_account: "123456789012"
+     aws_organizational_units:
+       include: [r-rootid]`
+	boundKeypairTokenYAML = `kind: token
+version: v2
+metadata:
+  name: bound-keypair-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: bound-keypair-demo
+  bound_keypair:
+    onboarding:
+      initial_public_key: "ssh-ed25519 AAAAtestinitialpublickey"
+    recovery:
+      limit: 1
+      mode: insecure`
+	// boundKeypairTokenNoRecoveryYAML omits spec.bound_keypair.recovery
+	// entirely; CheckAndSetDefaults must default it (limit 1) at unmarshal time,
+	// before apply-on-startup validation runs.
+	boundKeypairTokenNoRecoveryYAML = `kind: token
+version: v2
+metadata:
+  name: bound-keypair-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: bound-keypair-demo
+  bound_keypair:
+    onboarding:
+      initial_public_key: "ssh-ed25519 AAAAtestinitialpublickey"`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -1953,6 +1994,14 @@ spec:
   type: local
 version: v2
 `
+	workloadIdentityYAML = `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`
 	botYAML = `kind: bot
 metadata:
   name: my-bot
@@ -1966,10 +2015,12 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	badToken := resourceFromYAML(t, badTokenYAML).(types.ProvisionToken)
 	role := resourceFromYAML(t, roleYAML).(types.Role)
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	workloadIdentity := resourceFromYAML(t, workloadIdentityYAML)
 	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
@@ -1984,6 +2035,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "Apply invalid provision token",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, badToken)
 			},
 			assertError: require.Error,
 		},
@@ -2040,6 +2098,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name: "Apply WorkloadIdentity",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, workloadIdentity)
+			},
+			assertError: require.NoError,
+		},
+		{
 			name: "Apply Role+Bot",
 			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
@@ -2065,6 +2130,206 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			test.assertError(t, err)
 		})
 	}
+}
+
+// TestInit_ApplyOnStartup_BoundKeypair verifies that bound_keypair tokens
+// applied via --apply-on-startup have their status.bound_keypair initialized
+// (the join path rejects tokens without it), and that re-applying on a
+// subsequent auth restart preserves an already-populated status rather than
+// resetting the bot's join state.
+func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("initializes status on first apply", func(t *testing.T) {
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(types.ProvisionToken)
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.NotNil(t, stored.GetBoundKeypairStatus(),
+			"apply-on-startup must initialize status.bound_keypair, otherwise bound_keypair joins are rejected")
+	})
+
+	t.Run("applies a token with a defaulted recovery policy", func(t *testing.T) {
+		// A config that omits spec.bound_keypair.recovery must still apply:
+		// UnmarshalProvisionToken defaults recovery (limit 1) via
+		// CheckAndSetDefaults before apply-on-startup validation runs, so Init
+		// must not reject it.
+		token := resourceFromYAML(t, boundKeypairTokenNoRecoveryYAML).(*types.ProvisionTokenV2)
+		require.NotNil(t, token.Spec.BoundKeypair.Recovery,
+			"unmarshal must default recovery when the config omits it")
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, uint32(1), stored.GetBoundKeypair().Recovery.Limit,
+			"apply-on-startup must persist the defaulted recovery limit")
+	})
+
+	t.Run("discards config-supplied status on first apply", func(t *testing.T) {
+		// apply-on-startup config is spec-only and its status is untrusted. A
+		// bound_public_key supplied via config must not bind a key on creation:
+		// that would skip the join ceremony's proof-of-possession.
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		token.Status = &types.ProvisionTokenStatusV2{
+			BoundKeypair: &types.ProvisionTokenStatusV2BoundKeypair{
+				BoundPublicKey: "ssh-ed25519 AAAAconfigsuppliedkey",
+				RecoveryCount:  7,
+			},
+		}
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		status := stored.GetBoundKeypairStatus()
+		require.NotNil(t, status)
+		require.Empty(t, status.BoundPublicKey,
+			"config-supplied bound_public_key must not be persisted on first apply")
+		require.Zero(t, status.RecoveryCount,
+			"config-supplied recovery count must not be persisted on first apply")
+	})
+
+	t.Run("generates a registration secret when no onboarding credential is set", func(t *testing.T) {
+		// The Terraform onboarding flow supplies neither an initial_public_key
+		// nor an explicit registration_secret; apply-on-startup must generate
+		// the secret so the bot has a credential to join with.
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		token.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+		token.Spec.BoundKeypair.Onboarding.RegistrationSecret = ""
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.NotEmpty(t, stored.GetBoundKeypairStatus().RegistrationSecret,
+			"apply-on-startup must generate a registration secret when none is configured")
+	})
+
+	t.Run("preserves populated status on re-apply", func(t *testing.T) {
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(types.ProvisionToken)
+		tokenV2 := token.(*types.ProvisionTokenV2)
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		// Simulate a successful bound_keypair join populating the status.
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		storedV2, ok := stored.(*types.ProvisionTokenV2)
+		require.True(t, ok)
+		require.NotNil(t, storedV2.GetBoundKeypairStatus())
+		storedV2.Status.BoundKeypair.BoundPublicKey = "ssh-ed25519 AAAAboundpublickey"
+		storedV2.Status.BoundKeypair.RecoveryCount = 3
+		require.NoError(t, srv.UpsertToken(ctx, storedV2))
+
+		// Recovery policy is declarative and may change without changing the
+		// identity to which the key is bound.
+		tokenV2.Spec.BoundKeypair.Recovery.Limit = 5
+
+		// Re-running Init against the same backend re-applies the (spec-only)
+		// startup resource, mimicking an auth restart.
+		_, err = auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		reStored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		status := reStored.GetBoundKeypairStatus()
+		require.NotNil(t, status)
+		require.Equal(t, "ssh-ed25519 AAAAboundpublickey", status.BoundPublicKey,
+			"re-apply must preserve the bound public key")
+		require.Equal(t, uint32(3), status.RecoveryCount,
+			"re-apply must preserve the recovery count")
+		require.Equal(t, uint32(5), reStored.GetBoundKeypair().Recovery.Limit,
+			"re-apply must update the recovery policy")
+	})
+
+	t.Run("does not modify the registration secret on re-apply", func(t *testing.T) {
+		// Re-apply never modifies status. The stored registration secret is
+		// authoritative; editing spec.onboarding.registration_secret has no
+		// effect once the token exists.
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		token.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+		token.Spec.BoundKeypair.Onboarding.RegistrationSecret = "old-registration-secret"
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, "old-registration-secret", stored.GetBoundKeypairStatus().RegistrationSecret)
+
+		updated := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		updated.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+		updated.Spec.BoundKeypair.Onboarding.RegistrationSecret = "new-registration-secret"
+		cfg.ApplyOnStartupResources = []types.Resource{updated}
+
+		_, err = auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err = srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, "old-registration-secret", stored.GetBoundKeypairStatus().RegistrationSecret,
+			"re-apply must never modify status; the stored registration secret is authoritative")
+	})
+
+	t.Run("preserves status even when the spec identity changes", func(t *testing.T) {
+		// Re-apply never modifies status. Spec fields (including the bot) are
+		// applied freely; changing them does not unbind the key. To reset a
+		// binding, an admin must delete and recreate the token.
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		storedV2 := stored.(*types.ProvisionTokenV2)
+		storedV2.Status.BoundKeypair.BoundPublicKey = "ssh-ed25519 AAAAboundpublickey"
+		require.NoError(t, srv.UpsertToken(ctx, storedV2))
+
+		updated := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		updated.Spec.BotName = "different-bot"
+		cfg.ApplyOnStartupResources = []types.Resource{updated}
+
+		_, err = auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err = srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, "different-bot", stored.(*types.ProvisionTokenV2).Spec.BotName,
+			"spec fields are applied freely")
+		require.Equal(t, "ssh-ed25519 AAAAboundpublickey", stored.GetBoundKeypairStatus().BoundPublicKey,
+			"re-apply must preserve status; changing spec never unbinds the key")
+	})
 }
 
 func resourceFromYAML(t *testing.T, value string) types.Resource {
@@ -2444,9 +2709,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			if test.initialVersion != "" {
 				ver, err := semver.NewVersion(test.initialVersion)
 				require.NoError(t, err)
-				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
+				backendInfo, err := backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{
 					TeleportVersion: ver.String(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				_, err = service.CreateBackendInfo(ctx, backendInfo)
 				require.NoError(t, err)
@@ -2499,21 +2764,21 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	presetRule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
 	require.NotNil(t, presetRule)
 
-	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority:       100,
 		DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
-		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
-			Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+			Match: dbobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				TableNames: []string{"*"},
-			},
+			}.Build(),
 			AddLabels: map[string]string{
 				"env": "dev",
 			},
-			Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
+			Scope: dbobjectimportrulev1.DatabaseObjectImportScope_builder{
 				SchemaNames: []string{"public"},
-			},
-		}},
-	})
+			}.Build(),
+		}.Build()},
+	}.Build())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2598,6 +2863,34 @@ version: v1`
 			version, err := auth.GetAutoUpdateVersion(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+		})
+	}
+}
+
+func TestInitWithWorkloadIdentityResources(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	resources := []types.Resource{
+		resourceFromYAML(t, workloadIdentityYAML),
+	}
+
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *auth.InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *auth.InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *auth.InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := auth.Init(ctx, cfg)
+			require.NoError(t, err)
+
+			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example-workload-identity"}.Build())
+			require.NoError(t, err)
+			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})
 	}
 }

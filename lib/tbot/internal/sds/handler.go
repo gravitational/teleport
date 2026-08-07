@@ -19,7 +19,9 @@
 package sds
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"io"
@@ -39,6 +41,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -76,6 +80,7 @@ type HandlerConfig struct {
 	RenewalInterval     time.Duration
 	TrustBundleCache    BundleSetGetter
 	ClientAuthenticator ClientAuthenticator
+	TrustDomainSelector bot.TrustDomainsSelector
 }
 
 // CheckAndSetDefaults validates the HandlerConfig and sets default values.
@@ -104,6 +109,7 @@ type Handler struct {
 	renewalInterval     time.Duration
 	trustBundleCache    BundleSetGetter
 	clientAuthenticator ClientAuthenticator
+	trustDomainSelector bot.TrustDomainsSelector
 }
 
 // NewHandler creates a new SDS handler with the provided configuration.
@@ -117,6 +123,7 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 		renewalInterval:     cfg.RenewalInterval,
 		trustBundleCache:    cfg.TrustBundleCache,
 		clientAuthenticator: cfg.ClientAuthenticator,
+		trustDomainSelector: cfg.TrustDomainSelector,
 	}, nil
 }
 
@@ -473,7 +480,7 @@ func (h *Handler) generateResponse(
 	case names[EnvoyAllBundlesName]:
 		// Return all the trust bundles as part of a single validation context.
 		// We'll also override the name to match what they requested.
-		bundles := slices.Collect(maps.Values(bundleSet.Federated))
+		bundles := bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector)
 		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
 			bundles, EnvoyAllBundlesName,
@@ -486,7 +493,7 @@ func (h *Handler) generateResponse(
 	}
 
 	if returnAll {
-		for _, bundle := range bundleSet.Federated {
+		for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector) {
 			validator, err := newTLSV3ValidationContext(
 				[]*spiffebundle.Bundle{
 					bundle,
@@ -498,10 +505,10 @@ func (h *Handler) generateResponse(
 			resources = append(resources, validator)
 		}
 	} else {
-		// For any remaining names, see if they match any federated trust bundles.
-		for name := range maps.Keys(names) {
+		// For any remaining names, see if they match any non-local trust bundles.
+		for name := range names {
 			var found *spiffebundle.Bundle
-			for _, bundle := range bundleSet.Federated {
+			for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector) {
 				if name == bundle.TrustDomain().IDString() {
 					found = bundle
 					break
@@ -574,12 +581,27 @@ func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
 func newTLSV3Certificate(
 	svid *workloadpb.X509SVID, overrideResourceName string,
 ) (*anypb.Any, error) {
-	// noah: This section of code does not currently support intermediate
-	// certificates, but, we don't currently use them.
-	certBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: svid.X509Svid,
-	})
+	// The SVID bytes may contain a full certificate chain if the user has
+	// Workload Identity Issuer Overrides configured, which allow users to
+	// provide their own signing certificate (including chain). If that
+	// certificate has a chain, it will be included in the SVID bytes verbatim,
+	// so we'll need to parse it and repackage as PEM with separate blocks per
+	// cert.
+	x509Certs, err := x509.ParseCertificates(svid.X509Svid)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing X509 SVID certificate chain")
+	}
+
+	// Unlike the comparable impl in x509_output.go, there's no distinction
+	// between cert and chain, just an ordered list (cert is idx 0).
+	var certBytes bytes.Buffer
+	for _, c := range x509Certs {
+		pem.Encode(&certBytes, &pem.Block{
+			Type:  internal.PEMBlockTypeCertificate,
+			Bytes: c.Raw,
+		})
+	}
+
 	privateKeyBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: svid.X509SvidKey,
@@ -593,7 +615,7 @@ func newTLSV3Certificate(
 				CertificateChain: &corev3pb.DataSource{
 					Specifier: &corev3pb.DataSource_InlineBytes{
 						// Must be appended PEM-wrapped X509 certificates
-						InlineBytes: certBytes,
+						InlineBytes: certBytes.Bytes(),
 					},
 				},
 				PrivateKey: &corev3pb.DataSource{

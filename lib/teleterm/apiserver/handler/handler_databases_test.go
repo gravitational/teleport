@@ -53,24 +53,26 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 			AutoUserProvisioning: &clusters.AutoUserProvisioning{
 				DatabaseRoles: []string{"reader", "writer"},
 			},
+			DatabaseUsers: []string{"alice", "bob"},
 		}
 
 		apiDB := newAPIDatabase(testDatabase)
 
-		require.Equal(t, &api.Database{
+		require.Equal(t, api.Database_builder{
 			Uri:      "/clusters/test-cluster/dbs/test-db",
 			Name:     "test-db",
 			Desc:     "Test database",
 			Protocol: "postgres",
 			Type:     "self-hosted",
 			Labels: []*api.Label{
-				{Name: "env", Value: "test"},
-				{Name: "tier", Value: "backend"},
+				api.Label_builder{Name: "env", Value: "test"}.Build(),
+				api.Label_builder{Name: "tier", Value: "backend"}.Build(),
 			},
 			TargetHealth: &api.TargetHealth{},
-			AutoUserProvisioning: &api.AutoUserProvisioning{
+			AutoUserProvisioning: api.AutoUserProvisioning_builder{
 				DatabaseRoles: []string{"reader", "writer"},
-			},
-		}, apiDB)
+			}.Build(),
+			DatabaseUsers: []string{"alice", "bob"},
+		}.Build(), apiDB)
 	})
 }

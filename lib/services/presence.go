@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ProxyGetter is a service that gets proxies.
@@ -106,18 +108,11 @@ type Presence interface {
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
 
-	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(ctx context.Context, server types.Server) error
-
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
-	// DeleteProxy deletes proxy by name
-	DeleteProxy(ctx context.Context, name string) error
-
-	// DeleteAllProxies deletes all proxies
-	DeleteAllProxies() error
+	// DeleteProxyServer deletes proxy by name
+	DeleteProxyServer(ctx context.Context, name string) error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
@@ -150,7 +145,14 @@ type Presence interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-	// DeleteApplicationServer deletes specified application server.
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
+
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 	// DeleteAllApplicationServers removes all registered application servers.
 	DeleteAllApplicationServers(context.Context, string) error
@@ -170,8 +172,8 @@ type Presence interface {
 	// GetKubernetesServers returns a list of registered kubernetes servers.
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// DeleteKubernetesServer deletes a named kubernetes servers.
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+	// DeleteKubeServer deletes a named kubernetes servers.
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
 	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
 	DeleteAllKubernetesServers(context.Context) error
@@ -206,6 +208,11 @@ type PresenceInternal interface {
 	Presence
 	InventoryInternal
 
+	// UpsertProxyServer registers proxy server presence, permanently if ttl is
+	// 0 or for the specified duration with second resolution if it's >= 1
+	// second. It returns the upserted server with its revision populated.
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
+
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
 	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
@@ -217,4 +224,30 @@ type PresenceInternal interface {
 	// same host ID and name exists in storage, no matter its contents (i.e., it
 	// doesn't check the revision of the app_server in storage).
 	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
+
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
+	// AppendPutNodeActions adds conditional actions to an atomic write to create
+	// or update a node resource.
+	AppendPutNodeActions(
+		actions []backend.ConditionalAction,
+		server types.Server,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteNodeActions adds conditional actions to an atomic write to
+	// delete a node resource.
+	AppendDeleteNodeActions(
+		actions []backend.ConditionalAction,
+		namespace string,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
+
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }

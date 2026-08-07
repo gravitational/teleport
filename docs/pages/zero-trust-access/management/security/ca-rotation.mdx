@@ -5,13 +5,14 @@ tags:
  - how-to
  - platform-wide
  - resiliency
+page_type: how-to
 ---
 
 Components of a Teleport cluster authenticate to one another using either X.509
 or SSH certificates. To issue certificates, Teleport maintains several
 certificate authorities. You can rotate Teleport CAs to prevent malicious actors
-from impersonating part of your Teleport cluster. This guide explains the CAs
-that Teleport maintains and how to rotate them.
+from impersonating part of your Teleport cluster. In this guide, you will choose
+a CA to rotate and perform a rotation.
 
 We recommend becoming familiar with the entire guide before following the steps,
 as you should be ready to roll back the CA rotation if it does not proceed as
@@ -43,7 +44,7 @@ following order:
    All components will stop trusting the old CA and only trust the new CA.
 
 Before the final `standby` phase, you can also put the rotation in the
-`rollback` phase to abort the rotation return to the original certificate
+`rollback` phase to abort the rotation and return to the original certificate
 authority. After the `rollback` phase you will then proceed to the `standby`
 phase.
 
@@ -66,7 +67,7 @@ and lists any manual steps that need to be completed.
 - (!docs/pages/includes/tctl.mdx!)
 
 - Your user must have a role with permission to `create` and `update` the
-  `certificate_authority` resource.
+  `cert_authority` resource.
 
   ```yaml
   kind: role
@@ -76,7 +77,7 @@ and lists any manual steps that need to be completed.
   spec:
     allow:
       rules:
-      - resources: [ certificate_authority ]
+      - resources: [ cert_authority ]
         verbs: [ create, update ]
   ```
 
@@ -351,7 +352,7 @@ the `/.well-known/openid-configuration` path of the Web UI and reading the
 
 ```code
 $ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
-"https://example.teleport.sh/.well-known-jwks-oidc"
+"https://example.teleport.sh/.well-known/jwks-oidc"
 ```
 
 ### `spiffe`
