@@ -160,7 +160,7 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting TUN device name")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
 		clt:           vnet.client,
 		tunName:       tunName,
 		ipv6Prefix:    stackConfig.ipv6Prefix.String(),
@@ -176,10 +176,14 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 			if oc.tunName == "" {
 				return vnet.configureHost(ctx, nil)
 			}
+			cidrRanges := oc.cidrRanges
+			if oc.tunIPv6 != "" {
+				cidrRanges = append(cidrRanges, oc.tunIPv6+"/64")
+			}
 			return vnet.configureHost(ctx, &EmbeddedVNetHostConfig{
 				DeviceIPv4: oc.tunIPv4,
 				DeviceIPv6: oc.tunIPv6,
-				CIDRRanges: append(oc.cidrRanges, oc.tunIPv6+"/64"),
+				CIDRRanges: cidrRanges,
 				DNSAddrs:   oc.dnsAddrs,
 				DNSZones:   oc.dnsZones,
 			})
