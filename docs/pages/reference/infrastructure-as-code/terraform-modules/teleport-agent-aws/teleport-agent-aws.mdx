@@ -1,9 +1,44 @@
-## Teleport ECS Deployment
+---
+title: Reference for the teleport-agent-aws Terraform module
+sidebar_label: teleport-agent-aws
+description: This page describes the teleport-agent-aws Terraform module.
+page_type: reference
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
+---
 
-This module deploys a Teleport service to AWS ECS.
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit integrations/terraform-modules/teleport/agent/aws/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the input fields and output values of the teleport-agent-aws
+Terraform module.
+
+Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/agent/aws](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/agent/aws)
+
+## Teleport Agent Service Deployment on AWS ECS
+
+This module deploys a Teleport agent to AWS ECS. The agent registers one or
+more Teleport services, such as Database, Discovery, Application, or
+Kubernetes, with an existing Teleport cluster.
+
+This module does not deploy a Teleport cluster or its Auth and Proxy control
+plane. It does not provision the persistent backend and audit storage, load
+balancing, DNS, or TLS certificates required to operate a self-hosted Teleport
+cluster.
 
 ## Prerequisites
-<!-- lint ignore absolute-docs-links -->
+- An existing Teleport cluster with Auth and Proxy Services
+- A reachable Teleport Proxy Service endpoint
+- A supported join method and credentials that the agent can use to join the
+  cluster. The example creates an IAM join token using the Teleport Terraform
+  provider.
+{/* lint ignore absolute-docs-links */}
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/configuration/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
@@ -17,7 +52,7 @@ If you're having trouble, check out our [GitHub Discussions](https://github.com/
 
 For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).
 
-<!-- BEGIN_TF_DOCS -->
+{/* BEGIN_TF_DOCS */}
 ## Requirements
 
 | Name | Version |
@@ -112,9 +147,8 @@ No modules.
 | ecs\_task\_cloudwatch\_log\_group\_arn | ARN of the CloudWatch log group for the Teleport ECS task. |
 | ecs\_task\_cloudwatch\_log\_group\_name | Name of the CloudWatch log group for the Teleport ECS task. |
 | ecs\_task\_definition\_arn | ARN of the Teleport ECS task definition. |
-| ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport agent ECS task. |
-| ecs\_task\_role\_name | The name of the task IAM role for the Teleport agent ECS task. |
-| security\_group\_id | Security group ID created for the Teleport agent ECS service. |
-| teleport\_config | Teleport configuration used by the ECS task. |
+| ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport ECS task. |
+| ecs\_task\_role\_name | The name of the task IAM role for the Teleport ECS task. |
+| security\_group\_id | Security group ID created for the Teleport ECS service. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
-<!-- END_TF_DOCS -->
+{/* END_TF_DOCS */}
