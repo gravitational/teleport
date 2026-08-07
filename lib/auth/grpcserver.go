@@ -3884,11 +3884,11 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 
 // GetClusterAuditConfig gets cluster audit configuration.
 func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterAuditConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	auditConfig, err := auth.ServerWithRoles.GetClusterAuditConfig(ctx)
+	auditConfig, err := auth.ScopedServerWithRoles.GetClusterAuditConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4171,7 +4171,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 
 // GetLock retrieves a lock by name.
 func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*types.LockV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4188,7 +4188,7 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) (*authpb.GetLocksResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4217,7 +4217,7 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) 
 
 // ListLocks returns a page of locks matching a filter
 func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest) (*authpb.ListLocksResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
