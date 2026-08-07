@@ -137,6 +137,7 @@ type webSuiteOptions struct {
 	enableAuthCache             bool
 	beamsComputeClient          beamservicev1.BeamsOrchestratorServiceClient
 	clusterEntitlements         map[string]*proto.EntitlementInfo
+	handlerOpts                 []web.HandlerOption
 }
 
 func withBeamsComputeClient(c beamservicev1.BeamsOrchestratorServiceClient) webSuiteOption {
@@ -198,6 +199,12 @@ func withModules(m *modulestest.Modules) webSuiteOption {
 func withWebPackAuthCacheEnabled(enable bool) webSuiteOption {
 	return func(o *webSuiteOptions) {
 		o.enableAuthCache = enable
+	}
+}
+
+func withHandlerOption(opt web.HandlerOption) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.handlerOpts = append(o.handlerOpts, opt)
 	}
 }
 
@@ -341,6 +348,12 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	}
 	maps.Copy(clusterFeatures.Entitlements, options.clusterEntitlements)
 
+	handlerOptions := []web.HandlerOption{
+		web.SetClock(s.clock),
+	}
+
+	handlerOptions = append(handlerOptions, options.handlerOpts...)
+
 	handler, err := web.NewHandler(web.Config{
 		Proxy: &stubTunnel{
 			cluster: &mockCluster{name: "localhost"},
@@ -362,7 +375,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		Modules:               options.modules,
 		ClusterFeatures:       clusterFeatures,
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
-	}, web.SetClock(s.clock))
+	}, handlerOptions...)
 	require.NoError(t, err)
 
 	s.webServer.Config.Handler = handler

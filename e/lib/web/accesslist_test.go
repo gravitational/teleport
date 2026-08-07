@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 var (
@@ -115,6 +117,8 @@ func TestGetAccessLists(t *testing.T) {
 // TestAccessListsAdjustPageSize verifies that all access-list listing endpoints
 // retry with a smaller page size when their initial gRPC response is too large.
 func TestAccessListsAdjustPageSize(t *testing.T) {
+	t.Parallel()
+
 	s := newWebSuite(t,
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
 		withModules(&modulestest.Modules{
@@ -124,6 +128,15 @@ func TestAccessListsAdjustPageSize(t *testing.T) {
 				},
 			},
 		}),
+		// Use a low gRPC receive message size limit (4 KiB) so we can more easily simulate
+		// messages exceeding the limit without using excessive memory.
+		withHandlerOption(
+			web.WithWebSessionRootClientDialOption(
+				grpc.WithDefaultCallOptions(
+					grpc.MaxCallRecvMsgSize(4*1024),
+				),
+			),
+		),
 	)
 
 	authClient := s.newAdminAuthClient(t.Context(), t)
@@ -143,10 +156,6 @@ func TestAccessListsAdjustPageSize(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Do not call t.Parallel: the gRPC client receive limit is configured through
-	// a process-wide environment variable. Set it after setup so it affects the
-	// web session's client, without constraining setup RPCs.
-	t.Setenv("TELEPORT_UNSTABLE_GRPC_RECV_SIZE", "4kb")
 	webPack := s.newAuthWebPack(t, "foo")
 
 	t.Run("v1/legacy list accesslists endpoint", func(t *testing.T) {
