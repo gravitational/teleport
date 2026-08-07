@@ -1936,7 +1936,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.NoError(t, err)
 	certIdentity, err := tlsca.FromSubject(parsedCert.Subject, parsedCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, "bot-++test+test-scoped", certIdentity.Username)
+	require.Equal(t, "bot-300101746573740000-test-scoped", certIdentity.Username)
 
 	// The BotInstance should have the scope set. A bot is identified by
 	// (scope, name), so the read must declare the bot's scope to address the
@@ -1971,7 +1971,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 				BotInstanceID: firstInstance,
 				TokenName:     scopedToken.GetMetadata().GetName(),
 				Method:        scopedToken.GetSpec().GetJoinMethod(),
-				UserName:      "bot-++test+test-scoped",
+				UserName:      "bot-300101746573740000-test-scoped",
 				BotName:       sqn.Name,
 				Scope:         sqn.Scope,
 			},
