@@ -495,30 +495,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	loginRule = payload{
-		Name:                  "LoginRule",
-		TypeName:              "LoginRule",
-		VarName:               "loginRule",
-		GetMethod:             "GetLoginRule",
-		CreateMethod:          "UpsertLoginRule",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertLoginRule",
-		DeleteMethod:          "DeleteLoginRule",
-		ID:                    "loginRule.Metadata.Name",
-		Kind:                  "login_rule",
-		HasStaticID:           true,
-		ProtoPackage:          "loginrulev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1",
-		IsPlainStruct:         true,
-		TerraformResourceType: "teleport_login_rule",
-		// The default implementation of ModifyPlan expects that the `spec` field
-		// is present within the resource. `login_rule` does not contain a `spec`
-		// field and results in a panic.
-		WithoutModifyPlan: true,
-	}
-
 	deviceTrust = payload{
 		Name:                  "DeviceV1",
 		VarName:               "trustedDevice",
@@ -1133,8 +1109,6 @@ func genTFSchema() {
 	generateDataSource(uiConfig, singularDataSource)
 	generateResource(user, pluralResource)
 	generateDataSource(user, pluralDataSource)
-	generateResource(loginRule, pluralResource)
-	generateDataSource(loginRule, pluralDataSource)
 	generateResource(deviceTrust, pluralResource)
 	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(oktaImportRule, pluralResource)
