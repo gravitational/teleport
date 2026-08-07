@@ -238,6 +238,33 @@ func TestTshConfigMerge(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "preferred MCP client set only in /etc/tsh.yaml applies",
+			config1: &TSHConfig{MCP: MCPConfig{PreferredClient: "Acme Gateway"}},
+			config2: nil,
+			want: TSHConfig{
+				Aliases: map[string]string{},
+				MCP:     MCPConfig{PreferredClient: "Acme Gateway"},
+			},
+		},
+		{
+			name:    "preferred MCP client in the user config overrides /etc/tsh.yaml",
+			config1: &TSHConfig{MCP: MCPConfig{PreferredClient: "Acme Gateway"}},
+			config2: &TSHConfig{MCP: MCPConfig{PreferredClient: "Acme Gateway v2"}},
+			want: TSHConfig{
+				Aliases: map[string]string{},
+				MCP:     MCPConfig{PreferredClient: "Acme Gateway v2"},
+			},
+		},
+		{
+			name:    "user config without a preferred MCP client keeps the /etc/tsh.yaml one",
+			config1: &TSHConfig{MCP: MCPConfig{PreferredClient: "Acme Gateway"}},
+			config2: &TSHConfig{Aliases: map[string]string{"foo": "foo1"}},
+			want: TSHConfig{
+				Aliases: map[string]string{"foo": "foo1"},
+				MCP:     MCPConfig{PreferredClient: "Acme Gateway"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

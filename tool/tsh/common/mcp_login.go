@@ -19,6 +19,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -38,10 +39,22 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+// defaultMCPOAuthClientName identifies tsh to an MCP server's OAuth provider
+// during dynamic client registration. tsh registers under its own name: it is
+// tsh that holds the loopback redirect URI, stores the token, and refreshes it,
+// and a single stored token is shared by every MCP client that connects
+// through it, so no single client's name would describe the credential holder.
+const defaultMCPOAuthClientName = "Teleport tsh"
+
+// mcpOAuthClientURI is sent as "client_uri" during registration so providers
+// can identify the software behind a dynamically registered client.
+const mcpOAuthClientURI = "https://goteleport.com"
+
 type mcpLoginCommand struct {
 	*kingpin.CmdClause
 	cf           *CLIConf
 	clientID     string
+	clientName   string
 	promptSecret bool
 	callbackPort uint16
 	scopes       []string
@@ -57,6 +70,9 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 		StringVar(&cmd.clientID)
 	cmd.Flag("client-secret", "Prompt for the OAuth client secret of a pre-registered confidential client.").
 		BoolVar(&cmd.promptSecret)
+	cmd.Flag("client-name", fmt.Sprintf("Client name to send during dynamic client registration. Defaults to the mcp.preferred_client tsh config setting, or %q.", defaultMCPOAuthClientName)).
+		Hidden().
+		StringVar(&cmd.clientName)
 	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
 		Uint16Var(&cmd.callbackPort)
 	cmd.Flag("scope", "OAuth scope to request. This flag can be specified multiple times.").
@@ -111,6 +127,7 @@ func (c *mcpLoginCommand) run() error {
 	oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
+		ClientURI:    mcpOAuthClientURI,
 		RedirectURI:  redirectURI,
 		Scopes:       c.scopes,
 		PKCEEnabled:  true,
@@ -124,9 +141,10 @@ func (c *mcpLoginCommand) run() error {
 	oauthHandler.SetBaseURL(oauthBaseURL)
 
 	if clientID == "" {
-		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
-		if err := oauthHandler.RegisterClient(ctx, "Teleport tsh"); err != nil {
-			return trace.Wrap(err)
+		clientName := resolveMCPOAuthClientName(c.clientName, c.cf.TSHConfig.MCP.PreferredClient)
+		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client %q for MCP server %q...\n", clientName, c.cf.AppSQN.Name)
+		if err := oauthHandler.RegisterClient(ctx, clientName); err != nil {
+			return wrapMCPClientRegistrationError(err, c.cf.AppSQN.Name)
 		}
 	} else {
 		fmt.Fprintf(c.cf.Stdout(), "Using pre-registered OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
@@ -194,6 +212,67 @@ func (c *mcpLoginCommand) run() error {
 	fmt.Fprintf(c.cf.Stdout(), "Authorization complete. Tokens stored in %v.\n", credsPath)
 	fmt.Fprintf(c.cf.Stdout(), "MCP server %q is ready — restart your MCP clients if already running.\n", c.cf.AppSQN.Name)
 	return nil
+}
+
+// resolveMCPOAuthClientName picks the client name to send during dynamic
+// client registration: the --client-name flag, then the mcp.preferred_client
+// tsh config setting, then tsh's own name.
+func resolveMCPOAuthClientName(flagValue, preferredClient string) string {
+	if name := strings.TrimSpace(flagValue); name != "" {
+		return name
+	}
+	if name := strings.TrimSpace(preferredClient); name != "" {
+		return name
+	}
+	return defaultMCPOAuthClientName
+}
+
+// wrapMCPClientRegistrationError adds instructions for using a pre-registered
+// OAuth client when dynamic client registration is not an option: either the
+// provider does not offer it at all, or it offers it but refused this client.
+func wrapMCPClientRegistrationError(err error, appName string) error {
+	switch {
+	case err == nil:
+		return nil
+
+	// Matched by the error string mcp-go returns when the authorization
+	// server metadata has no registration_endpoint.
+	case strings.Contains(err.Error(), "does not support dynamic client registration"):
+		return trace.Wrap(err, `The MCP server's OAuth provider does not support dynamic client registration.
+Register an OAuth client with the provider (or use a public client ID the
+provider already publishes), then retry with the pre-registered client:
+
+  tsh mcp login %s --client-id <client-id> --callback-port <port>
+
+Set --callback-port so the redirect URI matches one registered for that client,
+and add --client-secret if the client is confidential.`, appName)
+
+	case isMCPClientRegistrationRejected(err):
+		return trace.Wrap(err, `The MCP server's OAuth provider rejected the client registration. Some
+providers only let an approved set of MCP clients register, so registration
+fails even though the provider supports it.
+
+Ask the provider to approve Teleport, or to issue a client ID you can use
+directly:
+
+  tsh mcp login %s --client-id <client-id> --callback-port <port>
+
+Set --callback-port so the redirect URI matches one registered for that client,
+and add --client-secret if the client is confidential.`, appName)
+	}
+	return trace.Wrap(err)
+}
+
+// isMCPClientRegistrationRejected reports whether the authorization server
+// answered the registration request with a refusal, as opposed to failing to
+// process it. mcp-go turns an OAuth error body into transport.OAuthError and
+// anything else into a message carrying the raw status code.
+func isMCPClientRegistrationRejected(err error) bool {
+	if _, ok := errors.AsType[mcpclienttransport.OAuthError](err); ok {
+		return true
+	}
+	return strings.Contains(err.Error(), "with status 401") ||
+		strings.Contains(err.Error(), "with status 403")
 }
 
 func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
