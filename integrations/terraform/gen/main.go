@@ -458,23 +458,6 @@ var (
 		TerraformResourceType: "teleport_trusted_device",
 	}
 
-	oktaImportRule = payload{
-		Name:                   "OktaImportRule",
-		TypeName:               "OktaImportRuleV1",
-		VarName:                "oktaImportRule",
-		IfaceName:              "OktaImportRule",
-		GetMethod:              "OktaClient().GetOktaImportRule",
-		CreateMethod:           "OktaClient().CreateOktaImportRule",
-		UpdateMethod:           "OktaClient().UpdateOktaImportRule",
-		DeleteMethod:           "OktaClient().DeleteOktaImportRule",
-		UpsertMethodArity:      2,
-		ID:                     "oktaImportRule.Metadata.Name",
-		Kind:                   "okta_import_rule",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_okta_import_rule",
-		HasCheckAndSetDefaults: true,
-	}
-
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -1006,8 +989,6 @@ func genTFSchema() {
 	generateDataSource(loginRule, pluralDataSource)
 	generateResource(deviceTrust, pluralResource)
 	generateDataSource(deviceTrust, pluralDataSource)
-	generateResource(oktaImportRule, pluralResource)
-	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(accessMonitoringRule, pluralResource)
