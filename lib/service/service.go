@@ -739,12 +739,12 @@ type TeleportProcess struct {
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
-	// auditQueueStatsMu guards auditQueueStats.
-	auditQueueStatsMu sync.Mutex
-	// auditQueueStats holds an audit-queue depth getter per emitter the process
-	// has created, keyed by the emitter pointer. AuditQueueStatus sums across
-	// them so the instance heartbeat reports the process total.
-	auditQueueStats map[auditQueueStatsGetter]struct{}
+	// emittersMu guards emitters.
+	emittersMu sync.Mutex
+	// emitters holds the audit emitters the process has created, keyed by the
+	// emitter pointer. AuditQueueStatus sums their queue depths so the instance
+	// heartbeat reports the process total.
+	emitters map[processEmitter]struct{}
 
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
@@ -3525,51 +3525,53 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.registerAuditQueueStats(emitter)
+	process.registerEmitter(emitter)
 	return emitter, nil
 }
 
-type auditQueueStatsGetter interface {
+type processEmitter interface {
 	Stats(ctx context.Context) (auditqueue.Stats, error)
+	Shutdown(context.Context) error
+	Close() error
 }
 
-func (process *TeleportProcess) registerAuditQueueStats(emitter auditQueueStatsGetter) {
-	process.auditQueueStatsMu.Lock()
-	defer process.auditQueueStatsMu.Unlock()
-	if process.auditQueueStats == nil {
-		process.auditQueueStats = make(map[auditQueueStatsGetter]struct{})
+func (process *TeleportProcess) registerEmitter(emitter processEmitter) {
+	process.emittersMu.Lock()
+	defer process.emittersMu.Unlock()
+	if process.emitters == nil {
+		process.emitters = make(map[processEmitter]struct{})
 	}
-	process.auditQueueStats[emitter] = struct{}{}
+	process.emitters[emitter] = struct{}{}
 }
 
-func (process *TeleportProcess) unregisterAuditQueueStats(emitter auditQueueStatsGetter) {
-	process.auditQueueStatsMu.Lock()
-	defer process.auditQueueStatsMu.Unlock()
-	delete(process.auditQueueStats, emitter)
+func (process *TeleportProcess) unregisterEmitter(emitter processEmitter) {
+	process.emittersMu.Lock()
+	defer process.emittersMu.Unlock()
+	delete(process.emitters, emitter)
 }
 
-func (process *TeleportProcess) auditStatGetters() []auditQueueStatsGetter {
-	process.auditQueueStatsMu.Lock()
-	defer process.auditQueueStatsMu.Unlock()
+func (process *TeleportProcess) registeredEmitters() []processEmitter {
+	process.emittersMu.Lock()
+	defer process.emittersMu.Unlock()
 
-	getters := make([]auditQueueStatsGetter, 0, len(process.auditQueueStats))
-	for g := range process.auditQueueStats {
-		getters = append(getters, g)
+	emitters := make([]processEmitter, 0, len(process.emitters))
+	for e := range process.emitters {
+		emitters = append(emitters, e)
 	}
 
-	return getters
+	return emitters
 }
 
 func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.AuditQueueStatus {
-	getters := process.auditStatGetters()
+	emitters := process.registeredEmitters()
 
-	if len(getters) == 0 {
+	if len(emitters) == 0 {
 		return nil
 	}
 	now := time.Now()
 	var status types.AuditQueueStatus
-	for _, g := range getters {
-		stats, err := g.Stats(ctx)
+	for _, e := range emitters {
+		stats, err := e.Stats(ctx)
 		if err != nil {
 			process.logger.DebugContext(ctx, "Failed to read audit queue stats for heartbeat.", "error", err)
 			continue
@@ -3602,7 +3604,7 @@ func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.registerAuditQueueStats(emitter)
+	process.registerEmitter(emitter)
 	return emitter, nil
 }
 
@@ -7373,20 +7375,13 @@ func (process *TeleportProcess) initApps() {
 	})
 }
 
-// drainableEmitter is an audit emitter whose queue can be drained on shutdown.
-type drainableEmitter interface {
-	auditQueueStatsGetter
-	Shutdown(context.Context) error
-	Close() error
-}
-
 const emitterDrainTimeout = time.Hour
 
 // shutdownEmitter drains the emitter's queue to the audit backend when payload
 // carries a graceful shutdown context, otherwise it closes the emitter
 // immediately.
-func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload any, logger *slog.Logger) {
-	process.unregisterAuditQueueStats(emitter)
+func shutdownEmitter(process *TeleportProcess, emitter processEmitter, payload any, logger *slog.Logger) {
+	process.unregisterEmitter(emitter)
 	if payload == nil {
 		warnOnErr(process.ExitContext(), emitter.Close(), logger)
 		return
