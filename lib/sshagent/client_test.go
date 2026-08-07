@@ -36,6 +36,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/test/bufconn"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -203,8 +204,7 @@ func synctestConcurrentServeChannelRequests(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		//nolint:forbidigo // this client is not speaking to a teleport server
-		clt := ssh.NewClient(conn, newChC, reqC)
+		clt := tracessh.NewClient(conn, newChC, reqC)
 		defer clt.Close()
 		err = sshagent.ServeChannelRequests(t.Context(), clt, func() (sshagent.Client, error) {
 			waiting.Add(1)

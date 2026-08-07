@@ -46,29 +46,3 @@ func RequestForwarding(ctx context.Context, sess *tracessh.Session, xauthEntry *
 
 	return nil
 }
-
-// ServeChannelRequests opens an X11 channel handler and starts a
-// goroutine to serve any channels received with the handler provided.
-func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler func(ctx context.Context, nch ssh.NewChannel)) error {
-	channels := clt.HandleChannelOpen(x11.ChannelRequest)
-	if channels == nil {
-		return trace.Wrap(trace.AlreadyExists("X11 forwarding channel already open"))
-	}
-
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		for {
-			select {
-			case nch := <-channels:
-				if nch == nil {
-					return
-				}
-				go handler(ctx, nch)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return nil
-}
