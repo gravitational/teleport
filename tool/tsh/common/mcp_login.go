@@ -54,7 +54,6 @@ type mcpLoginCommand struct {
 	*kingpin.CmdClause
 	cf           *CLIConf
 	clientID     string
-	clientName   string
 	promptSecret bool
 	callbackPort uint16
 	scopes       []string
@@ -70,9 +69,6 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 		StringVar(&cmd.clientID)
 	cmd.Flag("client-secret", "Prompt for the OAuth client secret of a pre-registered confidential client.").
 		BoolVar(&cmd.promptSecret)
-	cmd.Flag("client-name", fmt.Sprintf("Client name to send during dynamic client registration. Defaults to the mcp.preferred_client tsh config setting, or %q.", defaultMCPOAuthClientName)).
-		Hidden().
-		StringVar(&cmd.clientName)
 	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
 		Uint16Var(&cmd.callbackPort)
 	cmd.Flag("scope", "OAuth scope to request. This flag can be specified multiple times.").
@@ -141,9 +137,8 @@ func (c *mcpLoginCommand) run() error {
 	oauthHandler.SetBaseURL(oauthBaseURL)
 
 	if clientID == "" {
-		clientName := resolveMCPOAuthClientName(c.clientName, c.cf.TSHConfig.MCP.PreferredClient)
-		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client %q for MCP server %q...\n", clientName, c.cf.AppSQN.Name)
-		if err := oauthHandler.RegisterClient(ctx, clientName); err != nil {
+		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client %q for MCP server %q...\n", defaultMCPOAuthClientName, c.cf.AppSQN.Name)
+		if err := oauthHandler.RegisterClient(ctx, defaultMCPOAuthClientName); err != nil {
 			return wrapMCPClientRegistrationError(err, c.cf.AppSQN.Name)
 		}
 	} else {
@@ -212,19 +207,6 @@ func (c *mcpLoginCommand) run() error {
 	fmt.Fprintf(c.cf.Stdout(), "Authorization complete. Tokens stored in %v.\n", credsPath)
 	fmt.Fprintf(c.cf.Stdout(), "MCP server %q is ready — restart your MCP clients if already running.\n", c.cf.AppSQN.Name)
 	return nil
-}
-
-// resolveMCPOAuthClientName picks the client name to send during dynamic
-// client registration: the --client-name flag, then the mcp.preferred_client
-// tsh config setting, then tsh's own name.
-func resolveMCPOAuthClientName(flagValue, preferredClient string) string {
-	if name := strings.TrimSpace(flagValue); name != "" {
-		return name
-	}
-	if name := strings.TrimSpace(preferredClient); name != "" {
-		return name
-	}
-	return defaultMCPOAuthClientName
 }
 
 // wrapMCPClientRegistrationError adds instructions for using a pre-registered
