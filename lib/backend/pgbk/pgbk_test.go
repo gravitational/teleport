@@ -109,27 +109,28 @@ func TestSetupAndMigrateDynamicConcurrent(t *testing.T) {
 		fmt.Sprintf("CREATE TABLE %s (key bytea PRIMARY KEY)", migratedTable),
 	}
 
+	group, groupCtx := errgroup.WithContext(ctx)
+
 	schemasBuilder := func(*pgx.Conn) ([]string, error) {
 		if builderCalls.Add(1) == 1 {
 			close(staleMigrationReady)
 			select {
 			case <-releaseStaleMigration:
-			case <-ctx.Done():
-				return nil, ctx.Err()
+			case <-groupCtx.Done():
+				return nil, groupCtx.Err()
 			}
 		}
 		return schemas, nil
 	}
 
-	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return pgcommon.SetupAndMigrateDynamic(groupCtx, logtest.NewLogger(), pool, versionTableName, schemasBuilder)
 	})
 
 	select {
 	case <-staleMigrationReady:
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
+	case <-groupCtx.Done():
+		t.Fatal(groupCtx.Err())
 	}
 
 	committedMigration := make(chan struct{})
@@ -139,7 +140,12 @@ func TestSetupAndMigrateDynamicConcurrent(t *testing.T) {
 		return err
 	})
 
-	<-committedMigration
+	select {
+	case <-committedMigration:
+	case <-groupCtx.Done():
+		t.Fatal(groupCtx.Err())
+	}
+
 	close(releaseStaleMigration)
 
 	require.NoError(t, group.Wait())
