@@ -1283,7 +1283,8 @@ func supportedScopedWatchKind(kind string) bool {
 		types.KindAccessListReview,
 		scopedaccess.KindScopedRole,
 		scopedaccess.KindScopedRoleAssignment,
-		types.KindKubernetesCluster:
+		types.KindKubernetesCluster,
+		types.KindWorkloadIdentity:
 		return true
 	default:
 		return false

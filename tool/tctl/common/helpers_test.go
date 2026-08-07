@@ -68,7 +68,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -84,7 +84,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	return err
 }
 
-func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runResourceCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
 		Stdout: &stdoutBuff,
