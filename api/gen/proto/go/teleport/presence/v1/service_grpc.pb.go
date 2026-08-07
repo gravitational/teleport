@@ -54,6 +54,9 @@ const (
 	PresenceService_DeleteKubeCluster_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteKubeCluster"
 	PresenceService_DeleteKubeServer_FullMethodName    = "/teleport.presence.v1.PresenceService/DeleteKubeServer"
 	PresenceService_DeleteAppServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteAppServer"
+	PresenceService_GetSSHServer_FullMethodName        = "/teleport.presence.v1.PresenceService/GetSSHServer"
+	PresenceService_ListSSHServers_FullMethodName      = "/teleport.presence.v1.PresenceService/ListSSHServers"
+	PresenceService_DeleteSSHServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteSSHServer"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -92,7 +95,7 @@ type PresenceServiceClient interface {
 	DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*DeleteProxyServerResponse, error)
 	// Fetches a kube cluster resource from the backend.
 	GetKubeCluster(ctx context.Context, in *GetKubeClusterRequest, opts ...grpc.CallOption) (*GetKubeClusterResponse, error)
-	// Lists kube cluster resources within the backend.
+	// Lists kube cluster resources from the backend.
 	ListKubeClusters(ctx context.Context, in *ListKubeClustersRequest, opts ...grpc.CallOption) (*ListKubeClustersResponse, error)
 	// Deletes a kube cluster resource from the backend.
 	DeleteKubeCluster(ctx context.Context, in *DeleteKubeClusterRequest, opts ...grpc.CallOption) (*DeleteKubeClusterResponse, error)
@@ -100,6 +103,12 @@ type PresenceServiceClient interface {
 	DeleteKubeServer(ctx context.Context, in *DeleteKubeServerRequest, opts ...grpc.CallOption) (*DeleteKubeServerResponse, error)
 	// Deletes a specific scoped or unscoped application server.
 	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*DeleteAppServerResponse, error)
+	// Gets a specific ssh server resource from the backend.
+	GetSSHServer(ctx context.Context, in *GetSSHServerRequest, opts ...grpc.CallOption) (*GetSSHServerResponse, error)
+	// Lists ssh servers resources from the backend.
+	ListSSHServers(ctx context.Context, in *ListSSHServersRequest, opts ...grpc.CallOption) (*ListSSHServersResponse, error)
+	// Deletes an ssh server resource from the backend.
+	DeleteSSHServer(ctx context.Context, in *DeleteSSHServerRequest, opts ...grpc.CallOption) (*DeleteSSHServerResponse, error)
 }
 
 type presenceServiceClient struct {
@@ -300,6 +309,36 @@ func (c *presenceServiceClient) DeleteAppServer(ctx context.Context, in *DeleteA
 	return out, nil
 }
 
+func (c *presenceServiceClient) GetSSHServer(ctx context.Context, in *GetSSHServerRequest, opts ...grpc.CallOption) (*GetSSHServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSSHServerResponse)
+	err := c.cc.Invoke(ctx, PresenceService_GetSSHServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) ListSSHServers(ctx context.Context, in *ListSSHServersRequest, opts ...grpc.CallOption) (*ListSSHServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSSHServersResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListSSHServers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) DeleteSSHServer(ctx context.Context, in *DeleteSSHServerRequest, opts ...grpc.CallOption) (*DeleteSSHServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteSSHServerResponse)
+	err := c.cc.Invoke(ctx, PresenceService_DeleteSSHServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
 // for forward compatibility.
@@ -336,7 +375,7 @@ type PresenceServiceServer interface {
 	DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*DeleteProxyServerResponse, error)
 	// Fetches a kube cluster resource from the backend.
 	GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error)
-	// Lists kube cluster resources within the backend.
+	// Lists kube cluster resources from the backend.
 	ListKubeClusters(context.Context, *ListKubeClustersRequest) (*ListKubeClustersResponse, error)
 	// Deletes a kube cluster resource from the backend.
 	DeleteKubeCluster(context.Context, *DeleteKubeClusterRequest) (*DeleteKubeClusterResponse, error)
@@ -344,6 +383,12 @@ type PresenceServiceServer interface {
 	DeleteKubeServer(context.Context, *DeleteKubeServerRequest) (*DeleteKubeServerResponse, error)
 	// Deletes a specific scoped or unscoped application server.
 	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error)
+	// Gets a specific ssh server resource from the backend.
+	GetSSHServer(context.Context, *GetSSHServerRequest) (*GetSSHServerResponse, error)
+	// Lists ssh servers resources from the backend.
+	ListSSHServers(context.Context, *ListSSHServersRequest) (*ListSSHServersResponse, error)
+	// Deletes an ssh server resource from the backend.
+	DeleteSSHServer(context.Context, *DeleteSSHServerRequest) (*DeleteSSHServerResponse, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -410,6 +455,15 @@ func (UnimplementedPresenceServiceServer) DeleteKubeServer(context.Context, *Del
 }
 func (UnimplementedPresenceServiceServer) DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteAppServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) GetSSHServer(context.Context, *GetSSHServerRequest) (*GetSSHServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSSHServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListSSHServers(context.Context, *ListSSHServersRequest) (*ListSSHServersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSSHServers not implemented")
+}
+func (UnimplementedPresenceServiceServer) DeleteSSHServer(context.Context, *DeleteSSHServerRequest) (*DeleteSSHServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteSSHServer not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -774,6 +828,60 @@ func _PresenceService_DeleteAppServer_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_GetSSHServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSSHServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).GetSSHServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_GetSSHServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).GetSSHServer(ctx, req.(*GetSSHServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_ListSSHServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSSHServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListSSHServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListSSHServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListSSHServers(ctx, req.(*ListSSHServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_DeleteSSHServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSSHServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).DeleteSSHServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_DeleteSSHServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).DeleteSSHServer(ctx, req.(*DeleteSSHServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -856,6 +964,18 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAppServer",
 			Handler:    _PresenceService_DeleteAppServer_Handler,
+		},
+		{
+			MethodName: "GetSSHServer",
+			Handler:    _PresenceService_GetSSHServer_Handler,
+		},
+		{
+			MethodName: "ListSSHServers",
+			Handler:    _PresenceService_ListSSHServers_Handler,
+		},
+		{
+			MethodName: "DeleteSSHServer",
+			Handler:    _PresenceService_DeleteSSHServer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

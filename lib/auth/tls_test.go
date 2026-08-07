@@ -1801,7 +1801,7 @@ func TestServersCRUD(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
-	node, err := clt.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	node, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: srv.GetName()}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(node, srv, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
@@ -1810,7 +1810,7 @@ func TestServersCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{srv}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: srv.GetName()}.Build())
 	require.NoError(t, err)
 
 	out, err = clt.GetNodes(ctx, srv.Metadata.Namespace)
