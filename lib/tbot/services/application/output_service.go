@@ -53,6 +53,7 @@ func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.Crede
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -72,6 +73,7 @@ type OutputService struct {
 	statusReporter            readyz.Reporter
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
+	scoped                    bool
 }
 
 func (s *OutputService) String() string {
@@ -120,48 +122,17 @@ func (s *OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	identityOpts := []identity.GenerateOption{
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
-		identity.WithLogger(s.log),
+	var routedIdentity *identity.Identity
+	var err error
+
+	if s.scoped {
+		routedIdentity, err = s.routedIdentityScoped(ctx)
+	} else {
+		routedIdentity, err = s.routedIdentityUnscoped(ctx)
 	}
-	if s.cfg.DelegationSessionID != "" {
-		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
-	}
-	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer impersonatedClient.Close()
-
-	routeToApp, _, err := getRouteToApp(
-		ctx,
-		s.getBotIdentity(),
-		impersonatedClient,
-		s.cfg.AppName,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
-		identity.WithCurrentIdentityFacade(id),
-		identity.WithRouteToApp(routeToApp),
-	)...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.log.InfoContext(
-		ctx,
-		"Generated identity for app",
-		"app_name", routeToApp.Name,
-	)
 
 	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
@@ -180,6 +151,91 @@ func (s *OutputService) generate(ctx context.Context) error {
 	}
 
 	return trace.Wrap(s.render(ctx, routedIdentity, hostCAs, userCAs, databaseCAs), "rendering")
+}
+
+func (s *OutputService) routedIdentityUnscoped(ctx context.Context) (*identity.Identity, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	identityOpts := []identity.GenerateOption{
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+	if s.cfg.DelegationSessionID != "" {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer impersonatedClient.Close()
+
+	routeToApp, _, err := getRouteToApp(
+		ctx,
+		s.getBotIdentity(),
+		impersonatedClient,
+		s.cfg.AppName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
+		identity.WithCurrentIdentityFacade(id),
+		identity.WithRouteToApp(routeToApp),
+	)...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.log.InfoContext(
+		ctx,
+		"Generated identity for app",
+		"app_name", routeToApp.Name,
+	)
+
+	return routedIdentity, nil
+}
+
+func (s *OutputService) routedIdentityScoped(ctx context.Context) (*identity.Identity, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+
+	// An unrouted scoped identity, used only to look the app up under the bot's own access rights.
+	lookupID, err := s.identityGenerator.GenerateScopedFacade(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageIdentity(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating scoped facade identity")
+	}
+
+	clt, err := s.clientBuilder.Build(ctx, lookupID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	routeToApp, _, err := getRouteToApp(ctx, s.getBotIdentity(), clt, s.cfg.AppName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	routedIdentity, err := s.identityGenerator.GenerateScoped(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.log.InfoContext(
+		ctx,
+		"Generated scoped identity for app",
+		"app_name", routeToApp.Name,
+	)
+
+	return routedIdentity, nil
 }
 
 func (s *OutputService) render(
