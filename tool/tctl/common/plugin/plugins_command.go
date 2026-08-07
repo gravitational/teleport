@@ -108,7 +108,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 
-	p.cleanupCmd = pluginsCommand.Command("cleanup", "Cleans up the given plugin type.")
+	p.cleanupCmd = pluginsCommand.Command("cleanup", "Clean up the given plugin type.")
 	p.cleanupCmd.Arg("type", "The type of plugin to clean up. Only supports Okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
@@ -119,7 +119,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
-	p.install.cmd = parent.Command("install", "Install new plugin instance")
+	p.install.cmd = parent.Command("install", "Install a new plugin instance.")
 
 	p.initInstallOkta(p.install.cmd)
 	p.initInstallSCIM(p.install.cmd)
@@ -132,12 +132,12 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
 	p.delete.cmd = parent.Command("delete", "Remove a plugin instance.")
 	p.delete.cmd.
-		Arg("name", "The name of the SCIM plugin resource to delete").
+		Arg("name", "The name of the plugin resource to delete").
 		StringVar(&p.delete.name)
 }
 
 func (p *PluginsCommand) initEdit(parent *kingpin.CmdClause) {
-	p.edit.cmd = parent.Command("edit", "Edits a plugin's or an integration's settings")
+	p.edit.cmd = parent.Command("edit", "Edit a plugin's settings.")
 	p.initEditAWSIC(p.edit.cmd)
 }
 
@@ -147,13 +147,10 @@ func (p *PluginsCommand) Delete(ctx context.Context, args pluginServices) error 
 
 	req := pluginsv1.DeletePluginRequest_builder{Name: p.delete.name}.Build()
 	if _, err := args.plugins.DeletePlugin(ctx, req); err != nil {
-		if trace.IsNotFound(err) {
-			log.InfoContext(ctx, "Plugin not found")
-			return nil
-		}
 		log.ErrorContext(ctx, "Failed deleting plugin", logErrorMessage(err))
 		return trace.Wrap(err)
 	}
+	fmt.Printf("Successfully deleted plugin %q\n", p.delete.name)
 	return nil
 }
 
@@ -203,7 +200,7 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, args pluginServices) error
 }
 
 func (p *PluginsCommand) initRotateCreds(parent *kingpin.CmdClause) {
-	p.rotateCreds.cmd = parent.Command("rotate", "Rotates a plugin's credentials.")
+	p.rotateCreds.cmd = parent.Command("rotate", "Rotate a plugin's credentials.")
 
 	p.initRotateCredsAWSIC(p.rotateCreds.cmd)
 }
