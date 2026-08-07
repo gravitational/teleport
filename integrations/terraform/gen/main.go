@@ -887,36 +887,6 @@ var (
 			StateTimeoutSeconds:      15 * 60,
 		},
 	}
-	databaseObjectImportRule = payload{
-		Name:                  "DatabaseObjectImportRule",
-		TypeName:              "DatabaseObjectImportRule",
-		VarName:               "importRule",
-		GetMethod:             "DatabaseObjectImportRuleClient().GetDatabaseObjectImportRule",
-		CreateMethod:          "DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule",
-		DeleteMethod:          "DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule",
-		ID:                    "importRule.GetMetadata().GetName()",
-		Kind:                  "db_object_import_rule",
-		HasStaticID:           false,
-		ProtoPackage:          "dbobjectimportrulev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/dbobjectimportrule/v1",
-		TerraformResourceType: "teleport_db_object_import_rule",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind:          "apitypes.KindDatabaseObjectImportRule",
-		RequestWrapper: &RequestWrapper{
-			RequestResourceField:     "Rule",
-			ReturnsUnwrappedResource: true,
-			GetRequest:               "GetDatabaseObjectImportRuleRequest",
-			CreateRequest:            "CreateDatabaseObjectImportRuleRequest",
-			UpdateRequest:            "UpsertDatabaseObjectImportRuleRequest",
-			DeleteRequest:            "DeleteDatabaseObjectImportRuleRequest",
-		},
-	}
-
 	clientIPRestriction = payload{
 		Name:     "ClientIPRestriction",
 		TypeName: "ClientIPRestriction",
@@ -1040,8 +1010,6 @@ func genTFSchema() {
 	generateDataSource(retrievalModel, singularDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
-	generateResource(databaseObjectImportRule, pluralResource)
-	generateDataSource(databaseObjectImportRule, pluralDataSource)
 	generateResource(clientIPRestriction, singularResource)
 	generateDataSource(clientIPRestriction, singularDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
