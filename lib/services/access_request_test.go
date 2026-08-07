@@ -3105,6 +3105,195 @@ func TestReasonRequired(t *testing.T) {
 	}
 }
 
+// TestReasonRequiredWithNonLiteralRoles asserts that spec.allow.request.reason.mode
+// is honored when the roles it applies to are not spelled out literally, i.e. when
+// spec.allow.request.roles or spec.allow.request.search_as_roles contain a wildcard
+// or a glob.
+//
+// See https://github.com/gravitational/teleport/issues/54397.
+func TestReasonRequiredWithNonLiteralRoles(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	clusterName := "my-test-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: clusterName,
+	}
+
+	node, err := types.NewServerWithLabels("fork-node", types.KindNode, types.ServerSpecV2{}, map[string]string{
+		"cutlery": "fork",
+	})
+	require.NoError(t, err)
+	g.nodes[node.GetName()] = node
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"fork-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"cutlery": []string{"fork"},
+				},
+			},
+		},
+
+		// Requester roles allowing role requests, with reason.mode="required".
+		"glob-access-requester-with-reason": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-*"},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+		"wildcard-access-requester-with-reason": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{types.Wildcard},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+
+		// Requester roles allowing resource requests, with reason.mode="required".
+		"glob-node-requester-with-reason": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"fork-*"},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+		"wildcard-node-requester-with-reason": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{types.Wildcard},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+	}
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	testCases := []struct {
+		name               string
+		currentRoles       []string
+		requestRoles       []string
+		requestResourceIDs []types.ResourceID
+	}{
+		{
+			name:         "role request: glob in request.roles",
+			currentRoles: []string{"glob-access-requester-with-reason"},
+			requestRoles: []string{"fork-access"},
+		},
+		{
+			name:         "role request: wildcard in request.roles",
+			currentRoles: []string{"wildcard-access-requester-with-reason"},
+			requestRoles: []string{"fork-access"},
+		},
+		{
+			name:         "resource request: glob in request.search_as_roles",
+			currentRoles: []string{"glob-node-requester-with-reason"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+		},
+		{
+			name:         "resource request: wildcard in request.search_as_roles",
+			currentRoles: []string{"wildcard-node-requester-with-reason"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+		},
+	}
+
+	expectError := trace.BadParameter(`request reason must be specified (required for role "fork-access")`)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: tc.currentRoles,
+				Traits: trait.Traits{
+					"logins": []string{"abcd"},
+				},
+			})
+			require.NoError(t, err)
+			g.userStates[uls.GetName()] = uls
+
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			// A request without a reason must be rejected.
+			{
+				validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
+				require.NoError(t, err)
+
+				req, err := types.NewAccessRequestWithResources(
+					"some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
+				require.NoError(t, err)
+
+				require.ErrorIs(t, validator.validate(ctx, req.Copy(), identity), expectError)
+
+				// When a non-empty reason is provided then validation should pass.
+				req.SetRequestReason("good reason")
+				require.NoError(t, validator.validate(ctx, req.Copy(), identity))
+			}
+
+			// A dry run must report the reason as required, so that clients can
+			// prompt for it.
+			{
+				validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
+				require.NoError(t, err)
+
+				req, err := types.NewAccessRequestWithResources(
+					"some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
+				require.NoError(t, err)
+				req.SetDryRun(true)
+
+				require.NoError(t, validator.validate(ctx, req, identity))
+				require.Equal(t, types.RequestReasonModeRequired, req.GetDryRunEnrichment().ReasonMode)
+			}
+
+			// CalculateAccessCapabilities must also report the reason as required.
+			{
+				capsReq := types.AccessCapabilitiesRequest{
+					User:             uls.GetName(),
+					ResourceIDs:      tc.requestResourceIDs,
+					RequestableRoles: len(tc.requestResourceIDs) == 0,
+				}
+
+				caps, err := CalculateAccessCapabilities(ctx, clock, g, identity, capsReq)
+				require.NoError(t, err)
+				require.True(t, caps.RequireReason)
+			}
+		})
+	}
+}
+
 type mockClusterGetter struct {
 	localCluster   types.ClusterName
 	remoteClusters map[string]types.RemoteCluster
