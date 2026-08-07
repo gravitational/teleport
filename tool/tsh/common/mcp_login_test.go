@@ -20,6 +20,8 @@ package common
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -37,6 +39,136 @@ type mcpOAuthRoundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f mcpOAuthRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestWrapMCPClientRegistrationError(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, wrapMCPClientRegistrationError(nil, "databricks-sql"))
+
+	// The exact error returned by mcp-go when the authorization server
+	// metadata has no registration_endpoint.
+	dcrErr := errors.New("server does not support dynamic client registration")
+	err := wrapMCPClientRegistrationError(dcrErr, "databricks-sql")
+	require.ErrorContains(t, err, "does not support dynamic client registration")
+	require.ErrorContains(t, err, "tsh mcp login databricks-sql --client-id")
+	require.ErrorContains(t, err, "--callback-port")
+
+	otherErr := errors.New("failed to get server metadata: boom")
+	err = wrapMCPClientRegistrationError(otherErr, "databricks-sql")
+	require.ErrorContains(t, err, "boom")
+	require.NotContains(t, err.Error(), "--client-id")
+}
+
+// TestWrapMCPClientRegistrationErrorRejected covers providers that advertise a
+// registration endpoint but only allow an approved set of MCP clients to
+// register, so the POST is refused rather than failing to be processed.
+func TestWrapMCPClientRegistrationErrorRejected(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		rejected bool
+	}{
+		{
+			name: "OAuth error body",
+			// How mcp-go reports a registration response carrying an OAuth
+			// error body, whatever the status code.
+			err: fmt.Errorf("registration request failed: %w", mcpclienttransport.OAuthError{
+				ErrorCode:        "invalid_client_metadata",
+				ErrorDescription: "client_name is not allowed",
+			}),
+			rejected: true,
+		},
+		{
+			name:     "403 without an OAuth error body",
+			err:      errors.New(`registration request failed with status 403: Forbidden`),
+			rejected: true,
+		},
+		{
+			name:     "401 without an OAuth error body",
+			err:      errors.New(`registration request failed with status 401: Unauthorized`),
+			rejected: true,
+		},
+		{
+			name:     "server error is not a rejection",
+			err:      errors.New(`registration request failed with status 500: Internal Server Error`),
+			rejected: false,
+		},
+		{
+			name:     "transport failure is not a rejection",
+			err:      errors.New("failed to send registration request: connection refused"),
+			rejected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := wrapMCPClientRegistrationError(test.err, "figma")
+			// The underlying error is always preserved.
+			require.ErrorIs(t, err, test.err)
+			if !test.rejected {
+				require.NotContains(t, err.Error(), "--client-id")
+				return
+			}
+			require.ErrorContains(t, err, "rejected the client registration")
+			require.ErrorContains(t, err, "tsh mcp login figma --client-id")
+			require.ErrorContains(t, err, "--callback-port")
+		})
+	}
+}
+
+func TestResolveMCPOAuthClientName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		flag            string
+		preferredClient string
+		want            string
+	}{
+		{
+			name: "defaults to tsh",
+			want: defaultMCPOAuthClientName,
+		},
+		{
+			name:            "tsh config preferred client",
+			preferredClient: "Acme Gateway",
+			want:            "Acme Gateway",
+		},
+		{
+			name:            "flag wins over tsh config",
+			flag:            "Acme Gateway v2",
+			preferredClient: "Acme Gateway",
+			want:            "Acme Gateway v2",
+		},
+		{
+			name:            "blank flag falls back to tsh config",
+			flag:            "   ",
+			preferredClient: "Acme Gateway",
+			want:            "Acme Gateway",
+		},
+		{
+			name:            "blank tsh config falls back to tsh",
+			preferredClient: "   ",
+			want:            defaultMCPOAuthClientName,
+		},
+		{
+			name: "surrounding whitespace is trimmed",
+			flag: "  Acme Gateway  ",
+			want: "Acme Gateway",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, test.want, resolveMCPOAuthClientName(test.flag, test.preferredClient))
+		})
+	}
 }
 
 func TestMCPOAuthDiscoveryBaseURL(t *testing.T) {

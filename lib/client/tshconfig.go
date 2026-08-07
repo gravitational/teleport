@@ -49,6 +49,15 @@ type TSHConfig struct {
 	ProxyTemplates ProxyTemplates `yaml:"proxy_templates,omitempty"`
 	// Aliases are custom commands extending baseline tsh functionality.
 	Aliases map[string]string `yaml:"aliases,omitempty"`
+	// MCP holds settings for proxied MCP servers.
+	MCP MCPConfig `yaml:"mcp,omitempty"`
+}
+
+// MCPConfig holds tsh settings for proxied MCP servers.
+type MCPConfig struct {
+	// PreferredClient is the client name tsh sends when it dynamically
+	// registers an OAuth client with an MCP server's authorization provider.
+	PreferredClient string `yaml:"preferred_client,omitempty"`
 }
 
 // Check validates the tsh config.
@@ -88,6 +97,11 @@ func (config *TSHConfig) Merge(otherConfig *TSHConfig) TSHConfig {
 	newConfig.Aliases = map[string]string{}
 	maps.Copy(newConfig.Aliases, baseConfig.Aliases)
 	maps.Copy(newConfig.Aliases, otherConfig.Aliases)
+
+	newConfig.MCP = baseConfig.MCP
+	if otherConfig.MCP.PreferredClient != "" {
+		newConfig.MCP.PreferredClient = otherConfig.MCP.PreferredClient
+	}
 
 	return newConfig
 }
