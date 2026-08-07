@@ -261,22 +261,6 @@ const (
 )
 
 var (
-	authPreference = payload{
-		Name:                   "AuthPreference",
-		TypeName:               "AuthPreferenceV2",
-		VarName:                "authPreference",
-		GetMethod:              "GetAuthPreference",
-		CreateMethod:           "UpsertAuthPreference",
-		UpdateMethod:           "UpsertAuthPreference",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "ResetAuthPreference",
-		ID:                     `"auth_preference"`,
-		Kind:                   "cluster_auth_preference",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_auth_preference",
-		HasCheckAndSetDefaults: true,
-	}
-
 	clusterMaintenance = payload{
 		Name:                   "ClusterMaintenanceConfig",
 		TypeName:               "ClusterMaintenanceConfigV1",
@@ -1121,8 +1105,6 @@ func main() {
 }
 
 func genTFSchema() {
-	generateResource(authPreference, singularResource)
-	generateDataSource(authPreference, singularDataSource)
 	generateResource(clusterMaintenance, singularResource)
 	generateDataSource(clusterMaintenance, singularDataSource)
 	generateResource(clusterNetworking, singularResource)
