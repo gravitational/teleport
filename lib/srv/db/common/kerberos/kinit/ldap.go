@@ -70,9 +70,13 @@ func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adCo
 		return nil, trace.BadParameter("missing KDC host name / LDAP address")
 	}
 
-	ldapCert, err := tlsca.ParseCertificatePEM([]byte(adConfig.LDAPCert))
-	if err != nil {
-		return nil, trace.Wrap(err, "cannot find valid LDAP certificate block in AD configuration")
+	var ldapCert *x509.Certificate
+	if adConfig.LDAPCert != "" {
+		var err error
+		ldapCert, err = tlsca.ParseCertificatePEM([]byte(adConfig.LDAPCert))
+		if err != nil {
+			return nil, trace.Wrap(err, "cannot find valid LDAP certificate block in AD configuration")
+		}
 	}
 
 	cfg := ldapConnectionConfig{

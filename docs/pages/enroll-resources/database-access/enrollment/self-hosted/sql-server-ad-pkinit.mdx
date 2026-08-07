@@ -237,7 +237,7 @@ database section below as appropriate:
 - `domain`: The Active Directory domain (Kerberos realm) DNS/Address to which SQL Server is joined.
 - `spn`: Service Principal Name (SPN) for SQL Server to fetch Kerberos tickets.
 - `kdc_host_name`: SPN of the domain controller responsible for providing the LDAP CA.
-- `ldap_cert`: The contents of the LDAP CA previously exported.
+- `ldap_cert`: Optional. The contents of the LDAP CA previously exported. If omitted, Teleport uses the host's system certificate pool to verify the LDAP server.
 - `ldap_service_account_name`: Name of the service account Teleport uses to query LDAP for user SIDs.
 - `ldap_service_account_sid`: SID corresponding to the specified `ldap_service_account_name`.
 
