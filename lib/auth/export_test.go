@@ -81,6 +81,8 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
+
+	MaybeDowngradeRoleVersionToV8 = maybeDowngradeRoleVersionToV8
 )
 
 func ServerWithModules(mt *modulestest.Modules) *Server {

@@ -56,12 +56,6 @@ For simpler scenarios — where you only expect the bot to use a single service
 or role — you can add the login to the logins trait of the bot user. This
 approach allows you to leverage default roles like `access`.
 
-For situations where your bot is producing certificates for different roles in
-different services, it is important to consider whether using a login trait
-grants access to resources that you didn't intend. To prevent a login trait from
-granting access you didn't intend, we recommend that you create bespoke roles
-that explicitly specify the logins that should be included in the certificates.
-
 ## Can MWI be used with per-session MFA?
 
 We do not currently support MWI and per-session MFA. Enabling per-session
