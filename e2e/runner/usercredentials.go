@@ -65,14 +65,16 @@ func generateUserCredentials() (*credentials, error) {
 		return nil, fmt.Errorf("marshaling private key: %w", err)
 	}
 
-	// Bytes returns the SEC 1 uncompressed point, 0x04 || X || Y, with each
-	// coordinate zero-padded to the 32-byte P-256 field size.
 	pub, err := privateKey.PublicKey.Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("encoding public key: %w", err)
 	}
 
-	pubCBOR := encodeEC2PublicKeyCBOR(pub[1:33], pub[33:65])
+	// The public key is the uncompressed point (0x04 || X || Y), with each
+	// coordinate zero-padded to 32 bytes.
+	x, y := pub[1:33], pub[33:65]
+
+	pubCBOR := encodeEC2PublicKeyCBOR(x, y)
 
 	credID := make([]byte, 32)
 	if _, err := rand.Read(credID); err != nil {
