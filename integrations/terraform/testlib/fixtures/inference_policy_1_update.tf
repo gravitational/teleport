@@ -16,8 +16,9 @@ resource "teleport_inference_policy" "test-policy" {
     name = "test-policy"
   }
   spec = {
-    kinds = ["ssh", "db"]
-    model = "another-dummy-model"
+    kinds  = ["ssh", "db"]
+    model  = "another-dummy-model"
+    filter = ""
   }
 
   depends_on = [teleport_inference_model.prereq]

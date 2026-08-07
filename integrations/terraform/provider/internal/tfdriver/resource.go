@@ -88,53 +88,52 @@ type Resource[T any, I Identifier] struct {
 	runtime        Runtime
 }
 
-func (r Resource[T, I]) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
-	if r.resource.Normalizer == nil {
-		return
-	}
+// func (r Resource[T, I]) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+// 	if r.resource.Normalizer == nil {
+// 		return
+// 	}
 
-	// If the entire plan is null, the resource is planned for destruction.
-	if req.Plan.Raw.IsNull() {
-		return
-	}
+// 	// If the entire plan is null, the resource is planned for destruction.
+// 	if req.Plan.Raw.IsNull() {
+// 		return
+// 	}
 
-	var config types.Object
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+// 	// If the state is null, the resource is being created. No need to modify plan.
+// 	if req.State.Raw.IsNull() {
+// 		return
+// 	}
 
-	val := new(T)
-	resp.Diagnostics.Append(r.resource.Codec.FromConfig(ctx, config, val)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+// 	var config types.Object
+// 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+// 	if resp.Diagnostics.HasError() {
+// 		return
+// 	}
 
-	var err error
-	if req.State.Raw.IsNull() {
-		err = r.normalizeCreate(ctx, val)
-	} else {
-		err = r.normalizeUpdate(ctx, val)
-	}
-	if err != nil {
-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error planning %q", r.resource.Kind), err, r.resource.Kind))
-		return
-	}
+// 	val := new(T)
+// 	resp.Diagnostics.Append(r.resource.Codec.FromConfig(ctx, config, val)...)
+// 	if resp.Diagnostics.HasError() {
+// 		return
+// 	}
 
-	resp.Diagnostics.Append(r.resource.Codec.ToConfig(ctx, val, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+// 	if err := r.normalizeUpdate(ctx, val); err != nil {
+// 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error planning %q", r.resource.Kind), err, r.resource.Kind))
+// 		return
+// 	}
 
-	var plan types.Object
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+// 	resp.Diagnostics.Append(r.resource.Codec.ToConfig(ctx, val, &config)...)
+// 	if resp.Diagnostics.HasError() {
+// 		return
+// 	}
 
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
-}
+// 	var plan types.Object
+// 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+// 	if resp.Diagnostics.HasError() {
+// 		return
+// 	}
+// 	plan.Attrs["spec"] = config.Attrs["spec"]
+
+// 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+// }
 
 func (r Resource[T, I]) normalizeCreate(ctx context.Context, resource *T) error {
 	if r.resource.Normalizer == nil {

@@ -378,7 +378,7 @@ func (s *TerraformSuiteOSS) TestProvisionTokenV2Gitlab() {
 					resource.TestCheckResourceAttr(name, "metadata.name", "gitlab-test-terraform"),
 					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
 					resource.TestCheckResourceAttr(name, "spec.join_method", "gitlab"),
-					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.environment_protected"),
+					resource.TestCheckResourceAttr(name, "spec.gitlab.allow.0.environment_protected", "false"),
 					resource.TestCheckNoResourceAttr(name, "spec.gitlab.allow.0.ref_protected"),
 				),
 			},

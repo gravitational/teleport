@@ -11,8 +11,9 @@ resource "teleport_integration" "aws_oidc" {
 
   spec = {
     aws_oidc = {
-      audience = "aws-identity-center"
-      role_arn = "arn:aws:iam::123456789012:role/test-role-updated"
+      issuer_s3_uri = ""
+      audience      = "aws-identity-center"
+      role_arn      = "arn:aws:iam::123456789012:role/test-role-updated"
     }
   }
 }

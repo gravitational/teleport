@@ -136,7 +136,7 @@ func (c DataSourceCodecFuncs[T]) Schema(ctx context.Context) (tfsdk.Schema, diag
 // FromConfig copies Terraform config values into a Teleport resource.
 func (c DataSourceCodecFuncs[T]) FromConfig(ctx context.Context, object types.Object, resource *T) diag.Diagnostics {
 	if c.FromConfigFunc == nil {
-		return missingCodecFuncDiagnostics("FromConfigFunc")
+		return nil
 	}
 	return c.FromConfigFunc(ctx, object, resource)
 }

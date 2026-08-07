@@ -15,7 +15,7 @@ resource "teleport_autoupdate_config" "test" {
           # staging is updated at 08:00 UTC
           { name = "staging", days = ["Mon", "Tue", "Wed", "Thu"], start_hour : 8 },
           # prod is updated at 14:00 UTC
-          { name = "prod", days = ["Mon", "Tue", "Wed", "Thu"], start_hour : 14, },
+          { name = "prod", days = ["Mon", "Tue", "Wed", "Thu"], start_hour : 14, wait_hours : 0 },
         ]
       }
     }

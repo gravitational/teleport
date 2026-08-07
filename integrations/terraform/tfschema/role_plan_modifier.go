@@ -82,7 +82,7 @@ func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.Modify
 		return
 	}
 
-	diags = CopyRoleV6ToTerraform(ctx, role, &config)
+	diags = CopyRoleV6ToTerraformPreserveUnknown(ctx, role, &config, true)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to convert back the role into a TF object.")
@@ -158,7 +158,7 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		return
 	}
 
-	diags = CopyRoleV6ToTerraform(ctx, role, &config)
+	diags = CopyRoleV6ToTerraformPreserveUnknown(ctx, role, &config, true)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to convert back the role into a TF object.")
