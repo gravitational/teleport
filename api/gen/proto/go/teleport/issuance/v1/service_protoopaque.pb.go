@@ -103,6 +103,15 @@ func (x *IssueScopedBotCertsRequest) GetIdentity() *UsageIdentity {
 	return nil
 }
 
+func (x *IssueScopedBotCertsRequest) GetApp() *UsageApp {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Usage.(*issueScopedBotCertsRequest_App); ok {
+			return x.App
+		}
+	}
+	return nil
+}
+
 func (x *IssueScopedBotCertsRequest) SetSshPublicKey(v []byte) {
 	if v == nil {
 		v = []byte{}
@@ -129,6 +138,14 @@ func (x *IssueScopedBotCertsRequest) SetIdentity(v *UsageIdentity) {
 	x.xxx_hidden_Usage = &issueScopedBotCertsRequest_Identity{v}
 }
 
+func (x *IssueScopedBotCertsRequest) SetApp(v *UsageApp) {
+	if v == nil {
+		x.xxx_hidden_Usage = nil
+		return
+	}
+	x.xxx_hidden_Usage = &issueScopedBotCertsRequest_App{v}
+}
+
 func (x *IssueScopedBotCertsRequest) HasTtl() bool {
 	if x == nil {
 		return false
@@ -151,6 +168,14 @@ func (x *IssueScopedBotCertsRequest) HasIdentity() bool {
 	return ok
 }
 
+func (x *IssueScopedBotCertsRequest) HasApp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Usage.(*issueScopedBotCertsRequest_App)
+	return ok
+}
+
 func (x *IssueScopedBotCertsRequest) ClearTtl() {
 	x.xxx_hidden_Ttl = nil
 }
@@ -165,8 +190,15 @@ func (x *IssueScopedBotCertsRequest) ClearIdentity() {
 	}
 }
 
+func (x *IssueScopedBotCertsRequest) ClearApp() {
+	if _, ok := x.xxx_hidden_Usage.(*issueScopedBotCertsRequest_App); ok {
+		x.xxx_hidden_Usage = nil
+	}
+}
+
 const IssueScopedBotCertsRequest_Usage_not_set_case case_IssueScopedBotCertsRequest_Usage = 0
 const IssueScopedBotCertsRequest_Identity_case case_IssueScopedBotCertsRequest_Usage = 4
+const IssueScopedBotCertsRequest_App_case case_IssueScopedBotCertsRequest_Usage = 5
 
 func (x *IssueScopedBotCertsRequest) WhichUsage() case_IssueScopedBotCertsRequest_Usage {
 	if x == nil {
@@ -175,6 +207,8 @@ func (x *IssueScopedBotCertsRequest) WhichUsage() case_IssueScopedBotCertsReques
 	switch x.xxx_hidden_Usage.(type) {
 	case *issueScopedBotCertsRequest_Identity:
 		return IssueScopedBotCertsRequest_Identity_case
+	case *issueScopedBotCertsRequest_App:
+		return IssueScopedBotCertsRequest_App_case
 	default:
 		return IssueScopedBotCertsRequest_Usage_not_set_case
 	}
@@ -199,6 +233,7 @@ type IssueScopedBotCertsRequest_builder struct {
 
 	// Fields of oneof xxx_hidden_Usage:
 	Identity *UsageIdentity
+	App      *UsageApp
 	// -- end of xxx_hidden_Usage
 }
 
@@ -211,6 +246,9 @@ func (b0 IssueScopedBotCertsRequest_builder) Build() *IssueScopedBotCertsRequest
 	x.xxx_hidden_Ttl = b.Ttl
 	if b.Identity != nil {
 		x.xxx_hidden_Usage = &issueScopedBotCertsRequest_Identity{b.Identity}
+	}
+	if b.App != nil {
+		x.xxx_hidden_Usage = &issueScopedBotCertsRequest_App{b.App}
 	}
 	return m0
 }
@@ -233,7 +271,13 @@ type issueScopedBotCertsRequest_Identity struct {
 	Identity *UsageIdentity `protobuf:"bytes,4,opt,name=identity,proto3,oneof"`
 }
 
+type issueScopedBotCertsRequest_App struct {
+	App *UsageApp `protobuf:"bytes,5,opt,name=app,proto3,oneof"`
+}
+
 func (*issueScopedBotCertsRequest_Identity) isIssueScopedBotCertsRequest_Usage() {}
+
+func (*issueScopedBotCertsRequest_App) isIssueScopedBotCertsRequest_Usage() {}
 
 // The simplest possible usage mode for a certificate, returning certificates
 // appropriate for SSH or API authn.
@@ -280,6 +324,97 @@ func (b0 UsageIdentity_builder) Build() *UsageIdentity {
 	return m0
 }
 
+// UsageApp defines the mode
+type UsageApp struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name       string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_PublicAddr string                 `protobuf:"bytes,2,opt,name=public_addr,json=publicAddr,proto3"`
+	xxx_hidden_Scope      string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UsageApp) Reset() {
+	*x = UsageApp{}
+	mi := &file_teleport_issuance_v1_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsageApp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsageApp) ProtoMessage() {}
+
+func (x *UsageApp) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_issuance_v1_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UsageApp) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *UsageApp) GetPublicAddr() string {
+	if x != nil {
+		return x.xxx_hidden_PublicAddr
+	}
+	return ""
+}
+
+func (x *UsageApp) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
+func (x *UsageApp) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *UsageApp) SetPublicAddr(v string) {
+	x.xxx_hidden_PublicAddr = v
+}
+
+func (x *UsageApp) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
+type UsageApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the application to route to.
+	// Must resolve to an application within the scope to which
+	// the calling bot is pinned.
+	Name string
+	// public_addr is the application public address.
+	PublicAddr string
+	// scope is the scope of the target application.
+	Scope string
+}
+
+func (b0 UsageApp_builder) Build() *UsageApp {
+	m0 := &UsageApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_PublicAddr = b.PublicAddr
+	x.xxx_hidden_Scope = b.Scope
+	return m0
+}
+
 // Response for IssueScopedBotCerts
 type IssueScopedBotCertsResponse struct {
 	state            protoimpl.MessageState `protogen:"opaque.v1"`
@@ -290,7 +425,7 @@ type IssueScopedBotCertsResponse struct {
 
 func (x *IssueScopedBotCertsResponse) Reset() {
 	*x = IssueScopedBotCertsResponse{}
-	mi := &file_teleport_issuance_v1_service_proto_msgTypes[2]
+	mi := &file_teleport_issuance_v1_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -302,7 +437,7 @@ func (x *IssueScopedBotCertsResponse) String() string {
 func (*IssueScopedBotCertsResponse) ProtoMessage() {}
 
 func (x *IssueScopedBotCertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_issuance_v1_service_proto_msgTypes[2]
+	mi := &file_teleport_issuance_v1_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,7 +496,7 @@ type Certs struct {
 
 func (x *Certs) Reset() {
 	*x = Certs{}
-	mi := &file_teleport_issuance_v1_service_proto_msgTypes[3]
+	mi := &file_teleport_issuance_v1_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +508,7 @@ func (x *Certs) String() string {
 func (*Certs) ProtoMessage() {}
 
 func (x *Certs) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_issuance_v1_service_proto_msgTypes[3]
+	mi := &file_teleport_issuance_v1_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -434,14 +569,20 @@ var File_teleport_issuance_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_issuance_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/issuance/v1/service.proto\x12\x14teleport.issuance.v1\x1a\x1egoogle/protobuf/duration.proto\"\xe1\x01\n" +
+	"\"teleport/issuance/v1/service.proto\x12\x14teleport.issuance.v1\x1a\x1egoogle/protobuf/duration.proto\"\x95\x02\n" +
 	"\x1aIssueScopedBotCertsRequest\x12$\n" +
 	"\x0essh_public_key\x18\x01 \x01(\fR\fsshPublicKey\x12$\n" +
 	"\x0etls_public_key\x18\x02 \x01(\fR\ftlsPublicKey\x12+\n" +
 	"\x03ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x03ttl\x12A\n" +
-	"\bidentity\x18\x04 \x01(\v2#.teleport.issuance.v1.UsageIdentityH\x00R\bidentityB\a\n" +
+	"\bidentity\x18\x04 \x01(\v2#.teleport.issuance.v1.UsageIdentityH\x00R\bidentity\x122\n" +
+	"\x03app\x18\x05 \x01(\v2\x1e.teleport.issuance.v1.UsageAppH\x00R\x03appB\a\n" +
 	"\x05usage\"\x0f\n" +
-	"\rUsageIdentity\"P\n" +
+	"\rUsageIdentity\"U\n" +
+	"\bUsageApp\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1f\n" +
+	"\vpublic_addr\x18\x02 \x01(\tR\n" +
+	"publicAddr\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"P\n" +
 	"\x1bIssueScopedBotCertsResponse\x121\n" +
 	"\x05certs\x18\x01 \x01(\v2\x1b.teleport.issuance.v1.CertsR\x05certs\"+\n" +
 	"\x05Certs\x12\x10\n" +
@@ -450,25 +591,27 @@ const file_teleport_issuance_v1_service_proto_rawDesc = "" +
 	"\x0fIssuanceService\x12z\n" +
 	"\x13IssueScopedBotCerts\x120.teleport.issuance.v1.IssueScopedBotCertsRequest\x1a1.teleport.issuance.v1.IssueScopedBotCertsResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1;issuancev1pbb\x06proto3"
 
-var file_teleport_issuance_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_issuance_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_issuance_v1_service_proto_goTypes = []any{
 	(*IssueScopedBotCertsRequest)(nil),  // 0: teleport.issuance.v1.IssueScopedBotCertsRequest
 	(*UsageIdentity)(nil),               // 1: teleport.issuance.v1.UsageIdentity
-	(*IssueScopedBotCertsResponse)(nil), // 2: teleport.issuance.v1.IssueScopedBotCertsResponse
-	(*Certs)(nil),                       // 3: teleport.issuance.v1.Certs
-	(*durationpb.Duration)(nil),         // 4: google.protobuf.Duration
+	(*UsageApp)(nil),                    // 2: teleport.issuance.v1.UsageApp
+	(*IssueScopedBotCertsResponse)(nil), // 3: teleport.issuance.v1.IssueScopedBotCertsResponse
+	(*Certs)(nil),                       // 4: teleport.issuance.v1.Certs
+	(*durationpb.Duration)(nil),         // 5: google.protobuf.Duration
 }
 var file_teleport_issuance_v1_service_proto_depIdxs = []int32{
-	4, // 0: teleport.issuance.v1.IssueScopedBotCertsRequest.ttl:type_name -> google.protobuf.Duration
+	5, // 0: teleport.issuance.v1.IssueScopedBotCertsRequest.ttl:type_name -> google.protobuf.Duration
 	1, // 1: teleport.issuance.v1.IssueScopedBotCertsRequest.identity:type_name -> teleport.issuance.v1.UsageIdentity
-	3, // 2: teleport.issuance.v1.IssueScopedBotCertsResponse.certs:type_name -> teleport.issuance.v1.Certs
-	0, // 3: teleport.issuance.v1.IssuanceService.IssueScopedBotCerts:input_type -> teleport.issuance.v1.IssueScopedBotCertsRequest
-	2, // 4: teleport.issuance.v1.IssuanceService.IssueScopedBotCerts:output_type -> teleport.issuance.v1.IssueScopedBotCertsResponse
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 2: teleport.issuance.v1.IssueScopedBotCertsRequest.app:type_name -> teleport.issuance.v1.UsageApp
+	4, // 3: teleport.issuance.v1.IssueScopedBotCertsResponse.certs:type_name -> teleport.issuance.v1.Certs
+	0, // 4: teleport.issuance.v1.IssuanceService.IssueScopedBotCerts:input_type -> teleport.issuance.v1.IssueScopedBotCertsRequest
+	3, // 5: teleport.issuance.v1.IssuanceService.IssueScopedBotCerts:output_type -> teleport.issuance.v1.IssueScopedBotCertsResponse
+	5, // [5:6] is the sub-list for method output_type
+	4, // [4:5] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_issuance_v1_service_proto_init() }
@@ -478,6 +621,7 @@ func file_teleport_issuance_v1_service_proto_init() {
 	}
 	file_teleport_issuance_v1_service_proto_msgTypes[0].OneofWrappers = []any{
 		(*issueScopedBotCertsRequest_Identity)(nil),
+		(*issueScopedBotCertsRequest_App)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -485,7 +629,7 @@ func file_teleport_issuance_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_issuance_v1_service_proto_rawDesc), len(file_teleport_issuance_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
