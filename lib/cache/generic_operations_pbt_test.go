@@ -210,7 +210,7 @@ func TestGenericLister_ItemsAreNeverDuplicated(t *testing.T) {
 		fixture := newTestListerFixture(n, isDesc, defaultPageSize)
 
 		seen := make(map[int]int, n)
-		for item, err := range fixture.lister.Range(context.Background(), "", "") {
+		for item, err := range fixture.lister.Range(t.Context(), "", "") {
 			require.NoError(t, err)
 			seen[item]++
 			require.Equal(t, 1, seen[item], "item %d was returned more than once", item)
