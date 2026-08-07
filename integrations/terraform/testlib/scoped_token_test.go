@@ -80,6 +80,46 @@ func (s *TerraformSuiteOSS) TestScopedToken() {
 	})
 }
 
+func (s *TerraformSuiteOSS) TestScopedTokenBot() {
+	t := s.T()
+	ctx := t.Context()
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name:  "test-bot-scoped-token",
+			Scope: "/staging/aa",
+		}.Build())
+		if !trace.IsNotFound(err) {
+			return trace.Errorf("expected not found, actual: %v", err)
+		}
+		return nil
+	}
+
+	name := "teleport_scoped_token.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("scoped_token_bot_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", types.KindScopedToken),
+					resource.TestCheckResourceAttr(name, "scope", "/staging/aa"),
+					resource.TestCheckResourceAttr(name, "spec.join_method", "kubernetes"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(name, "spec.usage_mode", "bot"),
+				),
+			},
+			{
+				Config:   s.getFixture("scoped_token_bot_0_create.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestImportScopedToken() {
 	t := s.T()
 	ctx := t.Context()
