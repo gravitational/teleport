@@ -144,7 +144,12 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 			return nil
 		},
 		OnRequest: func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-			if writeError := serverConn.WriteMessage(ctx, request); writeError != nil {
+			writeError := serverConn.WriteMessage(ctx, request)
+			if writeError != nil && isIdempotentMCPMethod(request.Method) && !serverConn.shouldExitOnWriteError() {
+				cfg.Logger.InfoContext(ctx, "Retrying request after write failure", "method", request.Method, "error", writeError)
+				writeError = serverConn.WriteMessage(ctx, request)
+			}
+			if writeError != nil {
 				if serverConn.shouldExitOnWriteError() {
 					return trace.Wrap(writeError)
 				}
@@ -164,6 +169,26 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 	clientRequestReader.Run(ctx)
 	return nil
 
+}
+
+// isIdempotentMCPMethod reports whether a request can safely be sent again
+// after a failed delivery attempt. tools/call and other side-effecting
+// methods are deliberately excluded: on the HTTP transport a write failure
+// can mean the request executed but the response was lost, and re-sending
+// could run the tool twice.
+func isIdempotentMCPMethod(method string) bool {
+	switch method {
+	case mcputils.MethodInitialize,
+		mcputils.MethodPing,
+		mcputils.MethodToolsList,
+		mcputils.MethodPromptsList,
+		mcputils.MethodPromptsGet,
+		mcputils.MethodResourcesList,
+		mcputils.MethodResourcesTemplatesList,
+		mcputils.MethodResourcesRead:
+		return true
+	}
+	return false
 }
 
 type serverConnWithAutoReconnect struct {
