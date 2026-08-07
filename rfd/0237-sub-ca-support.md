@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0237 - Sub CA support
