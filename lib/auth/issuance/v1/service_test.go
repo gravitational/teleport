@@ -666,7 +666,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 			}.Build(),
 		}.Build())
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-		require.ErrorContains(t, err, "tls_public_key is required for app usage")
+		require.ErrorContains(t, err, "tls_public_key: is required for app usage")
 	})
 
 	t.Run("app scope outside pinned scope rejected", func(t *testing.T) {

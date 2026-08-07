@@ -114,7 +114,7 @@ func validateUsageApp(req *issuancev1pb.IssueScopedBotCertsRequest) error {
 		return trace.Wrap(err, "app.scope")
 	}
 	if len(req.GetTlsPublicKey()) == 0 {
-		return trace.BadParameter("tls_public_key is required for app usage")
+		return trace.BadParameter("tls_public_key: is required for app usage")
 	}
 
 	return nil
