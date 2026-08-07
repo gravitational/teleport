@@ -63,7 +63,7 @@ Available fixtures:
 | Fixture        | Description                                                                        |
 |----------------|------------------------------------------------------------------------------------|
 | `ssh-node`     | Start and connect a Teleport SSH node (runs in Docker)                             |
-| `ssh-node-bpf` | The same node with Enhanced Session Recording enabled. Implies `ssh-node`.         |
+| `ssh-node-bpf` | A second node, `docker-node-bpf`, with Enhanced Session Recording enabled.         |
 | `connect`      | Build Teleport Connect. Auto-detected from Connect test helpers.                   |
 
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
@@ -96,6 +96,10 @@ The node is built for the daemon's architecture rather than pinned to amd64, bec
 through architecture emulation. On macOS that means a cross-compiler matching the daemon, which the runner picks for the
 architecture it detected (`x86_64-unknown-linux-gnu-gcc` for an amd64 host, `aarch64-unknown-linux-gnu-gcc` for arm64).
 `CC` overrides it.
+
+Only the nodes a run actually asked for are started. A selection that declares just `ssh-node` gets
+`docker-node`, just `ssh-node-bpf` gets `docker-node-bpf`, and a selection containing both gets both
+containers, so a spec can compare a node with Enhanced Session Recording against one without.
 
 The runner probes the daemon's kernel before starting the node. Outside CI an unsupported kernel downgrades to a plain
 node and exports `E2E_SKIP_ENHANCED_RECORDING=1`, so running the whole suite locally stays green. A spec that needs BPF

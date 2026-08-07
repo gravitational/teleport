@@ -1,7 +1,7 @@
 {{- /*gotype: github.com/gravitational/teleport/e2e/runner.TeleportNodeConfig */ -}}
 version: v3
 teleport:
-  nodename: docker-node
+  nodename: {{ .NodeName }}
   auth_token: foo
   data_dir: /var/lib/teleport
   log:

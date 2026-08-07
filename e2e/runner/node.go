@@ -33,9 +33,43 @@ import (
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 const nodeImage = "debian:bookworm-slim"
+
+// nodeVariant is one docker node the run needs. A spec asks for a variant by declaring its fixture, and
+// only the variants that were asked for are started, so a run that wants both gets two nodes to target.
+type nodeVariant struct {
+	name              string
+	enhancedRecording bool
+}
+
+func sshNodeEnabled() bool {
+	return fixtures.SSHNode.Enabled || fixtures.SSHNodeBPF.Enabled
+}
+
+func nodeVariants() []nodeVariant {
+	var variants []nodeVariant
+	if fixtures.SSHNode.Enabled {
+		variants = append(variants, nodeVariant{name: "docker-node"})
+	}
+	if fixtures.SSHNodeBPF.Enabled {
+		variants = append(variants, nodeVariant{name: "docker-node-bpf", enhancedRecording: true})
+	}
+
+	return variants
+}
+
+func nodeVariantNames() []string {
+	var names []string
+	for _, v := range nodeVariants() {
+		names = append(names, v.name)
+	}
+
+	return names
+}
 
 // nodeStartCommand is how the node is launched inside the container.
 const nodeStartCommand = "teleport start --insecure -c /etc/teleport/node.yaml"
@@ -48,6 +82,7 @@ const mountTracefs = "mount -t tracefs nodev /sys/kernel/tracing 2>/dev/null || 
 
 type dockerNode struct {
 	log                *slog.Logger
+	nodeName           string
 	sshPort            int
 	tctlBin            string
 	teleportConfigPath string
@@ -86,7 +121,7 @@ func (d *dockerNode) removeStale(ctx context.Context) {
 }
 
 func (d *dockerNode) runContainer(ctx context.Context) error {
-	d.log.InfoContext(ctx, "starting docker SSH node")
+	d.log.InfoContext(ctx, "starting docker SSH node", "node", d.nodeName)
 
 	d.removeStale(ctx)
 
@@ -145,7 +180,7 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 }
 
 func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) error {
-	d.log.DebugContext(ctx, "waiting for docker node to join cluster")
+	d.log.DebugContext(ctx, "waiting for docker node to join cluster", "node", d.nodeName)
 
 	probe := func(ctx context.Context) (bool, error) {
 		cmd := exec.CommandContext(ctx, d.tctlBin, "nodes", "ls",
@@ -155,14 +190,21 @@ func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) erro
 			return false, nil
 		}
 
-		return strings.Contains(string(out), "docker-node"), nil
+		// Exact field match, since one node's name can be a prefix of another's.
+		for line := range strings.Lines(string(out)) {
+			if fields := strings.Fields(line); len(fields) > 0 && fields[0] == d.nodeName {
+				return true, nil
+			}
+		}
+
+		return false, nil
 	}
 
 	if err := pollUntil(ctx, timeout, 1*time.Second, probe); err != nil {
-		return fmt.Errorf("docker node failed to join cluster: %w", err)
+		return fmt.Errorf("docker node %s failed to join cluster: %w", d.nodeName, err)
 	}
 
-	d.log.InfoContext(ctx, "docker SSH node is ready")
+	d.log.InfoContext(ctx, "docker SSH node is ready", "node", d.nodeName)
 
 	return nil
 }
@@ -201,7 +243,7 @@ func (d *dockerNode) stop(ctx context.Context) {
 		return
 	}
 
-	d.log.InfoContext(ctx, "stopping docker SSH node")
+	d.log.InfoContext(ctx, "stopping docker SSH node", "node", d.nodeName)
 
 	d.saveLogs(ctx)
 	_ = d.ctr.Terminate(ctx, container.TerminateTimeout(10*time.Second))
