@@ -21,8 +21,7 @@
     "oxlint": "oxlint --quiet --report-unused-disable-directives-severity error web/ e/ e2e/",
     "lint": "pnpm oxlint && pnpm format-check",
     "lint-fix": "pnpm oxlint --fix && pnpm format",
-    "type-check": "tsgo --build",
-    "type-check-legacy": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
+    "type-check": "tsc --build",
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
     "format-check": "pnpm format --check",
     "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
@@ -37,7 +36,7 @@
     "@gravitational/build": "workspace:*",
     "@storybook/addon-vitest": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/history": "^4.7.11",
@@ -47,7 +46,6 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-transition-group": "^4.4.12",
     "@types/wicg-file-system-access": "^2023.10.7",
-    "@typescript/native-preview": "7.0.0-dev.20260629.1",
     "cspell": "^10.0.1",
     "eslint": "^10.6.0",
     "eslint-plugin-jest-dom": "^5.5.0",
@@ -64,7 +62,7 @@
     "react-select-event": "^5.5.1",
     "storybook": "^10.4.6",
     "svgo": "^4.0.2",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vite": "^8.1.0"
   },
   "dependencies": {
@@ -111,7 +109,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
+  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
   "engines": {
     "node": "^24"
   }

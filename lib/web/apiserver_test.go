@@ -1565,6 +1565,7 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	username := "test-user@example.com"
@@ -1608,7 +1609,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"host-id",
 	)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), awsAppServer)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsAppServer)
 	require.NoError(t, err)
 
 	app, err := types.NewAppV3(
@@ -1628,7 +1629,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"host-id",
 	)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
 	// add a SAMLIdPServiceProvider
@@ -1645,7 +1646,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(ctx, samlapp)
 	require.NoError(t, err)
 
 	// Add nodes
@@ -1655,7 +1656,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			Hostname: name,
 		})
 		require.NoError(t, err)
-		_, err = env.server.Auth().UpsertNode(context.Background(), node)
+		_, err = env.server.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
 
@@ -1680,7 +1681,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		})
 		require.NoError(t, err)
 		dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
-		_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+		_, err = env.server.Auth().UpsertDatabaseServer(ctx, dbServer)
 		require.NoError(t, err)
 	}
 
@@ -1691,7 +1692,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
 	)
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
+	err = env.server.Auth().UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
 	// add git server
@@ -1700,15 +1701,36 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Integration:  "org1",
 	})
 	require.NoError(t, err)
-	_, err = env.server.Auth().GitServers.UpsertGitServer(context.Background(), gitServer)
+	_, err = env.server.Auth().GitServers.UpsertGitServer(ctx, gitServer)
 	require.NoError(t, err)
 
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
+	expectedKinds := map[string]int{
+		types.KindApp:            3,  // my-app, my-aws-app and the SAML IdP service provider
+		types.KindDatabase:       1,  // 3 db servers, single resource
+		types.KindNode:           21, // 20 created above, plus SSH node in newWebPack
+		types.KindWindowsDesktop: 1,
+		types.KindGitServer:      1,
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+		require.NoError(t, err)
+
+		res := clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+
+		gotKinds := make(map[string]int, len(expectedKinds))
+		for _, item := range res.Items {
+			gotKinds[item.Kind]++
+		}
+		require.Equal(t, expectedKinds, gotKinds)
+	}, 15*time.Second, 100*time.Millisecond, "unified resource cache did not converge")
+
 	// test sort type ascend
 	query := url.Values{"sort": []string{"kind:asc"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	re, err := pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1719,7 +1741,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1732,7 +1754,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// shouldnt get any results with no access
 	query = url.Values{"sort": []string{"name:asc"}}
-	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	re, err = noAccessPack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1744,7 +1766,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		TotalCount int              `json:"totalCount"`
 	}
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}, "query": []string{`health.status == "mixed"`}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	dbRes := dbResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
@@ -1762,7 +1784,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1772,7 +1794,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("startKey", res.StartKey)
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1784,7 +1806,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"search": []string{"my-aws-app"},
 		"sort":   []string{"name"},
 	}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	listResp := struct {
 		Items []webui.App `json:"Items"`
@@ -1803,7 +1825,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			TotalCount int         `json:"totalCount"`
 		}
 		query := url.Values{"kinds": []string{types.KindApp}}
-		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		re, err := pack.clt.Get(ctx, endpoint, query)
 		require.NoError(t, err)
 		appRes := appResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
@@ -1839,6 +1861,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 // from roles reachable via search_as_roles when includedResourceMode=all.
 func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
@@ -1870,7 +1893,7 @@ func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = env.server.Auth().UpsertRole(context.Background(), requestableRole)
+	_, err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
 
 	pack := proxy.authPack(t, username, []types.Role{assignedRole})
@@ -1881,7 +1904,7 @@ func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 		HostID: "host-1",
 	})
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(context.Background(), desktop))
+	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(ctx, desktop))
 
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
@@ -1897,7 +1920,17 @@ func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 		"kinds":                []string{types.KindWindowsDesktop},
 		"includedResourceMode": []string{"all"},
 	}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	// Wait for the desktop created above to show up before asserting on the logins it reports.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := pack.clt.Get(ctx, endpoint, query)
+		require.NoError(t, err)
+
+		var resp desktopResponse
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+	}, 15*time.Second, 100*time.Millisecond, "desktop did not appear in the unified resource cache")
+
+	re, err := pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 
 	var resp desktopResponse

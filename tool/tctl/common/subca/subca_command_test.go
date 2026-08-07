@@ -306,6 +306,7 @@ func TestMakeCATypeNames(t *testing.T) {
 	got := subca.MakeCATypeNames()
 	want := []string{
 		"db-client",
+		"spiffe-tls",
 		"windows",
 	}
 	assert.Equal(t, want, got.Names, ""+
