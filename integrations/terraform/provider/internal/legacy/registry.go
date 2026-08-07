@@ -23,7 +23,6 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 	return map[string]tfsdk.DataSourceType{
 		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
-		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
@@ -54,7 +53,6 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 	return map[string]tfsdk.ResourceType{
 		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
-		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
