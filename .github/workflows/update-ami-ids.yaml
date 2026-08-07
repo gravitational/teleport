@@ -30,7 +30,7 @@ jobs:
     steps:
       - name: Get runtime values from kvstore
         id: kvstore
-        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.2
+        uses: gravitational/shared-workflows/tools/env-kvstore@900b169b906d75f37db2ac649c227bb107285757 # tools/env-kvstore/v1.0.3
         with:
           cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
