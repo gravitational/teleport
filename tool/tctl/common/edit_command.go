@@ -28,8 +28,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -44,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/editor"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
@@ -88,21 +87,7 @@ func (e *EditCommand) runEditor(ctx context.Context, name string) error {
 	if e.Editor != nil {
 		return trace.Wrap(e.Editor(name))
 	}
-
-	textEditor := getTextEditor()
-	args := strings.Fields(textEditor)
-	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], name)...)
-	editorCmd.Stdin = os.Stdin
-	editorCmd.Stdout = os.Stdout
-	editorCmd.Stderr = os.Stderr
-	if err := editorCmd.Start(); err != nil {
-		return trace.BadParameter("could not start editor %v: %v", textEditor, err)
-	}
-	if err := editorCmd.Wait(); err != nil {
-		return trace.BadParameter("skipping resource update, editor did not complete successfully: %v", err)
-	}
-
-	return nil
+	return trace.Wrap(editor.Run(ctx, name), "skipping resource update")
 }
 
 func (e *EditCommand) editResource(ctx context.Context, client *authclient.Client) error {
@@ -314,16 +299,6 @@ func editUpdateWithFallbackScoped(
 	} else {
 		return trace.Wrap(err)
 	}
-}
-
-// getTextEditor returns the text editor to be used for editing the resource.
-func getTextEditor() string {
-	for _, v := range []string{"TELEPORT_EDITOR", "VISUAL", "EDITOR"} {
-		if value := os.Getenv(v); value != "" {
-			return value
-		}
-	}
-	return "vi"
 }
 
 func checksum(filename string) (string, error) {
