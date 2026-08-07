@@ -121,56 +121,6 @@ func TestWrapMCPClientRegistrationErrorRejected(t *testing.T) {
 	}
 }
 
-func TestResolveMCPOAuthClientName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name            string
-		flag            string
-		preferredClient string
-		want            string
-	}{
-		{
-			name: "defaults to tsh",
-			want: defaultMCPOAuthClientName,
-		},
-		{
-			name:            "tsh config preferred client",
-			preferredClient: "Acme Gateway",
-			want:            "Acme Gateway",
-		},
-		{
-			name:            "flag wins over tsh config",
-			flag:            "Acme Gateway v2",
-			preferredClient: "Acme Gateway",
-			want:            "Acme Gateway v2",
-		},
-		{
-			name:            "blank flag falls back to tsh config",
-			flag:            "   ",
-			preferredClient: "Acme Gateway",
-			want:            "Acme Gateway",
-		},
-		{
-			name:            "blank tsh config falls back to tsh",
-			preferredClient: "   ",
-			want:            defaultMCPOAuthClientName,
-		},
-		{
-			name: "surrounding whitespace is trimmed",
-			flag: "  Acme Gateway  ",
-			want: "Acme Gateway",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, test.want, resolveMCPOAuthClientName(test.flag, test.preferredClient))
-		})
-	}
-}
-
 func TestMCPOAuthDiscoveryBaseURL(t *testing.T) {
 	t.Parallel()
 

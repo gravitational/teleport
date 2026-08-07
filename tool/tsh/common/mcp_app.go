@@ -498,11 +498,23 @@ func (c *mcpConnectCommand) run() error {
 	// Authorization header is produced per request so that expired access
 	// tokens get silently refreshed. An explicit -H "Authorization: ..."
 	// always wins.
+	credsPath := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
 	var oauthSource *mcpOAuthHeaderSource
-	if _, ok := httpHeaders["Authorization"]; !ok {
+	var authDetail string
+	if _, ok := httpHeaders["Authorization"]; ok {
+		logger.InfoContext(c.cf.Context, "Using the explicit Authorization header from -H; stored MCP OAuth credentials are ignored", "app", c.cf.AppSQN.Name)
+		authDetail = "The explicit Authorization header from -H was sent; credentials from `tsh mcp login` are ignored while it is set."
+	} else {
 		oauthSource, err = newMCPOAuthHeaderSource(c.cf.Context, dialer, c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if oauthSource == nil {
+			logger.InfoContext(c.cf.Context, "No stored MCP OAuth credentials found", "path", credsPath)
+			authDetail = fmt.Sprintf("No stored credentials were found at %q; `tsh mcp login` may have run against a different profile, cluster, or TELEPORT_HOME.", credsPath)
+		} else {
+			logger.InfoContext(c.cf.Context, "Using stored MCP OAuth credentials", "path", credsPath)
+			authDetail = fmt.Sprintf("Stored credentials from %q were sent but rejected.", credsPath)
 		}
 	}
 	var getAuthHeader func(context.Context) (string, error)
@@ -519,7 +531,7 @@ func (c *mcpConnectCommand) run() error {
 			GetApp:      dialer.GetApp,
 			DialServer:  dialer.DialALPN,
 			MakeReconnectUserMessage: func(err error) string {
-				return makeMCPReconnectUserMessageForApp(c.cf.AppSQN.Name, err)
+				return makeMCPReconnectUserMessageWithAuthDetail(c.cf.AppSQN.Name, authDetail, err)
 			},
 			AutoReconnect:         c.autoReconnect,
 			HTTPHeaders:           httpHeaders,
@@ -545,10 +557,14 @@ func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
 }
 
 func makeMCPReconnectUserMessage(err error) string {
-	return makeMCPReconnectUserMessageForApp("", err)
+	return makeMCPReconnectUserMessageWithAuthDetail("", "", err)
 }
 
 func makeMCPReconnectUserMessageForApp(appName string, err error) string {
+	return makeMCPReconnectUserMessageWithAuthDetail(appName, "", err)
+}
+
+func makeMCPReconnectUserMessageWithAuthDetail(appName, authDetail string, err error) string {
 	server := "the MCP server"
 	loginTarget := "<server-name>"
 	if appName != "" {
@@ -567,9 +583,13 @@ func makeMCPReconnectUserMessageForApp(appName string, err error) string {
 		return fmt.Sprintf("[MCP_AUTH_FLOW_MISMATCH] The MCP client tried to authenticate directly through Teleport's local endpoint, but the OAuth server only accepts its public resource URL."+
 			" Run `tsh mcp login %s` in a terminal instead, then retry in the MCP client.", loginTarget)
 	case errors.Is(err, mcpclienttransport.ErrUnauthorized):
-		return fmt.Sprintf("[MCP_AUTH_REQUIRED] %s rejected the request with HTTP 401."+
+		message := fmt.Sprintf("[MCP_AUTH_REQUIRED] %s rejected the request with HTTP 401."+
 			" Run `tsh mcp login %s` in a terminal, then retry. Do not use the MCP client's built-in OAuth login for a Teleport endpoint.",
 			server, loginTarget)
+		if authDetail != "" {
+			message += " " + authDetail
+		}
+		return message
 	case client.IsErrorResolvableWithRelogin(err):
 		return "[MCP_TELEPORT_LOGIN_REQUIRED] " + clientmcp.ReloginRequiredErrorMessage
 	case errors.Is(err, mcpclienttransport.ErrSessionTerminated):
