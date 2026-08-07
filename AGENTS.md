@@ -14,7 +14,7 @@
 - Data corruption, durability failures, or irreversible loss scenarios
 - Concurrency hazards that can cause outages or data races
 - Reliability regressions: crash loops, panics, deadlocks, unbounded retries, nil pointer dereferences
-- Adherence to the guidelines defined in [RFD 153](./rfd/0153-resource-guidelines.md) of Teleport resource definitations, gRPC, backend storage, and cache APIs.
+- Adherence to the guidelines defined in [RFD 153](https://github.com/gravitational/teleport/blob/8ff3d34581424302182c217e4d8d3be45bf2b0b7/rfd/0153-resource-guidelines.md) of Teleport resource definitions, gRPC, backend storage, and cache APIs.
 
 ### Documentation
 
