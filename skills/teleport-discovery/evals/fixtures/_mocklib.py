@@ -287,6 +287,12 @@ def _az(scn: dict, args: list[str]) -> None:
 
     if cmd == "account" and sub == "show":
         if (
+            _flag_value(args, "--query") == "tenantId"
+            and _flag_value(args, "--output") == "tsv"
+        ):
+            _out(az.get("tenant_id", "00000000-0000-0000-0000-tenant000001"))
+            return
+        if (
             _flag_value(args, "--query") == "id"
             and _flag_value(args, "--output") == "tsv"
         ):
@@ -295,6 +301,7 @@ def _az(scn: dict, args: list[str]) -> None:
             _out(
                 {
                     "id": az["subscription_id"],
+                    "tenantId": az.get("tenant_id", "00000000-0000-0000-0000-tenant000001"),
                     "name": "eval-subscription",
                     "state": "Enabled",
                 }

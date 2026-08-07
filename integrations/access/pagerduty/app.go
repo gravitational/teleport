@@ -157,6 +157,9 @@ func (a *App) run(ctx context.Context) error {
 }
 
 func (a *App) init(ctx context.Context) error {
+	// Preserve the parent context without deadline for the client and its
+	// goroutines (IdentityFileWatcher) which will outlive init.
+	clientCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 	log := logger.Get(ctx)
@@ -167,7 +170,7 @@ func (a *App) init(ctx context.Context) error {
 	)
 
 	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
+		if a.teleport, err = common.GetTeleportClient(clientCtx, a.conf.Teleport); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -1146,6 +1146,142 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
+			name: "valid github token with EnterpriseServerHost",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "example.com",
+					EnterpriseSlug:       "",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "valid github token with EnterpriseSlug",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "",
+					EnterpriseSlug:       "exampleorg",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "github token with single use mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+				tok.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `usage mode "single_use" is not supported for github join method`,
+			expectedWeakErr:   `usage mode "single_use" is not supported for github join method`,
+		},
+		{
+			name: "github token with EnterpriseSlug and EnterpriseServerHost set",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "example.com",
+					EnterpriseSlug:       "exampleorg",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set",
+			expectedWeakErr:   "'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set",
+		},
+		{
+			name: "github token with EnterpriseServerHost with a path",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "example.com/v1",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "github.enterprise_server_host' should not contain the scheme or path",
+			expectedWeakErr:   "github.enterprise_server_host' should not contain the scheme or path",
+		},
+		{
+			name: "github token with EnterpriseServerHost with a scheme",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "https://example.com",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "github.enterprise_server_host' should not contain the scheme or path",
+			expectedWeakErr:   "github.enterprise_server_host' should not contain the scheme or path",
+		},
+		{
+			name: "github token with no rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{},
+				}.Build())
+			},
+			expectedStrongErr: "the github join method requires at least one token allow rule",
+			expectedWeakErr:   "the github join method requires at least one token allow rule",
+		},
+		{
+			name: "github token with empty rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{}.Build(),
+						joiningv1.Github_Rule_builder{}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "allow rule for github must include at least one of",
+			expectedWeakErr:   "allow rule for github must include at least one of",
+		},
+		{
+			name: "github token with no github config",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+				// deliberately not calling SetGithub()
+			},
+			expectedStrongErr: "github configuration must be defined",
+			expectedWeakErr:   "github configuration must be defined",
+		},
+		{
 			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetBot("/aa/bb::foo")
@@ -1305,6 +1441,42 @@ func TestScopedTokenAzureRoundTrip(t *testing.T) {
 			},
 		},
 	}, token.GetAzure())
+}
+
+func TestScopedTokenGithubRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	githubConfig := types.ProvisionTokenSpecV2GitHub{
+		EnterpriseServerHost: "example.com",
+		Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+			{
+				Sub:             "foo",
+				Repository:      "bar",
+				RepositoryOwner: "myself",
+			},
+		},
+	}
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodGitHub,
+		Roles:      []types.SystemRole{types.RoleNode},
+		GitHub:     &githubConfig,
+	}, joiningv1.ScopedToken_builder{
+		Scope: "/test",
+		Metadata: headerv1.Metadata_builder{
+			Name: "test-token",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	token, err := joining.NewToken(scopedToken)
+	require.NoError(t, err)
+
+	require.Equal(t, &githubConfig, token.GetGithub())
 }
 
 func TestNewTokenGetBot(t *testing.T) {

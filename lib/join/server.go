@@ -48,7 +48,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
@@ -896,7 +895,7 @@ func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *dia
 	}
 
 	log.LogAttrs(ctx, slog.LevelWarn, "Failure to join cluster occurred", slogAttrs...)
-	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diagInfo, attributesStruct)); err != nil {
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(ctx, diagInfo, attributesStruct)); err != nil {
 		log.WarnContext(ctx, "Failed to emit failed join event", "error", err)
 	}
 }
@@ -910,12 +909,12 @@ func handleJoinSuccess(ctx context.Context, emitter apievents.Emitter, diag *dia
 		log.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
 
-	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diagInfo, attributesStruct)); err != nil {
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(ctx, diagInfo, attributesStruct)); err != nil {
 		log.WarnContext(ctx, "Failed to emit join event", "error", err)
 	}
 }
 
-func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
+func makeAuditEvent(ctx context.Context, info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
 	var errorMessage string
 	switch {
 	case errors.Is(info.Error, context.Canceled), status.Code(info.Error) == codes.Canceled:
@@ -937,6 +936,12 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 		default:
 			code = events.BotJoinCode
 		}
+		botUserName, err := services.BotResourceName(scopes.QualifiedName{Scope: info.BotScope, Name: info.BotName})
+		if err != nil {
+			// Best-effort: emit the event with the bare name rather than drop it.
+			log.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
+			botUserName, _ = services.BotResourceName(scopes.QualifiedName{Name: info.BotName})
+		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
@@ -949,7 +954,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			},
 			Method:        cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 			TokenName:     info.SafeTokenName,
-			UserName:      machineidv1.BotResourceName(info.BotName),
+			UserName:      botUserName,
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
 			Scope:         info.BotScope,

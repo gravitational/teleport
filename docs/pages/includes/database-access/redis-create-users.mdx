@@ -29,6 +29,8 @@ user default off
 For more ACL examples refer to the [Redis documentation](https://redis.io/docs/latest/operate/oss_and_stack/management/security/acl/).
 
 <Admonition type="warning">
-  It's very important to either disable or protect with a password the `default` user. Otherwise, everyone with access
-  to the database can log in as the `default` user, which by default has administrator privileges.
+  It's important to protect the `default` user. Otherwise, everyone with access
+  to the database can log in as the `default` user, which by default has
+  administrator privileges. You can either disable it (`user default off`) or
+  protect it with a strong password.
 </Admonition>

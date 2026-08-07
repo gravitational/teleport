@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getErrorMessage } from 'shared/utils/error';
+
 import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
@@ -35,7 +37,7 @@ const commands = {
         error => {
           ctx.notificationsService.notifyError({
             title: 'Could not install tsh in PATH',
-            description: `Ran into an error: ${error}`,
+            description: `Ran into an error: ${getErrorMessage(error)}`,
           });
         }
       );
@@ -57,7 +59,7 @@ const commands = {
         error => {
           ctx.notificationsService.notifyError({
             title: 'Could not remove tsh from PATH',
-            description: `Ran into an error: ${error}`,
+            description: `Ran into an error: ${getErrorMessage(error)}`,
           });
         }
       );

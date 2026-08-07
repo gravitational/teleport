@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -49,8 +50,14 @@ func (c *botCollection) Resources() []types.Resource {
 func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name", "Roles"})
 	for _, b := range c.bots {
+		// Scoped bots are identified by their scope-qualified name; unscoped
+		// bots by their bare name.
+		name := b.GetMetadata().GetName()
+		if scope := b.GetScope(); scope != "" {
+			name = scopes.QualifiedName{Scope: scope, Name: name}.String()
+		}
 		t.AddRow([]string{
-			b.GetMetadata().GetName(),
+			name,
 			strings.Join(b.GetSpec().GetRoles(), ", "),
 		})
 	}
@@ -102,6 +109,67 @@ func getBot(
 	return &botCollection{bots: bots}, nil
 }
 
+// botScopedHandler returns a [ScopedHandler] for bots that are registered with
+// a scope. Bots support both classic (unscoped) and scope-qualified access, so
+// this is registered alongside the classic handler in ScopedHandlers().
+// Create is absent because the classic handler takes precedence for 'tctl
+// create' and already handles a scope on the bot resource.
+func botScopedHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getBotScoped,
+		deleteHandler: deleteBotScoped,
+		mfaRequired:   true,
+		description:   "Represents the identity of a machine or workload within Teleport.",
+	}
+}
+
+func getBotScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn *scopes.QualifiedName,
+	opts GetOpts,
+) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindBot, subKind)
+	}
+	if sqn == nil {
+		// List-all is normally served by the classic handler, which bot is also
+		// registered in; fall back to it for safety.
+		return getBot(ctx, client, services.Ref{Kind: types.KindBot}, opts)
+	}
+
+	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+		BotName: sqn.Name,
+		Scope:   sqn.Scope,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
+}
+
+func deleteBotScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn scopes.QualifiedName,
+) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindBot, subKind)
+	}
+
+	_, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
+		BotName: sqn.Name,
+		Scope:   sqn.Scope,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Bot %q has been deleted\n", sqn.String())
+	return nil
+}
+
 func createBot(
 	ctx context.Context,
 	client *authclient.Client,
@@ -112,6 +180,8 @@ func createBot(
 	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
 		return trace.Wrap(err)
 	}
+	// String() renders the bare name when the scope is empty.
+	displayName := scopes.QualifiedName{Scope: bot.GetScope(), Name: bot.GetMetadata().GetName()}.String()
 	if opts.Force {
 		_, err := client.BotServiceClient().UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
 			Bot: bot,
@@ -119,7 +189,7 @@ func createBot(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Bot %q has been created\n", bot.GetMetadata().GetName())
+		fmt.Printf("Bot %q has been created\n", displayName)
 		return nil
 	}
 
@@ -129,7 +199,7 @@ func createBot(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Bot %q has been created\n", bot.GetMetadata().GetName())
+	fmt.Printf("Bot %q has been created\n", displayName)
 	return nil
 }
 

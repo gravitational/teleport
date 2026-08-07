@@ -60,8 +60,7 @@ func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		// potential gotchas that currently exist when dealing with this
 		// override behavior.
 
-		// CLI only supports a single filesystem Destination with SSH client config
-		// and all roles.
+		// CLI only supports a single filesystem Destination.
 		if len(cfg.Services) > 0 {
 			log.WarnContext(
 				context.TODO(),

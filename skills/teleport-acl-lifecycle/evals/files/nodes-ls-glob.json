@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "node",
+    "metadata": {
+      "name": "a3f1c2d4-0000-4000-8000-000000000203",
+      "labels": {
+        "env": "prod-*",
+        "team": "gateway"
+      }
+    },
+    "spec": {
+      "hostname": "glob-gw-1",
+      "addr": "10.0.9.13:3022"
+    }
+  }
+]

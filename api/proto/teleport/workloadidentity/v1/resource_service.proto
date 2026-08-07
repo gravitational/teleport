@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.workloadidentity.v1;
 
 import "google/protobuf/empty.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
@@ -110,6 +111,11 @@ message ListWorkloadIdentitiesV2Request {
   bool sort_desc = 4;
   // A search term used to filter the results. If non-empty, it's used to match against supported fields.
   string filter_search_term = 5;
+  // scope_filter selects WorkloadIdentities by scope. Defaults to one of EXACT
+  // or UNSCOPED depending on whether the caller is a scoped or unscoped
+  // identity. Exhaustive user-facing views (e.g. `tctl get`) should specify
+  // mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 6;
 }
 
 // The response for ListWorkloadIdentities.

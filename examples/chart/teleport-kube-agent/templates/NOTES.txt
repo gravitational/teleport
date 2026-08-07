@@ -51,3 +51,11 @@ Consult the built-in security features that GKE Autopilot enforces:
 https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-security#built-in-security
 
 {{- end }}
+{{- if and (not (empty .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy)) (semverCompare "<1.27.0-0" .Capabilities.KubeVersion.Version) }}
+WARNING: `highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy` is
+configured in helm values but was omitted because Kubernetes {{ .Capabilities.KubeVersion.Version }}
+does not support `unhealthyPodEvictionPolicy`. Set the field to the empty string
+("") to supress this warning.
+See https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it
+for compatibility details.
+{{- end }}
