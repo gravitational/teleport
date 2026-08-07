@@ -1,5 +1,5 @@
 variable "teleport_version" {
-  default     = "19.0.0-dev.gzdunek.49"
+  default     = "19.0.0-dev.gzdunek.50"
   description = <<EOD
 The version of Teleport to deploy.
 Generally, the version of Teleport should be controlled by using the appropriate version of this module.
