@@ -423,7 +423,8 @@ func isMFAReuseRejected(err error) bool {
 		msg := err.Error()
 		return strings.Contains(msg, "cannot allow reuse") || // challenge scope unknown to the server, rejected at challenge creation
 			strings.Contains(msg, "is not satisfied by the given") || // response scope unknown to the server, rejected at validation
-			strings.Contains(msg, "reuse is not permitted") // server knows the scope but does not allow reuse for the requester
+			strings.Contains(msg, "reuse is not permitted") || // server knows the scope but does not allow reuse for the requester
+			strings.Contains(msg, "unable to create MFA challenges") // the challenge-creation rejection above, masked by the server's generic challenge failure message
 	}
 	return false
 }

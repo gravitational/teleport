@@ -418,7 +418,12 @@ func TestIsMFAReuseRejected(t *testing.T) {
 			rejected: true,
 		},
 		{
-			name:     "challenge scope unknown to the server, rejected at challenge creation",
+			name:     "challenge scope unknown to the server, rejection masked by the generic challenge failure message",
+			err:      trace.AccessDenied("unable to create MFA challenges"),
+			rejected: true,
+		},
+		{
+			name:     "challenge scope unknown to the server, rejected at challenge creation unmasked",
 			err:      trace.BadParameter("mfa challenges with scope CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI cannot allow reuse"),
 			rejected: true,
 		},
