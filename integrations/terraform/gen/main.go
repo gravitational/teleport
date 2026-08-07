@@ -399,22 +399,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	trustedCluster = payload{
-		Name:                   "TrustedCluster",
-		TypeName:               "TrustedClusterV2",
-		VarName:                "trustedCluster",
-		GetMethod:              "GetTrustedCluster",
-		CreateMethod:           "UpsertTrustedCluster",
-		UpdateMethod:           "UpsertTrustedCluster",
-		DeleteMethod:           "DeleteTrustedCluster",
-		UpsertMethodArity:      2,
-		ID:                     "trustedCluster.Metadata.Name",
-		Kind:                   "trusted_cluster",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_trusted_cluster",
-		HasCheckAndSetDefaults: true,
-	}
-
 	uiConfig = payload{
 		Name:                   "UIConfig",
 		TypeName:               "UIConfigV1",
@@ -1015,8 +999,6 @@ func genTFSchema() {
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
-	generateResource(trustedCluster, pluralResource)
-	generateDataSource(trustedCluster, pluralDataSource)
 	generateResource(sessionRecording, singularResource)
 	generateDataSource(sessionRecording, singularDataSource)
 	generateResource(uiConfig, singularResource)
