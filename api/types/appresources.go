@@ -24,6 +24,24 @@ func (a AppResource) IsAllowAllOnly() bool {
 	return a.AllowAll && len(a.XXX_unrecognized) == 0
 }
 
+// RoleHasUnknownAppResourcesFields reports whether any app_resources
+// rule on the role carries a proto field unknown to this version. A
+// newer auth server can send such fields. Encoding the role as YAML or
+// JSON drops them, so writing the role back after such a round trip can
+// widen app access.
+func RoleHasUnknownAppResourcesFields(r Role) bool {
+	return appResourcesHaveUnknownFields(r.GetAppResources(Allow)) || appResourcesHaveUnknownFields(r.GetAppResources(Deny))
+}
+
+func appResourcesHaveUnknownFields(rules []AppResource) bool {
+	for _, r := range rules {
+		if len(r.XXX_unrecognized) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // AppResourcesAllowAll reports whether a role's app rules grant full
 // unrestricted app access. It requires a single allow rule that sets
 // allow_all and no deny-side rules.

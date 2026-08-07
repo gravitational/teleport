@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -107,20 +108,31 @@ func roleHandler() Handler {
 }
 
 func getRole(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	var roles []types.Role
 	if ref.Name == "" {
-		roles, err := client.GetRoles(ctx)
+		var err error
+		roles, err = client.GetRoles(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: roles}, nil
+	} else {
+		role, err := client.GetRole(ctx, ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
+		roles = []types.Role{role}
 	}
-	role, err := client.GetRole(ctx, ref.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, role := range roles {
+		if opts.ForUpdate {
+			if err := checkUnknownAppResourcesFields(role); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		warnAboutUnknownAppResourcesFields(os.Stderr, role)
 	}
-	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
-	return &roleCollection{roles: []types.Role{role}}, nil
-
+	return &roleCollection{roles: roles}, nil
 }
 
 func createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
@@ -139,13 +151,18 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 	warnAboutKubernetesResources(ctx, slog.Default(), role)
 
 	roleName := role.GetName()
-	_, err = client.GetRole(ctx, roleName)
+	stored, err := client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	roleExists := (err == nil)
 	if roleExists && !opts.Force {
 		return trace.AlreadyExists("role %q already exists", roleName)
+	}
+	if roleExists {
+		if err := checkUnknownAppResourcesFields(stored); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -162,6 +179,14 @@ func updateRole(ctx context.Context, client *authclient.Client, raw services.Unk
 
 	warnAboutKubernetesResources(ctx, slog.Default(), role)
 	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
+
+	stored, err := client.GetRole(ctx, role.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUnknownAppResourcesFields(stored); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -214,4 +239,26 @@ func warnAboutDynamicLabelsInDenyRule(ctx context.Context, logger *slog.Logger, 
 	} else {
 		logger.WarnContext(ctx, "error checking deny rules labels", "error", err)
 	}
+}
+
+// warnAboutUnknownAppResourcesFields writes a warning to w when a role
+// carries app_resources fields this version of tctl does not recognize.
+// It writes to the given writer rather than the logger because the CLI
+// logger discards warnings unless the user passes --debug.
+func warnAboutUnknownAppResourcesFields(w io.Writer, r types.Role) {
+	if !types.RoleHasUnknownAppResourcesFields(r) {
+		return
+	}
+	fmt.Fprintf(w, "WARNING: role %q has app_resources fields this version of tctl does not recognize. Writing the role back with this version would drop them and can widen app access.\n", r.GetName())
+}
+
+// checkUnknownAppResourcesFields returns an error when a role carries
+// app_resources fields this version of tctl does not recognize. Writing
+// the role back drops those fields, so callers that update a role must
+// refuse it instead.
+func checkUnknownAppResourcesFields(r types.Role) error {
+	if types.RoleHasUnknownAppResourcesFields(r) {
+		return trace.BadParameter("role %q has app_resources fields this version of tctl does not recognize. Writing the role back would drop them and can widen app access. Use a tctl version matching the auth server.", r.GetName())
+	}
+	return nil
 }

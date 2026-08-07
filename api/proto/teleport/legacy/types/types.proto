@@ -4431,7 +4431,9 @@ message RoleConditions {
   ];
 
   // Field 53 is reserved for AppResourcesExpressions, the predicate
-  // counterpart of the declarative AppResources rules.
+  // counterpart of the declarative AppResources rules. Unreserving it
+  // means extending types.RoleHasUnknownAppResourcesFields, which reads
+  // AppResource.XXX_unrecognized and would not see a field added here.
   reserved 53;
   reserved "AppResourcesExpressions";
 }

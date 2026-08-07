@@ -126,6 +126,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		force:       true,
 		withSecrets: true,
 		confirm:     e.confirm,
+		forUpdate:   true,
 	}
 	rc.Initialize(e.app, nil, e.config)
 

@@ -141,6 +141,10 @@ type Handler struct {
 type GetOpts struct {
 	// WithSecrets is true if the user set --with-secrets
 	WithSecrets bool
+	// ForUpdate is true when the caller writes the resource back after
+	// reading it, as tctl edit does. Handlers reject a resource this
+	// version cannot re-encode without dropping fields.
+	ForUpdate bool
 }
 
 // CreateOpts contains the possible options when creating/updating a resource.
