@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Event, Formatters } from './types';
-import config from "./config.json";
+import { Event, Formatters } from "./types";
 
 // eventsWithoutExamples returns an array of event objects based on the
 // elements in formatters that do not have corresponding examples in fixtures.
@@ -169,6 +168,17 @@ const getSegment = (event: ReferencePageEventData): string => {
   return event.raw.event.split('.')[0] || event.raw.event;
 };
 
+export interface ThemeConfig {
+  themes: Theme[];
+}
+
+export interface Theme {
+  id: string;
+  name: string;
+  segments: string[];
+  introduction?: string;
+}
+
 // createReferencePages takes an array of JSON documents that define an audit
 // event test fixture and returns an array that contains the name and content of 
 // an audit event reference guide.
@@ -177,6 +187,7 @@ const getSegment = (event: ReferencePageEventData): string => {
 // audit event test fixture.
 export function createReferencePages(
   jsonEvents: ReferencePageEventData[],
+  config: ThemeConfig,
 ): { id: string; content: string }[] {
   const codeSet = new Set();
   let result = jsonEvents;
@@ -229,7 +240,7 @@ export function createReferencePages(
   });
 
   // Create a list of themed pages based on the config.json file. Each page will contain the segments that belong to that theme.
-  const themePages = config.themes.map((theme: { id: string; name: string; segments: string[]; introduction?: string }) => {
+  const themePages = config.themes.map((theme: Theme) => {
     return {
       id: theme.id,
       content: segments.filter(segment => theme.segments.indexOf(segment.type) !== -1).reduce(
