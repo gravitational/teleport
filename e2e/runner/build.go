@@ -46,7 +46,7 @@ func build(ctx context.Context, config *e2eConfig) error {
 	}
 
 	var buildNode bool
-	if fixtures.SSHNode.Enabled && needsNodeBuild(config) {
+	if sshNodeEnabled() && needsNodeBuild(config) {
 		buildNode = shouldBuild(filepath.Join(nodeBuildDir, "build", "teleport-node"), config.noBuild)
 	}
 

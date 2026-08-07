@@ -35,9 +35,9 @@ export class UnifiedResourcesPage {
   async connect(serverName: string, login: string) {
     const row = this.page
       .locator('div')
-      .filter({ hasText: serverName })
+      .filter({ has: this.page.getByText(serverName, { exact: true }) })
       .filter({ has: this.page.getByRole('button', { name: 'Connect' }) })
-      .first();
+      .last();
     await row.getByRole('button', { name: 'Connect' }).click();
 
     const popupPromise = this.page.waitForEvent('popup');
