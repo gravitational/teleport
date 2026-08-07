@@ -56,12 +56,41 @@ type Identity struct {
 	Traits map[string][]string
 }
 
-// Env holds the values one where clause evaluation reads. Request and
-// Identity are deliberately not [http.Request] and tlsca.Identity, to make
-// clear which fields matter for evaluation.
+// Env holds the values one where clause evaluation reads, and the state
+// the audit wrappers record into. Request and Identity are deliberately
+// not [http.Request] and tlsca.Identity, to make clear which fields
+// matter for evaluation.
 type Env struct {
 	Request  Request
 	Identity Identity
+	// state collects what the audit wrappers record. It is unexported
+	// because only an evaluation that intends to read the record back
+	// needs it, and it is nil for an Env a caller built itself. The
+	// wrappers tolerate a nil state, so a where clause that calls one
+	// still evaluates.
+	state *evalState
+}
+
+// evalState holds the side effects of one evaluation for the caller. It
+// is held by pointer so the same instance is observed across the whole
+// expression tree, even though Env is passed by value. On error the
+// state may be partially populated and must be discarded. allowCode is
+// meaningful only when the evaluation returned true, and denyHints only
+// when it returned false.
+type evalState struct {
+	// allowCode and allowReason hold the last successful allow_code call.
+	allowCode   string
+	allowReason string
+	// denyHints records deny_hint calls in evaluation order.
+	denyHints []Hint
+}
+
+// withAuditState returns a copy of the environment carrying a fresh
+// audit state, so concurrent evaluations never share recorded codes or
+// hints. The rule layer builds one per evaluation.
+func (e Env) withAuditState() Env {
+	e.state = &evalState{}
+	return e
 }
 
 // Where is a compiled where clause. Only CompileWhere returns a usable
@@ -144,6 +173,35 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 			}),
 		},
 		Functions: map[string]typical.Function{
+			// allow_code records an audit code and reason and returns the
+			// wrapped boolean, so it never flips the result. The record is
+			// committed only when the wrapped expression is true. When
+			// several allow_code calls fire on one evaluation, the last one
+			// wins.
+			"allow_code": typical.TernaryFunctionWithEnv(func(e Env, code, reason string, expr bool) (bool, error) {
+				if err := validateAuditCode(code); err != nil {
+					return false, trace.Wrap(err)
+				}
+				if expr && e.state != nil {
+					e.state.allowCode = code
+					e.state.allowReason = reason
+				}
+				return expr, nil
+			}),
+			// deny_hint records a near-miss hint and returns the wrapped
+			// boolean, so it never flips the result. The hint is committed
+			// only when the call is reached and the wrapped expression is
+			// false. Under &&, that is the near-miss where the conditions on
+			// its left matched but this one did not.
+			"deny_hint": typical.TernaryFunctionWithEnv(func(e Env, code, reason string, expr bool) (bool, error) {
+				if err := validateAuditCode(code); err != nil {
+					return false, trace.Wrap(err)
+				}
+				if !expr && e.state != nil {
+					e.state.denyHints = append(e.state.denyHints, Hint{Code: code, Reason: reason})
+				}
+				return expr, nil
+			}),
 			// set and contains are named after the functions in the role
 			// where-clause language, services.NewWhereParser.
 			"set": typical.UnaryVariadicFunction[Env](func(args ...string) ([]string, error) {
@@ -173,4 +231,23 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 		panic(trace.Wrap(err, "building the where clause parser (this is a bug)"))
 	}
 	return p
+}
+
+// predicate is a parsed, type-checked app-access predicate ready to
+// evaluate. A rule lowers to one predicate, and an
+// app_resources_expressions entry compiles to one directly.
+type predicate = typical.Expression[Env, bool]
+
+// compilePredicate parses and type-checks a predicate, and runs the
+// compile-time audit code validation. Unlike CompileWhere it accepts the
+// full predicate language, including the audit wrappers.
+func compilePredicate(expr string) (predicate, error) {
+	pred, err := whereParser.Parse(expr)
+	if err != nil {
+		return nil, trace.BadParameter("compiling predicate %q: %v", expr, err)
+	}
+	if err := validateAuditCodes(expr); err != nil {
+		return nil, trace.Wrap(err, "compiling predicate %q", expr)
+	}
+	return pred, nil
 }
