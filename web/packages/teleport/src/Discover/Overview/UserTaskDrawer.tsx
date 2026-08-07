@@ -368,7 +368,7 @@ function makeImpactsTable(impacted: { rows: ImpactRow[] }): {
   const columns: TableColumn<ImpactRow>[] = [
     {
       key: 'id',
-      headerText: 'Resource',
+      headerText: 'Resource Name',
       render: row => {
         if (row.resourceUrl) {
           return (
@@ -406,7 +406,7 @@ function makeImpactsTable(impacted: { rows: ImpactRow[] }): {
   if (hasInvocation) {
     columns.push({
       altKey: 'invocation',
-      headerText: 'Invocation',
+      headerText: 'Invocation URL',
       render: row =>
         row.invocationUrl ? (
           <Cell align="center">
