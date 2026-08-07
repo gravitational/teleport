@@ -965,7 +965,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	// Add in a login hook for generating state during user login.
-	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
+	as.ULSGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
 		AccessLists: as,
 		Access:      as,
@@ -978,11 +978,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
+	as.RegisterLoginHook(as.ULSGenerator.LoginHook(services.UserLoginStates))
 
 	as.pdp, err = decision.NewService(decision.Config{
 		AccessPoint:  as.Cache,
-		ULSGenerator: as.ulsGenerator,
+		ULSGenerator: as.ULSGenerator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1534,8 +1534,8 @@ type Server struct {
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
 
-	// ulsGenerator is the user login state generator.
-	ulsGenerator *userloginstate.Generator
+	// ULSGenerator is the user login state generator.
+	ULSGenerator *userloginstate.Generator
 
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
@@ -2905,7 +2905,7 @@ func (a *Server) regenerateUserLoginState(ctx context.Context, username string) 
 		// See GetUserOrLoginState where IsBot is checked and the user is returned directly.
 		return user, nil
 	}
-	uls, err := a.ulsGenerator.GeneratePureULS(ctx, user)
+	uls, err := a.ULSGenerator.GeneratePureULS(ctx, user)
 	return uls, trace.Wrap(err)
 }
 
@@ -5236,7 +5236,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		}
 
 		// Make sure to refresh the user login state.
-		userState, err := a.ulsGenerator.Refresh(ctx, user, a.UserLoginStates)
+		userState, err := a.ULSGenerator.Refresh(ctx, user, a.UserLoginStates)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

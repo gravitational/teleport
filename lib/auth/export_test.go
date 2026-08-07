@@ -201,7 +201,7 @@ func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.Authe
 }
 
 func (a *Server) RefreshULS(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
-	return a.ulsGenerator.Refresh(ctx, user, ulsService)
+	return a.ULSGenerator.Refresh(ctx, user, ulsService)
 }
 
 func (a *Server) CreateGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {

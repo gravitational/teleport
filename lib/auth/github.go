@@ -862,7 +862,7 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 	})
 
 	// Instead of updating the user, refresh the user login state.
-	userState, err := a.ulsGenerator.Refresh(ctx, teleportUser, a.UserLoginStates)
+	userState, err := a.ULSGenerator.Refresh(ctx, teleportUser, a.UserLoginStates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

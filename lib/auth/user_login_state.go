@@ -26,5 +26,5 @@ import (
 // GeneratePureULS is used to determine login state for the user.
 // It emits no usage events and ignores any existing user login state in the backend.
 func (a *Server) GeneratePureULS(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
-	return a.ulsGenerator.GeneratePureULS(ctx, user)
+	return a.ULSGenerator.GeneratePureULS(ctx, user)
 }
