@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS audit_queue (
     enqueued_at INTEGER NOT NULL DEFAULT (unixepoch())
 ) STRICT;
 
+CREATE INDEX IF NOT EXISTS idx_audit_queue_enqueued_at ON audit_queue(enqueued_at);
+
 CREATE TABLE IF NOT EXISTS audit_dead_letter (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     payload   BLOB    NOT NULL,
