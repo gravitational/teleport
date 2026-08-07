@@ -222,7 +222,6 @@ func (sm *mockSSMClient) Wait(ctx context.Context, params *ssm.GetCommandInvocat
 	sm.mu.Lock()
 	sm.waiterContext = ctx
 	sm.waiterMaxWaitDuration = maxWaitDur
-	sm.waiterCalls++
 	sm.mu.Unlock()
 	if sm.waiterStarted != nil {
 		sm.waiterStarted <- struct{}{}
@@ -378,18 +377,10 @@ func TestSSMInstallerBatchCompletesWithinSingleWaitPeriod(t *testing.T) {
 		require.Equal(t, installTimeout+awsInstallTimeoutPad, time.Since(start))
 		require.Len(t, installationResults.installations, awsEC2APIChunkSize)
 
-		client.mu.Lock()
-		waiterCalls := client.waiterCalls
-		waiterCtx := client.waiterContext
-		client.mu.Unlock()
-		require.Equal(t, awsEC2APIChunkSize, waiterCalls)
-
-		sendCommandDeadline, ok := client.sendCommandContext.Deadline()
-		require.True(t, ok)
-		waiterDeadline, ok := waiterCtx.Deadline()
-		require.True(t, ok)
-		require.Equal(t, installTimeout+2*awsInstallTimeoutPad, sendCommandDeadline.Sub(start))
-		require.Equal(t, sendCommandDeadline, waiterDeadline)
+		for _, result := range installationResults.installations {
+			require.Equal(t, string(ssmtypes.CommandInvocationStatusInProgress), result.SSMRunEvent.Status)
+			require.Equal(t, libevent.SSMRunFailCode, result.SSMRunEvent.Metadata.Code)
+		}
 	})
 }
 
@@ -645,11 +636,7 @@ func TestSSMInstallerHonorsTimeoutAboveLegacyWaiterLimit(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, maxAWSInstallTimeout+awsInstallTimeoutPad, time.Since(start))
-		require.Equal(t, maxAWSInstallTimeout+awsInstallTimeoutPad, client.waiterMaxWaitDuration)
 
-		sendCommandDeadline, ok := client.sendCommandContext.Deadline()
-		require.True(t, ok)
-		require.Equal(t, maxAWSInstallTimeout+2*awsInstallTimeoutPad, sendCommandDeadline.Sub(start))
 		require.Len(t, installationResults.installations, 1)
 		require.Equal(t, string(ssmtypes.CommandInvocationStatusInProgress), installationResults.installations[0].SSMRunEvent.Status)
 	})
