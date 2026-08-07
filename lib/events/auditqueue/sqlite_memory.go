@@ -105,6 +105,8 @@ func newSQLiteInMemoryQueue(cfg Config) (*sqliteInMemoryQueue, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	inner.wg.Go(inner.statsLoop)
+
 	return &sqliteInMemoryQueue{
 		inner:       inner,
 		id:          id,
