@@ -34,6 +34,7 @@ var validBrowsers = []string{"chromium", "firefox", "webkit"}
 
 type e2eFlags struct {
 	noBuild          bool
+	noResourceSetup  bool
 	quiet            bool
 	verbose          bool
 	replaceCerts     bool
@@ -73,7 +74,8 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.IntVar(&testResultsPR, "test-results", 0, "download test results and open a trace for a given PR number (pass trace path as argument)")
 
 	flag.BoolVar(&f.verbose, "v", false, "enable debug logging")
-	flag.BoolVar(&f.noBuild, "no-build", false, "skip make binaries")                          // useful for running during development to avoid rebuilding Teleport every time
+	flag.BoolVar(&f.noBuild, "no-build", false, "skip make binaries") // useful for running during development to avoid rebuilding Teleport every time
+	flag.BoolVar(&f.noResourceSetup, "no-resource-setup", false, "skip applying resources to Teleport instance in advance of tests")
 	flag.BoolVar(&f.quiet, "quiet", false, "redirect Teleport logs to file instead of stdout") // used in CI to avoid flooding logs with Teleport logs
 	flag.BoolVar(&f.replaceCerts, "replace-certs", false, "generate new self-signed certificates")
 	flag.BoolVar(&f.updateSnapshots, "update-snapshots", false, "update Playwright snapshot baselines")
