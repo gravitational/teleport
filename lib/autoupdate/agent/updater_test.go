@@ -21,7 +21,13 @@ package agent
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,6 +42,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -48,6 +55,29 @@ import (
 func TestMain(m *testing.M) {
 	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	os.Exit(m.Run())
+}
+
+func testArtifactSignatureVerifiers(t *testing.T) []signature.Verifier {
+	t.Helper()
+
+	setEmbeddedArtifactSignatureKey := func() string {
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+		pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+		require.NoError(t, err)
+		return base64.StdEncoding.EncodeToString(
+			pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}),
+		)
+	}
+
+	verifiers, err := NewArtifactSignatureVerifiers(
+		setEmbeddedArtifactSignatureKey(),
+		setEmbeddedArtifactSignatureKey(),
+		"",
+		"",
+	)
+	require.NoError(t, err)
+	return verifiers
 }
 
 func TestWarnUmask(t *testing.T) {
@@ -134,7 +164,8 @@ func TestUpdater_Disable(t *testing.T) {
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify:         true,
+				ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
 			}, ns)
 			require.NoError(t, err)
 
@@ -222,7 +253,8 @@ func TestUpdater_Unpin(t *testing.T) {
 			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify:         true,
+				ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
 			}, ns)
 			require.NoError(t, err)
 
@@ -765,7 +797,8 @@ func TestUpdater_Update(t *testing.T) {
 				cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 				updater, err := NewLocalUpdater(LocalUpdaterConfig{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify:         true,
+					ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
 				}, ns)
 				require.NoError(t, err)
 
@@ -790,7 +823,7 @@ func TestUpdater_Update(t *testing.T) {
 					tbotReloadCalls     int
 				)
 				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error {
 						for _, r := range tt.linkedRevisions {
 							if r == rev {
 								require.False(t, force)
@@ -1047,7 +1080,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify:         true,
+				ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
 			}, ns)
 			require.NoError(t, err)
 
@@ -1380,7 +1414,8 @@ func TestUpdater_Remove(t *testing.T) {
 				cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 				updater, err := NewLocalUpdater(LocalUpdaterConfig{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify:         true,
+					ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
 				}, ns)
 				require.NoError(t, err)
 
@@ -1838,7 +1873,8 @@ func TestUpdater_Install(t *testing.T) {
 				cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 				updater, err := NewLocalUpdater(LocalUpdaterConfig{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify:         true,
+					ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
 				}, ns)
 				require.NoError(t, err)
 
@@ -1891,7 +1927,7 @@ func TestUpdater_Install(t *testing.T) {
 					selinuxRemovals     int
 				)
 				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error {
 						installedRevision = rev
 						installedBaseURL = baseURL
 						return tt.installErr
@@ -2198,7 +2234,9 @@ func TestUpdater_Setup(t *testing.T) {
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				ArtifactSignatureVerifiers: testArtifactSignatureVerifiers(t),
+			}, ns)
 			require.NoError(t, err)
 
 			updater.TeleportProcess = &testProcess{
@@ -2367,7 +2405,7 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool) error
+	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
 	FuncLink          func(ctx context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
@@ -2379,8 +2417,8 @@ type testInstaller struct {
 	FuncIsLinked      func(ctx context.Context, rev Revision, path string) (bool, error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool) error {
-	return ti.FuncInstall(ctx, rev, baseURL, force)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error {
+	return ti.FuncInstall(ctx, rev, baseURL, force, insecureSkipSignatureVerify, enableStagingSignatureVerify)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {
