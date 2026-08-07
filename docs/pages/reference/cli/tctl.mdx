@@ -2222,6 +2222,24 @@ Flags:
 |`--connector`|*no default*|Name of the Teleport connector to use.|
 |`--connector-type`|*no default* (one of: `oidc`, `saml`)|Type of the Teleport connector to use.|
 
+## tctl plugins install slack
+
+Install a Teleport Slack Access Request plugin.
+
+Usage:
+
+```code
+$ tctl plugins install slack --bot-token-file=BOT-TOKEN-FILE --fallback-channel=FALLBACK-CHANNEL [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--bot-token-file`|*no default*|Slack bot token used by the plugin. Accepts path to a file containing the token.|
+|`--fallback-channel`|*no default*|Slack channel where unrouted alerts should be sent. For example #access-requests.|
+|`--name`|`slack-default`|Name of the Slack plugin instance.|
+
 ## tctl plugins rotate awsic
 
 Rotate the AWS Identity Center SCIM bearer token.
