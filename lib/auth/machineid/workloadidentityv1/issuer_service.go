@@ -862,8 +862,8 @@ func (s *IssuanceService) getX509CA(
 		return overrideCA, chain, nil
 	}
 
-	// CA override resource exists but no override matches the selected signing key. Return the self-signed CA
-	// rather than falling back to a different trust source when an override is explicitly configured.
+	// CA override resource exists but no override matches the selected signing key (or all overrides are disabled).
+	// Return the self-signed CA rather than falling back to a different trust source.
 	return selfSignedCA, nil, nil
 }
 
