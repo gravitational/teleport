@@ -65,9 +65,6 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
 		return trace.Wrap(err)
 	}
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
-	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -76,6 +73,9 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if o.AppName == "" {
 		return trace.BadParameter("app_name must not be empty")
+	}
+	if scoped && o.DelegationSessionID != "" {
+		return trace.BadParameter("delegation_session_id: not supported with scopes")
 	}
 
 	return nil

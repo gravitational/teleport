@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
@@ -287,4 +288,141 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	respBody, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "hello from server b", string(respBody))
+}
+
+// TestE2E_ScopedApplicationProxyService tests that the application proxy
+// service works in scoped mode, issuing per-request scoped app certs and
+// routing traffic to the correct backend based on the Host header.
+func TestE2E_ScopedApplicationProxyService(t *testing.T) {
+	if !scopes.FeaturesFromEnv().AgentPinEnabled {
+		t.Skip("test requires TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+	}
+	t.Parallel()
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-app-access"
+		botName        = "scoped-proxy-bot"
+		appName        = "scoped-proxy-app"
+	)
+
+	// Spin up a test HTTP server.
+	wantBody := []byte("hello from scoped proxy")
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write(wantBody)
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	// Start the main Teleport process (auth + proxy).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create scoped role, bot, SRA, and app agent.
+	makeScopedRole(t, ctx, rootClient, scopedRoleName, scopeName)
+	botOnboarding := makeScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+	makeScopedAppAgent(t, ctx, process, log, scopeName, appName, httpSrv.URL)
+
+	// Wait for the app to be visible.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		servers, err := rootClient.GetApplicationServers(ctx, "default")
+		if !assert.NoError(ct, err) {
+			return
+		}
+		for _, s := range servers {
+			if s.GetApp().GetName() == appName {
+				return
+			}
+		}
+		assert.Fail(ct, "scoped app not yet visible")
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and start the scoped bot with the proxy service.
+	botListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { botListener.Close() })
+
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+	connCfg := connection.Config{
+		Address:     proxyAddr.Addr,
+		AddressKind: connection.AddressKindProxy,
+		Insecure:    true,
+	}
+
+	alpnUpgradeCache := internal.NewALPNUpgradeCache(log)
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *botOnboarding,
+		Scoped:     true,
+		Services: []bot.ServiceBuilder{
+			ProxyServiceBuilder(
+				&ProxyServiceConfig{
+					Listen:   "localhost:0",
+					Listener: botListener,
+				},
+				connCfg,
+				bot.DefaultCredentialLifetime,
+				alpnUpgradeCache,
+			),
+		},
+	})
+	require.NoError(t, err)
+
+	// Run bot in background.
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Go(func() {
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
+	})
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(&url.URL{
+				Scheme: "http",
+				Host:   botListener.Addr().String(),
+			}),
+		},
+	}
+
+	// Verify the proxy routes traffic to the scoped app.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		req := &http.Request{
+			Method: http.MethodGet,
+			URL: &url.URL{
+				Scheme: "http",
+				Host:   appName,
+				Path:   "/",
+			},
+		}
+		resp, err := httpClient.Do(req)
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, wantBody, body)
+	}, 10*time.Second, 100*time.Millisecond)
 }

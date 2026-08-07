@@ -267,7 +267,7 @@ func (s *OutputService) generateScoped(ctx context.Context) error {
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateScoped(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageIdentity(),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating scoped identity")
