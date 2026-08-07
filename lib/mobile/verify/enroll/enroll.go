@@ -79,6 +79,10 @@ func (c *Client) CreateMobileEnrollToken(pairingToken string, deviceData *Device
 			Clock:       clockwork.NewRealClock(),
 			Insecure:    c.insecure,
 			Log:         slog.Default(),
+			// CreatePairedDeviceEnrollToken blocks until the enrollment is
+			// approved in the Web UI, so keep the upgraded connection alive to
+			// survive L7 load balancer idle timeouts.
+			ALPNConnUpgradePing: true,
 		},
 	)
 	if err != nil {
