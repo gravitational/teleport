@@ -22,6 +22,7 @@ import (
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -29,9 +30,9 @@ import (
 )
 
 // NewWorkloadIdentityDataSourceType returns the workload identity data source type.
-func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentityv1.WorkloadIdentity, tfdriver.NameIdentifier] {
-	return tfdriver.DataSourceType[workloadidentityv1.WorkloadIdentity, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.NameIdentifier] {
+func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
+	return tfdriver.DataSourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier]{
+		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewWorkloadIdentityClient(clientFromProvider(p))
 		},
 		Kind: types.KindWorkloadIdentity,
@@ -39,14 +40,17 @@ func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentit
 			SchemaFunc:  schemav1.GenSchemaWorkloadIdentity,
 			ToStateFunc: schemav1.CopyWorkloadIdentityToTerraform,
 		},
-		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
+		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(tfdriver.ScopeQualifiedPath{
+			Name:  path.Root("metadata").AtName("name"),
+			Scope: path.Root("scope"),
+		}),
 	}
 }
 
 // NewWorkloadIdentityResourceType returns the workload identity resource type.
-func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.WorkloadIdentity, tfdriver.NameIdentifier] {
-	return tfdriver.ResourceType[workloadidentityv1.WorkloadIdentity, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.NameIdentifier] {
+func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
+	return tfdriver.ResourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier]{
+		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewWorkloadIdentityClient(clientFromProvider(p))
 		},
 		Kind: types.KindWorkloadIdentity,
@@ -56,9 +60,17 @@ func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.
 			FromPlanFunc: schemav1.CopyWorkloadIdentityFromTerraform,
 		},
 		Normalizer: tfdriver.ForceKind[workloadidentityv1.WorkloadIdentity](types.KindWorkloadIdentity),
-		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(workloadIdentity *workloadidentityv1.WorkloadIdentity) string {
-			return workloadIdentity.GetMetadata().GetName()
-		}),
+		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+			func(workloadIdentity *workloadidentityv1.WorkloadIdentity) scopes.QualifiedName {
+				return scopes.QualifiedName{
+					Name:  workloadIdentity.GetMetadata().GetName(),
+					Scope: workloadIdentity.GetScope(),
+				}
+			}),
 		ResourceRevision: func(st *workloadidentityv1.WorkloadIdentity) string {
 			return st.GetMetadata().GetRevision()
 		},

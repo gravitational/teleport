@@ -38,13 +38,16 @@ type WorkloadIdentityClient struct {
 }
 
 // Get reads a workload identity by name.
-func (r WorkloadIdentityClient) Get(ctx context.Context, id tfdriver.NameIdentifier) (*workloadidentityv1.WorkloadIdentity, error) {
-	workloadIdentity, err := r.client.GetWorkloadIdentity(ctx, id.Name)
+func (r WorkloadIdentityClient) Get(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) (*workloadidentityv1.WorkloadIdentity, error) {
+	resp, err := r.client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1.GetWorkloadIdentityRequest{
+		Name:  id.Name,
+		Scope: id.Scope,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return workloadIdentity, nil
+	return resp, nil
 }
 
 // Create creates a workload identity.
@@ -66,6 +69,14 @@ func (r WorkloadIdentityClient) Upsert(ctx context.Context, workloadIdentity *wo
 }
 
 // Delete deletes a workload identity by name.
-func (r WorkloadIdentityClient) Delete(ctx context.Context, id tfdriver.NameIdentifier) error {
-	return trace.Wrap(r.client.DeleteWorkloadIdentity(ctx, id.Name))
+func (r WorkloadIdentityClient) Delete(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) error {
+	_, err := r.client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(ctx, &workloadidentityv1.DeleteWorkloadIdentityRequest{
+		Name:  id.Name,
+		Scope: id.Scope,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
