@@ -33,6 +33,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/accesslists"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -48,8 +49,6 @@ type AccessListsGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
-	// GetAccessList returns the specified access list resource.
-	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
 	// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
@@ -78,6 +77,8 @@ type AccessLists interface {
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
+	// DeleteAccessList removes the specified access list resource.
+	DeleteAccessListV2(context.Context, *accesslistv1.DeleteAccessListRequest) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
@@ -97,10 +98,16 @@ type AccessListsInternal interface {
 
 	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
 	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+	// CleanupAccessListStatusV2 removes invalid Status.(Scoped)OwnerOf and Status.(Scoped)MemberOf references.
+	CleanupAccessListStatusV2(ctx context.Context, accessListName accesslists.NormalizedSQN) (*accesslist.AccessList, error)
 
 	// EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
 	// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
 	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
+	// EnsureNestedAccessListStatusesV2 goes over all nested owners and nested members of the named
+	// access list and ensures nested lists' statuses (scoped_)owner_of/(scoped_)member_of contain
+	// the access list name.
+	EnsureNestedAccessListStatusesV2(ctx context.Context, accessListName accesslists.NormalizedSQN) error
 
 	// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
 	// upstream source (e.g. EntraID) using a batch operation for improved performance.
@@ -181,8 +188,12 @@ func (ImplicitAccessListError) Error() string {
 type AccessListMemberGetter interface {
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessListMemberV2 returns the specified access list member resource.
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessListV2 returns the specified access list resource.
+	GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 }
@@ -193,13 +204,20 @@ type AccessListMembersGetter interface {
 
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (membersCount uint32, listCount uint32, err error)
+	// CountAccessListMembersV2 will count all access list members.
+	CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (membersCount uint32, listCount uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAccessListMembersV2 returns a paginated list of all access list members.
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
 	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
+	// GetAccessListOwnersV2 returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+	GetAccessListOwnersV2(ctx context.Context, req *accesslistv1.GetAccessListOwnersRequest) ([]*accesslist.Owner, error)
 }
 
 // AccessListMembers defines an interface for managing AccessListMembers.
@@ -212,8 +230,12 @@ type AccessListMembers interface {
 	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+	// DeleteAccessListMemberV2 hard deletes the specified access list member resource.
+	DeleteAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
+	// DeleteAllAccessListMembersForAccessListV2 hard deletes all access list members for an access list.
+	DeleteAllAccessListMembersForAccessListV2(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.
@@ -264,15 +286,21 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 type AccessListReviews interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+	// ListAccessListReviewsV2 will list access list reviews for a particular access list.
+	ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error)
 
-	// ListAllAccessListReviews will list access list reviews for all access lists. Only to be used by the cache.
+	// ListAllAccessListReviews will list access list reviews for all unscoped access lists. Only to be used by the cache.
 	ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+	// ListAllAccessListReviewsV2 will list access list reviews for all access lists. Only to be used by the cache.
+	ListAllAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAllAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error)
 
 	// CreateAccessListReview will create a new review for an access list.
 	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, nextReviewDate time.Time, err error)
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
+	// DeleteAccessListReviewV2 will delete an access list review from the backend.
+	DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.
@@ -335,7 +363,7 @@ func CreateAccessListNextKey(al *accesslist.AccessList, indexName string) (strin
 
 // AccessListNameIndexKey returns the resource name returned from GetName().
 func AccessListNameIndexKey(al *accesslist.AccessList) string {
-	return al.GetName()
+	return scopes.MakeResourceCursor(al.GetScope(), al.GetName())
 }
 
 // AccessListAuditDateIndexKey returns the DateOnly formatted next audit date
@@ -346,9 +374,9 @@ func AccessListAuditDateIndexKey(al *accesslist.AccessList) string {
 		// appear at the end when sorted. Otherwise we would compare against
 		// `0001-01-01 00:00:00` which would sort first, but actually means
 		// the access list is not eligible for review.
-		return "z/" + al.GetName()
+		return "z/" + AccessListNameIndexKey(al)
 	}
-	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + al.GetName()
+	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + AccessListNameIndexKey(al)
 }
 
 // AccessListTitleIndexKey returns the access list title base32hex encoded
@@ -356,7 +384,7 @@ func AccessListAuditDateIndexKey(al *accesslist.AccessList) string {
 func AccessListTitleIndexKey(al *accesslist.AccessList) string {
 	title := cases.Fold().String(al.Spec.Title)
 	title = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(title))
-	return title + "/" + al.GetName()
+	return title + "/" + AccessListNameIndexKey(al)
 }
 
 // MatchAccessList returns true if the access list matches the given filter criteria.

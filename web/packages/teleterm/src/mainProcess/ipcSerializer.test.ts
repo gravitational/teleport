@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TshdRpcError } from 'teleterm/services/tshd/cloneableClient';
+import { RpcError } from '@protobuf-ts/runtime-rpc';
 
 import { deserializeError, serializeError } from './ipcSerializer';
 
@@ -40,29 +40,27 @@ test('serializes and deserializes regular error', () => {
   expect(deserialized.cause).toBe(err.cause);
 });
 
-test('serializes and deserializes tshd error', () => {
-  const err: TshdRpcError = {
-    name: 'TshdRpcError',
-    message: 'Could not found',
-    toString: () => 'Could not found',
-    cause: '',
-    stack: '',
-    code: 'NOT_FOUND',
-    isResolvableWithRelogin: false,
-  };
+test('serializes and deserializes RPC error', () => {
+  const err = new RpcError('Could not found', 'NOT_FOUND', {
+    'is-resolvable-with-relogin': ['1'],
+  });
 
   const serialized = serializeError(err);
   expect(serialized instanceof Error).toBe(false);
   expect(serialized.message).toBe('Could not found');
-  expect(serialized.name).toBe('TshdRpcError');
-  expect(serialized['isResolvableWithRelogin']).toBe(false);
+  expect(serialized.name).toBe('RpcError');
   expect(serialized['code']).toBe('NOT_FOUND');
+  expect(serialized['meta']).toEqual({
+    'is-resolvable-with-relogin': ['1'],
+  });
 
   const cloned = structuredClone(serialized);
   const deserialized = deserializeError(cloned);
   expect(deserialized instanceof Error).toBe(true);
   expect(deserialized.message).toBe('Could not found');
-  expect(deserialized.name).toBe('TshdRpcError');
-  expect(deserialized['isResolvableWithRelogin']).toBe(false);
+  expect(deserialized.name).toBe('RpcError');
   expect(deserialized['code']).toBe('NOT_FOUND');
+  expect(deserialized['meta']).toEqual({
+    'is-resolvable-with-relogin': ['1'],
+  });
 });

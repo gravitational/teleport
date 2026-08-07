@@ -19,11 +19,15 @@
 package common
 
 import (
+	"context"
+	"maps"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -91,4 +95,42 @@ func TestRolesAndTraitsForAppToken(t *testing.T) {
 			assert.Equal(t, tt.wantTraits, actualTraits)
 		})
 	}
+}
+
+type fakeTokenGenerator struct{}
+
+func (f fakeTokenGenerator) GenerateAppToken(_ context.Context, _ types.GenerateAppTokenRequest) (string, error) {
+	return "fake-jwt-token", nil
+}
+
+func TestGenerateJWTAndTraitsDoesNotMutateIdentity(t *testing.T) {
+	identity := &tlsca.Identity{
+		Username: "test",
+		Groups:   []string{"access", "editor"},
+		Traits: wrappers.Traits{
+			"team": []string{"dev"},
+		},
+	}
+	originalTraits := maps.Clone(identity.Traits)
+
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app"},
+		types.AppSpecV3{URI: "http://localhost:12345"},
+	)
+	require.NoError(t, err)
+
+	jwt, rewriteTraits, err := GenerateJWTAndTraits(
+		t.Context(),
+		identity,
+		app,
+		&fakeTokenGenerator{},
+		time.Now().Add(time.Hour).In(time.UTC),
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, jwt)
+
+	assert.Equal(t, []string{"fake-jwt-token"}, rewriteTraits[constants.TraitJWT])
+
+	assert.Equal(t, originalTraits, identity.Traits)
+	assert.Empty(t, identity.Traits[constants.TraitJWT], "identity.Traits must not contain the JWT")
 }

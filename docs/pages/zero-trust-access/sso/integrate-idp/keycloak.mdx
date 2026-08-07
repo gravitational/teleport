@@ -8,12 +8,13 @@ tags:
  - zero-trust
  - privileged-access
 enterprise: Enterprise SSO
+page_type: how-to
 ---
 
-This guide explains how to configure Keycloak to issue
-credentials to specific groups of users with a SAML authentication connector.
-When used in combination with role-based access control (RBAC), it allows Teleport
-administrators to define policies like:
+In this guide, you will configure Keycloak to issue credentials to specific
+groups of users with a SAML authentication connector.  When used in combination
+with role-based access control (RBAC), it allows Teleport administrators to
+define policies like:
 
 - Only members of the "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.

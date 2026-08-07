@@ -33,13 +33,14 @@ import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import { AppLauncher } from './AppLauncher';
+import { BrowserMfa } from './BrowserMFA/BrowserMFA';
 import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
-import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
+import { LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { Main } from './Main';
@@ -216,11 +217,21 @@ export function getSharedPrivateRoutes() {
       path={cfg.routes.desktop}
       component={DesktopSession}
     />,
+    <Route
+      key="linuxDesktop"
+      path={cfg.routes.linuxDesktop}
+      component={DesktopSession}
+    />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}
       component={HeadlessRequest}
+    />,
+    <Route
+      key="browserMFA"
+      path={cfg.routes.browserMfa}
+      component={BrowserMfa}
     />,
   ];
 }

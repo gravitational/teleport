@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -46,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -180,6 +180,11 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		oldestSupportedVersion = nil
 	}
 
+	accountRecoveryLimiter, err := newAccountRecoveryLimiter()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
@@ -187,6 +192,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		ClusterName:            localClusterName.GetClusterName(),
 		AcceptedUsage:          cfg.AcceptedUsage,
 		Limiter:                limiter,
+		accountRecoveryLimiter: accountRecoveryLimiter,
 		GRPCMetrics:            grpcMetrics,
 		OldestSupportedVersion: oldestSupportedVersion,
 		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
@@ -361,6 +367,9 @@ type Middleware struct {
 	AcceptedUsage []string
 	// Limiter is a rate and connection limiter
 	Limiter *limiter.Limiter
+	// accountRecoveryLimiter rate-limits account recovery RPCs
+	// independently from the default limiter.
+	accountRecoveryLimiter *limiter.RateLimiter
 	// GRPCMetrics is the configured gRPC metrics for the interceptors
 	GRPCMetrics *grpcprom.ServerMetrics
 	// EnableCredentialsForwarding allows the middleware to receive impersonation
@@ -386,26 +395,55 @@ func (a *Middleware) Wrap(h http.Handler) {
 	a.Handler = h
 }
 
-func getCustomRate(endpoint string) *limiter.RateSet {
-	switch endpoint {
-	// Account recovery RPCs.
-	case
-		"/proto.AuthService/ChangeUserAuthentication",
-		"/proto.AuthService/ChangePassword",
-		"/proto.AuthService/GetAccountRecoveryToken",
-		"/proto.AuthService/StartAccountRecovery",
-		"/proto.AuthService/VerifyAccountRecovery":
-		rates := limiter.NewRateSet()
-		// This limit means: 1 request per minute with bursts up to 10 requests.
-		if err := rates.Add(time.Minute, 1, 10); err != nil {
-			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
-				"error", err,
-				"rpc_method", endpoint)
-			return nil
-		}
-		return rates
+// newAccountRecoveryLimiter creates the dedicated limiter for
+// account recovery RPCs (1 req/min, burst 10).
+func newAccountRecoveryLimiter() (*limiter.RateLimiter, error) {
+	return limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{Period: time.Minute, Average: 1, Burst: 10}},
+	})
+}
+
+// clientIPFromContext extracts the client IP from the gRPC peer in
+// the given context.
+func clientIPFromContext(ctx context.Context) (string, error) {
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", trace.AccessDenied("missing peer info")
 	}
-	return nil
+	return utils.ClientIPFromAddr(peerInfo.Addr)
+}
+
+// rateLimitUnaryInterceptor returns a gRPC unary interceptor that
+// applies the default rate and connection limiter to all endpoints,
+// plus the stricter account recovery limiter on recovery endpoints.
+func (a *Middleware) rateLimitUnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		clientIP, err := clientIPFromContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		release, err := a.Limiter.RegisterRequestAndConnection(clientIP)
+		if err != nil {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+		defer release()
+		// Additional rate check for account recovery endpoints.
+		switch info.FullMethod {
+		case
+			"/proto.AuthService/ChangeUserAuthentication",
+			"/proto.AuthService/ChangePassword",
+			"/proto.AuthService/GetAccountRecoveryToken",
+			"/proto.AuthService/StartAccountRecovery",
+			"/proto.AuthService/VerifyAccountRecovery":
+			if a.accountRecoveryLimiter != nil {
+				err := a.accountRecoveryLimiter.RegisterRequest(clientIP)
+				if err != nil {
+					return nil, trace.LimitExceeded("rate limit exceeded")
+				}
+			}
+		}
+		return handler(ctx, req)
+	}
 }
 
 // ValidateClientVersion inspects the client version for the connection and terminates
@@ -601,19 +639,14 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	return append(is,
 		interceptors.GRPCServerUnaryErrorInterceptor,
 		metadata.UnaryServerInterceptor,
-		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
+		a.rateLimitUnaryInterceptor(),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
 }
 
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
-	is := []grpc.StreamServerInterceptor{
-		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-		otelgrpc.StreamServerInterceptor(),
-	}
-
+	var is []grpc.StreamServerInterceptor
 	if a.GRPCMetrics != nil {
 		is = append(is, a.GRPCMetrics.StreamServerInterceptor())
 	}
@@ -653,11 +686,10 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		return authz.BuiltinRole{
+		return authz.UnauthenticatedRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
 			ClusterName: a.ClusterName,
-			Identity:    tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -705,7 +737,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 		// the local auth server can not trust remote servers
 		// to issue certificates with system roles (e.g. Admin),
 		// to get unrestricted access to the local cluster
-		systemRole := findPrimarySystemRole(identity.Groups)
+		systemRole := getPrimarySystemRole(identity.Groups)
 		if systemRole != nil {
 			return authz.RemoteBuiltinRole{
 				Role:        *systemRole,
@@ -714,12 +746,17 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 				Identity:    *identity,
 			}, nil
 		}
+
+		if identity.ScopePin != nil {
+			return nil, trace.AccessDenied("access denied: scoped identities cannot interact with remote clusters")
+		}
+
 		return newRemoteUserFromIdentity(*identity, certClusterName), nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity
-	systemRole := findPrimarySystemRole(identity.Groups)
+	systemRole := getPrimarySystemRole(identity.Groups)
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
@@ -731,16 +768,35 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 			Identity:              *identity,
 		}, nil
 	}
+
+	if identity.ScopePin != nil {
+		switch identity.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			return authz.ScopedBuiltinRole{
+				ScopePin:    identity.ScopePin,
+				ServerFQDN:  identity.Username,
+				ClusterName: a.ClusterName,
+				Identity:    *identity,
+			}, nil
+		case scopesv1.PinKind_PIN_KIND_USER:
+			// valid user scope pin, fall through to LocalUser
+		default:
+			return nil, trace.AccessDenied("access denied: identity has scope pin with unrecognized kind %v", identity.ScopePin.GetKind())
+		}
+	}
+
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
 	return newLocalUserFromIdentity(*identity), nil
 }
 
-func findPrimarySystemRole(roles []string) *types.SystemRole {
+// getPrimarySystemRole finds the primary role in the given list and validates that it
+// is a system role. This was renamed from findPrimarySystemRole which was updated and
+// moved to ./client_tls_config_generator.go upstream
+func getPrimarySystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err == nil {
+		if systemRole.IsValid() {
 			return &systemRole
 		}
 	}
@@ -751,8 +807,7 @@ func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
 	var systemRoles types.SystemRoles
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err != nil {
+		if !systemRole.IsValid() {
 			// ignore unknown system roles rather than rejecting them, since new unknown system
 			// roles may be present on certs if we rolled back from a newer version.
 			logger.WarnContext(context.Background(), "Ignoring unknown system role", "unknown_role", role)
@@ -876,7 +931,7 @@ func (a *Middleware) extractIdentityFromImpersonationHeader(proxyCluster string,
 	}
 
 	switch {
-	case findPrimarySystemRole(impersonatedIdentity.Groups) != nil:
+	case getPrimarySystemRole(impersonatedIdentity.Groups) != nil:
 		// make sure that this user does not have system role
 		// since system roles are not allowed to be impersonated.
 		return nil, trace.AccessDenied("can not impersonate a system role")

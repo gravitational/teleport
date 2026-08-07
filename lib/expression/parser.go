@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -145,6 +146,10 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 
 					// If it's not a time, try semver comparison
 					return SemverBetween(value, arg1, arg2)
+				}),
+			"contains": typical.BinaryFunction[evaluationEnv](
+				func(s Set, str string) (bool, error) {
+					return s.contains(str), nil
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
@@ -287,7 +292,7 @@ func StringTransform(name string, input any, f func(string) string) (any, error)
 	case string:
 		return f(typedInput), nil
 	case Set:
-		return Set{utils.SetTransform(typedInput.s, f)}, nil
+		return Set{set.Transform(typedInput.s, f)}, nil
 	default:
 		return nil, trace.BadParameter("failed to evaluate argument to %s: expected string or set, got value of type %T", name, input)
 	}

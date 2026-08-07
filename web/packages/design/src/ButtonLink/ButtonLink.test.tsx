@@ -16,18 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import ButtonLink from './index';
 
 describe('design/ButtonLink', () => {
   it('respects the "as" prop', () => {
-    const { container } = render(<ButtonLink />);
-    expect(container.firstChild?.nodeName).toBe('A');
+    render(<ButtonLink href="https://example.com">Hi</ButtonLink>);
+    expect(screen.getByRole('link')).toBeInTheDocument();
   });
 
   it('respects the button size prop', () => {
-    const { container } = render(<ButtonLink size="large" />);
-    expect(container.firstChild).toHaveStyle('min-height: 40px');
+    render(
+      <ButtonLink href="https://example.com" size="large">
+        Hi
+      </ButtonLink>
+    );
+    expect(screen.getByRole('link')).toHaveStyle('min-height: 40px');
   });
 });

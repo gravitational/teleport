@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createGlobalStyle, css } from 'styled-components';
-
-import { getPlatform, Platform } from 'design/platform';
+import { createGlobalStyle } from 'styled-components';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -59,23 +57,6 @@ const GlobalStyle = createGlobalStyle`
     //
     // The Web UI uses <Text bold> to render bold text, whereas Connect mostly uses <strong>.
     font-weight: ${props => props.theme.fontWeights.bold};
-  }
-
-  ${() => getPlatform() !== Platform.macOS && customScrollbar}
-`;
-
-const customScrollbar = css`
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #757575;
-  }
-
-  ::-webkit-scrollbar-corner {
-    background: rgba(0, 0, 0, 0.5);
   }
 `;
 

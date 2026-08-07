@@ -5,6 +5,7 @@ description: How to configure Teleport database access with Amazon ElastiCache S
 tags:
  - how-to
  - zero-trust
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon ElastiCache Serverless" dbConfigure="with IAM authentication"!)
@@ -189,6 +190,8 @@ $ tsh db connect --db-user=my-database-user my-serverless-cache
 ```
 
 (!docs/pages/includes/database-access/aws-redis-tsh-db-user-auth.mdx!)
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="my-serverless-cache" dbArgs="--db-user=my-database-user"!)
 
 To log out of the database and remove credentials:
 

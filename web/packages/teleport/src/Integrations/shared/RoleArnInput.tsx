@@ -38,7 +38,7 @@ export function RoleArnInput({
       {description || (
         <Text>
           Once Teleport completes setting up OIDC identity provider and creating
-          a role named "{roleName}" in AWS cloud shell (step 2), go to your{' '}
+          a role named "{roleName}" in AWS CloudShell (step 2), go to your{' '}
           <Link
             target="_blank"
             href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleName}`}
@@ -46,7 +46,7 @@ export function RoleArnInput({
             IAM Role dashboard
           </Link>{' '}
           and copy and paste the role ARN below. Teleport will use this role to
-          identity itself to AWS.
+          identify itself to AWS.
         </Text>
       )}
       <FieldInput

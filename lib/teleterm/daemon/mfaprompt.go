@@ -21,7 +21,6 @@ package daemon
 import (
 	"context"
 	"io"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
@@ -74,12 +73,39 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
-	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
-	scope := p.cfg.Extensions.GetScope()
+	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
+	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
+
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn && !promptSSO {
+	if !promptOTP && !promptWebauthn && !promptSSO && !promptBrowserMfa {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	appPrompt := func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		resp, err := p.promptApp(ctx, chal)
+
+		// If the user closes the modal in the Electron app, we need to be able to cancel the other
+		// goroutine as well so that we stop waiting for the hardware key tap.
+		if err != nil && status.Code(err) == codes.Aborted {
+			cancel(err)
+		}
+
+		return resp, trace.Wrap(err)
+	}
+
+	return libmfa.HandleConcurrentMFAPrompts(ctx, chal, appPrompt, p.maybePromptWebauthn, p.maybePromptBrowserOrSSO)
+}
+
+// promptApp handles the client modal, cancellation, and TOTP.
+func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	promptOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
+	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
+	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
+	scope := p.cfg.Extensions.GetScope()
 
 	var ssoChallenge *api.SSOChallenge
 	if promptSSO {
@@ -91,59 +117,22 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}
 	}
 
-	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
-		ctx, cancel := context.WithCancelCause(ctx)
-
-		// Fire app Prompt goroutine. Handles client cancellation and TOTP.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			resp, err := p.promptMFA(ctx, &api.PromptMFARequest{
-				ClusterUri:    p.resourceURI.GetClusterURI().String(),
-				Reason:        p.cfg.PromptReason,
-				Totp:          promptOTP,
-				Webauthn:      promptWebauthn,
-				Sso:           ssoChallenge,
-				PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-			})
-			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
-
-			// If the user closes the modal in the Electron app, we need to be able to cancel the other
-			// goroutine as well so that we stop waiting for the hardware key tap.
-			if err != nil && status.Code(err) == codes.Aborted {
-				cancel(err)
-			}
-		}()
-
-		// Fire Webauthn goroutine.
-		if promptWebauthn {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				resp, err := p.promptWebauthn(ctx, chal)
-				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
-			}()
-		}
-
-		// Fire SSO goroutine.
-		if promptSSO {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				resp, err := p.promptSSO(ctx, chal)
-				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
-			}()
+	var browserMfaChallenge *mfav1.BrowserMFAChallenge
+	if promptBrowserMfa {
+		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
+			RequestId: chal.BrowserMFAChallenge.RequestId,
 		}
 	}
 
-	return libmfa.HandleMFAPromptGoroutines(ctx, spawnGoroutines)
-}
-
-func (p *mfaPrompt) promptMFA(ctx context.Context, req *api.PromptMFARequest) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := p.promptAppMFA(ctx, req)
+	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
+		ClusterUri:    p.resourceURI.GetClusterURI().String(),
+		Reason:        p.cfg.PromptReason,
+		Totp:          promptOTP,
+		Webauthn:      promptWebauthn,
+		Sso:           ssoChallenge,
+		Browser:       browserMfaChallenge,
+		PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -154,18 +143,27 @@ func (p *mfaPrompt) promptMFA(ctx context.Context, req *api.PromptMFARequest) (*
 	}, nil
 }
 
-func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+// Prompt Webauthn if it's a supported method.
+func (p *mfaPrompt) maybePromptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if chal.WebauthnChallenge == nil || !p.cfg.WebauthnSupported {
+		return nil, nil
+	}
+
 	prompt := wancli.NewDefaultPrompt(ctx, io.Discard)
 	opts := &wancli.LoginOpts{AuthenticatorAttachment: p.cfg.AuthenticatorAttachment}
 	resp, _, err := p.cfg.WebauthnLoginFunc(ctx, p.cfg.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Webauthn authentication failed")
 	}
-
 	return resp, nil
 }
 
-func (c *mfaPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+// Prompt Browser/SSO if it's a supported method.
+func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if (chal.SSOChallenge == nil && chal.BrowserMFAChallenge == nil) || p.cfg.CallbackCeremony == nil {
+		return nil, nil
+	}
+
+	resp, err := p.cfg.CallbackCeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }

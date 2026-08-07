@@ -68,6 +68,7 @@ func (s *Server) handleTokenJoin(
 	// considered a join failure.
 	if scopedToken, ok := joining.GetScopedToken(token); ok {
 		publicKey := tokenInit.ClientParams.HostParams.PublicKeys.PublicTLSKey
+
 		if _, err := s.cfg.ScopedTokenService.UseScopedToken(stream.Context(), scopedToken, publicKey); err != nil {
 			return nil, trace.Wrap(err)
 		}

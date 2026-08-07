@@ -1,13 +1,14 @@
 ---
 title: Reference for the teleport_role Terraform resource
 sidebar_label: role
-description: This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_role resource of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+This page lists the supported values of the teleport_role resource of the Teleport Terraform provider.
 
 
 
@@ -119,6 +120,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -143,6 +146,9 @@ Optional:
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specallowkubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `linux_desktop_labels` (Map of List of String) LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+- `linux_desktop_labels_expression` (String) LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.
+- `linux_desktop_logins` (List of String) LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specallowmcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
@@ -328,6 +334,8 @@ Optional:
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
 - `azure_identities` (List of String) AzureIdentities is a list of Azure identities this role is allowed to assume.
+- `beam_labels` (Map of List of String) BeamLabels are used in the RBAC system to allow/deny access to beams.
+- `beam_labels_expression` (String) BeamLabelsExpression is a predicate expression used to allow/deny access to beams.
 - `cluster_labels` (Map of List of String) ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
 - `cluster_labels_expression` (String) ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.
 - `db_labels` (Map of List of String) DatabaseLabels are used in RBAC system to allow/deny access to databases.
@@ -352,6 +360,9 @@ Optional:
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specdenykubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `linux_desktop_labels` (Map of List of String) LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+- `linux_desktop_labels_expression` (String) LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.
+- `linux_desktop_logins` (List of String) LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specdenymcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
@@ -563,6 +574,7 @@ Optional:
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
 - `ssh_port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwarding))
+- `web_terminal_clipboard_mode` (Number) WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified.
 
 ### Nested Schema for `spec.options.cert_extensions`
 

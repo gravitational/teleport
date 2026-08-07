@@ -20,13 +20,18 @@ package reversetunnel
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -38,6 +43,8 @@ type mockAgent struct {
 	Agent
 	mockStart    func(ctx context.Context) error
 	mockGetState func() AgentState
+	// mu protects access to the mockGetState field.
+	mu sync.RWMutex
 }
 
 func (m *mockAgent) Start(ctx context.Context) error {
@@ -48,6 +55,8 @@ func (m *mockAgent) Start(ctx context.Context) error {
 }
 
 func (m *mockAgent) GetState() AgentState {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.mockGetState != nil {
 		return m.mockGetState()
 	}
@@ -106,9 +115,11 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 
 		go func() {
 			<-pool.ctx.Done()
+			agent.mu.Lock()
 			agent.mockGetState = func() AgentState {
 				return AgentClosed
 			}
+			agent.mu.Unlock()
 			callback := pool.getStateCallback(agent)
 			callback(AgentClosed)
 		}()
@@ -163,4 +174,222 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 
 	require.Nil(t, pool.tracker.TryAcquire())
 	require.Equal(t, 3, pool.Count())
+}
+
+func TestAgentKeepAliveCountTimeout(t *testing.T) {
+	cases := []struct {
+		name           string
+		keepAliveCount int
+		expectTimeout  time.Duration
+	}{
+		{
+			name:           "count=3 produces 300ms watchdog timeout",
+			keepAliveCount: 3,
+			expectTimeout:  300 * time.Millisecond,
+		},
+		{
+			name:           "count=7 produces 700ms watchdog timeout",
+			keepAliveCount: 7,
+			expectTimeout:  700 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var (
+					watchdogOnce    sync.Once
+					watchdogTimeout time.Duration
+				)
+
+				requests := make(chan *ssh.Request)
+
+				agent, client := testAgent(t, agentConfig{
+					keepAlive:      100 * time.Millisecond,
+					keepAliveCount: tt.keepAliveCount,
+				})
+
+				client.MockEnableWatchdog = func(timeout time.Duration) {
+					watchdogOnce.Do(func() {
+						watchdogTimeout = timeout
+					})
+				}
+
+				client.MockSendRequest = func(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
+					return true, nil, nil
+				}
+
+				client.MockOpenChannel = func(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error) {
+					return tracessh.NewTraceChannel(
+						&mockSSHChannel{
+							MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
+								return true, nil
+							},
+						},
+					), requests, nil
+				}
+
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				require.NoError(t, agent.Start(ctx))
+
+				// Wait for all goroutines in the bubble to block, at which
+				// point sendKeepalives has fired its timer(0) and called
+				// EnableWatchdog.
+				synctest.Wait()
+
+				// Stop the agent and drain the requests channel so
+				// DiscardRequests can exit, leaving no blocked goroutines.
+				agent.Stop()
+				close(requests)
+
+				require.Equal(t, tt.expectTimeout, watchdogTimeout,
+					"watchdog timeout should equal keepAlive * keepAliveCount")
+			})
+		})
+	}
+}
+
+func TestAgentPoolKeepAliveCountUpdatesAgent(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		watchdogTimeouts := make(chan time.Duration, 2)
+
+		var mu sync.Mutex
+		currentRequests := make(chan *ssh.Request)
+
+		pool, client := setupTestAgentPool(t)
+
+		// Use a fresh tracker with no pre-tracked proxies so lease.Claim
+		// always succeeds regardless of principal name.
+		var err error
+		pool.tracker, err = track.New(track.Config{ClusterName: "test-cluster"})
+		require.NoError(t, err)
+		pool.tracker.TrackExpected(track.Proxy{Name: "proxy-1"})
+
+		agentClosedEvents := make(chan AgentState, 1)
+		wrapStateCallback := func(agent Agent) AgentStateCallback {
+			callback := pool.getStateCallback(agent)
+			return func(state AgentState) {
+				if state == AgentClosed {
+					select {
+					case agentClosedEvents <- state:
+					default:
+					}
+				}
+				callback(state)
+			}
+		}
+		drainAgentClosedEvents := func() {
+			for {
+				select {
+				case <-agentClosedEvents:
+				default:
+					return
+				}
+			}
+		}
+
+		agentCount := 0
+		var keepAliveCountMax atomic.Int64 // starting at 0 will default to apidefaults.KeepAliveCountMax
+
+		pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
+			agentCount++
+			agentNumber := agentCount
+			// Each agent gets a unique principal so it never collides with a
+			// previously claimed proxy.
+			principal := fmt.Sprintf("proxy-%d", agentNumber)
+
+			mu.Lock()
+			reqs := currentRequests
+			mu.Unlock()
+
+			mockClient := &mockSSHClient{
+				MockPrincipals:        []string{principal},
+				MockGlobalRequests:    make(chan *ssh.Request),
+				MockHandleChannelOpen: make(chan ssh.NewChannel),
+				MockSendRequest: func(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
+					return true, nil, nil
+				},
+				MockOpenChannel: func(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error) {
+					return tracessh.NewTraceChannel(
+						&mockSSHChannel{
+							MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
+								return true, nil
+							},
+						},
+					), reqs, nil
+				},
+			}
+			mockClient.MockEnableWatchdog = func(timeout time.Duration) {
+				select {
+				case watchdogTimeouts <- timeout:
+				default:
+				}
+			}
+
+			inject := &mockAgentInjection{client: mockClient}
+			a, err := newAgent(agentConfig{
+				addr:             utils.NetAddr{Addr: "test-proxy-addr"},
+				keepAlive:        pool.runtimeConfig.keepAliveInterval,
+				keepAliveCount:   pool.runtimeConfig.keepAliveCount,
+				sshDialer:        inject,
+				transportHandler: inject,
+				versionGetter:    inject,
+				tracker:          tracker,
+				lease:            lease,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			a.stateCallback = wrapStateCallback(a)
+			return a, nil
+		}
+
+		client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+			config := types.DefaultClusterNetworkingConfig()
+			config.SetKeepAliveInterval(100 * time.Millisecond)
+			config.SetKeepAliveCountMax(keepAliveCountMax.Load())
+			return config, nil
+		}
+
+		require.NoError(t, pool.Start())
+
+		synctest.Wait()
+
+		require.Equal(t, 300*time.Millisecond, <-watchdogTimeouts,
+			"first agent: watchdog timeout should be keepAlive(100ms) * keepAliveCount(3)")
+
+		keepAliveCountMax.Store(7)
+
+		newReqs := make(chan *ssh.Request)
+		mu.Lock()
+		oldReqs := currentRequests
+		currentRequests = newReqs
+		mu.Unlock()
+
+		// Closing oldReqs unblocks the first agent's DiscardRequests goroutine,
+		// which causes the agent to close and the pool to reconnect with the
+		// updated keepAliveCount.
+		close(oldReqs)
+
+		synctest.Wait()
+		drainAgentClosedEvents()
+
+		require.Equal(t, 700*time.Millisecond, <-watchdogTimeouts,
+			"second agent: watchdog timeout should be keepAlive(100ms) * keepAliveCount(7)")
+
+		drainAgentClosedEvents()
+		close(newReqs)
+
+		stopDone := make(chan struct{})
+		go func() {
+			pool.Stop()
+			close(stopDone)
+		}()
+
+		synctest.Wait()
+		require.Equal(t, AgentClosed, <-agentClosedEvents)
+		<-stopDone
+	})
 }

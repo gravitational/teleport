@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import {
+  enableMswServer,
   Providers,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -35,20 +36,12 @@ import { deleteBotError, deleteBotSuccess } from 'teleport/test/helpers/bots';
 
 import { DeleteDialog } from './DeleteDialog';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('DeleteDialog', () => {
   it('should render correctly', async () => {

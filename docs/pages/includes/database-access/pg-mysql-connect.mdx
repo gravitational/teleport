@@ -14,6 +14,8 @@ $ tsh db connect --db-user={{ dbUser }} --db-name={{ mySchema }} {{ dbService }}
   Either the `mysql` or the `mariadb` client must be available on `PATH` to connect.
 </Admonition>
 
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="{{ dbService }}" dbArgs="--db-user={{ dbUser }} --db-name={{ mySchema }}"!)
+
 (!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MySQL or MariaDB"!)
 
 </TabItem>
@@ -28,6 +30,8 @@ $ tsh db connect --db-user={{ dbUser }} --db-name={{ pgSchema }} {{ dbService }}
 <Admonition type="note" title="Note">
   The `psql` client must be available on `PATH` to connect.
 </Admonition>
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="{{ dbService }}" dbArgs="--db-user={{ dbUser }} --db-name={{ pgSchema }}"!)
 
 (!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 

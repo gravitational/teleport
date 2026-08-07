@@ -19,16 +19,17 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
 } from 'design/utils/testing';
@@ -47,11 +48,9 @@ import {
 
 import { Instances } from './Instances';
 
-const server = setupServer();
+enableMswServer();
 
 beforeAll(() => {
-  server.listen();
-
   global.IntersectionObserver = class IntersectionObserver {
     constructor() {}
     disconnect() {}
@@ -64,12 +63,9 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 it('having no permissions should show correct error', async () => {
   renderComponent({
@@ -323,7 +319,7 @@ function makeWrapper(options: {
     return (
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <ContextProvider ctx={ctx}>
               <Router history={history}>
                 <Route path={cfg.routes.instances}>{children}</Route>

@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -281,7 +282,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	tokenURL.RawQuery = values.Encode()
 	resp, err := http.Get(tokenURL.String())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(redactAWSSigninTokenRequestError(err))
 	}
 
 	respBytes, err := io.ReadAll(resp.Body)
@@ -301,6 +302,14 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	}
 
 	return fedResp.SigninToken, nil
+}
+
+func redactAWSSigninTokenRequestError(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return trace.ConnectionProblem(urlErr.Err, "failed to request AWS federation sign-in token")
+	}
+	return trace.ConnectionProblem(nil, "failed to request AWS federation sign-in token")
 }
 
 func getAssumeDetailedRolesOption(ctx context.Context, req *AWSSigninRequest, temporarySession bool, duration time.Duration) awsconfig.OptionsFn {

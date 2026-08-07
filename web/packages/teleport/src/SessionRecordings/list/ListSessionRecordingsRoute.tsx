@@ -29,7 +29,7 @@ import { Danger } from 'design/Alert';
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
 import { Indicator } from 'design/Indicator';
-import { SortOrder } from 'shared/components/Controls/SortMenuV2';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { getErrorMessage } from 'shared/utils/error';
 
@@ -49,12 +49,17 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
 import type { RecordingActionProps } from './RecordingItem';
-import { RecordingsList } from './RecordingsList';
+import {
+  RecordingsList,
+  type RecordingsDecoratorProps,
+} from './RecordingsList';
 import { useRecordingsListState, type RecordingsListFilterKey } from './state';
 
 interface ListSessionRecordingsRouteProps {
   actionComponent?: ComponentType<RecordingActionProps>;
+  badgeComponent?: ComponentType<RecordingActionProps>;
   headerElement?: ReactNode;
+  recordingsDecorator?: ComponentType<RecordingsDecoratorProps>;
 }
 
 export function ListSessionRecordingsRoute() {
@@ -63,7 +68,9 @@ export function ListSessionRecordingsRoute() {
 
 export function ListSessionRecordings({
   actionComponent,
+  badgeComponent,
   headerElement,
+  recordingsDecorator,
 }: ListSessionRecordingsRouteProps) {
   const ranges = useMemo(() => getRangeOptions(), []);
 
@@ -138,10 +145,12 @@ export function ListSessionRecordings({
         >
           <RecordingsList
             actionComponent={actionComponent}
+            badgeComponent={badgeComponent}
             onFilterChange={handleFilterChange}
             onPageChange={handlePageChange}
             onSearchChange={handleSearchChange}
             onSortChange={handleSortChange}
+            recordingsDecorator={recordingsDecorator}
             state={state}
           />
         </ErrorSuspenseWrapper>

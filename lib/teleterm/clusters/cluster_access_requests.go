@@ -125,7 +125,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authcl
 
 	// Role-based and Resource-based AccessRequests are mutually exclusive.
 	if len(req.ResourceIds) > 0 {
-		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, resourceIDs)
+		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, types.ResourceIDsToResourceAccessIDs(resourceIDs))
 	} else {
 		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
 	}

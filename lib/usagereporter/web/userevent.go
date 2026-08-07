@@ -64,6 +64,16 @@ const (
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 
+	uiAccessListStartEvent            = "tp.ui.access_list.start"
+	uiAccessListCompleteEvent         = "tp.ui.access_list.complete"
+	uiAccessListDefineAccessEvent     = "tp.ui.access_list.define.access"
+	uiAccessListDefineIdentitiesEvent = "tp.ui.access_list.define.identities"
+	uiAccessListDefineBasicInfoEvent  = "tp.ui.access_list.define.basicinfo"
+	uiAccessListDefineMembersEvent    = "tp.ui.access_list.define.members"
+	uiAccessListDefineOwnersEvent     = "tp.ui.access_list.define.owners"
+	uiAccessListIntegrateEvent        = "tp.ui.access_list.integrate"
+	uiAccessListCustomEvent           = "tp.ui.access_list.custom"
+
 	uiIntegrationEnrollStartEvent         = "tp.ui.integrationEnroll.start"
 	uiIntegrationEnrollCompleteEvent      = "tp.ui.integrationEnroll.complete"
 	uiIntegrationEnrollStepEvent          = "tp.ui.integrationEnroll.step"
@@ -77,6 +87,10 @@ const (
 	uiAccessGraphCrownJewelDiffViewEvent = "tp.ui.accessGraph.crownJewelDiffView"
 
 	featureRecommendationEvent = "tp.ui.feature.recommendation"
+
+	uiPageViewEvent                    = "tp.ui.page_view"
+	uiUsageReportingAlertCtaClickEvent = "tp.ui.usage_reporting.alert_cta_click"
+	uiInteractionEvent                 = "tp.ui.interaction"
 )
 
 // Events that require extra metadata.
@@ -103,6 +117,16 @@ var eventsWithDataRequired = []string{
 	uiIntegrationEnrollFieldCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
 	uiAccessGraphCrownJewelDiffViewEvent,
+	uiAccessListCompleteEvent,
+	uiAccessListDefineAccessEvent,
+	uiAccessListDefineBasicInfoEvent,
+	uiAccessListDefineIdentitiesEvent,
+	uiAccessListDefineMembersEvent,
+	uiAccessListDefineOwnersEvent,
+	uiAccessListIntegrateEvent,
+	uiAccessListStartEvent,
+	uiAccessListCustomEvent,
+	uiInteractionEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -201,6 +225,13 @@ type CreateUserEventRequest struct {
 	Event string `json:"event"`
 	// Alert is a banner click event property
 	Alert string `json:"alert"`
+
+	// Path is the route template for page view events, e.g. "/web/cluster/:clusterId/usage-summary"
+	Path string `json:"path"`
+	// UtmSource is the UTM source parameter (e.g. "email")
+	UtmSource string `json:"utmSource"`
+	// UtmCampaign is the UTM campaign parameter (e.g. "overage_80")
+	UtmCampaign string `json:"utmCampaign"`
 
 	// EventData contains the event's metadata.
 	// This field dependes on the Event name, hence the json.RawMessage
@@ -428,6 +459,28 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				Link: eventData.Link,
 			},
 		}}, nil
+
+	case uiAccessListCompleteEvent,
+		uiAccessListDefineAccessEvent,
+		uiAccessListDefineBasicInfoEvent,
+		uiAccessListDefineIdentitiesEvent,
+		uiAccessListDefineMembersEvent,
+		uiAccessListDefineOwnersEvent,
+		uiAccessListIntegrateEvent,
+		uiAccessListStartEvent,
+		uiAccessListCustomEvent:
+
+		var accessListEvent AccessListEventData
+		if err := json.Unmarshal([]byte(*req.EventData), &accessListEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		event, err := accessListEvent.ToUsageEvent(req.Event)
+		if err != nil {
+			return nil, trace.BadParameter("failed to convert eventData: %v", err)
+		}
+		return event, nil
+
 	case uiDiscoverStartedEvent,
 		uiDiscoverResourceSelectionEvent,
 		uiDiscoverIntegrationAWSOIDCConnectEvent,
@@ -549,6 +602,47 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
 					AffectedResourceSource: event.AffectedResourceSource,
 					AffectedResourceType:   event.AffectedResourceType,
+				},
+			},
+		}, nil
+
+	case uiPageViewEvent:
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiPageViewEvent{
+				UiPageViewEvent: &usageeventsv1.UIPageViewEvent{
+					Path:        req.Path,
+					UtmSource:   req.UtmSource,
+					UtmCampaign: req.UtmCampaign,
+				},
+			},
+		}, nil
+
+	case uiUsageReportingAlertCtaClickEvent:
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiUsageReportingAlertCtaClickEvent{
+				UiUsageReportingAlertCtaClickEvent: &usageeventsv1.UIUsageReportingAlertCtaClickEvent{
+					Alert:       req.Alert,
+					UtmSource:   req.UtmSource,
+					UtmCampaign: req.UtmCampaign,
+				},
+			},
+		}, nil
+
+	case uiInteractionEvent:
+		event := struct {
+			Path   string            `json:"path"`
+			PageID string            `json:"page_id"`
+			Params map[string]string `json:"params"`
+		}{}
+		if err := json.Unmarshal(*req.EventData, &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiInteraction{
+				UiInteraction: &usageeventsv1.UIInteractionEvent{
+					Path:   event.Path,
+					PageId: event.PageID,
+					Params: event.Params,
 				},
 			},
 		}, nil

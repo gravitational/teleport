@@ -71,11 +71,17 @@ type OktaAssignments interface {
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+	// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+	// UpsertOktaAssignment upsert an Okta assignment.
+	UpsertOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
 	// since the last transition.
 	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
+	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context) error
 }

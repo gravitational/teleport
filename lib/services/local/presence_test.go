@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -46,99 +48,337 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
 func TestApplicationServersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = backend.Close() })
+	t.Cleanup(func() { _ = mem.Close() })
 
-	presence := NewPresenceService(backend)
+	// Wrap in the sanitizer so keys with illegal component characters (e.g. a
+	// "/" inside a single component) fail the same way they would on real
+	// backends; the raw memory backend accepts them silently.
+	presence := NewPresenceService(backend.NewSanitizer(mem))
 
-	// Make an app and an app server.
-	appA, err := types.NewAppV3(types.Metadata{Name: "a"},
-		types.AppSpecV3{URI: "http://localhost:8080"})
+	t.Run("unscoped application servers", func(t *testing.T) {
+		ctx := t.Context()
+		// Make an app and an app server.
+		appA, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		serverA, err := types.NewAppServerV3(types.Metadata{
+			Name: appA.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      appA,
+		})
+		require.NoError(t, err)
+
+		// Make another app and an app server.
+		appB, err := types.NewAppV3(types.Metadata{Name: "b"},
+			types.AppSpecV3{URI: "http://localhost:8081"})
+		require.NoError(t, err)
+		serverB, err := types.NewAppServerV3(types.Metadata{
+			Name: appB.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      appB,
+		})
+		require.NoError(t, err)
+
+		// No app servers should be registered initially
+		out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, out)
+
+		// Create app servers.
+		lease, err := presence.UpsertApplicationServer(ctx, serverA)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{}, lease)
+		lease, err = presence.UpsertApplicationServer(ctx, serverB)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{}, lease)
+
+		// Make sure all app servers are registered.
+		out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
+		require.NoError(t, err)
+		servers := types.AppServers(out)
+		require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
+		require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// Delete an app server.
+		err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: serverA.GetHostID(),
+			Name:   serverA.GetName(),
+			Scope:  serverA.GetScope(),
+		}.Build())
+		require.NoError(t, err)
+
+		// Expect only one to return.
+		out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// Upsert server with TTL.
+		serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
+		lease, err = presence.UpsertApplicationServer(ctx, serverA)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{
+			Type:      types.KeepAlive_APP,
+			Name:      serverA.GetName(),
+			Namespace: serverA.GetNamespace(),
+			HostID:    serverA.GetHostID(),
+			Expires:   serverA.Expiry(),
+		}, lease)
+
+		// Delete all app servers.
+		err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
+		require.NoError(t, err)
+
+		// Expect no servers to return.
+		out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, out)
+	})
+
+	t.Run("scoped application servers", func(t *testing.T) {
+		ctx := t.Context()
+		newAppServer := func(scope string) *types.AppServerV3 {
+			app, err := types.NewAppV3(types.Metadata{Name: "graf"},
+				types.AppSpecV3{URI: "http://localhost:8080"})
+			require.NoError(t, err)
+			app.Scope = scope
+			server, err := types.NewAppServerV3(types.Metadata{
+				Name: app.GetName(),
+			}, types.AppServerSpecV3{
+				Hostname: "localhost",
+				HostID:   uuid.New().String(),
+				App:      app,
+			})
+			require.NoError(t, err)
+			server.Scope = scope
+			return server
+		}
+
+		staging := newAppServer("/staging")
+		prod := newAppServer("/prod")
+		unscoped := newAppServer("")
+
+		for _, server := range []*types.AppServerV3{staging, prod, unscoped} {
+			lease, err := presence.UpsertApplicationServer(ctx, server)
+			require.NoError(t, err)
+			require.Equal(t, &types.KeepAlive{}, lease)
+		}
+
+		getScopes := func() []string {
+			out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			apps := []string{}
+			for _, server := range out {
+				apps = append(apps, server.GetScope())
+			}
+			return apps
+		}
+
+		// Same-named servers in different scopes must coexist.
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes())
+
+		// Unconditional updates must land in the scoped range.
+		staging.SetExpiry(clock.Now().UTC().Add(time.Hour))
+		_, err := presence.UnconditionalUpdateApplicationServer(ctx, staging)
+		require.NoError(t, err)
+
+		// Deleting by (hostID, name, scope) must locate the scoped entry.
+		require.NoError(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: staging.GetHostID(),
+			Name:   staging.GetName(),
+			Scope:  staging.GetScope(),
+		}.Build()))
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes())
+
+		// Deleting an unscoped entry uses the legacy layout.
+		require.NoError(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: unscoped.GetHostID(),
+			Name:   unscoped.GetName(),
+			Scope:  unscoped.GetScope(),
+		}.Build()))
+		require.ElementsMatch(t, []string{"/prod"}, getScopes())
+
+		// Deleting a nonexistent server errors.
+		require.Error(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: staging.GetHostID(),
+			Name:   staging.GetName(),
+			Scope:  staging.GetScope(),
+		}.Build()))
+
+		// DeleteAll clears both ranges.
+		require.NoError(t, presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace))
+		require.Empty(t, getScopes())
+	})
+}
+
+func TestListAppServersPagination(t *testing.T) {
+	t.Parallel()
+
+	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	serverA, err := types.NewAppServerV3(types.Metadata{
-		Name: appA.GetName(),
-	}, types.AppServerSpecV3{
-		Hostname: "localhost",
-		HostID:   uuid.New().String(),
-		App:      appA,
+	t.Cleanup(func() { _ = mem.Close() })
+	presence := NewPresenceService(backend.NewSanitizer(mem))
+	ctx := t.Context()
+
+	newAppServer := func(name, scope string) *types.AppServerV3 {
+		app, err := types.NewAppV3(types.Metadata{Name: name},
+			types.AppSpecV3{URI: "http://localhost:8080"}, scope)
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3(types.Metadata{
+			Name: app.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      app,
+		}, scope)
+		require.NoError(t, err)
+		return server
+	}
+
+	key := func(s types.AppServer) string {
+		return s.GetScope() + "/" + s.GetHostID() + "/" + s.GetName()
+	}
+
+	var keysExpected []string
+	for _, scope := range []string{"", "", "", "/prod", "/prod", "/staging"} {
+		server := newAppServer("graf", scope)
+		_, err := presence.UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+		keysExpected = append(keysExpected, key(server))
+	}
+
+	var actualKeys []string
+	var sawScopedCursor bool
+	startKey := ""
+	// Loop through all the app servers and check that the NextKey matches the expected key
+	for {
+		resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindAppServer,
+			Namespace:    apidefaults.Namespace,
+			Limit:        1,
+			StartKey:     startKey,
+		})
+		require.NoError(t, err)
+
+		r := resp.Resources[0]
+		server, ok := r.(types.AppServer)
+		require.True(t, ok)
+		if startKey != "" { // first entry
+			if startKey == scopes.ResourceCursorScopedStart() {
+				// The unscoped range ended exactly at a page boundary;
+				// next entry should be scoped
+				require.NotEmpty(t, server.GetScope())
+			} else {
+				require.Equal(t, startKey, services.GetCursorForAppServer(server))
+			}
+		}
+		actualKeys = append(actualKeys, key(server))
+
+		if resp.NextKey == "" {
+			break
+		}
+		if scopes.IsScopedResourceCursor(resp.NextKey) {
+			sawScopedCursor = true
+		}
+		startKey = resp.NextKey
+	}
+
+	require.ElementsMatch(t, keysExpected, actualKeys)
+	require.True(t, sawScopedCursor)
+}
+
+func mustCreateApplicationServer(t *testing.T, appName string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI: "localhost",
 	})
 	require.NoError(t, err)
 
-	// Make another app and an app server.
-	appB, err := types.NewAppV3(types.Metadata{Name: "b"},
-		types.AppSpecV3{URI: "http://localhost:8081"})
+	server, err := types.NewAppServerV3FromApp(app, "localhost", uuid.New().String())
 	require.NoError(t, err)
-	serverB, err := types.NewAppServerV3(types.Metadata{
-		Name: appB.GetName(),
-	}, types.AppServerSpecV3{
-		Hostname: "localhost",
-		HostID:   uuid.New().String(),
-		App:      appB,
+	return server
+}
+
+func TestRangeApplicationServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeApplicationServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
-	require.NoError(t, err)
 
-	// No app servers should be registered initially
-	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, out)
+	server1 := mustCreateApplicationServer(t, "shared-app")
+	server2 := mustCreateApplicationServer(t, "shared-app")
+	server3 := mustCreateApplicationServer(t, "standalone-app")
 
-	// Create app servers.
-	lease, err := presence.UpsertApplicationServer(ctx, serverA)
-	require.NoError(t, err)
-	require.Equal(t, &types.KeepAlive{}, lease)
-	lease, err = presence.UpsertApplicationServer(ctx, serverB)
-	require.NoError(t, err)
-	require.Equal(t, &types.KeepAlive{}, lease)
+	for _, s := range []types.AppServer{server1, server2, server3} {
+		_, err := presence.UpsertApplicationServer(ctx, s)
+		require.NoError(t, err)
+	}
 
-	// Make sure all app servers are registered.
-	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
-	require.NoError(t, err)
-	servers := types.AppServers(out)
-	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	t.Run("MultipleServersSameApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-app", s.GetApp().GetName())
+		}
+	})
 
-	// Delete an app server.
-	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
-	require.NoError(t, err)
+	t.Run("SingleServerForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "standalone-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-app", servers[0].GetApp().GetName())
+	})
 
-	// Expect only one to return.
-	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	t.Run("NoServersForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "nonexistent-app"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
 
-	// Upsert server with TTL.
-	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
-	lease, err = presence.UpsertApplicationServer(ctx, serverA)
-	require.NoError(t, err)
-	require.Equal(t, &types.KeepAlive{
-		Type:      types.KeepAlive_APP,
-		Name:      serverA.GetName(),
-		Namespace: serverA.GetNamespace(),
-		HostID:    serverA.GetHostID(),
-		Expires:   serverA.Expiry(),
-	}, lease)
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+			Scope:  server1.GetScope(),
+		}.Build())
+		require.NoError(t, err)
 
-	// Delete all app servers.
-	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
-	require.NoError(t, err)
-
-	// Expect no servers to return.
-	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, out)
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -238,6 +478,168 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func mustCreateDatabaseServer(t *testing.T, dbName string) types.DatabaseServer {
+	t.Helper()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   uuid.New().String(),
+		Hostname: "localhost",
+		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost:5432"),
+	})
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeDatabaseServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateDatabaseServer(t, "shared-db")
+	server2 := mustCreateDatabaseServer(t, "shared-db")
+	server3 := mustCreateDatabaseServer(t, "standalone-db")
+
+	for _, s := range []types.DatabaseServer{server1, server2, server3} {
+		_, err := presence.UpsertDatabaseServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-db", s.GetDatabase().GetName())
+		}
+	})
+
+	t.Run("SingleServerForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "standalone-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-db", servers[0].GetDatabase().GetName())
+	})
+
+	t.Run("NoServersForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "nonexistent-db"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteDatabaseServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
+}
+
+func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServer {
+	t.Helper()
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: clusterName,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	server, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestKubeServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(backend.NewSanitizer(bk))
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	const scope = "/aa"
+	server1 := mustCreateKubernetesServer(t, "shared-cluster")
+	server2 := mustCreateKubernetesServer(t, "shared-cluster")
+	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
+	server4, ok := server2.Copy().(*types.KubernetesServerV3)
+	require.True(t, ok, "expected types.KubernetesServerV3")
+	server4.Scope = scope
+
+	for _, s := range []types.KubeServer{server1, server2, server3, server4} {
+		_, err := presence.UpsertKubernetesServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 3)
+		for _, s := range servers {
+			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
+		}
+	})
+
+	t.Run("SingleServerForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "standalone-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-cluster", servers[0].GetCluster().GetName())
+	})
+
+	t.Run("NoServersForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "nonexistent-cluster"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServerWithScope", func(t *testing.T) {
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  scope,
+			HostId: server2.GetHostID(),
+			Name:   server2.GetName(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, server := range servers {
+			require.Empty(t, server.GetScope())
+		}
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
 }
 
 func TestNodeCRUD(t *testing.T) {
@@ -430,6 +832,40 @@ func TestListResources(t *testing.T) {
 					HostID:   uuid.New().String(),
 					App:      app,
 				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"ScopedAppServers": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				const scope = "/staging"
+				app, err := types.NewAppV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				}, scope)
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					App:      app,
+				}, scope)
 				if err != nil {
 					return err
 				}
@@ -1074,6 +1510,69 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	})
 }
 
+// TestFakePaginateWithScopes ensures that a resource scope can be used to
+// paginate resources with duplicate names.
+func TestFakePaginateWithScopes(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+	newKubeCluster := func(i int) *types.KubernetesClusterV3 {
+		kubeCluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name: "cluster",
+				// we use the revision to easily tell the resources apart
+				Revision: strconv.Itoa(i),
+			},
+			types.KubernetesClusterSpecV3{},
+			types.KubeClusterWithScope(makeScope(i)),
+		)
+		require.NoError(t, err)
+		return kubeCluster
+	}
+
+	clusterCount := 100
+	// all kube clusters have the same name, so the only way to
+	// correctly paginate them is by scope
+	resources := make([]types.ResourceWithLabels, clusterCount)
+	for i := range clusterCount {
+		resources[i] = newKubeCluster(i)
+	}
+
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
+		startKey := ""
+		count := 0
+		for range clusterCount/pageSize + 1 {
+			res, err := FakePaginate(resources, FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        int32(pageSize),
+				Kinds:        []string{types.KindKubernetesCluster},
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+			for _, r := range res.Resources {
+				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
+				count++
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+		require.Equal(t, clusterCount, count)
+	}
+}
+
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1690,4 +2189,190 @@ func TestPresenceService_ListSemaphores(t *testing.T) {
 		}
 	})
 
+}
+
+func TestReverseTunnels_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewPresenceService(mem)
+
+	createResource := func(name string) {
+		rc, err := types.NewReverseTunnel(name, []string{"example.com:443"})
+		require.NoError(t, err)
+		_, err = service.UpsertReverseTunnel(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(reverseTunnelsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListReverseTunnels(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListReverseTunnels(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListReverseTunnels(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.ReverseTunnel{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			require.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+}
+
+func TestScopedLease(t *testing.T) {
+	t.Parallel()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	const scope = "/aa"
+	expires := time.Now().Add(24 * time.Hour)
+	t.Run("kube servers", func(t *testing.T) {
+		ctx := t.Context()
+		unscoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "unscoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "unscoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "unscoped",
+					},
+				},
+			},
+		}
+
+		scoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "scoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "scoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "scoped",
+					},
+				},
+			},
+			Scope: scope,
+		}
+
+		// Create servers, check lease scopes, and try a keepalive
+		lease, err := presence.UpsertKubernetesServer(ctx, unscoped)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+		err = presence.KeepAliveServer(ctx, *lease)
+		require.NoError(t, err)
+
+		lease, err = presence.UpsertKubernetesServer(ctx, scoped)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+		err = presence.KeepAliveServer(ctx, *lease)
+		require.NoError(t, err)
+	})
+
+	t.Run("nodes", func(t *testing.T) {
+		ctx := t.Context()
+		unscopedNode, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		unscopedNode.SetExpiry(expires)
+
+		const scope = "/aa"
+		scopedNode, err := types.NewServerWithLabels("scoped-node", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		scopedServer, ok := scopedNode.(*types.ServerV2)
+		require.True(t, ok, "expected types.ServerV2")
+		scopedServer.Scope = scope
+		scopedServer.SetExpiry(expires)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertNode(ctx, unscopedNode)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertNode(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
+
+	t.Run("apps", func(t *testing.T) {
+		ctx := t.Context()
+		expires := time.Now().Add(24 * time.Hour)
+		unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		unscopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    unscopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      unscopedApp,
+		})
+		require.NoError(t, err)
+
+		const scope = "/aa"
+		scopedApp, err := types.NewAppV3(types.Metadata{Name: "graf"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		scopedApp.Scope = scope
+		scopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    scopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      scopedApp,
+		})
+		require.NoError(t, err)
+		scopedServer.Scope = scope
+		require.NoError(t, err)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertApplicationServer(ctx, unscopedServer)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertApplicationServer(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
 }

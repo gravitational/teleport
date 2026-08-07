@@ -40,6 +40,7 @@ const (
 	statusPackageName = "teleportcr"
 	statusPackage     = statusPackagePath + "/" + statusPackageName
 	statusTypeName    = "Status"
+	scopeFieldName    = "scope"
 )
 
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
@@ -80,6 +81,7 @@ type SchemaVersion struct {
 	Schema               *Schema
 	additionalColumns    []apiextv1.CustomResourceColumnDefinition
 	additionalRootFields map[string]apiextv1.JSONSchemaProps
+	validationRules      apiextv1.ValidationRules
 }
 
 // Schema is a set of object properties.
@@ -115,8 +117,9 @@ type resourceSchemaConfig struct {
 	versionOverride      string
 	customSpecFields     []string
 	additionalRootFields []string
-	kindContainsVersion  bool
+	kindWithoutVersion   bool
 	additionalColumns    []apiextv1.CustomResourceColumnDefinition
+	validationRules      apiextv1.ValidationRules
 }
 
 type resourceSchemaOption func(*resourceSchemaConfig)
@@ -133,10 +136,11 @@ func withNameOverride(name string) resourceSchemaOption {
 	}
 }
 
-// set this only on new multi-version resources
-func withVersionInKindOverride() resourceSchemaOption {
+// Here for backward compatibility-only.
+// DO NOT SET on new resources. See RFD 169 for more details.
+func legacyWithoutVersionInKindOverride() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.kindContainsVersion = true
+		cfg.kindWithoutVersion = true
 	}
 }
 
@@ -148,11 +152,17 @@ func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 	}
 }
 
-// withAdditionalRootFields adds fields from the root proto message as top-level
-// properties on the CRD.
-func withAdditionalRootFields(rootFields []string) resourceSchemaOption {
+// withScope says that the resource is scoped. A scope field will be inserted at the CRD root.
+func withScope() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.additionalRootFields = rootFields
+		cfg.additionalRootFields = append(cfg.additionalRootFields, scopeFieldName)
+		cfg.additionalColumns = append(cfg.additionalColumns, apiextv1.CustomResourceColumnDefinition{
+			Name:        scopeFieldName,
+			Type:        "string",
+			Description: "Resource's scope.",
+			Priority:    0,
+			JSONPath:    "." + scopeFieldName,
+		})
 	}
 }
 
@@ -174,6 +184,19 @@ func withAdditionalColumns(additionalColumns []apiextv1.CustomResourceColumnDefi
 		cfg.additionalColumns = columns
 	}
 }
+
+// withSingletonName adds a CEL x-kubernetes-validations rule enforcing that the
+// resource's metadata.name must equal name. This is used for singleton CRDs
+// where only one instance is allowed in the cluster.
+func withSingletonName(name string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.validationRules = append(cfg.validationRules, apiextv1.ValidationRule{
+			Rule:    fmt.Sprintf("self.metadata.name == %q", name),
+			Message: fmt.Sprintf("resource must be named %q", name),
+		})
+	}
+}
+
 func (generator *SchemaGenerator) addResource(file *File, name string, opts ...resourceSchemaOption) error {
 	var cfg resourceSchemaConfig
 	for _, opt := range opts {
@@ -233,7 +256,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		resourceKind = cfg.nameOverride
 	}
 	kubernetesKind := resourceKind
-	if cfg.kindContainsVersion {
+	if !cfg.kindWithoutVersion {
 		kubernetesKind = resourceKind + strings.ToUpper(resourceVersion)
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
@@ -241,7 +264,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	root, ok := generator.roots[kubernetesKind]
 	if !ok {
 		pluralName := strings.ToLower(english.PluralWord(2, resourceKind, ""))
-		if cfg.kindContainsVersion {
+		if !cfg.kindWithoutVersion {
 			pluralName = pluralName + resourceVersion
 		}
 		root = &RootSchema{
@@ -257,7 +280,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	// For legacy CRs with a single version, we use the Teleport version as the
 	// Kubernetes API version
 	kubernetesVersion := resourceVersion
-	if cfg.kindContainsVersion {
+	if !cfg.kindWithoutVersion {
 		// For new multi-version resources we always set the version to "v1" as
 		// the Teleport version is also in the CR kind.
 		kubernetesVersion = "v1"
@@ -284,6 +307,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		Schema:               schema,
 		additionalColumns:    cfg.additionalColumns,
 		additionalRootFields: rootFields,
+		validationRules:      cfg.validationRules,
 	})
 
 	return nil
@@ -606,6 +630,11 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 		// Add any additional root-level fields as siblings to spec/metadata/status.
 		for fieldName, fieldSchema := range schemaVersion.additionalRootFields {
 			version.Schema.OpenAPIV3Schema.Properties[fieldName] = fieldSchema
+		}
+
+		// Add CEL validation rules to the root schema.
+		if len(schemaVersion.validationRules) > 0 {
+			version.Schema.OpenAPIV3Schema.XValidations = schemaVersion.validationRules
 		}
 
 		crd.Spec.Versions = append(crd.Spec.Versions, version)

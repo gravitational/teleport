@@ -17,9 +17,36 @@ limitations under the License.
 package types
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
+)
+
+// UnauthenticatedRole identifies a role assigned to connections that present no
+// client certificate.  It is intentionally a distinct type from [SystemRole] so
+// that the compiler prevents it from being used anywhere a real, authenticated
+// system role is expected.
+//
+// Unlike [SystemRole], an UnauthenticatedRole must never appear inside a TLS
+// certificate.  The middleware layer rejects any certificate whose Groups or
+// SystemRoles fields contain a value that matches an UnauthenticatedRole name,
+// so it cannot be forged by a client.
+//
+// An unauthenticated connection receives an empty allow spec (no rules, no
+// namespaces) and is blocked from all RBAC-protected resources.  Callers that
+// need to act on behalf of an unauthenticated client should use
+// [authz.ContextForUnauthenticatedRole] instead of constructing a raw
+// [authz.Context].
+type UnauthenticatedRole string
+
+const (
+	// RoleNop is the role assigned to connections that carry no client
+	// certificate.  It is used for operations that rely on an out-of-band
+	// authorization mechanism (e.g. one-time tokens or passwords) rather than
+	// mutual TLS.  The role grants zero permissions: its allow spec is entirely
+	// empty, so any RBAC check will be denied.
+	RoleNop UnauthenticatedRole = "Nop"
 )
 
 // SystemRole identifies the role of an SSH connection. Unlike "user roles"
@@ -47,9 +74,6 @@ const (
 	RoleTrustedCluster SystemRole = "Trusted_cluster"
 	// RoleSignup is for first time signing up users
 	RoleSignup SystemRole = "Signup"
-	// RoleNop is used for actions that are already using external authz mechanisms
-	// e.g. tokens or passwords
-	RoleNop SystemRole = "Nop"
 	// RoleRemoteProxy is a role for remote SSH proxy in the cluster
 	RoleRemoteProxy SystemRole = "RemoteProxy"
 	// RoleKube is a role for a kubernetes service.
@@ -60,6 +84,8 @@ const (
 	RoleDatabase SystemRole = "Db"
 	// RoleWindowsDesktop is a role for a Windows desktop service.
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
+	// RoleLinuxDesktop is a role for a Linux desktop service.
+	RoleLinuxDesktop SystemRole = "LinuxDesktop"
 	// RoleBot is a role for a bot.
 	RoleBot SystemRole = "Bot"
 	// RoleInstance is a role implicitly held by teleport servers (i.e. any teleport
@@ -97,7 +123,6 @@ var roleMappings = map[string]SystemRole{
 	"trusted_cluster":   RoleTrustedCluster,
 	"trustedcluster":    RoleTrustedCluster,
 	"signup":            RoleSignup,
-	"nop":               RoleNop,
 	"remoteproxy":       RoleRemoteProxy,
 	"remote_proxy":      RoleRemoteProxy,
 	"kube":              RoleKube,
@@ -105,6 +130,8 @@ var roleMappings = map[string]SystemRole{
 	"db":                RoleDatabase,
 	"windowsdesktop":    RoleWindowsDesktop,
 	"windows_desktop":   RoleWindowsDesktop,
+	"linux_desktop":     RoleLinuxDesktop,
+	"linuxdesktop":      RoleLinuxDesktop,
 	"bot":               RoleBot,
 	"instance":          RoleInstance,
 	"discovery":         RoleDiscovery,
@@ -140,6 +167,7 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleApp:               {},
 	RoleDatabase:          {},
 	RoleWindowsDesktop:    {},
+	RoleLinuxDesktop:      {},
 	RoleDiscovery:         {},
 	RoleOkta:              {},
 	RoleMDM:               {},
@@ -174,15 +202,15 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 // of teleport roles, or an error if parsing failed
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
-	for _, s := range strings.Split(str, ",") {
-		if r := normalizedSystemRole(s); r.Check() == nil {
+	for s := range strings.SplitSeq(str, ",") {
+		if r := normalizedSystemRole(s); r.IsValid() {
 			roles = append(roles, r)
 			continue
 		}
-		return nil, trace.BadParameter("invalid role %q", s)
+		return nil, trace.BadParameter("invalid role %+q", s)
 	}
 	if len(roles) == 0 {
-		return nil, trace.BadParameter("no valid roles in $%q", str)
+		return nil, trace.BadParameter("no valid roles in %+q", str)
 	}
 
 	return roles, roles.Check()
@@ -190,23 +218,13 @@ func ParseTeleportRoles(str string) (SystemRoles, error) {
 
 // Include returns 'true' if a given list of teleport roles includes a given role
 func (roles SystemRoles) Include(role SystemRole) bool {
-	for _, r := range roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(roles, role)
 }
 
 // IncludeAny returns 'true' if a given list of teleport roles includes any of
 // the given candidate roles.
 func (roles SystemRoles) IncludeAny(candidates ...SystemRole) bool {
-	for _, r := range candidates {
-		if roles.Include(r) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(candidates, roles.Include)
 }
 
 // StringSlice returns teleport roles as string slice
@@ -286,17 +304,19 @@ func (r SystemRole) String() string {
 	}
 }
 
-// Check checks if this a a valid teleport role value, returns nil
-// if it's ok, false otherwise
-// Check checks if this a a valid teleport role value, returns nil
-// if it's ok, false otherwise
-func (r SystemRole) Check() error {
+// IsValid returns true if this is a valid Teleport system role.
+func (r SystemRole) IsValid() bool {
 	sr, ok := roleMappings[strings.ToLower(string(r))]
-	if ok && string(r) == string(sr) {
-		return nil
-	}
+	return ok && r == sr
+}
 
-	return trace.BadParameter("role %v is not registered", r)
+// Check checks if this a valid Teleport system role, returning an error
+// otherwise.
+func (r SystemRole) Check() error {
+	if !r.IsValid() {
+		return trace.BadParameter("role %+q is not a valid system role", r)
+	}
+	return nil
 }
 
 // IsLocalService checks if the given system role is a teleport service (e.g. auth),

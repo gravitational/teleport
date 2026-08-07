@@ -14,16 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
+//go:build !darwin && !windows && !linux
 
 package vnet
 
 import (
-	"context"
-
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
-func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, error) {
+func (s *Service) platformRouteConflictDiag() (diag.DiagCheck, error) {
 	return nil, nil
 }

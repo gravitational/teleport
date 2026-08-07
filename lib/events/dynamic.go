@@ -189,6 +189,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionRequest{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
+	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
+		e = &events.AppSessionLLMRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -296,6 +298,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case LinuxDesktopSessionStartEvent:
+		e = &events.LinuxDesktopSessionStart{}
+	case LinuxDesktopSessionEndEvent:
+		e = &events.LinuxDesktopSessionEnd{}
 	case DesktopRecordingEvent:
 		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
@@ -316,10 +322,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SFTP{}
 	case UpgradeWindowStartUpdateEvent:
 		e = &events.UpgradeWindowStartUpdate{}
+	case EnvironmentProfileUpdateEvent:
+		e = &events.EnvironmentProfileUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case AzureRunEvent:
+		e = &events.AzureRun{}
 	case KubernetesClusterCreateEvent:
 		e = &events.KubernetesClusterCreate{}
 	case KubernetesClusterUpdateEvent:
@@ -607,10 +617,37 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.InferencePolicyUpdate{}
 	case InferencePolicyDeleteEvent:
 		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
 
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}
 
+	case CertAuthOverrideCreateEvent,
+		CertAuthOverrideUpdateEvent,
+		CertAuthOverrideUpsertEvent,
+		CertAuthOverrideDeleteEvent:
+		e = &events.CertAuthorityOverrideEvent{}
+
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
+
+	case ScopedTokenCreateEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpsertEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpdateEvent:
+		e = &events.ScopedTokenUpdate{}
+	case ScopedTokenDeleteEvent:
+		e = &events.ScopedTokenDelete{}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

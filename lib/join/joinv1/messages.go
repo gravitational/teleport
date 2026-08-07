@@ -176,6 +176,7 @@ func clientInitToMessage(req *joinv1.ClientInit) *messages.ClientInit {
 		TokenName:        req.GetTokenName(),
 		SystemRole:       req.GetSystemRole(),
 		ForwardedByProxy: req.GetForwardedByProxy(),
+		HostName:         req.GetHostName(),
 	}
 	if joinMethod := req.GetJoinMethod(); joinMethod != "" {
 		msg.JoinMethod = &joinMethod
@@ -195,6 +196,7 @@ func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 		TokenName:        msg.TokenName,
 		SystemRole:       msg.SystemRole,
 		ForwardedByProxy: msg.ForwardedByProxy,
+		HostName:         msg.HostName,
 	}
 	if proxySuppliedParams := msg.ProxySuppliedParams; proxySuppliedParams != nil {
 		req.ProxySuppliedParameters = &joinv1.ClientInit_ProxySuppliedParams{
@@ -529,17 +531,19 @@ func resultToMessage(resp *joinv1.Result) (messages.Response, error) {
 
 func hostResultToMessage(resp *joinv1.HostResult) *messages.HostResult {
 	return &messages.HostResult{
-		Certificates:    certificatesToMessage(resp.GetCertificates()),
-		HostID:          resp.GetHostId(),
-		ImmutableLabels: resp.GetImmutableLabels(),
+		Certificates:       certificatesToMessage(resp.GetCertificates()),
+		HostID:             resp.GetHostId(),
+		ImmutableLabels:    resp.GetImmutableLabels(),
+		BoundKeypairResult: boundKeypairResultToMessage(resp.GetBoundKeypairResult()),
 	}
 }
 
 func hostResultFromMessage(msg *messages.HostResult) *joinv1.HostResult {
 	return &joinv1.HostResult{
-		Certificates:    certificatesFromMessage(&msg.Certificates),
-		HostId:          msg.HostID,
-		ImmutableLabels: msg.ImmutableLabels,
+		Certificates:       certificatesFromMessage(&msg.Certificates),
+		HostId:             msg.HostID,
+		ImmutableLabels:    msg.ImmutableLabels,
+		BoundKeypairResult: boundKeypairResultFromMessage(msg.BoundKeypairResult),
 	}
 }
 

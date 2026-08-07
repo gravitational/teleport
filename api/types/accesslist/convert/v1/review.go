@@ -54,17 +54,18 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 			}
 		}
 		reviewChanges.RemovedMembers = msg.GetSpec().GetChanges().GetRemovedMembers()
+		reviewChanges.ScopedRemovedMembers = msg.GetSpec().GetChanges().GetScopedRemovedMembers()
 		reviewChanges.ReviewFrequencyChanged = accesslist.ReviewFrequency(msg.GetSpec().GetChanges().GetReviewFrequencyChanged())
 		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.GetSpec().GetChanges().GetReviewDayOfMonthChanged())
 	}
 
-	member, err := accesslist.NewReview(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.ReviewSpec{
+	member, err := accesslist.NewReviewWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.ReviewSpec{
 		AccessList: msg.GetSpec().GetAccessList(),
 		Reviewers:  msg.GetSpec().GetReviewers(),
 		ReviewDate: reviewDate,
 		Notes:      msg.GetSpec().GetNotes(),
 		Changes:    reviewChanges,
-	})
+	}, msg.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,6 +91,13 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 
 		reviewChanges.RemovedMembers = review.Spec.Changes.RemovedMembers
 	}
+	if len(review.Spec.Changes.ScopedRemovedMembers) > 0 {
+		if reviewChanges == nil {
+			reviewChanges = &accesslistv1.ReviewChanges{}
+		}
+
+		reviewChanges.ScopedRemovedMembers = review.Spec.Changes.ScopedRemovedMembers
+	}
 	if review.Spec.Changes.ReviewFrequencyChanged > 0 {
 		if reviewChanges == nil {
 			reviewChanges = &accesslistv1.ReviewChanges{}
@@ -107,6 +115,7 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 
 	return &accesslistv1.Review{
 		Header: headerv1.ToResourceHeaderProto(review.ResourceHeader),
+		Scope:  review.Scope,
 		Spec: &accesslistv1.ReviewSpec{
 			AccessList: review.Spec.AccessList,
 			Reviewers:  review.Spec.Reviewers,

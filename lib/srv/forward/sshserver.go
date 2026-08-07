@@ -45,20 +45,23 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/sshutils/x11forward"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -116,6 +119,10 @@ type Server struct {
 	// agentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
 	agentlessSigner ssh.Signer
+
+	// agentlessSignerCreator is called lazily after the SSH handshake to
+	// create the agentlessSigner.
+	agentlessSignerCreator agentless.SignerCreator
 
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
@@ -193,9 +200,9 @@ type ServerConfig struct {
 	DstAddr                  net.Addr
 	HostCertificate          ssh.Signer
 
-	// AgentlessSigner is used for client authentication when no SSH
-	// user agent is provided, ie when connecting to agentless nodes.
-	AgentlessSigner ssh.Signer
+	// AgentlessSignerCreator is called lazily after the SSH handshake to
+	// create an ssh.Signer for authenticating to agentless nodes.
+	AgentlessSignerCreator agentless.SignerCreator
 
 	// UseTunnel indicates of this server is connected over a reverse tunnel.
 	UseTunnel bool
@@ -267,8 +274,8 @@ func (s *ServerConfig) CheckDefaults() error {
 			return trace.BadParameter("user agent required for teleport nodes (agentless)")
 		}
 	case types.SubKindOpenSSHNode:
-		if s.AgentlessSigner == nil {
-			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
+		if s.AgentlessSignerCreator == nil {
+			return trace.BadParameter("agentless signer creator is required for OpenSSH Nodes")
 		}
 	case types.SubKindOpenSSHEICENode:
 		// agentless signer is set once the forwarding server is started.
@@ -324,24 +331,24 @@ func New(c ServerConfig) (*Server, error) {
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),
-		targetConn:      c.TargetConn,
-		serverConn:      utils.NewTrackingConn(serverConn),
-		clientConn:      clientConn,
-		userAgent:       c.UserAgent,
-		agentlessSigner: c.AgentlessSigner,
-		hostCertificate: c.HostCertificate,
-		useTunnel:       c.UseTunnel,
-		address:         c.Address,
-		authClient:      c.LocalAuthClient,
-		authService:     c.LocalAuthClient,
-		dataDir:         c.DataDir,
-		clock:           c.Clock,
-		proxyUUID:       c.ProxyUUID,
-		StreamEmitter:   c.Emitter,
-		parentContext:   c.ParentContext,
-		lockWatcher:     c.LockWatcher,
-		tracerProvider:  c.TracerProvider,
-		targetServer:    c.TargetServer,
+		targetConn:             c.TargetConn,
+		serverConn:             utils.NewTrackingConn(serverConn),
+		clientConn:             clientConn,
+		userAgent:              c.UserAgent,
+		agentlessSignerCreator: c.AgentlessSignerCreator,
+		hostCertificate:        c.HostCertificate,
+		useTunnel:              c.UseTunnel,
+		address:                c.Address,
+		authClient:             c.LocalAuthClient,
+		authService:            c.LocalAuthClient,
+		dataDir:                c.DataDir,
+		clock:                  c.Clock,
+		proxyUUID:              c.ProxyUUID,
+		StreamEmitter:          c.Emitter,
+		parentContext:          c.ParentContext,
+		lockWatcher:            c.LockWatcher,
+		tracerProvider:         c.TracerProvider,
+		targetServer:           c.TargetServer,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -452,8 +459,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -550,7 +557,7 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 // does not spawn child processes.
 func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,
@@ -638,6 +645,28 @@ func (s *Server) Serve() {
 			return
 		}
 
+		if s.agentlessSignerCreator != nil {
+			if s.identityContext.AccessPermit == nil {
+				s.rejectChannel(chans, "cannot allocate openssh certificate without valid permit (this is a bug)")
+				s.logger.ErrorContext(s.Context(), "cannot allocate openssh certificate without valid permit (this is a bug)")
+				sconn.Close()
+				return
+			}
+
+			// All required authorization for the user already happens in [ssh.NewServerConn] above, including
+			// scoped access and verifying principals allowed on the node. Creating a signer will
+			// create openSSH certs with all allowed logins across the user's roles for unscoped,
+			// or just the requested host login for a scoped user.
+			sshSigner, err := s.agentlessSignerCreator(ctx, s.GetAccessPoint(), sconn.User())
+			if err != nil {
+				s.rejectChannel(chans, err.Error())
+				sconn.Close()
+				s.logger.ErrorContext(s.Context(), "Unable to create agentless signer for OpenSSH node", "error", err)
+				return
+			}
+			s.agentlessSigner = sshSigner
+		}
+
 		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
 			sshSigner, err := s.sendSSHPublicKeyToTarget(ctx)
 			if err != nil {
@@ -664,7 +693,7 @@ func (s *Server) Serve() {
 
 	// Once the client and server connections are established, ensure we forward
 	// x11 channel requests from the server to the client.
-	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+	if err := x11forward.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to forward x11 channel requests", "error", err)
 		return
 	}

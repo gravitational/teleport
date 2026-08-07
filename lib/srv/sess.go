@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -83,7 +85,7 @@ var serverSessions = prometheus.NewGauge(
 
 func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
 	var modeCtrl bytes.Buffer
-	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	fmt.Fprintf(&modeCtrl, "\r\nTeleport > Joining session with participant mode: %s\r\n", string(m))
 	modeCtrl.WriteString("Teleport > Controls\r\n")
 	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
 	if m == types.SessionModeratorMode {
@@ -408,14 +410,21 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 }
 
 // OpenExecSession opens a non-interactive exec session.
-func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
+func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) (err error) {
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
-	sess, _, err := newSession(ctx, s, scx, channel, sessionTypeNonInteractive)
+	sess, p, err := newSession(ctx, s, scx, channel, sessionTypeNonInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	scx.Logger.InfoContext(ctx, "Creating exec session", "session_id", sess.id)
+
+	// Make sure to close the session when returning an error
+	defer func() {
+		if err != nil {
+			sess.Close()
+		}
+	}()
 
 	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
@@ -439,9 +448,8 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	// occurs, otherwise it will be closed by the callee.
 	scx.setSession(ctx, sess)
 
-	err = sess.startExec(ctx, channel, scx)
+	err = sess.startExec(ctx, channel, scx, p)
 	if err != nil {
-		sess.Close()
 		return trace.Wrap(err)
 	}
 
@@ -520,7 +528,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.Wrap(err)
 	}
 	if approved {
-		scx.setApprovedFileTransferRequest(sess.fileTransferReq)
+		scx.setApprovedFileTransferRequest(&sess.fileTransferReq.FileTransferRequest)
 		sess.fileTransferReq = nil
 	}
 
@@ -545,7 +553,7 @@ const (
 
 // notifyFileTransferRequestUnderLock is called to notify all members of a party that a file transfer request has been created/approved/denied.
 // The notification is a global ssh request and requires the client to update its UI state accordingly.
-func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
+func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *fileTransferRequestWithApprovers, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
 		s.logger.DebugContext(
@@ -564,7 +572,7 @@ func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRe
 		RequestID:       req.ID,
 		Requester:       req.Requester,
 		Location:        req.Location,
-		Filename:        req.Filename,
+		Filename:        req.filename,
 		Download:        req.Download,
 		Approvers:       make([]string, 0),
 	}
@@ -721,7 +729,8 @@ type sessionInitiatorInfo struct {
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'SessionRegistry' containers which are attached to SSH servers.
 type session struct {
-	mu sync.RWMutex
+	mu        sync.RWMutex
+	closeOnce sync.Once
 
 	// logger holds the logger for this session.
 	logger *slog.Logger
@@ -744,7 +753,7 @@ type session struct {
 	// fileTransferReq a pending file transfer request for this session.
 	// If the request is denied or approved it should be set to nil to
 	// prevent its reuse.
-	fileTransferReq *FileTransferRequest
+	fileTransferReq *fileTransferRequestWithApprovers
 
 	io       *TermManager
 	inWriter io.WriteCloser
@@ -810,7 +819,7 @@ const (
 )
 
 // newSession creates a new session with a given ID within a given context.
-func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
+func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (s *session, p *party, err error) {
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case scx.Identity.AccessPermit != nil:
@@ -821,7 +830,6 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		return nil, nil, trace.BadParameter("session creation only supported in context of ssh access or proxying permit")
 	}
 
-	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
@@ -855,6 +863,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
 	}
 
+	serverSessions.Inc()
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
@@ -868,7 +877,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		login:           scx.Identity.Login,
 		stopC:           make(chan struct{}),
 		startTime:       startTime,
-		emitter:         scx.srv,
+		emitter:         scx.AuditEmitter(),
 		serverCtx:       scx.srv.Context(),
 		access:          &access,
 		scx:             scx,
@@ -883,12 +892,14 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		serverMeta:                     scx.srv.EventMetadata(),
 	}
 
-	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
+	// Make sure to close the session when returning an error
+	defer func() {
+		if err != nil {
+			sess.Close()
+		}
+	}()
 
-	// Nodes discard events in cases when proxies are already recording them.
-	if !sess.shouldHandleRecording() {
-		sess.emitter = events.NewDiscardAuditLog()
-	}
+	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
@@ -899,12 +910,9 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		}
 	}()
 
-	// create a new "party" (connected client) and launch/join the session.
-	p := newParty(sess, types.SessionPeerMode, ch, scx)
-	sess.parties[p.id] = p
-	sess.participants[p.id] = p
+	// create a new "party" (connected client).
+	p = newParty(sess, types.SessionPeerMode, ch, scx)
 
-	var err error
 	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets, p, sessType); err != nil {
 		if trace.IsNotImplemented(err) {
 			return nil, nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
@@ -976,8 +984,10 @@ func (s *session) Stop() {
 	s.haltTerminal()
 
 	// Close session tracker and mark it as terminated
-	if err := s.tracker.Close(s.serverCtx); err != nil {
-		s.logger.DebugContext(s.serverCtx, "Failed to close session tracker.", "error", err)
+	if s.tracker != nil {
+		if err := s.tracker.Close(s.serverCtx); err != nil {
+			s.logger.DebugContext(s.serverCtx, "Failed to close session tracker.", "error", err)
+		}
 	}
 }
 
@@ -1013,28 +1023,29 @@ func (s *session) haltTerminal() {
 // prematurely can result in missing audit events, session recordings, and other
 // unexpected errors.
 func (s *session) Close() error {
-	s.BroadcastMessage("Closing session...")
-	s.logger.InfoContext(s.serverCtx, "Closing session.")
+	s.closeOnce.Do(func() {
+		s.BroadcastMessage("Closing session...")
+		s.logger.InfoContext(s.serverCtx, "Closing session.")
 
-	// Remove session parties and close client connections. Since terminals
-	// might await for all the parties to be released, we must close them first.
-	// Closing the parties will cause their SSH channel to be closed, meaning
-	// any goroutine reading from it will be released.
-	for _, p := range s.getParties() {
-		p.Close()
-	}
-
-	s.Stop()
-	serverSessions.Dec()
-	s.registry.removeSession(s)
-
-	// Complete the session recording
-	if recorder := s.Recorder(); recorder != nil {
-		if err := recorder.Complete(s.serverCtx); err != nil {
-			s.logger.WarnContext(s.serverCtx, "Failed to close recorder.", "error", err)
+		// Remove session parties and close client connections. Since terminals
+		// might await for all the parties to be released, we must close them first.
+		// Closing the parties will cause their SSH channel to be closed, meaning
+		// any goroutine reading from it will be released.
+		for _, p := range s.getParties() {
+			p.Close()
 		}
-	}
 
+		s.Stop()
+		serverSessions.Dec()
+		s.registry.removeSession(s)
+
+		// Complete the session recording
+		if recorder := s.Recorder(); recorder != nil {
+			if err := recorder.Complete(s.serverCtx); err != nil {
+				s.logger.WarnContext(s.serverCtx, "Failed to close recorder.", "error", err)
+			}
+		}
+	})
 	return nil
 }
 
@@ -1311,9 +1322,8 @@ func (s *session) setHasEnhancedRecording(val bool) {
 	s.hasEnhancedRecording = val
 }
 
-// launch launches the session.
-// Must be called under session Lock.
-func (s *session) launch() {
+// launchUnderLock launches the session. Must be called under session Lock.
+func (s *session) launchUnderLock() {
 	// Mark the session as started here, as we want to avoid double initialization.
 	if s.started.Swap(true) {
 		s.logger.DebugContext(s.serverCtx, "Session has already started.")
@@ -1321,17 +1331,6 @@ func (s *session) launch() {
 	}
 
 	s.logger.DebugContext(s.serverCtx, "Launching session.")
-	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
-
-	s.io.On()
-
-	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
-		s.logger.WarnContext(
-			s.serverCtx, "Failed to set tracker state.",
-			"error", err,
-			"state", types.SessionState_SessionStateRunning,
-		)
-	}
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
@@ -1387,6 +1386,45 @@ func (s *session) launch() {
 			"error", err,
 		)
 	}()
+
+	// Start the session IO, broadcast an update to participants, and update tracker state in that order.
+	// We do this after starting the PTY goroutines to ensure no input is lost due to limited buffering.
+	s.io.On()
+	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
+	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+		s.logger.WarnContext(
+			s.serverCtx, "Failed to set tracker state.",
+			"error", err,
+			"state", types.SessionState_SessionStateRunning,
+		)
+	}
+}
+
+// pauseUnderLock pauses the session. Must be called under session Lock.
+func (s *session) pauseUnderLock() {
+	// pause the session IO, broadcast an update to participants, and update tracker state in that order.
+	s.io.Off()
+	s.BroadcastMessage("Session paused, Waiting for required participants...")
+	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
+		s.logger.WarnContext(
+			s.serverCtx, "Failed to set tracker state.",
+			"error", err,
+			"state", types.SessionState_SessionStatePending,
+		)
+	}
+}
+
+// resumeUnderLock resumes the session. Must be called under session Lock.
+func (s *session) resumeUnderLock() {
+	// resume the session IO, broadcast an update to participants, and update tracker state in that order.
+	s.io.On()
+	s.BroadcastMessage("Resuming session...")
+	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+		s.logger.WarnContext(
+			s.serverCtx, "Failed to set tracker state.",
+			"state", types.SessionState_SessionStateRunning,
+		)
+	}
 }
 
 // startInteractive starts a new interactive process (or a shell) in the
@@ -1439,7 +1477,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
 		PID:                   s.term.PID(),
-		Emitter:               s.emitter,
+		Emitter:               scx.BPFEmitter(),
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             s.id.String(),
 		ServerID:              scx.srv.ID(),
@@ -1598,7 +1636,7 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 	return rec, nil
 }
 
-func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
+func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext, p *party) error {
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
@@ -1623,6 +1661,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		scx.SendExecResult(ctx, *result)
 	}
 
+	// Add the party to the session once it is running.
+	s.mu.Lock()
+	s.parties[p.id] = p
+	s.participants[p.id] = p
+	s.mu.Unlock()
+
 	var eventsMap map[string]bool
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
@@ -1638,7 +1682,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
 		PID:                   scx.execRequest.PID(),
-		Emitter:               s.emitter,
+		Emitter:               scx.BPFEmitter(),
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),
 		ServerID:              scx.srv.ID(),
@@ -1754,22 +1798,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 		}
 
 		// pause session and wait for another party to resume
-		s.io.Off()
-		s.BroadcastMessage("Session paused, Waiting for required participants...")
-		if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
-			s.logger.WarnContext(
-				s.serverCtx, "Failed to set tracker state.",
-				"error", err,
-				"state", types.SessionState_SessionStatePending,
-			)
-		}
-
-		go func() {
-			if state := s.tracker.WaitForStateUpdate(types.SessionState_SessionStatePending); state == types.SessionState_SessionStateRunning {
-				s.BroadcastMessage("Resuming session...")
-				s.io.On()
-			}
-		}()
+		s.pauseUnderLock()
 	}
 
 	// If the leaving party was the last one in the session, start the lingerAndDie
@@ -1852,24 +1881,15 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
-// FileTransferRequest is a request to upload or download a file from a node.
-type FileTransferRequest struct {
-	// ID is a UUID that uniquely identifies a file transfer request
-	// and is unlikely to collide with another file transfer request
-	ID string
-	// Requester is the Teleport User that requested the file transfer
-	Requester string
-	// Download is true if the request is a download, false if its an upload
-	Download bool
-	// Filename is the name of the file to upload.
-	Filename string
-	// Location of the requested download or where a file will be uploaded
-	Location string
+type fileTransferRequestWithApprovers struct {
+	reexecsftp.FileTransferRequest
+	// filename is the name of the file to be uploaded
+	filename string
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
 
-func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, error) {
+func (s *session) checkIfFileTransferApproved(req *fileTransferRequestWithApprovers) (bool, error) {
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
@@ -1909,20 +1929,25 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	if !params.Download && params.Filename == "" {
 		return trace.BadParameter("no source file is set for the upload")
 	}
+	if !filepath.IsAbs(params.Location) {
+		return trace.BadParameter("request path must be absolute")
+	}
 
-	s.fileTransferReq = &FileTransferRequest{
-		ID:        uuid.New().String(),
-		Requester: params.Requester,
-		Location:  params.Location,
-		Filename:  params.Filename,
-		Download:  params.Download,
+	s.fileTransferReq = &fileTransferRequestWithApprovers{
+		FileTransferRequest: reexecsftp.FileTransferRequest{
+			ID:        uuid.New().String(),
+			Requester: params.Requester,
+			Location:  params.Location,
+			Download:  params.Download,
+		},
+		filename:  params.Filename,
 		approvers: make(map[string]*party),
 	}
 
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
-		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
+		s.BroadcastMessage("User %s would like to upload to: %s", params.Requester, params.Location)
 	}
 	err := s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
 
@@ -2122,33 +2147,20 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			return trace.Wrap(err)
 		}
 
-		switch {
-		case canStart && !s.started.Load():
-			s.launch()
-
-			return nil
-		case canStart:
-			// If the session is already running, but the party is a moderator that leaved
-			// a session with onLeave=pause and then rejoined, we need to unpause the session.
-			// When the moderator leaved the session, the session was paused, and we spawn
-			// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
-			// before the session ends, we need to unpause the session by updating its state and
-			// the goroutine will unblock the s.io terminal.
-			// types.SessionState_SessionStatePending marks a session that is waiting for
-			// a moderator to rejoin.
-			if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
-				s.logger.WarnContext(
-					s.serverCtx, "Failed to set tracker state.",
-					"state", types.SessionState_SessionStateRunning,
-				)
-			}
-		default:
+		if !canStart {
 			const base = "Waiting for required participants..."
 			if s.displayParticipantRequirements {
 				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
 			} else {
 				s.BroadcastMessage(base)
 			}
+			return nil
+		}
+
+		if s.started.Load() {
+			s.resumeUnderLock()
+		} else {
+			s.launchUnderLock()
 		}
 	}
 

@@ -150,6 +150,14 @@ func newIdentitySecuritySummariesGeneratedReport(startTime time.Time) *prehogv1.
 	}
 }
 
+func newIdentitySecurityReport(startTime time.Time) *prehogv1.IdentitySecurityReport {
+	u := uuid.New()
+	return &prehogv1.IdentitySecurityReport{
+		ReportUuid: u[:],
+		StartTime:  timestamppb.New(startTime),
+	}
+}
+
 func TestResourcePresenceReporting(t *testing.T) {
 	ctx := context.Background()
 	clk := clockwork.NewFakeClock()

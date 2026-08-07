@@ -200,7 +200,7 @@ func (t *proxySubsys) String() string {
 		t.namespace, t.clusterName, t.host, t.port)
 }
 
-// Start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
+// Start is called by Golang's ssh when it needs to engage this subsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
@@ -248,9 +248,13 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	certGen, err := t.router.GetSiteClient(ctx, t.clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	identity := t.ctx.Identity
 
-	signer := agentless.SignerFromSSHIdentity(identity.UnmappedIdentity, authClient, t.clusterName, identity.TeleportUser)
+	signer := agentless.SignerFromSSHIdentity(identity.UnmappedIdentity, authClient, certGen, t.clusterName, identity.TeleportUser)
 
 	aGetter := func() (sshagent.Client, error) {
 		return t.ctx.StartAgentChannel()

@@ -60,6 +60,7 @@ export const allAccessAcl: Acl = {
   directorySharingEnabled: true,
   reviewRequests: true,
   fileTransferAccess: true,
+  webTerminalClipboardMode: '',
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
@@ -89,6 +90,7 @@ export const allAccessAcl: Acl = {
   inferencePolicy: fullAccess,
   inferenceModel: fullAccess,
   inferenceSecret: fullAccess,
+  beam: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

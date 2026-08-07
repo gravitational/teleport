@@ -65,6 +65,11 @@ type ClientInit struct {
 	// nodes join via the proxy address. They must only be trusted if the
 	// incoming join request is authenticated as the Proxy.
 	ProxySuppliedParams *ProxySuppliedParams
+	// HostName is the user-friendly node name of a joining host, sent early so it
+	// can be recorded on the join audit event even when the join is rejected
+	// before the host params are received. It is advisory; the host name used for
+	// issued certificates is carried in HostParams.
+	HostName string
 }
 
 func (i *ClientInit) Check() error {
@@ -551,6 +556,8 @@ type HostResult struct {
 	// ImmutableLabels are the immutable labels that have been assigned to
 	// the host.
 	ImmutableLabels *joiningv1.ImmutableLabels
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult
 }
 
 // BotResult holds results for bot joining.

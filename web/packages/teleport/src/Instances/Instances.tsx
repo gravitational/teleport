@@ -25,7 +25,7 @@ import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import Flex from 'design/Flex/Flex';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-import { SortMenu } from 'shared/components/Controls/SortMenuV2';
+import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { SearchPanel } from 'shared/components/Search';
 
 import {
@@ -471,6 +471,7 @@ type ServiceType =
   | 'App'
   | 'Db'
   | 'WindowsDesktop'
+  | 'LinuxDesktop'
   | 'Kube'
   | 'Node'
   | 'Auth'
@@ -490,7 +491,8 @@ const typeOptions: { value: InstanceType; label: string }[] = [
 const serviceOptions: { value: ServiceType; label: string }[] = [
   { value: 'App', label: 'Applications' },
   { value: 'Db', label: 'Databases' },
-  { value: 'WindowsDesktop', label: 'Desktops' },
+  { value: 'LinuxDesktop', label: 'Linux Desktops' },
+  { value: 'WindowsDesktop', label: 'Windows Desktops' },
   { value: 'Kube', label: 'Kubernetes Clusters' },
   { value: 'Node', label: 'SSH Servers' },
   { value: 'Auth', label: 'Auth' },

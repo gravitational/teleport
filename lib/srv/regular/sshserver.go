@@ -73,9 +73,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -122,6 +125,10 @@ type Server struct {
 	// this gets set to true for unit testing
 	isTestStub bool
 
+	// testLoginShell overrides the shell used for sessions. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	testLoginShell string
+
 	// cancel cancels all operations
 	cancel context.CancelFunc
 	// ctx is broadcasting context closure
@@ -156,7 +163,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pamcfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -247,7 +254,7 @@ type Server struct {
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
-	remoteForwardingMap utils.SyncMap[string, io.Closer]
+	remoteForwardingMap utils.SyncMap[remoteForwardingMapKey, io.Closer]
 
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
@@ -264,6 +271,20 @@ type Server struct {
 
 	// immutableLabels are the immutable labels assigned to the server's host certificate
 	immutableLabels map[string]string
+}
+
+type remoteForwardingMapKey struct {
+	user    string
+	cluster string
+	srcAddr string
+}
+
+func getRemoteForwardingMapKey(scx *srv.ServerContext) remoteForwardingMapKey {
+	return remoteForwardingMapKey{
+		user:    scx.Identity.TeleportUser,
+		cluster: scx.Identity.OriginClusterName,
+		srcAddr: scx.SrcAddr,
+	}
 }
 
 // EventMetadata returns metadata about the server.
@@ -304,7 +325,7 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
 	return s.pamConfig
 }
 
@@ -370,7 +391,7 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,
@@ -403,7 +424,7 @@ func (s *Server) Close() error {
 	// Close the server first so we don't accept any new forwarding connections
 	// after we've closed them all.
 	errors := []error{s.srv.Close()}
-	s.remoteForwardingMap.Range(func(_ string, closer io.Closer) bool {
+	s.remoteForwardingMap.Range(func(_ remoteForwardingMapKey, closer io.Closer) bool {
 		if closer != nil {
 			if err := closer.Close(); err != nil {
 				errors = append(errors, err)
@@ -635,7 +656,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pamcfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -826,7 +847,7 @@ func SetImmutableLabels(labels map[string]string) ServerOption {
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			ExecLogConfig: reexec.ExecLogConfig{
 				Level:        cfg.LoggerLevel,
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
@@ -835,6 +856,16 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 			},
 			Writer: cfg.LogWriter,
 		}
+		return nil
+	}
+}
+
+// SetTestLoginShell overrides the shell used for sessions instead of resolving
+// the login shell of the OS user. This is intended for tests only to avoid
+// running the real user's shell and polluting shell history.
+func SetTestLoginShell(shell string) ServerOption {
+	return func(s *Server) error {
+		s.testLoginShell = shell
 		return nil
 	}
 }
@@ -1304,7 +1335,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
-	nsctx.ExecType = teleport.NetworkingSubCommand
+	nsctx.ExecType = reexecconstants.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The
@@ -1380,10 +1411,8 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		return
 	default:
-		if r.WantReply {
-			if err := r.Reply(false, nil); err != nil {
-				s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
-			}
+		if err := r.Reply(false, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
 		}
 		s.logger.DebugContext(ctx, "Discarding global request", "request_type", r.Type)
 	}
@@ -1641,6 +1670,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(channel)
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.ExecType = teleport.ChanDirectTCPIP
@@ -1716,6 +1746,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.ExecType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
@@ -2223,6 +2254,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
@@ -2354,6 +2386,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 
 	listenAddr := sshutils.JoinHostPort(req.Addr, req.Port)
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.ExecType = teleport.TCPIPForwardRequest
 	scx.SrcAddr = listenAddr
 	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
@@ -2476,12 +2509,13 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		}
 	}
 
-	s.remoteForwardingMap.Store(scx.SrcAddr, listener)
+	key := getRemoteForwardingMapKey(scx)
+	s.remoteForwardingMap.Store(key, listener)
 
 	// Close the listener once the connection is closed, if it hasn't
 	// been closed already via a cancel-tcpip-forward request.
 	ccx.AddCloser(utils.CloseFunc(func() error {
-		listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+		listener, ok := s.remoteForwardingMap.LoadAndDelete(key)
 		if ok {
 			return trace.Wrap(listener.Close())
 		}
@@ -2499,7 +2533,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-	listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+	listener, ok := s.remoteForwardingMap.LoadAndDelete(getRemoteForwardingMapKey(scx))
 	if !ok {
 		return trace.NotFound("no remote forwarding listener at %v", scx.SrcAddr)
 	}
@@ -2543,9 +2577,6 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 	}
 
 	switch r.Name {
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {

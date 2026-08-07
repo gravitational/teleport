@@ -134,6 +134,10 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
+	// AppSessionLLMRequestSuccessCode is the LLM app request/response success code.
+	AppSessionLLMRequestSuccessCode = "T2014I"
+	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
+	AppSessionLLMRequestFailureCode = "T2014E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -277,6 +281,13 @@ const (
 	// for when a write operation fails, or for if the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
 	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
+	// LinuxDesktopSessionStartCode is the Linux desktop session start event code.
+	LinuxDesktopSessionStartCode = "TDP07I"
+	// LinuxDesktopSessionStartFailureCode is event code for Linux desktop sessions
+	// that failed to start.
+	LinuxDesktopSessionStartFailureCode = "TDP07W"
+	// LinuxDesktopSessionEndCode is the Linux desktop session end event code.
+	LinuxDesktopSessionEndCode = "TDP08I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -389,6 +400,23 @@ const (
 	// [github.com/gravitational/teleport/api/types.ProvisionToken].
 	ProvisionTokenCreateCode = "TJT00I"
 
+	// ScopedTokenCreateCode is the event code for creating a scoped token.
+	ScopedTokenCreateCode = "TST000I"
+	// ScopedTokenCreateFailureCode is the event code for failing to create a scoped token.
+	ScopedTokenCreateFailureCode = "TST000E"
+	// ScopedTokenUpsertCode is the event code for upserting a scoped token.
+	ScopedTokenUpsertCode = "TST001I"
+	// ScopedTokenUpsertFailureCode is the event code failing to upsert a scoped token.
+	ScopedTokenUpsertFailureCode = "TST001E"
+	// ScopedTokenUpdateCode is the event code for updating a scoped token.
+	ScopedTokenUpdateCode = "TST002I"
+	// ScopedTokenUpdateFailureCode is the event code for failing to update a scoped token.
+	ScopedTokenUpdateFailureCode = "TST002E"
+	// ScopedTokenDeleteCode is the event code for deleting a scoped token.
+	ScopedTokenDeleteCode = "TST003I"
+	// ScopedTokenDeleteFailureCode is the event code for failing to delete a scoped token.
+	ScopedTokenDeleteFailureCode = "TST003E"
+
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
@@ -421,10 +449,15 @@ const (
 	BotJoinCode = "TJ001I"
 	// BotJoinFailureCode is the 'bot.join' event code for failures.
 	BotJoinFailureCode = "TJ001E"
+	// BotJoinLimitCode is the 'bot.join' event code for failures due to token limits.
+	BotJoinLimitCode = "TJ001L"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
 	// InstanceJoinFailureCode is the 'node.join' event code for failures.
 	InstanceJoinFailureCode = "TJ002E"
+	// InstanceJoinLimitCode is the 'node.join' event code for failures due to
+	// usage limits.
+	InstanceJoinLimitCode = "TJ002L"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"
@@ -447,11 +480,18 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+	// EnvironmentProfileUpdatedCode is the edit code of EnvironmentProfileUpdateEvent.
+	EnvironmentProfileUpdatedCode = "TEP01I"
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"
-	// SSMRunFailCode is the discovery script success code.
+	// SSMRunFailCode is the discovery script failure code.
 	SSMRunFailCode = "TDS00W"
+
+	// AzureRunSuccessCode is the Azure discovery script success code.
+	AzureRunSuccessCode = "TDA00I"
+	// AzureRunFailCode is the Azure discovery script failure code.
+	AzureRunFailCode = "TDA00W"
 
 	// DeviceCreateCode is the device creation/registration code.
 	DeviceCreateCode = "TV001I"
@@ -866,6 +906,29 @@ const (
 	SessionSummarizedCode = "INF010I"
 	// SessionSummarizedErrorCode is the session summarized error event code.
 	SessionSummarizedErrorCode = "INF010E"
+
+	// RetrievalModelCreateCode is the retrieval model create event code.
+	RetrievalModelCreateCode = "INF011I"
+	// RetrievalModelUpdateCode is the retrieval model update event code.
+	RetrievalModelUpdateCode = "INF012I"
+	// RetrievalModelDeleteCode is the retrieval model delete event code.
+	RetrievalModelDeleteCode = "INF013I"
+
+	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
+	CertAuthOverrideCreateCode = "TCO01I"
+	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
+	CertAuthOverrideUpdateCode = "TCO02I"
+	// CertAuthOverrideUpsertCode is the cert_auth_override upsert event code.
+	CertAuthOverrideUpsertCode = "TCO03I"
+	// CertAuthOverrideDeleteCode is the cert_auth_override delete event code.
+	CertAuthOverrideDeleteCode = "TCO04I"
+
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

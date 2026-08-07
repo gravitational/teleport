@@ -476,12 +476,6 @@ func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
-// isSqlcmdAvailable returns true if "sqlcmd" binary is fouind in the system
-// PATH.
-func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
-	return c.isBinAvailable(sqlcmdBin)
-}
-
 func (c *CLICommandBuilder) shouldUseMongoshBin(db types.Database) bool {
 	// DocumentDB prefers the legacy "mongo" client.
 	if db.GetType() == types.DatabaseTypeDocumentDB {
@@ -644,6 +638,13 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 
 // getSQLServerCommand returns a command to connect to SQL Server.
 // mssql-cli and sqlcmd commands have the same argument names.
+//
+// sqlcmd is preferred and used by default. mssql-cli is only returned when
+// sqlcmd is not in PATH but mssql-cli is, so users who only have mssql-cli
+// installed are still given a working command. When neither binary is in PATH
+// (e.g., Teleport Connect launched from a desktop environment where $PATH is
+// not set), the printed command falls back to sqlcmd, which is the actively
+// maintained client.
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
@@ -658,11 +659,11 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	if c.isSqlcmdAvailable() {
-		return exec.Command(sqlcmdBin, args...)
+	if !c.isBinAvailable(sqlcmdBin) && c.isBinAvailable(mssqlBin) {
+		return exec.Command(mssqlBin, args...)
 	}
 
-	return exec.Command(mssqlBin, args...)
+	return exec.Command(sqlcmdBin, args...)
 }
 
 func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {

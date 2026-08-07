@@ -157,6 +157,9 @@ enum ResourceKind {
   //
   // PostHog property value: "node.openssh_ec2_ice"
   RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
+
+  // PostHog property value: "linux_desktop"
+  RESOURCE_KIND_LINUX_DESKTOP = 8;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
@@ -261,6 +264,9 @@ message SessionStartEvent {
   // if session_type == "app_mcp" the mcp struct contains additional information
   // about the MCP session.
   SessionStartMCPMetadata mcp = 8;
+
+  // if set, contains additional information about the beam VM associated with this session.
+  SessionStartBeamMetadata beam = 9;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -329,6 +335,63 @@ message SessionStartMCPMetadata {
   string ingress_auth_type = 5;
   // Indicates how the MCP session is authorized between Teleport and remote MCP server.
   string egress_auth_type = 6;
+}
+
+// SessionStartBeamMetadata contains additional information about a beam session.
+message SessionStartBeamMetadata {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+}
+
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+//
+// PostHog event: tp.beams.created
+message BeamsCreatedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the region where the beam was created
+  //
+  // PostHog property: tp.beam.region
+  string region = 2;
+
+  // time in milliseconds from CreateBeam call to VM ready
+  //
+  // PostHog property: tp.beam.startup_duration_ms
+  int64 startup_duration_ms = 3;
+}
+
+// BeamDestroyReason is the reason a beam was destroyed.
+enum BeamDestroyReason {
+  BEAM_DESTROY_REASON_UNSPECIFIED = 0;
+  // the user explicitly deleted the beam
+  BEAM_DESTROY_REASON_USER_DELETED = 1;
+  // the beam was deleted by the garbage collector after expiry
+  BEAM_DESTROY_REASON_GC_EXPIRED = 2;
+}
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+//
+// PostHog event: tp.beams.destroyed
+message BeamsDestroyedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the reason the beam was destroyed
+  //
+  // PostHog property: tp.beam.destroy_reason
+  BeamDestroyReason reason = 2;
+
+  // the region where the beam was running
+  //
+  // PostHog property: tp.beam.region
+  string region = 3;
 }
 
 // the issuance of a user certificate from the user CA
@@ -1012,6 +1075,10 @@ message AssistActionEvent {
 message AccessListMetadata {
   // id uniquely identifies an Access List. Will allow correlation of events within an access list.
   string id = 1;
+  // anonymized
+  string user_name = 2;
+  // Describes the sessions preset.
+  AccessListPreset preset = 3;
 }
 
 // AccessListCreate is an event that is emitted when an access list is created.
@@ -1445,10 +1512,12 @@ enum LicenseLimit {
   LICENSE_LIMIT_UNSPECIFIED = 0;
   // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
   // allow Jamf integration (e.g. Team Plan)
-  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
+  // DEPRECATED: Device trust and its MDM integrations are no longer limited for Enterprise/Cloud.
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1 [deprecated = true];
   // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
   // limit is reached
-  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
+  // DEPRECATED: Device trust usage is no longer limited for Enterprise/Cloud.
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2 [deprecated = true];
 }
 
 // DesktopDirectoryShareEvent is emitted when directory sharing is used
@@ -1573,6 +1642,31 @@ message UIAccessGraphCrownJewelDiffViewEvent {
   string affected_resource_source = 1;
   // affected_resource_type is the type of the affected resource.
   string affected_resource_type = 2;
+}
+
+// UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+message UIPageViewEvent {
+  // anonymized
+  string user_name = 1;
+  // path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+  string path = 2;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 3;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 4;
+}
+
+// UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+// a usage reporting alert (e.g. an overage notification).
+message UIUsageReportingAlertCtaClickEvent {
+  // anonymized
+  string user_name = 1;
+  // alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+  string alert = 2;
+  // utm_source identifies the channel that drove the visit (e.g. "email")
+  string utm_source = 3;
+  // utm_campaign identifies the specific campaign (e.g. "overage_80")
+  string utm_campaign = 4;
 }
 
 // AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
@@ -1854,6 +1948,38 @@ message SessionSummaryCreateEvent {
   //
   // PostHog property: tp.ai.default_model
   bool is_cloud_default_model = 7;
+
+  // has_stored_embeddings indicates whether the cluster is configured to store
+  // embeddings for session summaries.
+  //
+  // PostHog property: tp.ai.has_stored_embeddings
+  bool has_stored_embeddings = 8;
+}
+
+// SessionSummarySearchEvent is emitted when a user runs a session summary
+// search query.
+//
+// PostHog event: tp.session.summary.search
+message SessionSummarySearchEvent {
+  // user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+
+  // Indicates this event was generated by a Machine ID bot user or a human.
+  UserKind user_kind = 2;
+
+  // query_count is the number of free-text search queries included in the
+  // request.
+  //
+  // PostHog property: tp.session.summary.search.query_count
+  uint64 query_count = 3;
+
+  // has_filters indicates whether the request included any non-text filters.
+  //
+  // PostHog property: tp.session.summary.search.has_filters
+  bool has_filters = 4;
 }
 
 // DiscoveryConfigAction is the action performed on a DiscoveryConfig.
@@ -1878,6 +2004,159 @@ message DiscoveryConfigEvent {
   repeated string cloud_providers = 4;
   // creation_method specifies the flow used to create the config ("iac" or "guided")
   string creation_method = 5;
+}
+
+// IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
+// for a provider is updated.
+message IdentitySecurityGraphSizeEvent {
+  // provider is the system containing the identities and resources being counted.
+  // It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+  string provider = 1;
+
+  // total_identities is the number of identities in the graph.
+  uint64 total_identities = 2;
+
+  // total_resources is the number of resources in the graph.
+  uint64 total_resources = 3;
+}
+
+// IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
+// identity activity center.
+message IdentitySecurityAuditLogsIngestedEvent {
+  // provider is the system emitting audit logs. It is one of
+  // teleport, cloudtrail, kubernetes, github or okta.
+  string provider = 1;
+
+  // logs_ingested is a count of log entries ingested into Identity Security.
+  uint64 logs_ingested = 2;
+}
+
+// AccessListStatus represents a access list wizard step outcome.
+enum AccessListStatus {
+  ACCESS_LIST_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  // e.g. going to next step,
+  ACCESS_LIST_STATUS_SUCCESS = 1;
+  // The user skipped the action (some steps may be optional).
+  ACCESS_LIST_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  ACCESS_LIST_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  ACCESS_LIST_STATUS_ABORTED = 4;
+}
+
+// AccessListPreset represents the access list preset type.
+enum AccessListPreset {
+  ACCESS_LIST_PRESET_UNSPECIFIED = 0;
+  ACCESS_LIST_PRESET_SHORT_TERM = 1;
+  ACCESS_LIST_PRESET_LONG_TERM = 2;
+}
+
+// AccessListStepStatus contains fields that track a particular step outcome.
+message AccessListStepStatus {
+  // Indicates the step outcome.
+  AccessListStatus status = 1;
+  // Contains error details in case of Error Status.
+  string error = 2;
+}
+
+// UIAccessListDefineAccessEvent is emitted when user is finished with the step
+// that defines access to resources.
+message UIAccessListDefineAccessEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
+// step that defines resource identities/principals.
+message UIAccessListDefineIdentitiesEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineBasicInfoEvent is emitted when user is finished with the step
+// that defines basic info of an access list (title, desc, etc).
+message UIAccessListDefineBasicInfoEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineMembersEvent is emitted when user is finished with the
+// step that defines access list members.
+message UIAccessListDefineMembersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineOwnersEvent is emitted when user is finished with the
+// step that defines access list owners.
+message UIAccessListDefineOwnersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListStartEvent is emitted when user is at the guide selection page
+// or when directed straight to the first step.
+message UIAccessListStartEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListCustomEvent is emitted when user completes non wizard
+// flow (old way of creating access list).
+message UIAccessListCustomEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListIntegrateEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListCompleteEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+  // True if the user completed wizard by choosing terraform script over
+  // creating access list via web UI.
+  bool preferred_terraform = 3;
+}
+
+// AccessListIntegrate describes what integration user
+// was interested in.
+enum AccessListIntegrate {
+  ACCESS_LIST_INTEGRATE_UNSPECIFIED = 0;
+  // User wants to integrate Okta or is coming from Okta.
+  ACCESS_LIST_INTEGRATE_OKTA = 1;
+}
+
+// UIAccessListIntegrateOktaEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListIntegrateEvent {
+  AccessListMetadata metadata = 1;
+  AccessListIntegrate integrate = 2;
+}
+
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+//
+// PostHog event: tp.ui.interaction
+message UIInteractionEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
+  // can be the username of a bot user rather than of a regular user
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+  // path is the route template of the page viewed, e.g. "/web/summary/mau"
+  //
+  // PostHog property: tp.ui_interaction.path
+  string path = 2;
+  // page_id is a stable identifier for the page that does not change when the
+  // route template changes, e.g. "observability_graph"
+  //
+  // PostHog property: tp.ui_interaction.page_id
+  string page_id = 3;
+  // params holds arbitrary key/value config for the interaction, e.g.
+  // view="custom", graph="bar", scope="tenant", granularity="day"
+  //
+  // PostHog properties: tp.ui_interaction.<key> for each entry
+  map<string, string> params = 4;
 }
 
 message SubmitEventRequest {
@@ -2060,6 +2339,26 @@ message SubmitEventRequest {
     SessionSummaryAccessEvent session_summary_access_event = 106;
 
     DiscoveryConfigEvent discovery_config = 107;
+
+    IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108;
+    IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109;
+
+    UIAccessListDefineAccessEvent ui_access_list_define_access_event = 110;
+    UIAccessListDefineIdentitiesEvent ui_access_list_define_identities_event = 111;
+    UIAccessListDefineBasicInfoEvent ui_access_list_define_basic_info_event = 112;
+    UIAccessListDefineMembersEvent ui_access_list_define_members_event = 113;
+    UIAccessListDefineOwnersEvent ui_access_list_define_owners_event = 114;
+    UIAccessListStartEvent ui_access_list_start_event = 115;
+    UIAccessListCompleteEvent ui_access_list_complete_event = 116;
+    UIAccessListIntegrateEvent ui_access_list_integrate_event = 117;
+    UIAccessListCustomEvent ui_access_list_custom_event = 118;
+    UIPageViewEvent ui_page_view = 119;
+    UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
+    SessionSummarySearchEvent session_summary_search_event = 121;
+    UIInteractionEvent ui_interaction = 122;
+
+    BeamsCreatedEvent beams_created = 123;
+    BeamsDestroyedEvent beams_destroyed = 124;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

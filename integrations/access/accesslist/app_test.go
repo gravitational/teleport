@@ -83,7 +83,7 @@ func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string)
 
 func (m *mockMessagingBot) SupportedApps() []common.App {
 	return []common.App{
-		NewApp(m),
+		NewApp(),
 	}
 }
 

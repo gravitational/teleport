@@ -22,6 +22,7 @@ export const StepTitle = styled.div`
   display: flex;
   align-items: center;
   font-size: ${p => p.theme.fontSizes[1]}px;
+  white-space: nowrap;
 `;
 
 export const StepsContainer = styled.div<{ active?: boolean }>`

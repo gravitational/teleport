@@ -527,3 +527,48 @@ func TestBotInstanceListWithSort(t *testing.T) {
 	_, _, err = service.ListBotInstances(ctx, 0, "", nil)
 	require.NoError(t, err)
 }
+
+func TestBotInstanceListWithFilterFn(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	// Create 10 instances for "test-bot".
+	var created []*machineidv1.BotInstance
+	for range 10 {
+		bi := newBotInstance("test-bot")
+		_, err := service.CreateBotInstance(ctx, bi)
+		require.NoError(t, err)
+		created = append(created, bi)
+	}
+
+	// Use a FilterFn that only accepts even-indexed instances.
+	accepted := map[string]struct{}{}
+	for i, bi := range created {
+		if i%2 == 0 {
+			accepted[bi.Spec.InstanceId] = struct{}{}
+		}
+	}
+
+	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterFn: func(bi *machineidv1.BotInstance) bool {
+			_, ok := accepted[bi.GetSpec().GetInstanceId()]
+			return ok
+		},
+	})
+
+	require.Len(t, instances, len(accepted))
+	for _, bi := range instances {
+		require.Contains(t, accepted, bi.Spec.InstanceId)
+	}
+}

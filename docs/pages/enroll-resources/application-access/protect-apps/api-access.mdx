@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 The Teleport Application Service can be used to access applications' (REST or
@@ -15,6 +16,10 @@ Teleport's own gRPC) APIs with tools like
 <Admonition type="note" title="Non-HTTP API Support">
 Use [TCP application access](./tcp.mdx) for non-HTTP APIs (like gRPC).
 </Admonition>
+
+In this guide, you will use `tsh` to authenticate to Teleport, list available
+applications, and use Teleport-issued TLS credentials to interact with them
+using an HTTP client.
 
 ## Prerequisites
 

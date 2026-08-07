@@ -88,12 +88,27 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 	if msg.LastSyncTime != nil {
 		lastSyncTime = msg.LastSyncTime.AsTime()
 	}
+
+	integrationDiscoveredResources := make(map[string]*discoveryconfig.IntegrationDiscoveredSummary, len(msg.IntegrationDiscoveredResources))
+	for k, v := range msg.IntegrationDiscoveredResources {
+		integrationDiscoveredResources[k] = &discoveryconfig.IntegrationDiscoveredSummary{
+			IntegrationDiscoveredSummary: v,
+		}
+	}
+
+	serverStatus := make(map[string]*discoveryconfig.DiscoveryStatusServer, len(msg.ServerStatus))
+	for k, v := range msg.ServerStatus {
+		serverStatus[k] = &discoveryconfig.DiscoveryStatusServer{
+			DiscoveryStatusServer: v,
+		}
+	}
 	return discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
 		ErrorMessage:                   msg.ErrorMessage,
-		DiscoveredResources:            msg.DiscoveredResources,
+		DiscoveredResources:            msg.GetDiscoveredResources(),
 		LastSyncTime:                   lastSyncTime,
-		IntegrationDiscoveredResources: msg.IntegrationDiscoveredResources,
+		IntegrationDiscoveredResources: integrationDiscoveredResources,
+		ServerStatus:                   serverStatus,
 	}
 }
 
@@ -141,11 +156,34 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 		lastSyncTime = timestamppb.New(status.LastSyncTime)
 	}
 
+	integrationDiscoveredResources := make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary, len(status.IntegrationDiscoveredResources))
+	for k, v := range status.IntegrationDiscoveredResources {
+		if v == nil {
+			v = &discoveryconfig.IntegrationDiscoveredSummary{}
+		}
+		if v.IntegrationDiscoveredSummary == nil {
+			v.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+		}
+		integrationDiscoveredResources[k] = v.IntegrationDiscoveredSummary
+	}
+
+	serverStatus := make(map[string]*discoveryconfigv1.DiscoveryStatusServer, len(status.ServerStatus))
+	for k, v := range status.ServerStatus {
+		if v == nil {
+			v = &discoveryconfig.DiscoveryStatusServer{}
+		}
+		if v.DiscoveryStatusServer == nil {
+			v.DiscoveryStatusServer = &discoveryconfigv1.DiscoveryStatusServer{}
+		}
+		serverStatus[k] = v.DiscoveryStatusServer
+	}
+
 	return &discoveryconfigv1.DiscoveryConfigStatus{
 		State:                          discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[status.State]),
 		ErrorMessage:                   status.ErrorMessage,
 		DiscoveredResources:            status.DiscoveredResources,
 		LastSyncTime:                   lastSyncTime,
-		IntegrationDiscoveredResources: status.IntegrationDiscoveredResources,
+		IntegrationDiscoveredResources: integrationDiscoveredResources,
+		ServerStatus:                   serverStatus,
 	}
 }

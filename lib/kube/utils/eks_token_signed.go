@@ -38,7 +38,6 @@ type STSPresignClient interface {
 
 // GenAWSEKSToken creates an AWS token to access EKS clusters.
 // Logic from https://github.com/aws/aws-cli/blob/6c0d168f0b44136fc6175c57c090d4b115437ad1/awscli/customizations/eks/get_token.py#L211-L229
-// TODO(@creack): Consolidate with https://github.com/gravitational/teleport/blob/d37da511c944825a47155421bf278777238eecc0/lib/integrations/awsoidc/eks_enroll_clusters.go#L341-L372
 func GenAWSEKSToken(ctx context.Context, stsClient STSPresignClient, clusterID string, clock clockwork.Clock) (string, time.Time, error) {
 	const (
 		// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in x-amz-date).

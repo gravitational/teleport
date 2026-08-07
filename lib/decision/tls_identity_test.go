@@ -27,6 +27,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	traitpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -46,9 +47,10 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 	fullIdentity := &decisionpb.TLSIdentity{
 		Username: "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
+				"/": {"/": {"/::role1", "/::role2"}},
 			}),
 		},
 		Impersonator:      "impersonator",
@@ -103,6 +105,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		Generation:              112,
 		BotName:                 "bot-name",
 		BotInstanceId:           "bot-instance-id",
+		BotScope:                "/foo",
 		AllowedResourceIds: []*decisionpb.ResourceId{
 			{
 				ClusterName:     "cluster1",
@@ -117,6 +120,16 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 				SubResourceName: "sub-resource2",
 			},
 		},
+		AllowedResourceAccessIds: []*types.ResourceAccessID{
+			{
+				Id: types.ResourceID{
+					ClusterName:     "cluster1",
+					Kind:            "kind1",
+					Name:            "name1",
+					SubResourceName: "sub-resource1",
+				},
+			},
+		},
 		PrivateKeyPolicy:       "private-key-policy",
 		ConnectionDiagnosticId: "connection-diag-id",
 		DeviceExtensions: &decisionpb.DeviceExtensions{
@@ -124,7 +137,8 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			AssetTag:     "asset-tag",
 			CredentialId: "credential-id",
 		},
-		UserType: "user-type",
+		UserType:            "user-type",
+		DelegationSessionId: "delegation-session",
 	}
 
 	tests := []struct {

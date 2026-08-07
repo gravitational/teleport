@@ -84,6 +84,9 @@ type App struct {
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
 
+	// LLM includes LLM inference endpoint specific configuration.
+	LLM *LLM `json:"llm,omitempty"`
+
 	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
 	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
@@ -120,6 +123,16 @@ type MCP struct {
 	RunAsHostUser string `json:"runAsHostUser,omitempty"`
 }
 
+// LLM includes LLM inference endpoint specific configuration.
+type LLM struct {
+	// Format is the inference API format clients use to talk to the endpoint,
+	// e.g. "anthropic" or "openai".
+	Format string `json:"format,omitempty"`
+	// Provider is the inference provider serving the endpoint, e.g.
+	// "anthropic", "openai", or "bedrock".
+	Provider string `json:"provider,omitempty"`
+}
+
 // MakeAppsConfig contains parameters for converting apps to UI representation.
 type MakeAppsConfig struct {
 	// LocalClusterName is the name of the local cluster.
@@ -134,6 +147,9 @@ type MakeAppsConfig struct {
 	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
 	// Only used for AWS Console Apps.
 	AllowedAWSRolesLookup map[string][]string
+	// GrantedAWSRolesLookup is a map of AWS IAM Role ARNs that the logged user has been granted
+	// for each App. Only used for AWS Console Apps.
+	GrantedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
@@ -198,9 +214,35 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	if app.IsAWSConsole() {
-		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
-		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
-			app.GetAWSAccountID())
+		// TODO(kiosion): This visible/granted role handling is quite bad. Ideally, modify AccessChecker's [GetAllowedLoginsForResource]
+		// to return a struct containing all visible roles, plus a subset of granted (if present), out-of-the-box, rather than having to
+		// invoke [GetAllowedLoginsForResource] twice to diff visible vs granted roles.
+		visible := c.AllowedAWSRolesLookup[app.GetName()]
+		visibleRoles := aws.FilterAWSRoles(visible, app.GetAWSAccountID())
+
+		granted := c.GrantedAWSRolesLookup[app.GetName()]
+		grantedRoles := aws.FilterAWSRoles(granted, app.GetAWSAccountID())
+		grantedSet := make(map[string]struct{}, len(grantedRoles))
+		for _, gr := range grantedRoles {
+			grantedSet[gr.ARN] = struct{}{}
+		}
+
+		supportsResourceConstraints := componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, c.SupportedFeatures)
+		uiRoles := make([]aws.Role, 0, len(visibleRoles))
+		for _, r := range visibleRoles {
+			_, isGranted := grantedSet[r.ARN]
+			if !supportsResourceConstraints && !isGranted {
+				continue
+			}
+			uiRoles = append(uiRoles, aws.Role{
+				Name:            r.Name,
+				Display:         r.Display,
+				ARN:             r.ARN,
+				AccountID:       r.AccountID,
+				RequiresRequest: !isGranted,
+			})
+		}
+		resultApp.AWSRoles = uiRoles
 	}
 
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {
@@ -208,6 +250,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			Command:       mcpSpec.Command,
 			Args:          mcpSpec.Args,
 			RunAsHostUser: mcpSpec.RunAsHostUser,
+		}
+	}
+
+	if llmSpec := app.GetLLM(); llmSpec != nil {
+		resultApp.LLM = &LLM{
+			Format:   llmSpec.Format,
+			Provider: llmSpec.Provider,
 		}
 	}
 

@@ -114,6 +114,12 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *types.MCP
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *types.LLM
+
+	// TLS contains the app TLS configuration.
+	TLS *types.AppTLS
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -157,6 +163,9 @@ type PortRange struct {
 }
 
 // CheckAndSetDefaults validates an application.
+//
+// Note: full app validation happens after conversion to `types.AppV3` so static
+// and dynamic registration share the same validation rules.
 func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
@@ -167,6 +176,8 @@ func (a *App) CheckAndSetDefaults() error {
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
 		case a.MCP != nil && a.MCP.Command != "":
 			a.URI = types.SchemeMCPStdio + "://"
+		case a.LLM != nil:
+			a.URI = types.SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
@@ -230,7 +241,7 @@ func (a *App) checkPorts() error {
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
+	if uri.Scheme != "tcp" && uri.Scheme != types.SchemeTLS {
 		return nil
 	}
 
@@ -251,6 +262,9 @@ func (a *App) checkPorts() error {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

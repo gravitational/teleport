@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -48,13 +47,12 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 const (
@@ -66,13 +64,6 @@ const (
 const StaticToken = "test-static-token"
 
 func init() {
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe. Used to test tsh ssh and tsh scp commands.
-	if srv.IsReexec() {
-		common.Run(common.Options{Args: os.Args[1:]})
-		return
-	}
-
 	modules.SetModules(&cliModules{})
 }
 
@@ -407,6 +398,12 @@ func WithLogger(log *slog.Logger) TestServerOptFunc {
 	})
 }
 
+func WithScopesFeatures(features scopes.Features) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.ScopesFeatures = features
+	})
+}
+
 // WithProxyKube enables the Proxy Kube listener with a random address.
 func WithProxyKube() TestServerOptFunc {
 	return func(o *TestServersOpts) error {
@@ -470,6 +467,10 @@ func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modul
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
+func (p *cliModules) GenerateAccessRequestSuggestedReviewers(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) ([]string, error) {
+	return []string{}, nil
 }
 
 func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {

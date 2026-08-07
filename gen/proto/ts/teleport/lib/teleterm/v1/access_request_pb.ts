@@ -30,6 +30,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { ResourceConstraints } from "../../../legacy/types/resources_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequest
@@ -233,6 +234,12 @@ export interface Resource {
      * @generated from protobuf field: teleport.lib.teleterm.v1.ResourceDetails details = 2;
      */
     details?: ResourceDetails;
+    /**
+     * constraints holds optional resource-specific constraints (e.g., AWS role ARNs).
+     *
+     * @generated from protobuf field: types.ResourceConstraints constraints = 3;
+     */
+    constraints?: ResourceConstraints;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class AccessRequest$Type extends MessageType<AccessRequest> {
@@ -643,7 +650,8 @@ class Resource$Type extends MessageType<Resource> {
     constructor() {
         super("teleport.lib.teleterm.v1.Resource", [
             { no: 1, name: "id", kind: "message", T: () => ResourceID },
-            { no: 2, name: "details", kind: "message", T: () => ResourceDetails }
+            { no: 2, name: "details", kind: "message", T: () => ResourceDetails },
+            { no: 3, name: "constraints", kind: "message", T: () => ResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<Resource>): Resource {
@@ -663,6 +671,9 @@ class Resource$Type extends MessageType<Resource> {
                 case /* teleport.lib.teleterm.v1.ResourceDetails details */ 2:
                     message.details = ResourceDetails.internalBinaryRead(reader, reader.uint32(), options, message.details);
                     break;
+                case /* types.ResourceConstraints constraints */ 3:
+                    message.constraints = ResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, message.constraints);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -681,6 +692,9 @@ class Resource$Type extends MessageType<Resource> {
         /* teleport.lib.teleterm.v1.ResourceDetails details = 2; */
         if (message.details)
             ResourceDetails.internalBinaryWrite(message.details, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* types.ResourceConstraints constraints = 3; */
+        if (message.constraints)
+            ResourceConstraints.internalBinaryWrite(message.constraints, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

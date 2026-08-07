@@ -26,7 +26,8 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 )
 
 // IDTokenSource allows a Azure Devops OIDC token to be fetched whilst within a

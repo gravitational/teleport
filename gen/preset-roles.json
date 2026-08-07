@@ -150,6 +150,12 @@
           "tools": [
             "{{internal.mcp_tools}}"
           ]
+        },
+        "linux_desktop_logins": [
+          "{{internal.linux_desktop_logins}}"
+        ],
+        "linux_desktop_labels": {
+          "*": "*"
         }
       },
       "deny": {}
@@ -1179,6 +1185,18 @@
           },
           {
             "resources": [
+              "retrieval_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "client_ip_restriction"
             ],
             "verbs": [
@@ -1228,6 +1246,30 @@
           {
             "resources": [
               "workload_cluster"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "beams_config"
             ],
             "verbs": [
               "list",

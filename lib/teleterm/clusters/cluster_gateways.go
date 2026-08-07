@@ -55,7 +55,7 @@ type CreateGatewayParams struct {
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	c.clusterClient.MFAPromptConstructor = params.MFAPromptConstructor
-	c.clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+	c.clusterClient.MFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	switch {
 	case params.TargetURI.IsDB():
@@ -171,6 +171,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: c.clusterClient.SiteName,
 		URI:         app.GetURI(),
+		Scope:       app.GetScope(),
 	}
 	if params.TargetSubresourceName != "" {
 		targetPort, err := ValidateTargetPort(app, params.TargetSubresourceName)
@@ -236,6 +237,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 			PublicAddr:  app.GetPublicAddr(),
 			ClusterName: c.clusterClient.SiteName,
 			URI:         app.GetURI(),
+			Scope:       app.GetScope(),
 		}
 		if g.TargetSubresourceName() != "" {
 			targetPort, err := parseTargetPort(g.TargetSubresourceName())

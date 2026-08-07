@@ -75,6 +75,16 @@ func TestAccessListUnmarshal(t *testing.T) {
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
+				ScopedRoles: []accesslist.ScopedRoleGrant{
+					{
+						Role:  "scoped-role-1",
+						Scope: "/foo",
+					},
+					{
+						Role:  "scoped-role-2",
+						Scope: "/bar",
+					},
+				},
 			},
 		},
 	)
@@ -127,6 +137,16 @@ func TestAccessListMarshal(t *testing.T) {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+				ScopedRoles: []accesslist.ScopedRoleGrant{
+					{
+						Role:  "scoped-role-1",
+						Scope: "/foo",
+					},
+					{
+						Role:  "scoped-role-2",
+						Scope: "/bar",
+					},
 				},
 			},
 		},
@@ -489,6 +509,11 @@ spec:
       gtrait2:
       - gvalue3
       - gvalue4
+    scoped_roles:
+    - role: scoped-role-1
+      scope: /foo
+    - role: scoped-role-2
+      scope: /bar
 `
 
 var accessListMemberYAML = `---

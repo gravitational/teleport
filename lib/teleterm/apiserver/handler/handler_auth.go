@@ -61,7 +61,7 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 	// Clear the cache after login, not before.
 	// During a re-login, another thread might try to retrieve a client from the cache.
 	// Because the cache is empty, it could initialize a new client using the previous certificate.
-	if err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
+	if err = s.DaemonService.ClearStaleCachedClientsForRoot(cluster.URI); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -103,7 +103,7 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	// Clear the cache after login, not before.
 	// During a re-login, another thread might try to retrieve a client from the cache.
 	// Because the cache is empty, it could initialize a new client using the previous certificate.
-	err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI)
+	err = s.DaemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	return trace.Wrap(err)
 }
 

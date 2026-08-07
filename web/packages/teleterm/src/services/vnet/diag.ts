@@ -21,6 +21,7 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import {
+  reportOneOfIsDNSReport,
   reportOneOfIsRouteConflictReport,
   reportOneOfIsSSHConfigurationReport,
 } from 'teleterm/helpers';
@@ -129,6 +130,10 @@ const reportOneofToDisplayDetails: Record<
     errorTitle: 'inspect SSH configuration',
     reportToText: sshConfigurationReportToText,
   },
+  dnsReport: {
+    errorTitle: 'inspect DNS configuration',
+    reportToText: dnsReportToText,
+  },
 };
 
 function routeConflictReportToText({
@@ -195,4 +200,119 @@ ${userOpensshConfigContents}
 ${pathsTable}
 
 ${currentContents}`;
+}
+
+function dnsReportToText({ report }: diag.CheckReport): string {
+  if (!reportOneOfIsDNSReport(report)) {
+    return '';
+  }
+  const { ipv4Reachability, ipv6Reachability, zoneResults } = report.dnsReport;
+
+  const reachabilityLines = [
+    reachabilityToText('IPv4', ipv4Reachability),
+    reachabilityToText('IPv6', ipv6Reachability),
+  ].filter(Boolean);
+
+  const allUnreachable =
+    (ipv4Reachability || ipv6Reachability) &&
+    (!ipv4Reachability || !ipv4Reachability.reachable) &&
+    (!ipv6Reachability || !ipv6Reachability.reachable);
+  if (allUnreachable) {
+    reachabilityLines.push(
+      "VNet's DNS is not responding. This might be caused by network routes set up by another program that capture traffic meant for VNet."
+    );
+  }
+
+  // Show only zones that have at least one problem. A null aRecord
+  // or aaaaRecord means that record type wasn't queried because no
+  // expected IP was captured from the reachability step, so not a problem.
+  const okStatus = diag.DNSZoneStatus.DNS_ZONE_STATUS_OK;
+  const problemRows = zoneResults.filter(
+    zr =>
+      (zr.aRecord && zr.aRecord.status !== okStatus) ||
+      (zr.aaaaRecord && zr.aaaaRecord.status !== okStatus)
+  );
+
+  if (problemRows.length === 0) {
+    return reachabilityLines.join('\n');
+  }
+
+  // Drop the record-type column if no row in the table has a result for it.
+  const showA = problemRows.some(zr => zr.aRecord);
+  const showAaaa = problemRows.some(zr => zr.aaaaRecord);
+  const headerCells = ['Zone'];
+  if (showA) headerCells.push('A');
+  if (showAaaa) headerCells.push('AAAA');
+  const headerRow = `| ${headerCells.join(' | ')} |`;
+  const separatorRow = `| ${headerCells.map(() => '---').join(' | ')} |`;
+  const tableRows = problemRows
+    .map(zr => {
+      const cells = [zr.zone];
+      if (showA) cells.push(recordResultToText(zr.aRecord));
+      if (showAaaa) cells.push(recordResultToText(zr.aaaaRecord));
+      return `| ${cells.join(' | ')} |`;
+    })
+    .join('\n');
+
+  const headerCount =
+    problemRows.length === 1
+      ? `1 of ${zoneResults.length} DNS zones is not routed through VNet.`
+      : `${problemRows.length} of ${zoneResults.length} DNS zones are not routed through VNet.`;
+
+  return `${reachabilityLines.join('\n')}
+
+⚠️ ${headerCount}
+
+${headerRow}
+${separatorRow}
+${tableRows}`;
+}
+
+function reachabilityToText(
+  family: 'IPv4' | 'IPv6',
+  reach: diag.VNetDNSReachability | undefined
+): string {
+  if (!reach) {
+    return '';
+  }
+  if (!reach.reachable) {
+    return `⚠️ VNet ${family} DNS unreachable on ${reach.address}: ${reach.error}`;
+  }
+  const responded =
+    reach.respondedA && reach.respondedAaaa
+      ? 'A, AAAA'
+      : reach.respondedA
+        ? 'A only'
+        : reach.respondedAaaa
+          ? 'AAAA only'
+          : 'nothing';
+  return `✅ VNet ${family} DNS reachable on ${reach.address} (responds to ${responded})`;
+}
+
+function recordResultToText(rr: diag.RecordResult | undefined): string {
+  if (!rr) {
+    return '—';
+  }
+  const label = dnsZoneStatusToText(rr.status);
+  if (rr.observedIp) {
+    return `${label} (${rr.observedIp})`;
+  }
+  return label;
+}
+
+function dnsZoneStatusToText(status: diag.DNSZoneStatus): string {
+  switch (status) {
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_OK:
+      return 'OK';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED:
+      return 'hijacked';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED:
+      return 'not registered';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT:
+      return 'timeout';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_RESOLVER_ERROR:
+      return 'resolver error';
+    default:
+      return `unknown (${status})`;
+  }
 }

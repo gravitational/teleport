@@ -6,6 +6,7 @@ tags:
  - conceptual
  - zero-trust
  - infrastructure-identity
+page_type: conceptual
 ---
 
 Dynamic Windows desktop registration allows Teleport administrators to register
@@ -17,6 +18,9 @@ Windows Desktop Service instances watch for updates from the Teleport Auth
 Service for `dynamic_windows_desktop` resources, each of which includes the
 information that the Windows Desktop Service needs to connect to a Windows
 desktop.
+
+This page describes the Teleport settings you can modify in order to configure
+dynamic registration for Windows desktops.
 
 ## Required permissions
 
@@ -74,7 +78,7 @@ metadata:
     env: test
 spec:
   addr: host1.example.com:3089
-  # non_ad should be true for logging with local Windows user and false for Active Directory users
+  # non_ad should be true for logging in with local Windows user and false for Active Directory users
   non_ad: true
   # domain specifies domain used for AD-joined machines
   domain: ""

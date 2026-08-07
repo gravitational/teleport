@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -43,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -562,7 +564,7 @@ func resourceDiff(res1, res2 types.Resource) string {
 func TestDatabaseWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -1277,7 +1279,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.Len(t, filtered, 1)
 
 	// Test Deleting a kube server.
-	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
+	require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  kubeServers[0].GetScope(),
+		HostId: kubeServers[0].GetHostID(),
+		Name:   kubeServers[0].GetName(),
+	}.Build()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
 		assert.NoError(t, err)
@@ -1308,7 +1314,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	for _, server := range filtered {
-		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
+		require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  server.GetScope(),
+			HostId: server.GetHostID(),
+			Name:   server.GetName(),
+		}.Build()))
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1427,6 +1437,58 @@ func TestAccessRequestWatcher(t *testing.T) {
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the update event.")
+	}
+}
+
+// TestAccessRequestWatcherRace ensures there are no races when editing AccessRequest resources
+// collected from the watcher.
+func TestAccessRequestWatcherRace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	dynamicAccessService := local.NewDynamicAccessService(bk)
+
+	for range 10 {
+		accessRequest := newAccessRequest(t, uuid.NewString())
+		_, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest)
+		require.NoError(t, err)
+	}
+
+	type client struct {
+		services.DynamicAccessCore
+		types.Events
+	}
+
+	w, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				DynamicAccessCore: dynamicAccessService,
+				Events:            local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	select {
+	case changeset := <-w.AccessRequestsC:
+		for _, ar := range changeset {
+			ar.SetMaxDuration(ar.GetMaxDuration().Add(1))
+			_ = dynamicAccessService.UpsertAccessRequest(ctx, ar)
+		}
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timeout processing the event.")
 	}
 }
 
@@ -1576,6 +1638,59 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the delete event.")
+	}
+}
+
+// TestOktaAssignmentWatcherRace ensures there are no races when editing OktaAssignment resources
+// collected from the watcher.
+func TestOktaAssignmentWatcherRace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	oktaService, err := local.NewOktaService(bk, clock)
+	require.NoError(t, err)
+
+	for range 10 {
+		a1 := newOktaAssignment(t, uuid.NewString())
+		_, err = oktaService.CreateOktaAssignment(ctx, a1)
+		require.NoError(t, err)
+	}
+
+	type client struct {
+		services.OktaAssignments
+		types.Events
+	}
+
+	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
+		RWCfg: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				OktaAssignments: oktaService,
+				Events:          local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	select {
+	case changeset := <-w.CollectorChan():
+		for _, a := range changeset {
+			a.SetLastTransition(a.GetLastTransition().Add(1))
+			_, _ = oktaService.UpdateOktaAssignment(ctx, a)
+		}
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timeout processing the event.")
 	}
 }
 
@@ -1745,4 +1860,127 @@ func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.Health
 	)
 	require.NoError(t, err)
 	return c
+}
+
+func TestAppServerWatcher(t *testing.T) {
+	synctest.Test(t, syncTestAppServerWatcher)
+}
+
+func syncTestAppServerWatcher(t *testing.T) {
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	defer bk.Close()
+	type client struct {
+		services.Presence
+		types.Events
+	}
+
+	presence := local.NewPresenceService(bk)
+	w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				Presence: presence,
+				Events:   local.NewEventsService(bk),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	require.NoError(t, w.WaitInitialization())
+
+	newAppServer := func(t *testing.T, name, hostId, appName string) *types.AppServerV3 {
+		s, err := types.NewAppServerV3(types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		}, types.AppServerSpecV3{
+			HostID: hostId,
+
+			App: newApp(t, appName),
+		})
+		require.NoError(t, err)
+		return s
+	}
+
+	diffAppServers := func(a, b []types.AppServer) string {
+		return cmp.Diff(a, b,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.EquateEmpty(),
+			cmpopts.SortSlices(func(a, b types.AppServer) bool {
+				if c := strings.Compare(a.GetHostID(), b.GetHostID()); c != 0 {
+					return c < 0
+				}
+				return a.GetName() < b.GetName()
+			}),
+		)
+	}
+
+	appServers := make([]types.AppServer, 0, 10)
+	for i := range 10 {
+		appServer := newAppServer(t,
+			fmt.Sprintf("app-%d", i%5),
+			fmt.Sprintf("host-%d", i), // Multiple hosts per app
+			fmt.Sprintf("app-%d", i%5))
+		_, err = presence.UpsertApplicationServer(ctx, appServer)
+		require.NoError(t, err)
+		appServers = append(appServers, appServer)
+	}
+
+	// Check all registered app servers are returned by the watcher.
+	synctest.Wait()
+	current, err := w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Delete the first app server, ensure watcher correctly removes the entry
+	err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServers[0].GetHostID(),
+		Name:   appServers[0].GetName(),
+		Scope:  appServers[0].GetScope(),
+	}.Build())
+	require.NoError(t, err)
+
+	synctest.Wait()
+
+	appServers = appServers[1:]
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Overwrite existing
+	_, err = presence.UpsertApplicationServer(ctx, newAppServer(t, "app-1", "host-1", "app-1"))
+	require.NoError(t, err)
+
+	synctest.Wait()
+
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// New server with the same app name but different host is added to the list
+	appServer := newAppServer(t, "app-1", "host-20", "app-1")
+	_, err = presence.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+	appServers = append(appServers, appServer)
+
+	synctest.Wait()
+
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Ensure filtering works
+	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(s readonly.AppServer) bool {
+		return s.GetName() == appServers[0].GetName()
+	})
+	require.NoError(t, err)
+	require.Len(t, filtered, 3)
 }

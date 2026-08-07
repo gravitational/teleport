@@ -16,8 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createElement, useMemo, type ReactNode } from 'react';
+import {
+  createElement,
+  PropsWithChildren,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import styled from 'styled-components';
+
+import Flex from 'design/Flex';
+import { ChevronDown, ChevronRight } from 'design/Icon';
+import { P2 } from 'design/Text';
+
+import { CopyButton } from '../CopyButton/CopyButton';
 
 export interface MarkdownOptions {
   /**
@@ -49,6 +62,46 @@ const StyledLink = styled.a`
   background: none;
   text-decoration: underline;
   text-transform: none;
+`;
+
+const StyledTable = styled.table`
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid ${p => p.theme.colors.spotBackground[2]};
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin: ${p => p.theme.space[2]}px 0;
+  overflow: hidden;
+
+  th,
+  td {
+    border-bottom: 1px solid ${p => p.theme.colors.spotBackground[2]};
+    border-right: 1px solid ${p => p.theme.colors.spotBackground[2]};
+    padding: ${p => p.theme.space[1]}px ${p => p.theme.space[2]}px;
+    text-align: left;
+  }
+
+  th:last-child,
+  td:last-child {
+    border-right: none;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  th {
+    background: ${p => p.theme.colors.spotBackground[1]};
+  }
+`;
+
+const StyledUl = styled.ul<{ root?: boolean }>`
+  padding-left: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
+`;
+
+const StyledOl = styled.ol<{ root?: boolean }>`
+  padding-left: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
 `;
 
 const parsers: MarkdownParser[] = [
@@ -130,9 +183,207 @@ function parseLine(activeParsers: MarkdownParser[], line: string): ReactNode[] {
   return items;
 }
 
+type ListType = 'ul' | 'ol';
+
+function isListItem(trimmed: string): ListType | null {
+  if (trimmed.startsWith('- ')) {
+    return 'ul';
+  }
+
+  if (orderedItemRegex.test(trimmed)) {
+    return 'ol';
+  }
+
+  return null;
+}
+
+function getItemContent(trimmed: string) {
+  if (trimmed.startsWith('- ')) {
+    return trimmed.substring(2);
+  }
+
+  const match = trimmed.match(orderedItemRegex);
+  if (match) {
+    return trimmed.substring(match[0].length);
+  }
+
+  return trimmed;
+}
+
+function getAlignment(sep: string): 'left' | 'center' | 'right' {
+  const t = sep.trim();
+  if (t.startsWith(':') && t.endsWith(':')) {
+    return 'center';
+  }
+
+  if (t.endsWith(':')) {
+    return 'right';
+  }
+
+  return 'left';
+}
+
+function parseRow(row: string) {
+  return row
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split(/(?<!\\)\|/, MAX_TABLE_COLUMNS)
+    .map(cell => cell.trim().replace(/\\\|/g, '|'));
+}
+
+const MAX_TABLE_COLUMNS = 100;
+const MAX_TABLE_ROWS = 1000;
+
+const MAX_LIST_DEPTH = 10;
+
+function parseListItems(
+  activeParsers: MarkdownParser[],
+  lines: string[],
+  startIndex: number,
+  baseIndent: number,
+  listType: ListType,
+  depth = 0
+): { node: ReactNode; endIndex: number } {
+  if (depth >= MAX_LIST_DEPTH) {
+    return { node: null, endIndex: startIndex };
+  }
+
+  const listItems: ReactNode[] = [];
+
+  let startNumber: number | undefined;
+  let i = startIndex;
+
+  while (i < lines.length) {
+    if (i - startIndex > MAX_ITERATIONS) {
+      break;
+    }
+
+    const raw = lines[i];
+
+    if (raw.trim() === '') {
+      i += 1;
+      continue;
+    }
+
+    const trimmed = raw.trimStart();
+
+    const itemType = isListItem(trimmed);
+    if (!itemType || itemType !== listType) {
+      break;
+    }
+
+    const indent = raw.length - trimmed.length;
+    if (indent < baseIndent) {
+      break;
+    }
+
+    // Capture the start number from the first ordered list item.
+    if (listType === 'ol' && startNumber === undefined) {
+      const num = parseInt(trimmed, 10);
+      startNumber = num;
+    }
+
+    const content = getItemContent(trimmed);
+    const itemKey = i;
+
+    i += 1;
+
+    const contentParts = [content];
+    const contentStartI = i;
+    while (i < lines.length) {
+      const next = lines[i];
+      const nextTrimmed = next.trimStart();
+      const nextIndent = next.length - nextTrimmed.length;
+
+      if (
+        nextTrimmed === '' ||
+        isListItem(nextTrimmed) ||
+        fencedCodeRegex.test(nextTrimmed) ||
+        nextIndent <= baseIndent
+      ) {
+        // If the next line is blank, a new list item, or less indented than the base,
+        // it's not part of the current item's content.
+        break;
+      }
+
+      contentParts.push(nextTrimmed);
+      i += 1;
+
+      if (i - contentStartI > MAX_ITERATIONS) {
+        break;
+      }
+    }
+
+    const fullContent = contentParts.join(' ');
+
+    // Skip blank lines before checking for nested items.
+    let nestedList: ReactNode = null;
+    let blankSkip = 0;
+
+    while (
+      i + blankSkip < lines.length &&
+      lines[i + blankSkip].trim() === '' &&
+      blankSkip <= MAX_ITERATIONS
+    ) {
+      blankSkip += 1;
+    }
+
+    // Check for nested list items after the current item, allowing for blank lines in between.
+    if (i + blankSkip < lines.length) {
+      const nextRaw = lines[i + blankSkip];
+      const nextTrimmed = nextRaw.trimStart();
+      const nextIndent = nextRaw.length - nextTrimmed.length;
+      const nextType = isListItem(nextTrimmed);
+
+      if (nextType && nextIndent > baseIndent) {
+        // If we find a nested list item, parse it and attach it to the current item.
+        i += blankSkip;
+
+        const nested = parseListItems(
+          activeParsers,
+          lines,
+          i,
+          nextIndent,
+          nextType,
+          depth + 1
+        );
+
+        nestedList = nested.node;
+        i = nested.endIndex;
+      }
+    }
+
+    listItems.push(
+      <li key={itemKey}>
+        {parseLine(activeParsers, fullContent)}
+        {nestedList}
+      </li>
+    );
+  }
+
+  const key = `list-${startIndex}`;
+  const node =
+    listType === 'ol' ? (
+      <StyledOl key={key} root={depth === 0} start={startNumber}>
+        {listItems}
+      </StyledOl>
+    ) : (
+      <StyledUl key={key} root={depth === 0}>
+        {listItems}
+      </StyledUl>
+    );
+
+  return { node, endIndex: i };
+}
+
 const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
+const fencedCodeRegex = /^```(\w*)\s*$/;
+const orderedItemRegex = /^\d+\.\s/;
+const tableRowRegex = /^\|([^|]*\|){2,}$/;
+const tableSeparatorRegex = /^\|([\s:]*-+[\s:]*\|)+$/;
 
 const MAX_ITERATIONS = 10000;
+const MAX_DEPTH = 16;
 
 /**
  * Turns a Markdown string into a list of React nodes. CAUTION: this function
@@ -182,7 +433,13 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
         const [, hashes, content] = headerMatch;
         const level = hashes.length;
 
-        items.push(createElement(`h${level}`, { key: i }, content.trim()));
+        items.push(
+          createElement(
+            `h${level}`,
+            { key: i },
+            ...parseLine(activeParsers, content.trim())
+          )
+        );
 
         i += 1;
 
@@ -190,22 +447,31 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       }
     }
 
-    if (line.trimStart().startsWith('- ')) {
-      const listItems: ReactNode[] = [];
+    const listType = isListItem(line);
+    if (listType) {
+      const baseIndent = lines[i].length - lines[i].trimStart().length;
+      const result = parseListItems(
+        activeParsers,
+        lines,
+        i,
+        baseIndent,
+        listType
+      );
+
+      items.push(result.node);
+      i = result.endIndex;
+
+      continue;
+    }
+
+    // Fenced code blocks: ```lang ... ```
+    if (fencedCodeRegex.test(line)) {
+      const codeLines: string[] = [];
       const startI = i;
+      i += 1; // skip the opening fence
 
-      while (i < lines.length && lines[i].trimStart().startsWith('- ')) {
-        const firstDashIndex = lines[i].indexOf('- ');
-
-        listItems.push(
-          <li key={i}>
-            {parseLine(
-              activeParsers,
-              lines[i].substring(firstDashIndex + 2).trim()
-            )}
-          </li>
-        );
-
+      while (i < lines.length && !fencedCodeRegex.test(lines[i].trim())) {
+        codeLines.push(lines[i]);
         i += 1;
 
         if (i - startI > MAX_ITERATIONS) {
@@ -213,7 +479,153 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
         }
       }
 
-      items.push(<ul key={i}>{listItems}</ul>);
+      // Skip the closing fence if we found one.
+      if (i < lines.length) {
+        i += 1;
+      }
+
+      items.push(<CodeBlock key={`code-${i}`} code={codeLines.join('\n')} />);
+
+      continue;
+    }
+
+    if (line.trim().startsWith('<details')) {
+      const expanded = /\bopen\b/.test(line);
+      let summary = '';
+      const content: string[] = [];
+      const startI = i;
+      i += 1; // skip the opening tag
+
+      const nextLine = lines.at(i);
+      if (nextLine === undefined) {
+        continue;
+      }
+
+      if (nextLine.trim().startsWith('<summary>')) {
+        summary = nextLine.replaceAll(/<\/?summary>/g, '').trim();
+        i += 1;
+      }
+
+      // Support nested sections by counting opening tags and ignoring that
+      // many closing tags.
+      let nested = 0;
+      while (true) {
+        const nextLine = lines.at(i);
+        if (nextLine === undefined) {
+          break;
+        }
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
+
+        if (nextLine.trim().startsWith('<details')) {
+          nested += 1;
+        }
+
+        const filter = nested >= MAX_DEPTH;
+
+        if (nextLine.trim() === '</details>') {
+          // If we're nested, then treat this line like any other content.
+          if (nested < 1) {
+            i += 1;
+            break;
+          }
+          nested -= 1;
+        }
+
+        if (!filter) {
+          content.push(nextLine);
+        }
+        i += 1;
+      }
+
+      items.push(
+        <Section
+          key={`section-${startI}`}
+          title={summary || 'Expand'}
+          expanded={expanded}
+        >
+          <Markdown text={content.join('\n')} {...options} />
+        </Section>
+      );
+
+      continue;
+    }
+
+    // Tables: | col1 | col2 |
+    if (tableRowRegex.test(line)) {
+      const tableLines: string[] = [];
+      const startI = i;
+
+      while (i < lines.length && tableRowRegex.test(lines[i].trim())) {
+        if (tableLines.length < MAX_TABLE_ROWS) {
+          tableLines.push(lines[i].trim());
+        }
+        i += 1;
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
+      }
+
+      // We need at least 2 lines for a valid table (header + separator)
+      if (tableLines.length >= 2) {
+        const hasHeader = tableSeparatorRegex.test(tableLines[1]);
+        const headerCells = hasHeader ? parseRow(tableLines[0]) : [];
+        const alignments = hasHeader
+          ? parseRow(tableLines[1]).map(getAlignment)
+          : [];
+        const dataRows = tableLines
+          .slice(hasHeader ? 2 : 0)
+          .map(row => parseRow(row));
+
+        items.push(
+          <StyledTable key={`table-${startI}`}>
+            {hasHeader && (
+              <thead>
+                <tr>
+                  {headerCells.map((cell, ci) => (
+                    <th
+                      key={ci}
+                      style={
+                        alignments[ci] && alignments[ci] !== 'left'
+                          ? { textAlign: alignments[ci] }
+                          : undefined
+                      }
+                    >
+                      {parseLine(activeParsers, cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {dataRows.map((row, ri) => (
+                <tr key={ri}>
+                  {row.map((cell, ci) => (
+                    <td
+                      key={ci}
+                      style={
+                        alignments[ci] && alignments[ci] !== 'left'
+                          ? { textAlign: alignments[ci] }
+                          : undefined
+                      }
+                    >
+                      {parseLine(activeParsers, cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </StyledTable>
+        );
+      } else {
+        // Single line starting with |, treat as paragraph.
+        items.push(
+          <p key={`p-${startI}`}>{parseLine(activeParsers, tableLines[0])}</p>
+        );
+      }
 
       continue;
     }
@@ -224,9 +636,14 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
     while (i < lines.length && lines[i].trim() !== '') {
       const currentLine = lines[i];
 
+      const trimmedLine = currentLine.trim();
+
       if (
-        headerRegex.test(currentLine) ||
-        currentLine.trim().startsWith('- ')
+        headerRegex.test(trimmedLine) ||
+        isListItem(trimmedLine) ||
+        fencedCodeRegex.test(trimmedLine) ||
+        tableRowRegex.test(trimmedLine) ||
+        trimmedLine.startsWith('<details')
       ) {
         break;
       }
@@ -265,3 +682,90 @@ export function Markdown({ text, ...options }: MarkdownProps) {
     [text, ...Object.values(options)]
   );
 }
+
+function CodeBlock(props: { code: string }) {
+  const { code } = props;
+  return (
+    <CodeBlockContainer>
+      <StyledPre>
+        <code>{code}</code>
+      </StyledPre>
+      <StyledCopyButton value={code} />
+    </CodeBlockContainer>
+  );
+}
+
+const CodeBlockContainer = styled.div`
+  position: relative;
+  background: ${p => p.theme.colors.interactive.tonal.neutral[1]};
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin: ${p => p.theme.space[2]}px 0;
+`;
+
+const StyledPre = styled.pre`
+  overflow-x: auto;
+  white-space: pre;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  padding-right: ${p => p.theme.space[6]}px;
+  margin: 0;
+`;
+
+const StyledCopyButton = styled(CopyButton)`
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: ${({ theme }) => theme.space[2]}px;
+`;
+
+function Section(
+  props: { title: string; expanded: boolean } & PropsWithChildren
+) {
+  const { children, title, expanded: preExpanded } = props;
+  const [expanded, setExpanded] = useState(preExpanded);
+  const accessibilityId = useId();
+
+  return (
+    <SectionContainer>
+      <SectionHeadingContainer
+        onClick={() => setExpanded(prev => !prev)}
+        role="button"
+        aria-expanded={expanded}
+        aria-controls={accessibilityId}
+        tabIndex={0}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(prev => !prev);
+          }
+        }}
+      >
+        {expanded ? (
+          <ChevronDown size="medium" />
+        ) : (
+          <ChevronRight size="medium" />
+        )}
+        <P2>
+          <strong>{title}</strong>
+        </P2>
+      </SectionHeadingContainer>
+      <SectionContentContainer id={accessibilityId} hidden={!expanded}>
+        {children}
+      </SectionContentContainer>
+    </SectionContainer>
+  );
+}
+
+const SectionContainer = styled.div`
+  padding: ${({ theme }) => theme.space[2]}px 0;
+`;
+
+const SectionHeadingContainer = styled(Flex)`
+  cursor: pointer;
+  gap: ${({ theme }) => theme.space[2]}px;
+`;
+
+const SectionContentContainer = styled.div`
+  padding-left: ${({ theme }) => theme.space[3]}px;
+  border-left: ${({ theme }) => theme.borders[3]}
+    ${({ theme }) => theme.colors.interactive.tonal.neutral[1]};
+`;

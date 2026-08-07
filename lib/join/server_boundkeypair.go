@@ -60,25 +60,16 @@ func (s *Server) handleBoundKeypairJoin(
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
 	token provision.Token,
-) (*messages.BotResult, error) {
+) (messages.Response, error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
-	// Only bot joining is supported at the moment - unique ID verification is
-	// required and this is currently only implemented for bots.
-	if clientInit.SystemRole != types.RoleBot.String() {
-		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
-	}
-
-	// Scoped tokens currently validate against being created with the bot role, but just in case
-	// we'll check and return a more helpful error message if one happens to make it through.
-	if token.GetAssignedScope() != "" {
-		return nil, trace.BadParameter("bound keypair joining is not supported by scoped tokens")
-	}
 
 	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	setDiagnosticClientParams(stream.Diagnostic(), &boundKeypairInit.ClientParams)
+
 	issueChallenge := func(challenge *messages.BoundKeypairChallenge) (*messages.BoundKeypairChallengeSolution, error) {
 		if err := stream.Send(challenge); err != nil {
 			return nil, trace.Wrap(err)
@@ -109,14 +100,46 @@ func (s *Server) handleBoundKeypairJoin(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.BotInstanceID = botInstanceID
+		})
 		botCerts, err := convertCerts(protoCerts)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		return botCerts, botInstanceID, nil
 	}
+	generateHostCerts := func(ctx context.Context, claims any) (*messages.Certificates, string, error) {
+		certsParams, err := makeHostCertsParams(
+			ctx,
+			diag,
+			authCtx,
+			boundKeypairInit.ClientParams.HostParams,
+			configuredJoinMethod(token),
+			claims,
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		certs, err := s.cfg.AuthService.GenerateHostCertsForJoin(ctx, token, certsParams)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.HostID = certsParams.HostID
+		})
+		certificates, err := convertCerts(certs)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return certificates, certsParams.HostID, nil
+	}
+
 	return boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:          s.cfg.AuthService,
+		ScopedTokenService:   s.cfg.ScopedTokenService,
 		AuthCtx:              authCtx,
 		Diag:                 diag,
 		ProvisionToken:       token,
@@ -125,6 +148,7 @@ func (s *Server) handleBoundKeypairJoin(
 		IssueChallenge:       issueChallenge,
 		IssueRotationRequest: issueRotationRequest,
 		GenerateBotCerts:     generateBotCerts,
+		GenerateHostCerts:    generateHostCerts,
 		Clock:                s.cfg.AuthService.GetClock(),
 		Logger:               log,
 	})
@@ -167,12 +191,19 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		// These are verified at the gRPC layer by the legacy join service.
 		BotInstanceID: req.JoinRequest.BotInstanceID,
 		BotGeneration: uint64(req.JoinRequest.BotGeneration),
+		HostID:        req.JoinRequest.HostID,
 	}
 
-	// Only bot joining is supported at the moment - unique ID verification is
-	// required and this is currently only implemented for bots.
+	// Only bot joining is supported through the legacy join service adapter.
+	// Bound keypair requires secure host UUIDs which are only available in the
+	// new join service.
 	if req.JoinRequest.Role != types.RoleBot {
-		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
+		return nil, trace.BadParameter("bound keypair joining for agents requires use of the new join service")
+	} else {
+		// Bots cannot have a HostID, so clear any ID present on the request.
+		// The bound keypair implementation depends on having a trustworthy ID
+		// which this value is not.
+		authCtx.HostID = ""
 	}
 
 	provisionToken, err := a.ValidateToken(ctx, req.JoinRequest.Token)
@@ -184,7 +215,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		i.BotName = provisionToken.GetBotName()
+		// TODO(strideynet): When bots become scope namespaced, ensure this
+		// call site reflects scopedness.
+		i.BotName, _ = provisionToken.GetBot()
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {
 		return nil, trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)
@@ -223,6 +256,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.BotInstanceID = botInstanceID
+		})
 		botCerts, err := convertCerts(protoCerts)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -230,8 +266,17 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		return botCerts, botInstanceID, nil
 	}
 
-	botResult, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
+	generateHostCerts := func(ctx context.Context, claims any) (*messages.Certificates, string, error) {
+		// Bound keypair requires that a unique identifier is securely generated
+		// by the server. As the legacy join service allows joining agents to
+		// specify their own unique ID, we cannot allow agents to join with
+		// bound keypair via the legacy join service.
+		return nil, "", trace.NotImplemented("bound keypair joining for agents is not supported by the legacy join service")
+	}
+
+	joinResponse, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:                 a,
+		ScopedTokenService:          nil, // Legacy does not support scoped tokens
 		AuthCtx:                     authCtx,
 		Diag:                        diag,
 		ProvisionToken:              provisionToken,
@@ -241,21 +286,31 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		IssueRotationRequest:        adaptBoundKeypairRotationRequest(challengeResponse),
 		CreateBoundKeypairValidator: createBoundKeypairValidator,
 		GenerateBotCerts:            generateBotCerts,
+		GenerateHostCerts:           generateHostCerts,
 		Clock:                       a.GetClock(),
 		Logger:                      log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := protoCertsFromCertificates(botResult.Certificates)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	switch result := joinResponse.(type) {
+	case *messages.BotResult:
+		certs, err := protoCertsFromCertificates(result.Certificates)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		handleJoinSuccess(ctx, a, diag)
+		return &client.BoundKeypairRegistrationResponse{
+			Certs:          certs,
+			BoundPublicKey: string(result.BoundKeypairResult.PublicKey),
+			JoinState:      result.BoundKeypairResult.JoinState,
+		}, nil
+	case *messages.HostResult:
+		return nil, trace.BadParameter("bound keypair cannot join agents via the legacy join service")
+	default:
+		return nil, trace.BadParameter("received invalid bound keypair result type (%T)", result)
 	}
-	return &client.BoundKeypairRegistrationResponse{
-		Certs:          certs,
-		BoundPublicKey: string(botResult.BoundKeypairResult.PublicKey),
-		JoinState:      botResult.BoundKeypairResult.JoinState,
-	}, nil
 }
 
 func adaptBoundKeypairChallenge(challengeResponseFunc client.RegisterUsingBoundKeypairChallengeResponseFunc) boundkeypair.ChallengeResponseFunc {

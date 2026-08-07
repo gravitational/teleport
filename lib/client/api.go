@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -371,6 +372,9 @@ type Config struct {
 	// PreferSSO prefers SSO in favor of other MFA methods.
 	PreferSSO bool
 
+	// PreferBrowser prefers browser-based WebAuthn MFA in favor of other MFA methods.
+	PreferBrowser bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -501,8 +505,8 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
-	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
-	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
+	// MFACeremonyConstructor is a custom SSO/Browser MFA ceremony constructor.
+	MFACeremonyConstructor func(rd *sso.Redirector) mfa.CallbackCeremony
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
@@ -678,43 +682,11 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 	return vars
 }
 
-// RetryWithRelogin is a helper error handling method, attempts to relogin and
-// retry the function once.
-func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
-	fnErr := fn()
-	switch {
-	case fnErr == nil:
-		return nil
-	case utils.IsPredicateError(fnErr):
-		return trace.Wrap(utils.PredicateError{Err: fnErr})
-	case tc.NonInteractive:
-		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
-	case !IsErrorResolvableWithRelogin(fnErr):
-		// If the connection to Auth was unexpectedly cut, see if the client is too
-		// old to interact with the cluster.
-		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
-			// The results are intentionally ignored - Ping prints warnings
-			// related to versions, and that's all that is needed here.
-			_, _ = tc.Ping(ctx)
-		}
-
-		return trace.Wrap(fnErr)
-	}
+// Relogin attempts to relogin and runs before/after login hooks.
+func Relogin(ctx context.Context, tc *TeleportClient, opts ...RetryWithReloginOption) error {
 	opt := defaultRetryWithReloginOptions()
 	for _, o := range opts {
 		o(opt)
-	}
-	log.DebugContext(ctx, "Activating relogin on error", "error", fnErr, "error_type", logutils.TypeAttr(trace.Unwrap(fnErr)))
-
-	if keys.IsPrivateKeyPolicyError(fnErr) {
-		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	if opt.beforeLoginHook != nil {
@@ -726,7 +698,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
 			log.DebugContext(ctx, "Relogin is not available in this environment", "error", err)
-			return trace.Wrap(fnErr)
 		}
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
@@ -758,6 +729,63 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		if err := opt.afterLoginHook(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+// ShouldRetryWithRelogin determines if the error should be retried. It applies more scrutiny than
+// 'IsErrorResolvableWithRelogin' by checking if the client is non-interactive or if a predicate error occurred.
+// Returns the original error (possibly wrapped with additional context) and a boolean indicating whether or not
+// relogin should be attempted.
+func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error) (bool, error) {
+	if keys.IsPrivateKeyPolicyError(fnErr) {
+		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		tc.updatePrivateKeyPolicy(privateKeyPolicy)
+	}
+
+	switch {
+	case utils.IsPredicateError(fnErr):
+		return false, trace.Wrap(utils.PredicateError{Err: fnErr})
+	case tc.NonInteractive:
+		return false, trace.Wrap(fnErr, "cannot relogin in non-interactive session")
+	case !IsErrorResolvableWithRelogin(fnErr):
+		// If the connection to Auth was unexpectedly cut, see if the client is too
+		// old to interact with the cluster.
+		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
+			// The results are intentionally ignored - Ping prints warnings
+			// related to versions, and that's all that is needed here.
+			_, _ = tc.Ping(ctx)
+		}
+
+		return false, trace.Wrap(fnErr)
+	}
+	return true, fnErr
+}
+
+// RetryWithRelogin is a helper error handling method, attempts to relogin and
+// retry the function once.
+func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
+	fnErr := fn()
+	if fnErr == nil {
+		return nil
+	}
+
+	var shouldRetry bool
+	if shouldRetry, fnErr = ShouldRetryWithRelogin(ctx, tc, fnErr); !shouldRetry {
+		return fnErr
+	}
+
+	log.DebugContext(ctx, "Activating relogin on error", "error", fnErr, "error_type", logutils.TypeAttr(trace.Unwrap(fnErr)))
+	err := Relogin(ctx, tc, opts...)
+	if err != nil {
+		if errors.Is(err, prompt.ErrNotTerminal) {
+			return trace.Wrap(fnErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	return fn()
@@ -2116,51 +2144,42 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
-		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.As(mfaErr, new(*MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
 		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
+		log.DebugContext(ctx, "Failed to connect to node, returning MFA ceremony error and ignoring direct connection error", "direct_error", directErr)
 		return nil, trace.Wrap(mfaErr)
 	default:
+		log.DebugContext(ctx, "Failed to connect to node, returning direct connection error and ignoring MFA ceremony error", "mfa_error", mfaErr)
 		return nil, trace.Wrap(directErr)
 	}
 }
 
-// MFARequiredUnknownErr indicates that connections to an instance failed
-// due to being unable to determine if mfa is required
-type MFARequiredUnknownErr struct {
+// MFARequiredUnknownError indicates that connections to an instance failed due
+// to being unable to determine if MFA is required.
+type MFARequiredUnknownError struct {
 	err error
 }
 
-// MFARequiredUnknown creates a new MFARequiredUnknownErr that wraps the
-// error encountered attempting to determine if the mfa ceremony should proceed.
+// MFARequiredUnknown creates a new MFARequiredUnknownError that wraps the error
+// encountered attempting to determine if the MFA ceremony should proceed.
 func MFARequiredUnknown(err error) error {
-	return MFARequiredUnknownErr{err: err}
+	return &MFARequiredUnknownError{err: err}
 }
 
 // Error returns the error string of the wrapped error if one exists.
-func (m MFARequiredUnknownErr) Error() string {
+func (m *MFARequiredUnknownError) Error() string {
+	const msg = "unable to determine if a MFA ceremony is required"
 	if m.err == nil {
-		return ""
+		return msg
 	}
 
-	return m.err.Error()
+	return msg + ": " + m.err.Error()
 }
 
-// Unwrap returns the underlying error from checking if an mfa
-// ceremony should have been performed.
-func (m MFARequiredUnknownErr) Unwrap() error {
+// Unwrap returns the underlying error from checking if an MFA ceremony should
+// have been performed.
+func (m *MFARequiredUnknownError) Unwrap() error {
 	return m.err
-}
-
-// Is determines if the provided error is an MFARequiredUnknownErr.
-func (m MFARequiredUnknownErr) Is(err error) bool {
-	switch err.(type) {
-	case MFARequiredUnknownErr:
-		return true
-	case *MFARequiredUnknownErr:
-		return true
-	default:
-		return false
-	}
 }
 
 // connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
@@ -3248,7 +3267,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
 	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
-	authClientCfg.SSOMFACeremonyConstructor = tc.NewSSOMFACeremony
+	authClientCfg.MFACeremonyConstructor = tc.NewRedirectorMFACeremony
 
 	authClient, err := authclient.NewClient(authClientCfg)
 	if err != nil {
@@ -3471,17 +3490,17 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 }
 
 // LogoutApp removes key and cert for the specified app.
-func (tc *TeleportClient) LogoutApp(appName string) error {
+func (tc *TeleportClient) LogoutApp(appSQN scopes.QualifiedName) error {
 	if tc.localAgent == nil {
 		return nil
 	}
 	if tc.SiteName == "" {
 		return trace.BadParameter("cluster name must be set for app logout")
 	}
-	if appName == "" {
+	if appSQN.Name == "" {
 		return trace.BadParameter("please specify app name to log out of")
 	}
-	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{appName})
+	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{ScopedAppName(appSQN)})
 }
 
 // LogoutAllApps removes keys and certs for all apps in the cluster.
@@ -3781,7 +3800,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return nil, trace.BadParameter("headless disallowed by cluster settings")
 			}
 			if tc.AllowHeadless {
-				return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+				return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 					return tc.headlessLogin(ctx, keyRing)
 				}, nil
 			}
@@ -3797,7 +3816,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return tc.pwdlessLogin, nil
 			}
 
-			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+			return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
 			}, nil
 		default:
@@ -3975,7 +3994,7 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
-type SSHLoginFunc func(context.Context, *KeyRing) (*authclient.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *KeyRing) (*authclient.CLILoginResponse, error)
 
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
@@ -3987,7 +4006,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	)
 	defer span.End()
 
-	var response *authclient.SSHLoginResponse
+	var response *authclient.CLILoginResponse
 	keyRing, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, keyRing *KeyRing) error {
 		var err error
 		response, err = sshLoginFunc(ctx, keyRing)
@@ -4069,9 +4088,7 @@ func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login f
 				return nil, trace.Wrap(err)
 			}
 
-			if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
-				return nil, trace.Wrap(err)
-			}
+			tc.updatePrivateKeyPolicy(privateKeyPolicy)
 
 			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			keyRing, err = tc.GetNewLoginKeyRing(ctx)
@@ -4086,13 +4103,12 @@ func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login f
 	return keyRing, trace.Wrap(loginErr)
 }
 
-func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) error {
+func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) {
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
-	return nil
 }
 
 // GetNewLoginKeyRing gets a KeyRing with new private keys for login.
@@ -4180,7 +4196,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	}, nil
 }
 
-func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/pwdlessLogin",
@@ -4212,7 +4228,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 }
 
 // localLogin asks for a password and performs an MFA ceremony.
-func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.CLILoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/localLogin",
@@ -4231,15 +4247,16 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ co
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:             sshLogin,
-		User:                 tc.Username,
-		Password:             password,
-		MFAPromptConstructor: tc.NewMFAPrompt,
+		SSHLogin:               sshLogin,
+		User:                   tc.Username,
+		Password:               password,
+		MFAPromptConstructor:   tc.NewMFAPrompt,
+		MFACeremonyConstructor: tc.NewRedirectorMFACeremony,
 	})
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 	if tc.MockHeadlessLogin != nil {
 		return tc.MockHeadlessLogin(ctx, keyRing)
 	}
@@ -4280,13 +4297,13 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.
-type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.SSHLoginResponse, error)
+type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.CLILoginResponse, error)
 
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
 func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
-	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
 			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
@@ -5085,6 +5102,44 @@ func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Conf
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
+	tokens, err := tokenizeLabelSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	// break tokens in pairs and put into a map:
+	labels := make(map[string]string)
+	for i := 0; i < len(tokens); i += 2 {
+		labels[tokens[i]] = tokens[i+1]
+	}
+	return labels, nil
+}
+
+// MultiValueLabelSelectorSpec parses a string like 'name=value,name=other,"long name"="quoted value"`
+// into a map like { "name" -> ["value", "other"], "long name" -> ["quoted value"] }.
+// Similar to LabelSelectorSpec but allows repeated key values stored into a slice.
+// Duplicate values for the same key are dropped.
+//
+// Multi valued labels are supported for role resources e.g. node_labels.
+func MultiValueLabelSelectorSpec(spec string) (map[string][]string, error) {
+	tokens, err := tokenizeLabelSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	// break tokens in pairs and put into a map, appending repeated keys:
+	labels := make(map[string][]string)
+	for i := 0; i < len(tokens); i += 2 {
+		key := tokens[i]
+		val := tokens[i+1]
+		if !slices.Contains(labels[key], val) {
+			labels[key] = append(labels[key], val)
+		}
+	}
+	return labels, nil
+}
+
+// tokenizeLabelSpec breaks a label spec like 'name=value,"long name"="quoted value"'
+// into a list of key/value tokens (name, value, long name, quoted value...).
+func tokenizeLabelSpec(spec string) ([]string, error) {
 	var tokens []string
 	openQuotes := false
 	var tokenStart, assignCount int
@@ -5118,12 +5173,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
 		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
 	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
+	return tokens, nil
 }
 
 // ParseSearchKeywords parses a string ie: foo,bar,"quoted value"` into a slice of
@@ -5392,10 +5442,10 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		ALPNConnUpgradeRequired:   tc.TLSRoutingConnUpgradeRequired,
-		InsecureAddressDiscovery:  tc.InsecureSkipVerify,
-		MFAPromptConstructor:      tc.NewMFAPrompt,
-		SSOMFACeremonyConstructor: tc.NewSSOMFACeremony,
+		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
+		InsecureAddressDiscovery: tc.InsecureSkipVerify,
+		MFAPromptConstructor:     tc.NewMFAPrompt,
+		MFACeremonyConstructor:   tc.NewRedirectorMFACeremony,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

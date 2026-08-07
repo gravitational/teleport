@@ -66,6 +66,8 @@ type Features struct {
 	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
 	// license file).
 	CloudAnonymizationKey []byte
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -170,6 +172,7 @@ func setLegacyLogic(protoF *proto.Features, f Features) {
 	protoF.Policy = &proto.PolicyFeature{
 		Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
 	}
+	protoF.BeamsUI = f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled
 }
 
 // EntitlementsToProto takes the features.Entitlements object and returns a proto version. If not present on Features, the
@@ -244,6 +247,7 @@ type AccessResourcesGetter interface {
 
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -295,6 +299,8 @@ type Modules interface {
 	AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// GenerateAccessRequestSuggestedReviewers generates a list of suggested reviewers for a given access request.
+	GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) ([]string, error)
 	// GenerateLongTermResourceGrouping analyzes how resources can be grouped into access lists and returns information about optimal groupings for long-term access.
 	GenerateLongTermResourceGrouping(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -450,6 +456,11 @@ func (p *defaultModules) GenerateLongTermResourceGrouping(_ context.Context, _ A
 func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	// The default module does not support generating access list promotions.
 	return types.NewAccessRequestAllowedPromotions(nil), nil
+}
+
+// GenerateAccessRequestSuggestedReviewers is a noop for OSS teleport.
+func (p *defaultModules) GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) ([]string, error) {
+	return []string{}, nil
 }
 
 func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,

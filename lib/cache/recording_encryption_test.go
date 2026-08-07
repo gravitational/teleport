@@ -17,10 +17,8 @@
 package cache
 
 import (
-	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
+	"testing/synctest"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
@@ -43,25 +41,17 @@ func newRecordingEncryption() *recordingencryptionv1.RecordingEncryption {
 // TestRecordingEncryption tests that CRUD operations on the RecordingEncryption resource are
 // replicated from the backend to the cache.
 func TestRecordingEncryption(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+		testSingleton153(t, p, testSingletonFuncs153[*recordingencryptionv1.RecordingEncryption]{
+			newResource: newRecordingEncryption,
+			create:      p.recordingEncryption.CreateRecordingEncryption,
+			update:      p.recordingEncryption.UpdateRecordingEncryption,
+			get:         p.recordingEncryption.GetRecordingEncryption,
+			cacheGet:    p.cache.GetRecordingEncryption,
+			delete:      p.recordingEncryption.DeleteRecordingEncryption,
+		})
+	})
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*recordingencryptionv1.RecordingEncryption]{
-		newResource: func(name string) (*recordingencryptionv1.RecordingEncryption, error) {
-			return newRecordingEncryption(), nil
-		},
-		create: func(ctx context.Context, item *recordingencryptionv1.RecordingEncryption) error {
-			_, err := p.recordingEncryption.CreateRecordingEncryption(ctx, item)
-			return trace.Wrap(err)
-		},
-		update: func(ctx context.Context, item *recordingencryptionv1.RecordingEncryption) error {
-			_, err := p.recordingEncryption.UpdateRecordingEncryption(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      singletonListAdapter(p.recordingEncryption.GetRecordingEncryption),
-		cacheList: singletonListAdapter(p.cache.GetRecordingEncryption),
-		deleteAll: p.recordingEncryption.DeleteRecordingEncryption,
-	}, withSkipPaginationTest())
 }

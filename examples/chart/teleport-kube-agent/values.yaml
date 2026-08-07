@@ -105,6 +105,17 @@ joinParams:
   # If method is `kubernetes`, you must set [`teleportClusterName`](#teleportClusterName).
   tokenName: ""
 
+  # joinParams.tokenSecret(string) -- is the secret value tied to the token identified
+  # by `joinparams.tokenName`. It is only valid when `joinParams.method` is `token` and
+  # `joinParams.tokenName` refers to a scoped token.
+  #
+  # When `joinParams.method` is `token` and `joinParams.tokenName`  refers to a
+  # scoped token, this value is required.
+  #
+  # When `joinParams.method` is not `token` or when `joinParams.tokenName` refers to an
+  # unscoped token, this value is ignored.
+  tokenSecret: ""
+
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
 # [Kubernetes JWKS or OIDC](../../reference/deployment/join-methods.mdx#kubernetes-jwks) join method.
@@ -199,7 +210,7 @@ clusterDomain: "cluster.local"
 # awsDatabases(list) -- configures AWS database auto-discovery.
 #
 # <Admonition type="note" title="IAM roles">
-#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx#step-36-create-iam-policies-for-teleport).
+#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx#step-35-create-iam-policies-for-teleport).
 #   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 #
 #   ```yaml
@@ -698,7 +709,7 @@ updater:
   # This is not required when pulling images from official public Teleport
   # registries (chart's default).
   #
-  # Supported values are `amazon`, `google`, `docker` and `none`.
+  # Supported values are `aws`, `google`, `docker` and `none`.
   pullCredentials: ""
 
   # updater.extraArgs(list) -- contains additional arguments to pass to the updater
@@ -750,7 +761,7 @@ podSecurityPolicy:
   # and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
   # Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
   # The steps are documented in the
-  # [PSP removal guide](../../zero-trust-access/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+  # [PSP removal guide](../../installation/self-hosted/helm-deployments/migration-kubernetes-1-25-psp.mdx).
   #
   # This value will be removed in a future chart version.
   enabled: true
@@ -842,6 +853,19 @@ highAvailability:
     # highAvailability.podDisruptionBudget.minAvailable(int) -- is the minimum
     # available pod specified on the PodDisruptionBudget.
     minAvailable: 1
+
+    # highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy(string) -- allows
+    # eviction of unhealthy pods even if it falls below minAvailable. When all
+    # pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
+    # server due to firewall/networking), the default policy
+    # (IfHealthyBudget) prevents draining a node. This chart's default
+    # ("") omits the setting. Set to AlwaysAllow to allow failing pods to be
+    # killed when nodes need to drain.
+    # The value will be omitted with a warning on Kubernetes before 1.27 due to
+    # API support. Set to "" to suppress the warning at helm install time.
+    # See also: [unhealthyPodEvictionPolicy in Kube
+    # docs](https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it)
+    unhealthyPodEvictionPolicy: ""
 
 # podMonitor -- controls the PodMonitor CR (from monitoring.coreos.com/v1)
 # This CRD is managed by the prometheus-operator and allows workload to

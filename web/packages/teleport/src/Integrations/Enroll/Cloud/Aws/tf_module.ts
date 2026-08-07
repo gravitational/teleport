@@ -19,16 +19,15 @@
 import { parse as parseVersion } from 'shared/utils/semVer';
 
 import cfg from 'teleport/config';
-import { Regions as AwsRegion } from 'teleport/services/integrations';
 
-import { hcl } from '../terraform';
-import { AwsLabel, Ec2Config, WildcardRegion } from './types';
+import { hcl, TFObject } from '../terraform';
+import { AwsLabel, AwsMatcher, AwsOrganizationalUnits } from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
   integrationName: string;
-  regions: WildcardRegion | AwsRegion[];
-  ec2Config: Ec2Config;
+  matchers: AwsMatcher[];
   version: string;
+  orgUnits?: AwsOrganizationalUnits | null;
 };
 
 const TF_MODULE = '/teleport/discovery/aws';
@@ -40,11 +39,66 @@ const isStaging = (version: string): boolean => {
   return parsed.prerelease.length > 0;
 };
 
+const buildTagMap = (tags: AwsLabel[]): Record<string, string[]> | null => {
+  const filtered = tags.filter(o => o.value && o.name);
+  if (filtered.length === 0) return null;
+
+  const tagMap: Record<string, string[]> = {};
+  filtered.forEach(tag => {
+    if (!tagMap[tag.name]) {
+      tagMap[tag.name] = [];
+    }
+    tagMap[tag.name].push(tag.value);
+  });
+
+  if (tagMap['*']?.includes('*')) return null;
+
+  return tagMap;
+};
+
+const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
+  const obj: TFObject = { types: [matcher.type] };
+
+  if (matcher.regions.length > 0) {
+    obj.regions = [...matcher.regions].sort();
+  }
+
+  const tags = buildTagMap(matcher.tags);
+  if (tags) {
+    obj.tags = tags;
+  }
+
+  if (matcher.type === 'eks' && matcher.kubeAppDiscovery === true) {
+    obj.kube_app_discovery = true;
+  }
+
+  return obj;
+};
+
+const buildOrgDiscovery = (
+  orgUnits?: AwsOrganizationalUnits | null
+): TFObject | null => {
+  if (!orgUnits) return null;
+
+  const include = orgUnits.include.filter(s => s.trim());
+  const exclude = orgUnits.exclude.filter(s => s.trim());
+
+  const organizationalUnits: TFObject = {
+    include,
+  };
+
+  if (exclude.length > 0) {
+    organizationalUnits.exclude = exclude;
+  }
+
+  return { organizational_units: organizationalUnits };
+};
+
 export const buildTerraformConfig = ({
   integrationName,
-  regions,
-  ec2Config,
+  matchers,
   version,
+  orgUnits,
 }: AwsDiscoverTerraformModuleConfig): string => {
   const tfRegistry = isStaging(version)
     ? cfg.terraform.stagingRegistry
@@ -52,33 +106,19 @@ export const buildTerraformConfig = ({
 
   const moduleSrc = `${tfRegistry}${TF_MODULE}`;
 
-  const matchAwsTypes = ec2Config.enabled ? ['ec2'] : null;
-
   const integrationNameOrNull = integrationName.trim() || null;
 
-  const isWildcardRegion = regions.length === 1 && regions[0] === '*';
+  const awsMatchers = matchers.length > 0 ? matchers.map(buildTfMatcher) : null;
 
-  const regionsOrNull = isWildcardRegion ? null : [...regions].sort();
+  const awsOrgDiscovery = buildOrgDiscovery(orgUnits);
 
-  const filteredMatchers = (tags: AwsLabel[]) => {
-    const filtered = tags.filter(o => o.value && o.name);
-    if (filtered.length === 0) return null;
-
-    const tagMap: Record<string, string[]> = {};
-    filtered.forEach(tag => {
-      if (!tagMap[tag.name]) {
-        tagMap[tag.name] = [];
-      }
-      tagMap[tag.name].push(tag.value);
-    });
-    return tagMap;
-  };
-
-  const matchers = ec2Config.enabled ? filteredMatchers(ec2Config.tags) : null;
-
-  const isWildcardMatcher = matchers && matchers['*']?.includes('*');
-
-  const ec2Matchers = ec2Config.enabled && !isWildcardMatcher ? matchers : null;
+  const orgOutput = awsOrgDiscovery
+    ? hcl`
+output "aws_child_account_iam_role_template" {
+  value = module.aws_discovery.aws_child_account_iam_role_template
+}
+`
+    : '';
 
   const tfModule = hcl`# Terraform Module
 module "aws_discovery" {
@@ -91,13 +131,13 @@ module "aws_discovery" {
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_integration_name	    = ${integrationNameOrNull}
 
-  match_aws_resource_types = ${matchAwsTypes}
+  # Discover resources across all accounts in the AWS Organization,
+  # filtered by Organizational Units.
+  aws_organization_discovery = ${awsOrgDiscovery}
 
-  match_aws_regions = ${regionsOrNull}
-
-  match_aws_tags = ${ec2Matchers}
+  aws_matchers = ${awsMatchers}
 }
 `;
 
-  return tfModule;
+  return tfModule + orgOutput;
 };

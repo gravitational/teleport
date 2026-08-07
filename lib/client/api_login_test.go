@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service"
@@ -71,8 +72,6 @@ import (
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
 	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 
 	waitForCancelFn := func(ctx context.Context) (string, error) {
@@ -151,6 +150,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		authConnector           string
 		allowStdinHijack        bool
 		preferOTP               bool
+		preferBrowser           bool
 		hasTouchIDCredentials   bool
 		authenticatorAttachment wancli.AuthenticatorAttachment
 		scope                   string
@@ -287,8 +287,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			t.Parallel()
 
 			// Start Teleport.
-			clock := clockwork.NewFakeClockAt(time.Now())
-			sa := newStandaloneTeleport(t, clock)
+			clock := clockwork.NewFakeClock()
+			sa := newStandaloneScopedTeleport(t, clock, scopes.Features{Enabled: true})
 			username := sa.Username
 			password := sa.Password
 			webID := sa.WebAuthnID
@@ -316,6 +316,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.AllowStdinHijack = test.allowStdinHijack
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
+			tc.PreferBrowser = test.preferBrowser
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
 			inputReader := test.makeInputReader(password, otpKey, clock)
 			tc.StdinFunc = func() prompt.StdinReader { return inputReader }
@@ -336,6 +337,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
+			// Only enable BrowserAuthentication for tests that explicitly request it
+			if test.preferBrowser != false {
+				authServer := sa.Auth.GetAuthServer()
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err)
+				authPref.SetAllowCLIAuthViaBrowser(true)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err)
+			}
+
 			// Test.
 			clock.Advance(30 * time.Second)
 			keyRing, err := tc.Login(ctx)
@@ -351,9 +362,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 				require.NotNil(t, sshIdent.ScopePin)
 				require.Empty(t, cmp.Diff(&scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/aa",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-						"/aa": {"/aa": {"role-a"}},
+						"/aa": {"/aa": {"/aa::role-a"}},
 					}),
 				}, sshIdent.ScopePin, protocmp.Transform()))
 				require.Empty(t, sshIdent.Roles)
@@ -377,6 +389,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	authPref.SetSecondFactor(constants.SecondFactorOff)
 	authPref.SetAllowPasswordless(false)
 	authPref.SetAllowHeadless(false)
+	authPref.SetAllowCLIAuthViaBrowser(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
@@ -555,7 +568,8 @@ type standaloneBundle struct {
 
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
 // function and reusing in other places.
-func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
+func newStandaloneScopedTeleport(t *testing.T, clock clockwork.Clock, scopeFeatures scopes.Features) *standaloneBundle {
+
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 	staticToken := uuid.New().String()
@@ -587,6 +601,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	// AuthServer setup.
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DataDir = makeDataDir()
+	cfg.ScopesFeatures = scopeFeatures
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
 	cfg.Logger = logtest.NewLogger()
@@ -597,6 +612,8 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		// Disable by default and enable for tests that require it
+		AllowCLIAuthViaBrowser:  types.NewBoolOption(false),
 		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 	require.NoError(t, err)
@@ -672,6 +689,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	// Proxy setup.
 	cfg = servicecfg.MakeDefaultConfig()
 	cfg.DataDir = makeDataDir()
+	cfg.ScopesFeatures = scopeFeatures
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
 	cfg.Clock = clock
@@ -702,6 +720,12 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Auth:         authProcess,
 		Proxy:        proxyProcess,
 	}
+}
+
+// TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
+// function and reusing in other places.
+func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
+	return newStandaloneScopedTeleport(t, clock, scopes.Features{})
 }
 
 // createAndAssignScopedRoles creates two scoped roles and assigns them to the given user, one at /aa and one at /bb. this provides
@@ -749,21 +773,19 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 		},
 	}
 
-	roleRevisions := make(map[string]string)
 	for _, role := range scopedRoles {
-		rsp, err := authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err = authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: role,
 		})
 		require.NoError(t, err)
-
-		roleRevisions[role.GetMetadata().GetName()] = rsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// assign both roles to user
 	for _, role := range scopedRoles {
 		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.NewString(),
 				},
@@ -771,16 +793,13 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: username,
 					Assignments: []*scopedaccessv1.Assignment{
-						{
-							Role:  role.GetMetadata().GetName(),
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
 				},
 				Version: types.V1,
-			},
-			RoleRevisions: map[string]string{
-				role.GetMetadata().GetName(): roleRevisions[role.GetMetadata().GetName()],
 			},
 		})
 		require.NoError(t, err)

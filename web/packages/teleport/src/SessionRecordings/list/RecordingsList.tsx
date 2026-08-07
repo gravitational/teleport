@@ -17,12 +17,17 @@
  */
 
 import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
+import {
   useCallback,
   useMemo,
   useRef,
   useState,
   type ComponentType,
   type CSSProperties,
+  type PropsWithChildren,
 } from 'react';
 import styled, { useTheme } from 'styled-components';
 
@@ -35,7 +40,7 @@ import {
   SortItem,
   SortMenu,
   SortOrder,
-} from 'shared/components/Controls/SortMenuV2';
+} from 'shared/components/Controls/SortMenu';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
@@ -59,8 +64,13 @@ import type {
 } from './state';
 import { Density, ViewMode, ViewSwitcher } from './ViewSwitcher';
 
-interface RecordingsListProps {
+export interface RecordingsDecoratorProps extends PropsWithChildren {
+  recordings: Recording[];
+}
+
+export interface RecordingsListProps {
   actionComponent?: ComponentType<RecordingActionProps>;
+  badgeComponent?: ComponentType<RecordingActionProps>;
   onFilterChange: (
     key: RecordingsListFilterKey,
     value: string[] | boolean
@@ -68,6 +78,7 @@ interface RecordingsListProps {
   onPageChange: (page: number) => void;
   onSearchChange: (search: string) => void;
   onSortChange: (key: string, dir: SortOrder) => void;
+  recordingsDecorator?: ComponentType<RecordingsDecoratorProps>;
   state: RecordingsListState;
 }
 
@@ -136,14 +147,17 @@ const ScrollContainer = styled.div`
 
 export function RecordingsList({
   actionComponent,
+  badgeComponent,
   onFilterChange,
   onPageChange,
   onSearchChange,
   onSortChange,
+  recordingsDecorator: RecordingsDecorator,
   state,
 }: RecordingsListProps) {
   const ctx = useTeleport();
   const theme = useTheme();
+  const system = useDesignSystemContext();
 
   const { clusterId } = useStickyClusterId();
 
@@ -232,31 +246,38 @@ export function RecordingsList({
   );
 
   const thumbnailStyles = useMemo(
-    () => generateTerminalSVGStyleTag(theme),
-    [theme]
+    () =>
+      generateTerminalSVGStyleTag(
+        resolveColorTokens(system, theme.colors.terminal, theme.type),
+        theme.fonts.mono
+      ),
+    [system, theme]
+  );
+
+  const pageRecordings = useMemo(
+    () => recordings.slice(startIndex, endIndex),
+    [recordings, startIndex, endIndex]
   );
 
   const items = useMemo(
     () =>
-      recordings
-        .slice(startIndex, endIndex)
-        .map(recording => (
-          <RecordingItem
-            actionComponent={actionComponent}
-            key={recording.sid}
-            recording={recording}
-            thumbnailStyles={thumbnailStyles}
-            viewMode={viewMode}
-            density={density}
-          />
-        )),
+      pageRecordings.map(recording => (
+        <RecordingItem
+          actionComponent={actionComponent}
+          badgeComponent={badgeComponent}
+          key={recording.sid}
+          recording={recording}
+          thumbnailStyles={thumbnailStyles}
+          viewMode={viewMode}
+          density={density}
+        />
+      )),
     [
       actionComponent,
-      recordings,
+      badgeComponent,
+      pageRecordings,
       viewMode,
       density,
-      startIndex,
-      endIndex,
       thumbnailStyles,
     ]
   );
@@ -333,7 +354,7 @@ export function RecordingsList({
         </Flex>
       </Flex>
 
-      <ScrollContainer data-scrollbar="default" ref={scrollRef}>
+      <ScrollContainer ref={scrollRef}>
         {items.length === 0 ? (
           <Flex
             alignItems="center"
@@ -346,6 +367,12 @@ export function RecordingsList({
               No Recordings Found
             </Text>
           </Flex>
+        ) : RecordingsDecorator ? (
+          <RecordingsDecorator recordings={pageRecordings}>
+            <RecordingsGrid viewMode={viewMode} density={density}>
+              {items}
+            </RecordingsGrid>
+          </RecordingsDecorator>
         ) : (
           <RecordingsGrid viewMode={viewMode} density={density}>
             {items}

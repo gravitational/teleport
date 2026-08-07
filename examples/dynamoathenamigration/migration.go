@@ -151,7 +151,7 @@ type task struct {
 }
 
 type s3downloader interface {
-	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error) //nolint:staticcheck // TODO(tigrato)
 }
 
 type eventsEmitter interface {
@@ -163,7 +163,7 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 	return &task{
 		Config:       cfg,
 		dynamoClient: dynamodb.NewFromConfig(awsCfg),
-		s3Downloader: manager.NewDownloader(s3Client),
+		s3Downloader: manager.NewDownloader(s3Client), //nolint:staticcheck // TODO(tigrato)
 		eventsEmitter: athena.NewPublisher(athena.PublisherConfig{
 			MessagePublisher: athena.SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(awsCfg, func(o *sns.Options) {
 				o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
@@ -173,7 +173,7 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 					so.RateLimiter = ratelimit.NewTokenRateLimit(1000000)
 				})
 			})),
-			Uploader:      manager.NewUploader(s3Client),
+			Uploader:      manager.NewUploader(s3Client), //nolint:staticcheck // TODO(tigrato)
 			PayloadBucket: cfg.LargePayloadBucket,
 			PayloadPrefix: cfg.LargePayloadPrefix,
 		}),

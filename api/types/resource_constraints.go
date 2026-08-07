@@ -38,6 +38,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_Ssh:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}
@@ -71,6 +75,14 @@ func (rc *ResourceConstraints) UnmarshalJSON(b []byte) error {
 func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 	if awsc == nil || awsc.AwsConsole == nil || len(awsc.AwsConsole.RoleArns) == 0 {
 		return trace.BadParameter("aws_console constraints require role_arns, none provided")
+	}
+	return nil
+}
+
+// Validate ensures Logins is non-nil and contains logins.
+func (sshc *ResourceConstraints_Ssh) Validate() error {
+	if sshc == nil || sshc.Ssh == nil || len(sshc.Ssh.Logins) == 0 {
+		return trace.BadParameter("ssh constraints require logins, none provided")
 	}
 	return nil
 }

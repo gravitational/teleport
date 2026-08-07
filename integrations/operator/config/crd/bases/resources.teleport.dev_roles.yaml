@@ -1,7 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: null
   name: teleportroles.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -70,6 +69,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  beam_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: BeamLabels are used in the RBAC system to allow/deny
+                      access to beams.
+                    type: object
+                  beam_labels_expression:
+                    description: BeamLabelsExpression is a predicate expression used
+                      to allow/deny access to beams.
+                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -295,6 +304,23 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  linux_desktop_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: LinuxDesktopLabels are used in the RBAC system to
+                      allow/deny access to Linux desktops.
+                    type: object
+                  linux_desktop_labels_expression:
+                    description: LinuxDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Linux desktops.
+                    type: string
+                  linux_desktop_logins:
+                    description: LinuxDesktopLogins is a list of desktop login names
+                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -687,6 +713,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  beam_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: BeamLabels are used in the RBAC system to allow/deny
+                      access to beams.
+                    type: object
+                  beam_labels_expression:
+                    description: BeamLabelsExpression is a predicate expression used
+                      to allow/deny access to beams.
+                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -912,6 +948,23 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  linux_desktop_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: LinuxDesktopLabels are used in the RBAC system to
+                      allow/deny access to Linux desktops.
+                    type: object
+                  linux_desktop_labels_expression:
+                    description: LinuxDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Linux desktops.
+                    type: string
+                  linux_desktop_logins:
+                    description: LinuxDesktopLogins is a list of desktop login names
+                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -1471,6 +1524,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:
@@ -1601,6 +1659,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  beam_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: BeamLabels are used in the RBAC system to allow/deny
+                      access to beams.
+                    type: object
+                  beam_labels_expression:
+                    description: BeamLabelsExpression is a predicate expression used
+                      to allow/deny access to beams.
+                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1826,6 +1894,23 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  linux_desktop_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: LinuxDesktopLabels are used in the RBAC system to
+                      allow/deny access to Linux desktops.
+                    type: object
+                  linux_desktop_labels_expression:
+                    description: LinuxDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Linux desktops.
+                    type: string
+                  linux_desktop_logins:
+                    description: LinuxDesktopLogins is a list of desktop login names
+                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -2218,6 +2303,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  beam_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: BeamLabels are used in the RBAC system to allow/deny
+                      access to beams.
+                    type: object
+                  beam_labels_expression:
+                    description: BeamLabelsExpression is a predicate expression used
+                      to allow/deny access to beams.
+                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -2443,6 +2538,23 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  linux_desktop_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: LinuxDesktopLabels are used in the RBAC system to
+                      allow/deny access to Linux desktops.
+                    type: object
+                  linux_desktop_labels_expression:
+                    description: LinuxDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Linux desktops.
+                    type: string
+                  linux_desktop_logins:
+                    description: LinuxDesktopLogins is a list of desktop login names
+                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -3002,6 +3114,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:

@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"log/slog"
 
@@ -40,26 +39,22 @@ import (
 
 // scoped role and assignment state is modeled with the following key ranges:
 //
-//  - `/scoped_role/role/<role-name>`             (the location of the role resource, stored at author-chosen name)
-//  - `/scoped_role/assignment/<assignment-name>` (the assignment resource itself, always stored at a random UUID)
-//  - `/scoped_role/user_lock/<username>`         (a value that is randomized each time associated user's assignments are modified)
-//  - `/scoped_role/role_lock/<role-name>`        (a value that is randomized each time associated role's assignments are modified)
+//   - `/scoped_role/role/<role-name>`             (the location of the role resource, stored at author-chosen name)
+//   - `/scoped_role/assignment/<assignment-name>` (the assignment resource itself, always stored at a random UUID)
 //
-// These four key ranges allow for efficient management of roles and assignmments atomically. Assignments are stored homogenously,
-// but the provided lock values make it easy for backend operations to assert that the assignments related to a given user/role
-// are not concurrently changed, indepdnent of the total number of assignments or the number of roles they effect (each assignment
-// may assign multiple roles). Cleanup of role locks is the responsibility of the DeleteScopedRole operation, and cleanup of user locks
-// is the responsibility of the DeleteScopedRoleAssignment operation.
-//
-// NOTE: this model does not provide means of making one assignment invalidate another (e.g. in the case of OIDC assignments,
-// for which only one should be valid at a time), and does not invalidate assignments on user deletion.
+// Cross-resource consistency (e.g. verifying that an assignment's scope is compatible with the role it references) is
+// intentionally not enforced at write time. Each write is a single-resource atomic operation. Scoped role assignments
+// may be dangling or invalid and access-checking logic *must* skip them in that case. The RoleIsEnforceableAt function
+// in lib/scopes/access is the primary source of truth for what qualifies as an enforceable/valid assignment, and all
+// assignments must be filtered by that function prior to being used to make any access decisions. Currently this happens
+// in exactly one place: services.scopedAccessCheckerBuilder.newCheckerForRole.
 
+// scoped roles and assignments are keyed by their resource kind directly beneath the shared scoped
+// prefix (i.e. /scoped/<kind>/...), consistent with the other scoped resource families. We reuse the
+// canonical kind constants so that the key's kind component can never drift from the resource kind.
 const (
-	scopedRolePrefix              = "scoped_role"
-	scopedRoleRoleComponent       = "role"
-	scopedRoleAssignmentComponent = "assignment"
-	userAssignmentLockComponent   = "user_lock"
-	roleAssignmentLockComponent   = "role_lock"
+	scopedRolePrefix           = scopedaccess.KindScopedRole
+	scopedRoleAssignmentPrefix = scopedaccess.KindScopedRoleAssignment
 )
 
 // ScopedAccessService manages backend state for the ScopedRole and ScopedRoleAssignment types.
@@ -70,6 +65,8 @@ type ScopedAccessService struct {
 
 // NewScopedAccessService creates a new ScopedAccessService for the specified backend.
 func NewScopedAccessService(bk backend.Backend) *ScopedAccessService {
+	// TODO(fspmarshall/scopes): switch this over to use the generic scoped backend once
+	// it can support the kind of sub_kind model we use here.
 	return &ScopedAccessService{
 		bk:     bk,
 		logger: slog.With(teleport.ComponentKey, "scopedrole"),
@@ -81,10 +78,15 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 		return nil, trace.BadParameter("missing scoped role name in get request")
 	}
 
-	item, err := s.bk.Get(ctx, scopedRoleKey(req.GetName()))
+	key, err := scopedRoleKey{scope: req.GetScope(), name: req.GetName()}.Key()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := s.bk.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("scoped role %q not found", req.GetName())
+			return nil, trace.NotFound("scoped role %q not found in scope %q", req.GetName(), req.GetScope())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -106,12 +108,12 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 // ListScopedRoles returns a paginated list of scoped roles.
 // NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
 func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	if req.GetResourceScope() != nil {
-		return nil, trace.NotImplemented("filtering by resource scope is not implemented for direct backend scoped role reads")
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if req.GetAssignableScope() != nil {
-		return nil, trace.NotImplemented("filtering by assignable scope is not implemented for direct backend scoped role reads")
+	if req.GetNameFilter() != "" {
+		return nil, trace.NotImplemented("filtering by name is not implemented for direct backend scoped role reads")
 	}
 
 	if req.GetPageToken() != "" {
@@ -122,6 +124,10 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 	for role, err := range s.StreamScopedRoles(ctx) {
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if !scopes.MatchScope(req.GetScopeFilter(), role.GetScope()) {
+			continue
 		}
 
 		out = append(out, role)
@@ -136,7 +142,7 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 // have had weak validation applied.
 func (s *ScopedAccessService) StreamScopedRoles(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedRole] {
 	return func(yield func(*scopedaccessv1.ScopedRole, error) bool) {
-		startKey := scopedRoleKey("")
+		startKey := scopedRoleWatchPrefix()
 		params := backend.ItemsParams{
 			StartKey: startKey,
 			EndKey:   backend.RangeEnd(startKey),
@@ -152,7 +158,7 @@ func (s *ScopedAccessService) StreamScopedRoles(ctx context.Context) stream.Stre
 			role, err := scopedRoleFromItem(&item)
 			if err != nil {
 				// per-role errors are logged and skipped
-				s.logger.WarnContext(ctx, "skipping scoped role due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				s.logger.WarnContext(ctx, "skipping malformed scoped role", "error", err, "key", logutils.StringerAttr(item.Key))
 				continue
 			}
 
@@ -184,65 +190,17 @@ func (s *ScopedAccessService) CreateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	// we make efforts elsewhere to ensure that roles cannot be deleted s.t. they leave behind dangling assignments,
-	// but it is best to be absolutely certain about that.
-	lockItem, err := s.bk.Get(ctx, roleAssignmentLockKey(role.GetMetadata().GetName()))
+	lease, err := s.bk.Create(ctx, item)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		lockItem = nil
-	}
-
-	lockCondition := backend.NotExists()
-	if lockItem != nil {
-		lockCondition = backend.Revision(lockItem.Revision)
-		for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-				if subAssignment.GetRole() != role.GetMetadata().GetName() {
-					continue
-				}
-
-				// an assignment already exists referencing this role, we need to check if that is because
-				// a role with this name exists, or because the assignment is dangling.
-				_, err = s.bk.Get(ctx, scopedRoleKey(role.GetMetadata().GetName()))
-				if err != nil {
-					if !trace.IsNotFound(err) {
-						return nil, trace.Wrap(err)
-					}
-					// this is a dangling assignment, we need to return an error
-					return nil, trace.CompareFailed("cannot create scoped role %q while extant assignment %q references it", role.GetMetadata().GetName(), assignment.GetMetadata().GetName())
-				}
-				return nil, trace.CompareFailed("scoped role %q already exists", role.GetMetadata().GetName())
-			}
-		}
-	}
-
-	revision, err := s.bk.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       item.Key,
-			Condition: backend.NotExists(),
-			Action:    backend.Put(item),
-		},
-		{
-			Key:       roleAssignmentLockKey(role.GetMetadata().GetName()),
-			Condition: lockCondition,
-			Action:    backend.Nop(), // assignments update the lock, roles just assert that it is unchanged
-		},
-	})
-	if err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return nil, trace.CompareFailed("scoped role %q or an associated assignment already exist", role.GetMetadata().GetName())
+		if trace.IsAlreadyExists(err) {
+			// generic condition failure keeps error handling simpler
+			return nil, trace.CompareFailed("scoped role %q already exists", role.GetMetadata().GetName())
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	return &scopedaccessv1.CreateScopedRoleResponse{
-		Role: scopedRoleWithRevision(role, revision),
+		Role: scopedRoleWithRevision(role, lease.Revision),
 	}, nil
 }
 
@@ -256,92 +214,39 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	extant, err := s.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: role.GetMetadata().GetName(),
-	})
+	extant, err := s.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: role.GetScope(),
+	}.Build())
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			// generic condition failure keeps error handling simpler
+			return nil, trace.CompareFailed("scoped role %q not found", role.GetMetadata().GetName())
 		}
-		return nil, trace.CompareFailed("scoped role %q was deleted", role.GetMetadata().GetName())
+		return nil, trace.Wrap(err)
 	}
 
 	if role.GetMetadata().GetRevision() != "" && role.GetMetadata().GetRevision() != extant.GetRole().GetMetadata().GetRevision() {
 		return nil, trace.CompareFailed("scoped role %q has been concurrently modified", role.GetMetadata().GetName())
 	}
 
-	// disallow change of resource scope via update. use of scopes.Compare directly is generally discouraged,
-	// but that is due to ease of misuse, which isn't really a concern for a simple equivalence check.
-	if scopes.Compare(role.GetScope(), extant.GetRole().GetScope()) != scopes.Equivalent {
-		// XXX: the current implementation of our access-control logic relies upon this invarient being enforced. if we ever
-		// relax this restriction here we *must* first modify the outer access-control logic to understand the concept of
-		// scope changing and correctly validate the transition.
-		return nil, trace.BadParameter("cannot modify the resource scope of scoped role %q (%q -> %q)", role.GetMetadata().GetName(), extant.GetRole().GetScope(), role.GetScope())
-	}
-
-	// acquire the assignment lock and verify that the update doesn't validate any extant assignments
-	lockItem, err := s.bk.Get(ctx, roleAssignmentLockKey(role.GetMetadata().GetName()))
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		lockItem = nil
-	}
-
-	lockCondition := backend.NotExists()
-	if lockItem != nil {
-		lockCondition = backend.Revision(lockItem.Revision)
-		for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-				if subAssignment.GetRole() != role.GetMetadata().GetName() {
-					continue
-				}
-
-				if !scopedaccess.RoleIsAssignableToScopeOfEffect(extant.GetRole(), subAssignment.GetScope()) {
-					// theoretically, we prevent broken assignments. in practice, its best to
-					// assume they may exist and to not allow them to prevent an otherwsie
-					// valid update. We will still force all broken assignments to be
-					// removed at the time of role deletion.
-					continue
-				}
-
-				if !scopedaccess.RoleIsAssignableToScopeOfEffect(role, subAssignment.GetScope()) {
-					return nil, trace.BadParameter("update of scoped role %q would invalidate assignment %q which assigns it to user %q at scope %q", role.GetMetadata().GetName(), assignment.GetMetadata().GetName(), assignment.GetSpec().GetUser(), subAssignment.GetScope())
-				}
-			}
-		}
-	}
-
+	// use the observed revision as the condition so that a concurrent modification is detected.
+	role = scopedRoleWithRevision(role, extant.GetRole().GetMetadata().GetRevision())
 	item, err := scopedRoleToItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	revision, err := s.bk.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       item.Key,
-			Condition: backend.Revision(item.Revision),
-			Action:    backend.Put(item),
-		},
-		{
-			Key:       roleAssignmentLockKey(role.GetMetadata().GetName()),
-			Condition: lockCondition,
-			Action:    backend.Nop(),
-		},
-	})
+	lease, err := s.bk.ConditionalUpdate(ctx, item)
 	if err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return nil, trace.CompareFailed("scoped role %q or an associated assignment was concurrently modified", role.GetMetadata().GetName())
+		if errors.Is(err, backend.ErrIncorrectRevision) {
+			return nil, trace.CompareFailed("scoped role %q has been concurrently modified", role.GetMetadata().GetName())
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	return &scopedaccessv1.UpdateScopedRoleResponse{
-		Role: scopedRoleWithRevision(role, revision),
+		Role: scopedRoleWithRevision(role, lease.Revision),
 	}, nil
 }
 
@@ -351,73 +256,80 @@ func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.BadParameter("missing scoped role name in delete request")
 	}
 
-	lockItem, err := s.bk.Get(ctx, roleAssignmentLockKey(roleName))
+	key, err := scopedRoleKey{scope: req.GetScope(), name: roleName}.Key()
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		lockItem = nil
-	}
-
-	lockCondition := backend.NotExists()
-	if lockItem != nil {
-		lockCondition = backend.Revision(lockItem.Revision)
-	}
-
-	// now that we have a lock condition established, we can read all assignments with a "happens after" relationship
-	// to the current lock value and verify that no assignments target this role.
-	for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-			if subAssignment.GetRole() == roleName {
-				return nil, trace.CompareFailed("cannot delete scoped role %q while assignment %q assigns it to a user", roleName, assignment.GetMetadata().GetName())
-			}
-		}
-	}
-
-	roleCondition := backend.Exists()
-	if rev := req.GetRevision(); rev != "" {
-		roleCondition = backend.Revision(rev)
-	}
-
-	// atomically delete the role and its associated assignment lock while asserting that no assignments
-	// have been concurrently applied that target this role.
-	_, err = s.bk.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       scopedRoleKey(roleName),
-			Condition: roleCondition,
-			Action:    backend.Delete(),
-		},
-		{
-			Key:       roleAssignmentLockKey(roleName),
-			Condition: lockCondition,
-			Action:    backend.Delete(),
-		},
-	})
-
-	if err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return nil, trace.CompareFailed("scoped role %q has been concurrently modified and/or assigned", roleName)
-		}
 		return nil, trace.Wrap(err)
+	}
+
+	if rev := req.GetRevision(); rev != "" {
+		if err := s.bk.ConditionalDelete(ctx, key, rev); err != nil {
+			if errors.Is(err, backend.ErrIncorrectRevision) {
+				return nil, trace.CompareFailed("scoped role %q has been concurrently modified", roleName)
+			}
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := s.bk.Delete(ctx, key); err != nil {
+			if trace.IsNotFound(err) {
+				// generic condition failure keeps error handling simpler
+				return nil, trace.NotFound("scoped role %q not found in scope %q", roleName, req.GetScope())
+			}
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &scopedaccessv1.DeleteScopedRoleResponse{}, nil
 }
 
-func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
-	assignmentName := req.GetName()
-	if assignmentName == "" {
-		return nil, trace.BadParameter("missing scoped role assignment name in get request")
+func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleRequest) (*scopedaccessv1.UpsertScopedRoleResponse, error) {
+	role := req.GetRole()
+	if role == nil {
+		return nil, trace.BadParameter("missing scoped role in upsert request")
 	}
 
-	item, err := s.bk.Get(ctx, scopedRoleAssignmentKey(assignmentName))
+	if err := scopedaccess.StrongValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// upsert operations ignore user-provided revision
+	role = scopedRoleWithRevision(role, "")
+
+	item, err := scopedRoleToItem(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lease, err := s.bk.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return scopedaccessv1.UpsertScopedRoleResponse_builder{
+		Role: scopedRoleWithRevision(role, lease.Revision),
+	}.Build(), nil
+}
+
+func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing scoped role assignment name in get request")
+	}
+	if req.GetSubKind() == scopedaccess.SubKindMaterialized {
+		return nil, trace.BadParameter(`reading scoped role assignments with sub_kind "materialized" from the backend is not supported`)
+	}
+
+	key, err := scopedRoleAssignmentKey{
+		scope:   req.GetScope(),
+		name:    req.GetName(),
+		subKind: req.GetSubKind(),
+	}.Key()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := s.bk.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("scoped role assignment %q not found", assignmentName)
+			return nil, trace.NotFound("scoped role assignment %q not found in scope %q", req.GetName(), req.GetScope())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -439,12 +351,11 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
 // NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
 func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
-	if req.GetResourceScope() != nil {
-		return nil, trace.NotImplemented("filtering by resource scope is not implemented for direct backend scoped role assignment reads")
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	if req.GetAssignedScope() != nil {
-		return nil, trace.NotImplemented("filtering by assigned scope is not implemented for direct backend scoped role assignment reads")
+	if err := scopes.ValidateFilter(req.GetAssignedScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if req.GetPageToken() != "" {
@@ -456,6 +367,15 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if !scopes.MatchScope(req.GetScopeFilter(), assignment.GetScope()) {
+			continue
+		}
+
+		if !scopedaccess.MatchSecondaryAssignmentFilters(req, assignment) {
+			continue
+		}
+
 		out = append(out, assignment)
 	}
 
@@ -468,7 +388,7 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 // Returned assignments have had weak validation applied.
 func (s *ScopedAccessService) StreamScopedRoleAssignments(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedRoleAssignment] {
 	return func(yield func(*scopedaccessv1.ScopedRoleAssignment, error) bool) {
-		startKey := scopedRoleAssignmentKey("")
+		startKey := scopedRoleAssignmentWatchPrefix()
 		params := backend.ItemsParams{
 			StartKey: startKey,
 			EndKey:   backend.RangeEnd(startKey),
@@ -484,7 +404,15 @@ func (s *ScopedAccessService) StreamScopedRoleAssignments(ctx context.Context) s
 			assignment, err := scopedRoleAssignmentFromItem(&item)
 			if err != nil {
 				// per-assignment errors are logged and skipped
-				s.logger.WarnContext(ctx, "skipping scoped role assignment due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				s.logger.WarnContext(ctx, "skipping malformed scoped role assignment", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if assignment.GetSubKind() == scopedaccess.SubKindMaterialized {
+				// Reading materialized assignments from the backend is not
+				// currently supported, we skip them in case materialized
+				// assignments are persisted to the backend in a future
+				// version.
 				continue
 			}
 
@@ -511,6 +439,12 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.Wrap(err)
 	}
 
+	switch assignment.GetSubKind() {
+	case scopedaccess.SubKindDynamic:
+	default:
+		return nil, trace.BadParameter("creating scoped role assignments with sub_kind %q is not supported", assignment.GetSubKind())
+	}
+
 	// independently enforce the max number of roles per assignment limit here since not all validation
 	// may necessarily enforce it, but it is a hard-limit for the backend impl.
 	if len(assignment.GetSpec().GetAssignments()) > scopedaccess.MaxRolesPerAssignment {
@@ -522,97 +456,108 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.Wrap(err)
 	}
 
-	// set up conditional actions for assignment and user lock
-	condacts := []backend.ConditionalAction{
-		{
-			Key:       item.Key,
-			Condition: backend.NotExists(),
-			Action:    backend.Put(item),
-		},
-		{
-			Key:       userAssignmentLockKey(assignment.GetSpec().GetUser()),
-			Condition: backend.Whatever(),
-			Action: backend.Put(backend.Item{
-				Value: newUserAssignmentLockVal(assignment.GetSpec().GetUser()),
-			}),
-		},
-	}
-
-	assertedRoles := make(map[string]struct{})
-
-	// set up conditional actions for each assigned role lock
-	for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-		// operation must verify that all associated roles have not been concurrently modified
-		// as such modification could theoretically invalidate prior access-control checks.
-		roleRevision, ok := req.GetRoleRevisions()[subAssignment.GetRole()]
-		if !ok {
-			// this is a bug in the API layer, we should never be missing a role revision as it should be
-			// filled in with the revision of the role used for the access-control check.
-			return nil, trace.BadParameter("missing role revision for role %q in backend create (this is a bug)", subAssignment.GetRole())
-		}
-
-		rrsp, err := s.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-			Name: subAssignment.GetRole(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if rrsp.GetRole().GetMetadata().GetRevision() != roleRevision {
-			return nil, trace.CompareFailed("scoped role %q has been concurrently modified", subAssignment.GetRole())
-		}
-
-		// verify that the role is scoped to the same resource scope as the assignment itself
-		// NOTE: this restriction will eventually be relaxed in favor of [scopedaccess.RoleIsAssignableFromScopeOfOrigin]
-		// once we've finalized the details of the more relaxed role assignment model (the primary prerequisite is ensuring
-		// robust handling of dangling/invalid scoped role assignments).
-		if scopes.Compare(rrsp.GetRole().GetScope(), assignment.GetScope()) != scopes.Equivalent {
-			return nil, trace.BadParameter("role %q is not scoped to the same resource scope as assignment %q (%q -> %q)", subAssignment.GetRole(), assignment.GetMetadata().GetName(), rrsp.GetRole().GetScope(), assignment.GetScope())
-		}
-
-		// verify that the role is assignable at the specified scope
-		if !scopedaccess.RoleIsAssignableToScopeOfEffect(rrsp.GetRole(), subAssignment.GetScope()) {
-			return nil, trace.BadParameter("scoped role %q is not configured to be assignable at scope %q", subAssignment.GetRole(), subAssignment.GetScope())
-		}
-
-		if _, ok := assertedRoles[subAssignment.GetRole()]; ok {
-			// a previous sub-assignment already caused us to assert the revision
-			// of this role, we can skip the assertion/lock update step.
-			continue
-		}
-
-		// assert that role is unchanged and modify associated role lock so that role modifications can
-		// detect concurrent modifications to their assignments.
-		condacts = append(condacts, []backend.ConditionalAction{
-			{
-				Key:       scopedRoleKey(subAssignment.GetRole()),
-				Condition: backend.Revision(roleRevision),
-				Action:    backend.Nop(),
-			},
-			{
-				Key:       roleAssignmentLockKey(subAssignment.GetRole()),
-				Condition: backend.Whatever(),
-				Action: backend.Put(backend.Item{
-					Value: newRoleAssignmentLockVal(subAssignment.GetRole()),
-				}),
-			},
-		}...)
-
-		assertedRoles[subAssignment.GetRole()] = struct{}{}
-	}
-
-	revision, err := s.bk.AtomicWrite(ctx, condacts)
+	lease, err := s.bk.Create(ctx, item)
 	if err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			// return a general concurrent-modification error since it isn't clear which condition faile
-			return nil, trace.CompareFailed("scoped role assignment %q failed due to concurrent modification of associated resources", assignment.GetMetadata().GetName())
+		if trace.IsAlreadyExists(err) {
+			// generic condition failure keeps error handling simpler
+			return nil, trace.CompareFailed("scoped role assignment %q already exists", assignment.GetMetadata().GetName())
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	return &scopedaccessv1.CreateScopedRoleAssignmentResponse{
-		Assignment: scopedRoleAssignmentWithRevision(assignment, revision),
+		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
 	}, nil
+}
+
+// UpdateScopedRoleAssignment updates an existing scoped role assignment.
+func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleAssignmentRequest) (*scopedaccessv1.UpdateScopedRoleAssignmentResponse, error) {
+	assignment := req.GetAssignment()
+	if assignment == nil {
+		return nil, trace.BadParameter("missing scoped role assignment in update request")
+	}
+
+	if err := scopedaccess.StrongValidateAssignment(assignment); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(assignment.GetSpec().GetAssignments()) > scopedaccess.MaxRolesPerAssignment {
+		return nil, trace.BadParameter("scoped role assignment resource %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), scopedaccess.MaxRolesPerAssignment)
+	}
+
+	extant, err := s.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		Name:    assignment.GetMetadata().GetName(),
+		SubKind: assignment.GetSubKind(),
+		Scope:   assignment.GetScope(),
+	}.Build())
+	if trace.IsNotFound(err) {
+		// generic condition failure keeps error handling simpler
+		return nil, trace.CompareFailed("scoped role assignment %q not found", assignment.GetMetadata().GetName())
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if rev := assignment.GetMetadata().GetRevision(); rev != "" && rev != extant.GetAssignment().GetMetadata().GetRevision() {
+		return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified", assignment.GetMetadata().GetName())
+	}
+
+	// use the observed revision as the condition so that a concurrent modification is detected.
+	assignment = scopedRoleAssignmentWithRevision(assignment, extant.GetAssignment().GetMetadata().GetRevision())
+	item, err := scopedRoleAssignmentToItem(assignment)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lease, err := s.bk.ConditionalUpdate(ctx, item)
+	if err != nil {
+		if errors.Is(err, backend.ErrIncorrectRevision) {
+			return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified", assignment.GetMetadata().GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.UpdateScopedRoleAssignmentResponse{
+		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
+	}, nil
+}
+
+func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error) {
+	assignment := req.GetAssignment()
+	if assignment == nil {
+		return nil, trace.BadParameter("missing scoped role assignment in upsert request")
+	}
+
+	if err := scopedaccess.StrongValidateAssignment(assignment); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch assignment.GetSubKind() {
+	case scopedaccess.SubKindDynamic:
+	default:
+		return nil, trace.BadParameter("upserting scoped role assignments with sub_kind %q is not supported", assignment.GetSubKind())
+	}
+
+	if len(assignment.GetSpec().GetAssignments()) > scopedaccess.MaxRolesPerAssignment {
+		return nil, trace.BadParameter("scoped role assignment resource %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), scopedaccess.MaxRolesPerAssignment)
+	}
+
+	// upsert operations ignore user-provided revision
+	assignment = scopedRoleAssignmentWithRevision(assignment, "")
+
+	item, err := scopedRoleAssignmentToItem(assignment)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lease, err := s.bk.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return scopedaccessv1.UpsertScopedRoleAssignmentResponse_builder{
+		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
+	}.Build(), nil
 }
 
 func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.DeleteScopedRoleAssignmentRequest) (*scopedaccessv1.DeleteScopedRoleAssignmentResponse, error) {
@@ -621,146 +566,100 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.BadParameter("missing scoped role assignment name in delete request")
 	}
 
-	extant, err := s.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignmentName,
-	})
+	subKind := req.GetSubKind()
+	switch subKind {
+	case scopedaccess.SubKindDynamic:
+	case scopedaccess.SubKindMaterialized:
+		return nil, trace.BadParameter(`deleting scoped role assignments with sub_kind "materialized" is not supported`)
+	default:
+		return nil, trace.BadParameter("unhandled sub_kind %q in scoped role assignment delete request", subKind)
+	}
+
+	key, err := scopedRoleAssignmentKey{scope: req.GetScope(), name: assignmentName, subKind: subKind}.Key()
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.CompareFailed("scoped role assignment %q was concurrently delete", assignmentName)
-		}
 		return nil, trace.Wrap(err)
 	}
 
-	if rev := req.GetRevision(); rev != "" && rev != extant.Assignment.GetMetadata().GetRevision() {
-		return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified", assignmentName)
-	}
-
-	// check to see if we have a lock on the user. if so, we need to check to see if we're the last assignment
-	// relying on the lock. if we are, we can delete it.
-	userLockItem, err := s.bk.Get(ctx, userAssignmentLockKey(extant.Assignment.GetSpec().GetUser()))
-	if err != nil {
-		if !trace.IsNotFound(err) {
+	if rev := req.GetRevision(); rev != "" {
+		if err := s.bk.ConditionalDelete(ctx, key, rev); err != nil {
+			if errors.Is(err, backend.ErrIncorrectRevision) {
+				return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified", assignmentName)
+			}
 			return nil, trace.Wrap(err)
 		}
-		userLockItem = nil
-	}
-
-	// start with initial condition assuming non-existence. note that this really should never happen unless
-	// we have a bug somewhere else, but there isn't really a downside to being resilient to it.
-	userLockCondition := backend.NotExists()
-	userLockAction := backend.Nop()
-	if userLockItem != nil {
-		userLockCondition = backend.Revision(userLockItem.Revision)
-		userLockAction = backend.Put(backend.Item{
-			Value: newUserAssignmentLockVal(extant.Assignment.GetSpec().GetUser()),
-		})
-
-		// check to see if we're the last assignment relying on the user lock. if so, we should delete it.
-		var hasOtherAssignments bool
-		for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
-			if err != nil {
-				return nil, trace.Wrap(err)
+	} else {
+		if err := s.bk.Delete(ctx, key); err != nil {
+			if trace.IsNotFound(err) {
+				// generic condition failure keeps error handling simpler
+				return nil, trace.NotFound("scoped role assignment %q not found in scope %q", assignmentName, req.GetScope())
 			}
-			if assignment.GetSpec().GetUser() != extant.Assignment.GetSpec().GetUser() {
-				// skip assignments related to other users
-				continue
-			}
-			if assignment.GetMetadata().GetName() == extant.Assignment.GetMetadata().GetName() {
-				// skip the assignment we're currently deleting
-				continue
-			}
-
-			// found another assignment for the same user
-			hasOtherAssignments = true
-			break
+			return nil, trace.Wrap(err)
 		}
-
-		if !hasOtherAssignments {
-			// no other assignments for this user, we can delete the lock
-			userLockAction = backend.Delete()
-		}
-	}
-
-	condacts := []backend.ConditionalAction{
-		{
-			Key:       scopedRoleAssignmentKey(assignmentName),
-			Condition: backend.Revision(extant.Assignment.GetMetadata().GetRevision()),
-			Action:    backend.Delete(),
-		},
-		{
-			Key:       userAssignmentLockKey(extant.Assignment.GetSpec().GetUser()),
-			Condition: userLockCondition,
-			Action:    userLockAction,
-		},
-	}
-
-	lockedRoles := make(map[string]struct{})
-
-	for _, subAssignment := range extant.Assignment.GetSpec().GetAssignments() {
-
-		if _, ok := lockedRoles[subAssignment.GetRole()]; ok {
-			// a previous sub-assignment already caused us to update the lock
-			// of this role, we can skip this update step.
-			continue
-		}
-
-		// operation must modify all associated role locks to ensure that role operations can
-		// efficiently assert that no assigment related to the role has changed.
-		condacts = append(condacts, backend.ConditionalAction{
-			Key:       roleAssignmentLockKey(subAssignment.GetRole()),
-			Condition: backend.Whatever(),
-			Action: backend.Put(backend.Item{
-				Value: newRoleAssignmentLockVal(subAssignment.GetRole()),
-			}),
-		})
-
-		lockedRoles[subAssignment.GetRole()] = struct{}{}
-	}
-
-	if _, err := s.bk.AtomicWrite(ctx, condacts); err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return nil, trace.CompareFailed("scoped role assignment %q or another related assignment was concurrently modified", assignmentName)
-		}
-		return nil, trace.Wrap(err)
 	}
 
 	return &scopedaccessv1.DeleteScopedRoleAssignmentResponse{}, nil
 }
 
-func scopedRoleKey(roleName string) backend.Key {
-	return backend.NewKey(scopedRolePrefix, scopedRoleRoleComponent, roleName)
+type scopedRoleKey struct {
+	scope string
+	name  string
+}
+
+// Key builds the backend key for a scoped role. The layout
+// is /scoped/scoped_role/<encoded_scope>/<name>.
+func (k scopedRoleKey) Key() (backend.Key, error) {
+	encodedScope, err := scopes.EncodeForKey(k.scope)
+	if err != nil {
+		return backend.Key{}, trace.Wrap(err)
+	}
+	return backend.NewKey(scopedPrefix, scopedRolePrefix, encodedScope, k.name), nil
 }
 
 func scopedRoleWatchPrefix() backend.Key {
-	return backend.ExactKey(scopedRolePrefix, scopedRoleRoleComponent)
+	return backend.ExactKey(scopedPrefix, scopedRolePrefix)
 }
 
-func scopedRoleAssignmentKey(assignmentID string) backend.Key {
-	return backend.NewKey(scopedRolePrefix, scopedRoleAssignmentComponent, assignmentID)
+type scopedRoleAssignmentKey struct {
+	scope   string
+	name    string
+	subKind string
+}
+
+// Key builds the backend key for a scoped role assignment. The layout is
+// /scoped/scoped_role_assignment/<encoded_scope>/<name>/<sub_kind>.
+func (k scopedRoleAssignmentKey) Key() (backend.Key, error) {
+	if k.subKind == "" {
+		return backend.Key{}, trace.BadParameter("scoped role assignment sub_kind is required")
+	}
+	encodedScope, err := scopes.EncodeForKey(k.scope)
+	if err != nil {
+		return backend.Key{}, trace.Wrap(err)
+	}
+	return backend.NewKey(scopedPrefix, scopedRoleAssignmentPrefix, encodedScope, k.name, k.subKind), nil
 }
 
 func scopedRoleAssignmentWatchPrefix() backend.Key {
-	return backend.ExactKey(scopedRolePrefix, scopedRoleAssignmentComponent)
+	return backend.ExactKey(scopedPrefix, scopedRoleAssignmentPrefix)
 }
 
-func userAssignmentLockKey(username string) backend.Key {
-	return backend.NewKey(scopedRolePrefix, userAssignmentLockComponent, username)
-}
+// verifyKeyScope checks that a scoped resource's scope field agrees with the scope encoded in its
+// backend key, rejecting the resource if they disagree.
+func verifyKeyScope(key, watchPrefix backend.Key, fieldScope string) error {
+	components := key.TrimPrefix(watchPrefix).Components()
+	if len(components) == 0 {
+		return trace.BadParameter("scoped resource key %q is missing its scope component", key)
+	}
 
-func roleAssignmentLockKey(roleName string) backend.Key {
-	return backend.NewKey(scopedRolePrefix, roleAssignmentLockComponent, roleName)
-}
+	keyScope, err := scopes.DecodeFromKey(components[0])
+	if err != nil {
+		return trace.Wrap(err, "failed decoding scope from scoped resource key %q", key)
+	}
 
-// newUserAssignmentLockVal generates a new user assignment lock value for the specified username. A random
-// element is used to ensure that the lock value changes for each operation that changes assignments.
-func newUserAssignmentLockVal(username string) []byte {
-	return []byte(rand.Text() + "-" + username)
-}
+	if scopes.Compare(keyScope, fieldScope) != scopes.Equivalent {
+		return trace.BadParameter("scoped resource at key %q has scope field %q conflicting with key-encoded scope %q", key, fieldScope, keyScope)
+	}
 
-// newRoleAssignmentLockVal generates a new role assignment lock value for the specified role name. A random
-// element is used to ensure that the lock value changes for each operation that changes assignments.
-func newRoleAssignmentLockVal(roleName string) []byte {
-	return []byte(rand.Text() + "-" + roleName)
+	return nil
 }
 
 func scopedRoleFromItem(item *backend.Item) (*scopedaccessv1.ScopedRole, error) {
@@ -774,8 +673,12 @@ func scopedRoleFromItem(item *backend.Item) (*scopedaccessv1.ScopedRole, error) 
 		return nil, trace.BadParameter("role at %q is critically malformed (missing metadata)", item.Key)
 	}
 
-	role.Metadata.Revision = item.Revision
-	role.Metadata.Expires = utils.TimeIntoProto(item.Expires)
+	if err := verifyKeyScope(item.Key, scopedRoleWatchPrefix(), role.GetScope()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	role.GetMetadata().SetRevision(item.Revision)
+	role.GetMetadata().SetExpires(utils.TimeIntoProto(item.Expires))
 	return &role, nil
 }
 
@@ -793,8 +696,13 @@ func scopedRoleToItem(role *scopedaccessv1.ScopedRole) (backend.Item, error) {
 		return backend.Item{}, trace.Wrap(err)
 	}
 
+	key, err := scopedRoleKey{scope: role.GetScope(), name: role.GetMetadata().GetName()}.Key()
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	return backend.Item{
-		Key:      scopedRoleKey(role.GetMetadata().GetName()),
+		Key:      key,
 		Value:    data,
 		Revision: role.GetMetadata().GetRevision(),
 	}, nil
@@ -810,8 +718,12 @@ func scopedRoleAssignmentFromItem(item *backend.Item) (*scopedaccessv1.ScopedRol
 		return nil, trace.BadParameter("assignment at %q is critically malformed (missing metadata)", item.Key)
 	}
 
-	assignment.Metadata.Revision = item.Revision
-	assignment.Metadata.Expires = utils.TimeIntoProto(item.Expires)
+	if err := verifyKeyScope(item.Key, scopedRoleAssignmentWatchPrefix(), assignment.GetScope()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	assignment.GetMetadata().SetRevision(item.Revision)
+	assignment.GetMetadata().SetExpires(utils.TimeIntoProto(item.Expires))
 	return &assignment, nil
 }
 
@@ -824,13 +736,26 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 		return backend.Item{}, trace.BadParameter("scoped role assignments do not support expiration")
 	}
 
+	if assignment.GetSubKind() == "" {
+		return backend.Item{}, trace.BadParameter("scoped role assignments must have a sub_kind")
+	}
+
 	data, err := protojson.Marshal(assignment)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 
+	key, err := scopedRoleAssignmentKey{
+		scope:   assignment.GetScope(),
+		name:    assignment.GetMetadata().GetName(),
+		subKind: assignment.GetSubKind(),
+	}.Key()
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	return backend.Item{
-		Key:      scopedRoleAssignmentKey(assignment.GetMetadata().GetName()),
+		Key:      key,
 		Value:    data,
 		Revision: assignment.GetMetadata().GetRevision(),
 	}, nil

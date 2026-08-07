@@ -19,6 +19,7 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
+import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -50,6 +51,10 @@ type StoryProps = {
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
+  installTimeRequirementsCheck:
+    | 'success'
+    | 'windows-service-not-installed'
+    | 'windows-service-version-mismatch';
 };
 
 const defaultArgs: StoryProps = {
@@ -63,6 +68,7 @@ const defaultArgs: StoryProps = {
   diagReport: 'ok',
   isWorkspacePresent: true,
   unexpectedShutdown: false,
+  installTimeRequirementsCheck: 'success',
 };
 
 const meta: Meta<StoryProps> = {
@@ -109,6 +115,15 @@ const meta: Meta<StoryProps> = {
       description:
         "If there's no workspace, the button to open the diag report is disabled.",
     },
+    installTimeRequirementsCheck: {
+      control: { type: 'radio' },
+      options: [
+        'success',
+        'windows-service-not-installed',
+        'windows-service-version-mismatch',
+      ],
+      description: 'VNet-related checks performed before startup.',
+    },
   },
   render: props => <VnetSliderStep {...props} />,
 };
@@ -116,6 +131,27 @@ export default meta;
 
 function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
+
+  if (props.installTimeRequirementsCheck === 'windows-service-not-installed') {
+    appContext.vnet.checkInstallTimeRequirements = () =>
+      new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
+        },
+      });
+  }
+  if (
+    props.installTimeRequirementsCheck === 'windows-service-version-mismatch'
+  ) {
+    appContext.vnet.checkInstallTimeRequirements = () =>
+      new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.VERSION_MISMATCH,
+        },
+      });
+  }
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());

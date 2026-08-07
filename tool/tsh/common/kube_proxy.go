@@ -42,12 +42,15 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// kubeLocalProxyEnvVar marks a shell started by `tsh proxy kube --exec` as a
+// live local-proxy session. Its value is the KUBECONFIG path the session set.
+const kubeLocalProxyEnvVar = "TELEPORT_KUBE_LOCAL_PROXY"
 
 type proxyKubeCommand struct {
 	*kingpin.CmdClause
@@ -79,7 +82,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
+	c.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
@@ -134,7 +137,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
 	// if --exec flag is set, --exec-cmd is provided, or headless mode is enabled.
 	reexecIntoShell := cf.Headless || c.exec || c.execCmd != ""
-	if err := c.printTemplate(cf.Stdout(), reexecIntoShell, localProxy); err != nil {
+	if err := c.printTemplate(cf.ProxyStatusOutput(), reexecIntoShell, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -198,7 +201,7 @@ func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command strin
 
 	err = reexecToShell(ctx, configBytes, command, args)
 	err = trace.NewAggregate(err, localProxy.Close())
-	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
+	_, _ = fmt.Fprint(cf.ProxyStatusOutput(), "Local proxy for Kubernetes is closed.\n")
 	err = trace.NewAggregate(err, <-lpErrChan)
 	return err
 }
@@ -284,7 +287,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 }
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kubeconfig.LocalProxyClusters) {
-	fmt.Fprintln(cf.Stdout(), title)
+	fmt.Fprintln(cf.ProxyStatusOutput(), title)
 	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name", "Context Name"})
 	for _, cluster := range clusters {
 		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
@@ -294,7 +297,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 		}
 		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
 	}
-	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
+	fmt.Fprintln(cf.ProxyStatusOutput(), table.AsBuffer().String())
 }
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
@@ -642,23 +645,6 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		},
 	)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	rootClusterName, err := tc.RootClusterName(ctx)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
-		result.KeyRing,
-		rootClusterName,
-		teleportCluster,
-		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 

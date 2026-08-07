@@ -65,4 +65,18 @@ pub(crate) async fn upgrade(
     ironrdp_tls::upgrade(initial_stream, server_name)
         .await
         .map_err(ClientError::from)
+        .and_then(|upgraded| {
+            // TODO (rhammonds): This is a temporary workaround to get our RDP client
+            // working against the latest changes from IronRDP. We should consider changing
+            // the return value of this function (and the calling code) to handle
+            // a CertificateInner rather than just the raw public key.
+            Ok((
+                upgraded.0,
+                ironrdp_tls::extract_tls_server_public_key(&upgraded.1)
+                    .ok_or(ClientError::InternalError(
+                        "failed to retrieve public key from TLS certificate".to_string(),
+                    ))?
+                    .to_vec(),
+            ))
+        })
 }

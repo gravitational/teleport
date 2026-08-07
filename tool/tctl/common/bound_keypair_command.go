@@ -42,7 +42,7 @@ type BoundKeypairCommand struct {
 }
 
 func (c *BoundKeypairCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	cmd := app.Command("bound-keypair", "Manage bound-keypair joining tokens")
+	cmd := app.Command("bound-keypair", "Manage bound-keypair joining tokens.")
 
 	c.requestRotation = cmd.Command("request-rotation", "Request a keypair rotation on the next join attempt.")
 	c.requestRotation.Arg("name", "The name of the token").Required().StringVar(&c.token)

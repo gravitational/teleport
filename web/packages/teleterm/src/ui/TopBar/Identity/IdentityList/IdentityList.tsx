@@ -20,7 +20,7 @@ import { formatDistanceToNowStrict, isPast } from 'date-fns';
 import { JSX } from 'react';
 import styled from 'styled-components';
 
-import { ButtonText, Flex, Label, P3, Stack } from 'design';
+import { ButtonText, Flex, P3, Stack } from 'design';
 import {
   Clock,
   Logout,
@@ -33,10 +33,12 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
-import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
+import { DeviceTrustStatus } from '../Identity';
+import { IdentityItem } from '../useIdentity';
 import { ColorPicker } from './ColorPicker';
 import {
   AddClusterItem,
@@ -44,6 +46,7 @@ import {
   IdentityListItem,
   TitleAndSubtitle,
 } from './IdentityListItem';
+import { Roles } from './Roles';
 
 export function ActiveCluster(props: {
   activeCluster: Cluster | undefined;
@@ -57,6 +60,11 @@ export function ActiveCluster(props: {
   const validUntil =
     props.activeCluster.loggedInUser?.validUntil &&
     Timestamp.toDate(props.activeCluster.loggedInUser.validUntil);
+  const roles = props.activeCluster.loggedInUser?.roles || [];
+  const [isRolesExpanded, setIsRolesExpanded] = usePersistedState(
+    'showRolesExpanded',
+    false
+  );
 
   return (
     <>
@@ -64,7 +72,7 @@ export function ActiveCluster(props: {
         <Flex gap={4} justifyContent="space-between">
           <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
             <ColorPicker
-              letter={getProfileNameLetter(props.activeCluster)}
+              letter={getProfileNameLetter(props.activeCluster.uri)}
               color={props.activeColor}
               setColor={props.onChangeColor}
             />
@@ -102,20 +110,12 @@ export function ActiveCluster(props: {
             `}
           />
         )}
-        <Flex flexWrap="wrap" gap={1} mt={1}>
-          {props.activeCluster.loggedInUser?.roles.map(role => (
-            <Label
-              css={`
-                line-height: 20px;
-              `}
-              key={role}
-              kind="secondary"
-            >
-              {role}
-            </Label>
-          ))}
-        </Flex>
         <Stack gap={0}>
+          <Roles
+            roles={roles}
+            expanded={isRolesExpanded}
+            setExpanded={setIsRolesExpanded}
+          />
           {validUntil && (
             <Flex gap={1} color="text.slightlyMuted">
               <Clock size="small" />
@@ -150,26 +150,41 @@ export function ActiveCluster(props: {
   );
 }
 
-export function ClusterList(props: {
-  clusters: Cluster[];
+export function IdentityList(props: {
+  items: IdentityItem[];
   onSelect(clusterUri: RootClusterUri): void;
-  onLogout?(clusterUri: RootClusterUri): void;
+  onLogout(clusterUri: RootClusterUri): void;
+  onForget(clusterUri: RootClusterUri): void;
   onAdd(): void;
 }) {
   return (
     <>
-      {props.clusters.map((cluster, index) => (
-        <IdentityListItem
-          key={cluster.uri}
-          index={index}
-          cluster={cluster}
-          onSelect={() => props.onSelect(cluster.uri)}
-          onLogout={
-            props.onLogout ? () => props.onLogout(cluster.uri) : undefined
-          }
-        />
-      ))}
-      <AddClusterItem index={props.clusters.length} onClick={props.onAdd} />
+      {props.items
+        .toSorted((a, b) => {
+          return (
+            // Puts items with profile first, then sorts equal groups alphabetically.
+            Number(!!b.cluster) - Number(!!a.cluster) ||
+            routing
+              .parseClusterName(a.uri)
+              .localeCompare(routing.parseClusterName(b.uri))
+          );
+        })
+        .map((identityItem, index) => {
+          const { cluster } = identityItem;
+          return (
+            <IdentityListItem
+              key={identityItem.uri}
+              uri={identityItem.uri}
+              index={index}
+              color={identityItem.workspace.color}
+              cluster={cluster}
+              onSelect={() => props.onSelect(identityItem.uri)}
+              onLogout={() => props.onLogout(identityItem.uri)}
+              onForget={() => props.onForget(identityItem.uri)}
+            />
+          );
+        })}
+      <AddClusterItem index={props.items.length} onClick={props.onAdd} />
     </>
   );
 }
@@ -192,7 +207,7 @@ function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
           <P3>
             Full access requires a trusted device. Learn how to{' '}
             <Link
-              href="https://goteleport.com/docs/identity-governance/device-trust/device-management/#create-a-device-enrollment-token"
+              href="https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#create-a-device-enrollment-token"
               target="_blank"
             >
               enroll your device

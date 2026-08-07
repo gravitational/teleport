@@ -35,16 +35,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/wait"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common"
@@ -200,6 +208,141 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 	connectWithCredentialsFromVars(t, vars, clt)
 }
 
+// TestTCTLTerraformCommand_ScopedProxyJoin validates that the command `tctl terraform env`
+// can run from an unscoped admin against a Teleport Proxy service and generates valid
+// scoped credentials Terraform can use to connect to Teleport.
+func TestTCTLTerraformCommand_ScopedProxyJoin(t *testing.T) {
+	// test is not Parallel because of the metrics black hole
+	testDir := t.TempDir()
+	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
+
+	// Test setup: creating a teleport instance running auth and proxy
+	clusterName := "root.example.com"
+	cfg := helpers.InstanceConfig{
+		ClusterName: clusterName,
+		HostID:      uuid.New().String(),
+		NodeName:    helpers.Loopback,
+		Logger:      logtest.NewLogger(),
+	}
+	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
+	rc := helpers.NewInstance(t, cfg)
+
+	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.DataDir = filepath.Join(testDir, "data")
+	rcConf.Auth.Enabled = true
+	rcConf.Proxy.Enabled = true
+	rcConf.SSH.Enabled = false
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.Version = "v3"
+	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	rcConf.ScopesFeatures = scopes.Features{Enabled: true}
+
+	testUsername := "test-user"
+	createTCTLTerraformCrossScopeAdmin(t, testUsername, rc)
+
+	// Test setup: starting the Teleport instance
+	err := rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+
+	err = rc.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, rc.StopAll())
+	})
+
+	// Test setup: obtaining and authclient connected via the proxy
+	clt := getAuthClientForProxy(t, rc, testUsername, time.Hour)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	_, err = clt.Ping(ctx)
+	require.NoError(t, err)
+
+	createDefaultTerraformScopedRole(t, ctx, clt)
+
+	addr, err := rc.Process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Test execution, running the tctl command
+	tctlCfg := &servicecfg.Config{}
+	err = tctlCfg.SetAuthServerAddresses([]utils.NetAddr{*addr})
+	require.NoError(t, err)
+	tctlCommand := common.TerraformCommand{}
+
+	const testScope = "/test"
+	app := kingpin.New("test", "test")
+	tctlCommand.Initialize(app, nil, tctlCfg)
+	_, err = app.Parse([]string{"terraform", "env", "--scope", testScope})
+	require.NoError(t, err)
+	// Create io buffer writer
+	stdout := &bytes.Buffer{}
+
+	err = tctlCommand.RunEnvCommand(ctx, clt, stdout, os.Stderr)
+	require.NoError(t, err)
+
+	vars := parseExportedEnvVars(t, stdout)
+	require.Contains(t, vars, constants.EnvVarTerraformAddress)
+	require.Contains(t, vars, constants.EnvVarTerraformIdentityFileBase64)
+
+	// Test validation: connect with the credentials in env vars and do a ping
+	require.Equal(t, addr.String(), vars[constants.EnvVarTerraformAddress])
+
+	connectWithCredentialsFromVars(t, vars, clt)
+
+	// Test validation: make sure no role assignment is left. We don't know the assignment's name so we have to list them all initially.
+	resp, err := clt.ScopedAccessServiceClient().ListScopedRoleAssignments(ctx, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Scope: testScope,
+			Mode:  scopesv1.Mode_MODE_EXACT,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	switch len(resp.GetAssignments()) {
+	case 0:
+		// assignment already deleted
+		return
+	case 1:
+		// Assignment still exists, this might be a race against the cache.
+		// Will retry a few times.
+		_, err = wait.UntilNotFound(ctx, func(ctx context.Context) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
+			return clt.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+				Name:    resp.GetAssignments()[0].GetMetadata().GetName(),
+				SubKind: resp.GetAssignments()[0].GetSubKind(),
+				Scope:   resp.GetAssignments()[0].GetScope(),
+			}.Build())
+		})
+		require.NoError(t, err)
+	default:
+		require.Fail(t, "unexpected number of role assignments: %v", len(resp.GetAssignments()))
+	}
+}
+
+func createDefaultTerraformScopedRole(t *testing.T, ctx context.Context, clt *authclient.Client) {
+	reader, err := utils.OpenFileNoUnsafeLinks("../integrations/terraform/examples/provider/scoped-provider-role.yaml")
+	require.NoError(t, err)
+
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+	var raw services.UnknownResource
+	err = decoder.Decode(&raw)
+	require.NoError(t, err)
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
+	require.NoError(t, err)
+
+	_, err = clt.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: r,
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for the role to enter the cache, there is a race. If the test wins, tctl will fail to find the role.
+	_, err = wait.UntilFound(ctx, func(ctx context.Context) (*scopedaccessv1.GetScopedRoleResponse, error) {
+		return clt.ScopedAccessServiceClient().GetScopedRole(ctx,
+			scopedaccessv1.GetScopedRoleRequest_builder{
+				Name:  r.GetMetadata().GetName(),
+				Scope: r.GetScope(),
+			}.Build())
+	}, wait.WithMaxTries(7))
+	require.NoError(t, err)
+}
+
 func createTCTLTerraformUserAndRole(t *testing.T, username string, instance *helpers.TeleInstance) {
 	// Test setup: creating a test user and its role
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
@@ -209,6 +352,32 @@ func createTCTLTerraformUserAndRole(t *testing.T, username string, instance *hel
 				{
 					Resources: []string{types.KindToken, types.KindRole, types.KindBot},
 					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbList, types.VerbUpdate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	instance.AddUserWithRole(username, role)
+}
+
+func createTCTLTerraformCrossScopeAdmin(t *testing.T, username string, instance *helpers.TeleInstance) {
+	// Test setup: creating a test user and its role
+	role, err := types.NewRole("test-role-full-admin", types.RoleSpecV6{
+		Options: types.RoleOptions{},
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindScopedToken},
+					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbList, types.VerbUpdate, types.VerbDelete},
+				},
+				{
+					Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+					Verbs:     []string{types.VerbReadNoSecrets, types.VerbCreate, types.VerbList, types.VerbUpdate, types.VerbDelete},
+				},
+				{
+					Resources: []string{types.KindBot},
+					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbList, types.VerbUpdate, types.VerbDelete},
 				},
 			},
 		},

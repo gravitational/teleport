@@ -47,6 +47,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -57,15 +60,19 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -78,7 +85,7 @@ type TestContext struct {
 	TLSServer          *authtest.TLSServer
 	AuthServer         *auth.Server
 	AuthClient         *authclient.Client
-	Authz              authz.Authorizer
+	ScopedAuthz        authz.ScopedAuthorizer
 	KubeServer         *TLSServer
 	KubeProxy          *TLSServer
 	Emitter            *eventstest.ChannelEmitter
@@ -109,6 +116,9 @@ type TestConfig struct {
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
 	WrapAuthClient       func(authclient.ClientI) authclient.ClientI
+	WrapProxyAccessPoint func(authclient.ClientI) authclient.ClientI
+	ScopesFeatures       scopes.Features
+	Scope                string
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -137,11 +147,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Create and start test auth server.
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:         clockwork.NewFakeClockAt(time.Now()),
-		ClusterName:   testCtx.ClusterName,
-		Streamer:      streamer,
-		UploadHandler: testCtx.UploadHandler,
-		Dir:           t.TempDir(),
+		Clock:          clockwork.NewFakeClockAt(time.Now()),
+		ClusterName:    testCtx.ClusterName,
+		Streamer:       streamer,
+		UploadHandler:  testCtx.UploadHandler,
+		Dir:            t.TempDir(),
+		ScopesFeatures: cfg.ScopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -175,7 +186,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Auth client for Kube service.
-	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(authtest.TestServerID(types.RoleKube, testCtx.HostID))
+	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(authtest.TestScopedServerID(types.RoleKube, testCtx.HostID, cfg.Scope))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.AuthClient.Close()) })
 
@@ -194,15 +205,17 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
 	})
-	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: testCtx.ClusterName,
-		AccessPoint: proxyAuthClient,
-		LockWatcher: testCtx.lockWatcher,
+	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      testCtx.ClusterName,
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      testCtx.lockWatcher,
+		ScopesFeatures:   cfg.ScopesFeatures,
 	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
-	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
+	serverIdentity, err := authtest.NewScopedServerIdentity(authServer.AuthServer, testCtx.HostID, cfg.Scope, types.RoleKube)
 	require.NoError(t, err)
 	kubeServiceTLSConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -244,12 +257,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+			return proto.UpstreamInventoryHello_builder{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 				Hostname: "test",
-			}, nil
+				Scope:    cfg.Scope,
+			}.Build(), nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -263,13 +277,29 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 	)
 	require.NoError(t, err)
-	err = healthCheckManager.Start(testCtx.Context)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+	if cfg.Scope == "" {
+		err = healthCheckManager.Start(testCtx.Context)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+	}
 
 	var authClient authclient.ClientI = client
 	if cfg.WrapAuthClient != nil {
 		authClient = cfg.WrapAuthClient(client)
+	}
+
+	var accessPoint authclient.ClientI = client
+	if cfg.WrapAuthClient != nil {
+		accessPoint = cfg.WrapAuthClient(client)
+	}
+	// The kube service must use its scoped identity to watch kube_cluster
+	// resources. The proxy, however, watches kube_servers in every scope.
+	proxyAccessPoint := accessPoint
+	if cfg.Scope != "" {
+		proxyAccessPoint = proxyAuthClient
+	}
+	if cfg.WrapProxyAccessPoint != nil {
+		proxyAccessPoint = cfg.WrapProxyAccessPoint(proxyAccessPoint)
 	}
 
 	// Create kubernetes service server.
@@ -278,7 +308,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -290,7 +320,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// "node-sync" as session recording mode.
 			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
-			CachingAuthClient: client,
+			CachingAuthClient: accessPoint,
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
@@ -303,10 +333,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			},
 			Clock:           clockwork.NewRealClock(),
 			ClusterFeatures: features,
+			Scope:           cfg.Scope,
 		},
 		DynamicLabels: nil,
 		TLS:           kubeServiceTLSConfig.Clone(),
-		AccessPoint:   client,
+		AccessPoint:   accessPoint,
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
@@ -324,14 +355,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Create kubernetes proxy server.
-	kubeServersWatcher, err := services.NewKubeServerWatcher(
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(
 		testCtx.Context,
-		services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentKube,
-				Client:    client,
-			},
-			KubernetesServerGetter: client,
+		kubewatcher.ProxyKubeServerWatcherConfig{
+			Logger:           logtest.NewLogger(),
+			AccessPoint:      proxyAccessPoint,
+			FallbackGetter:   proxyAuthClient,
+			PrimaryTimeout:   time.Second,
+			FallbackInterval: time.Second,
+			MaxRetryPeriod:   time.Second,
 		},
 	)
 	require.NoError(t, err)
@@ -361,7 +393,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -390,7 +422,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
-		AccessPoint:              client,
+		AccessPoint:              proxyAccessPoint,
 		KubernetesServersWatcher: kubeServersWatcher,
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
@@ -403,8 +435,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
-	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
-	require.Equal(t, testCtx.KubeServer.Server.WriteTimeout, time.Duration(0), "kube server write timeout must be 0")
+	require.Zero(t, testCtx.KubeServer.Server.ReadTimeout, "kube server read timeout must be 0 to keep long-running watch streams alive")
+	require.Equal(t, defaults.HandshakeReadDeadline, testCtx.KubeServer.Server.WriteTimeout, "kube server write timeout must be HandshakeReadDeadline; it caps the TLS handshake while the outer handler resets the per-request write deadline")
 
 	testCtx.startKubeServices(t)
 	// Explicitly send a heartbeat for any configured clusters.
@@ -426,8 +458,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Ensure watcher has the correct list of clusters.
 	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.CurrentResources(ctx)
-		return err == nil && len(kubeServers) == len(cfg.Clusters)
+		return kubeServersWatcher.ResourceCount() == len(cfg.Clusters)
 	}, 3*time.Second, time.Millisecond*100)
 
 	return testCtx
@@ -525,6 +556,54 @@ func (c *TestContext) CreateUserAndRoleVersion(ctx context.Context, t *testing.T
 	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, nil, roleVersion, roleSpec)
 }
 
+// CreateUserScopedRole creates a Teleport user and a scoped role assigned
+// to them.
+func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope string, roleSpec *accessv1.ScopedRoleSpec) (types.User, *accessv1.CreateScopedRoleAssignmentResponse) {
+	user, err := authtest.CreateUser(t.Context(), c.TLSServer.Auth(), username)
+	require.NoError(t, err)
+
+	scopedAccess := c.TLSServer.Auth().ScopedAccess()
+	role, err := scopedAccess.CreateScopedRole(t.Context(), &accessv1.CreateScopedRoleRequest{
+		Role: &accessv1.ScopedRole{
+			Kind:    access.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: username,
+			},
+			Scope: scope,
+			Spec:  roleSpec,
+		},
+	})
+	require.NoError(t, err)
+
+	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), &accessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &accessv1.ScopedRoleAssignment{
+			Kind:    access.KindScopedRoleAssignment,
+			Version: types.V1,
+			SubKind: access.SubKindDynamic,
+			Scope:   scope,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.New().String(),
+			},
+			Spec: &accessv1.ScopedRoleAssignmentSpec{
+				User: username,
+				Assignments: []*accessv1.Assignment{
+					{
+						Role: scopes.QualifiedName{
+							Name:  role.GetRole().GetMetadata().GetName(),
+							Scope: role.GetRole().GetScope(),
+						}.String(),
+						Scope: scope,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return user, assignment
+}
+
 func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
 	tmpDir := t.TempDir()
 
@@ -552,9 +631,9 @@ func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
 type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
 
 // WithResourceAccessRequests adds resource access requests to the identity.
-func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+func WithResourceAccessRequests(r ...types.ResourceAccessID) GenTestKubeClientTLSCertOptions {
 	return func(identity *tlsca.Identity) {
-		identity.AllowedResourceIDs = r
+		identity.AllowedResourceAccessIDs = r
 	}
 }
 
@@ -736,4 +815,15 @@ func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, 
 		panic(err)
 	}
 	return conn, nil
+}
+
+func (c *TestContext) GetScopePinForUser(t *testing.T, username, scope string) *scopesv1.Pin {
+	pin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: scope,
+	}
+	err := c.AuthServer.ScopedAccessCache.PopulatePinnedAssignmentsForUser(t.Context(), username, pin)
+	require.NoError(t, err)
+
+	return pin
 }

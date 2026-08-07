@@ -25,7 +25,9 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -174,13 +176,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
 
-	// Retrieve all resources from the stream
+	// Retrieve resources within an exclusive end range from the stream.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, r1.GetMetadata().GetName(), r2.GetMetadata().GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
 
 	// Retrieve a single resource from the stream
 	streamedResources = nil
@@ -190,13 +192,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff([]*testResource153{r2}, streamedResources, protocmp.Transform()))
 
-	// Retrieve a single resource from the stream
+	// An exclusive end equal to the first resource yields nothing.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, "", r1.GetMetadata().GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetMetadata().GetName())
@@ -266,6 +268,63 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestGenericWrapperConditionalDelete(t *testing.T) {
+	t.Parallel()
+
+	memBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewServiceWrapper(
+		ServiceConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: backend.NewKey("generic_prefix"),
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
+	require.NoError(t, err)
+
+	// services methods modify their inputs. Take a defensive copy before calling.
+	cloneResource := func(r *testResource153) *testResource153 {
+		return &testResource153{
+			Metadata: proto.Clone(r.Metadata).(*headerv1.Metadata),
+		}
+	}
+
+	// Create a couple revisions of a resource.
+	res := newTestResource153("myresource")
+	res.Metadata.SetExpires(nil)
+	res.Metadata.SetDescription("r1")
+	rev1, err := service.CreateResource(t.Context(), cloneResource(res))
+	require.NoError(t, err)
+
+	res.Metadata.SetDescription("r2")
+	res.Metadata.SetRevision(rev1.Metadata.GetRevision())
+	rev2, err := service.ConditionalUpdateResource(t.Context(), cloneResource(res))
+	require.NoError(t, err)
+
+	t.Run("unknown revision errors", func(t *testing.T) {
+		err := service.ConditionalDeleteResource(
+			t.Context(),
+			rev2.Metadata.GetName(),
+			rev1.Metadata.GetRevision(),
+		)
+		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		err := service.ConditionalDeleteResource(
+			t.Context(),
+			rev2.Metadata.GetName(),
+			rev2.Metadata.GetRevision(),
+		)
+		require.NoError(t, err)
+
+		_, err = service.GetResource(t.Context(), rev2.Metadata.GetName())
+		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch after ConditionalDelete")
+	})
 }
 
 // TestGenericWrapperWithPrefix tests the withPrefix method of the generic service wrapper.

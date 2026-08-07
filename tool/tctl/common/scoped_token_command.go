@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"time"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -44,15 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes/joining"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // ScopedTokensCommand implements `tctl scoped tokens` group of commands
 type ScopedTokensCommand struct {
-	config *servicecfg.Config
-
 	withSecrets bool
 
 	// format is the output format, e.g. text or json
@@ -97,11 +95,10 @@ type ScopedTokensCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *servicecfg.Config) {
-	c.config = config
-	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
+func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io.Writer) {
+	c.Stdout = stdout
 
-	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
+	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
 
 	// tctl scoped tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a scoped invitation token.")
@@ -111,7 +108,8 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 		int(defaults.ProvisioningTokenTTL/time.Minute))).
 		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
-	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenAdd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		EnumVar(&c.format, defaults.DefaultFormats...)
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
 	c.tokenAdd.Flag("mode", "Usage mode of a token (default: unlimited, single_use)").StringVar(&c.mode)
@@ -123,12 +121,10 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 
 	// "tctl scoped tokens ls"
 	c.tokenList = tokens.Command("ls", "List invitation tokens.")
-	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		Short('f').
+		EnumVar(&c.format, defaults.DefaultFormats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
-
-	if c.Stdout == nil {
-		c.Stdout = os.Stdout
-	}
 }
 
 // TryRun attempts to run subcommands like like "scoped tokens ls".
@@ -162,11 +158,14 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return trace.Wrap(err)
 	}
 
+	// NOTE (eriktate): we want to prevent this behavior until discovery and app
+	// services properly support scopes
+	//
 	// If it's Kube, then enable App and Discovery roles automatically so users
 	// don't have problems with running Kubernetes App Discovery by default.
-	if len(roles) == 1 && roles[0] == types.RoleKube {
-		roles = append(roles, types.RoleApp, types.RoleDiscovery)
-	}
+	// if len(roles) == 1 && roles[0] == types.RoleKube {
+	// 	roles = append(roles, types.RoleApp, types.RoleDiscovery)
+	// }
 
 	tokenName := c.name
 
@@ -227,15 +226,13 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return trace.Wrap(err, "creating scoped token")
 	}
 
-	tokenName = tok.GetMetadata().GetName()
-	tokenSecret := tok.GetStatus().GetSecret()
+	token := joining.EncodeScopedToken(tok.GetMetadata().GetName(), tok.GetStatus().GetSecret())
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
 		tokenInfo := map[string]any{
-			"token":        tokenName,
-			"token_secret": tokenSecret,
+			"token":        token,
 			"roles":        roles,
 			"scope":        tok.GetScope(),
 			"assign_scope": tok.GetSpec().GetAssignedScope(),
@@ -258,17 +255,16 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 		return nil
 	case teleport.Text:
-		fmt.Fprintln(c.Stdout, tokenName)
+		fmt.Fprintln(c.Stdout, token)
 		return nil
 	}
 
 	return trace.Wrap(showJoinInstructions(ctx, joinInstructionsInput{
-		out:         c.Stdout,
-		ttl:         c.ttl,
-		roles:       roles,
-		tokenName:   tokenName,
-		tokenSecret: tokenSecret,
-		client:      client,
+		out:    c.Stdout,
+		ttl:    c.ttl,
+		roles:  roles,
+		token:  token,
+		client: client,
 	}))
 }
 
@@ -287,11 +283,13 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 // List is called to execute "tokens ls" command.
 func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
-		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
+		res, err := client.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			Limit:       uint32(pageSize),
 			Cursor:      pageKey,
 			WithSecrets: c.withSecrets,
-		})
+			// exhaustive user-facing views use MODE_ALL per RFD 0229i
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -328,7 +326,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
 		}
 	default:
-		fmt.Fprint(c.Stdout, scopedTokenTextHelper(tokens, c.withSecrets).String())
+		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
 	}
 	return nil
 }

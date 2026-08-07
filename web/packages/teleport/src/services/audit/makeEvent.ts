@@ -1249,6 +1249,27 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Started',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `User [${user}] started session [${sid}] on Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Denied',
+    format: ({ user, desktop_name, linux_user }) => {
+      return `User [${user}] was denied access to Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: {
+    type: 'linux.desktop.session.end',
+    desc: 'Linux Desktop Session Ended',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `Session [${sid}] for Linux desktop [${linux_user}@${desktop_name}] has ended for user [${user}]`;
+    },
+  },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',
@@ -1341,6 +1362,8 @@ export const formatters: Formatters = {
       return `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
+  // Formatters for DEVICE_* event codes need to check for the presence of a
+  // status field to support legacy events.
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
     desc: 'Device Registered',
@@ -1444,10 +1467,17 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.UPGRADE_WINDOW_UPDATED]: {
-    type: 'upgradewindow.update',
+    type: 'upgradewindowstart.update',
     desc: 'Upgrade Window Start Updated',
     format: ({ user, upgrade_window_start }) => {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
+    },
+  },
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: {
+    type: 'environmentprofile.update',
+    desc: 'Environment Profile Updated',
+    format: ({ user, environment_profile }) => {
+      return `Environment profile updated to [${environment_profile}] by user [${user}]`;
     },
   },
   [eventCodes.SESSION_RECORDING_ACCESS]: {
@@ -1471,12 +1501,25 @@ export const formatters: Formatters = {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
     },
   },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method, token_name }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
-    },
+    format: ({ bot_name, method, token_name, scope }) =>
+      `Bot [${formatSqn({ scope, name: bot_name })}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`,
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
     type: 'bot.join',
@@ -1485,18 +1528,31 @@ export const formatters: Formatters = {
       return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
+  [eventCodes.BOT_JOIN_LIMIT]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster due to token limits`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
-    format: ({ node_name, role, method }) => {
-      return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
-    },
+    format: ({ node_name, role, method, scope }) =>
+      `Instance [${formatSqn({ scope, name: node_name })}] joined the cluster with the [${role}] role using the [${method}] join method`,
   },
   [eventCodes.INSTANCE_JOIN_FAILURE]: {
     type: 'instance.join',
     desc: 'Instance Join Failed',
     format: ({ node_name }) => {
       return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_LIMIT]: {
+    type: 'instance.join',
+    desc: 'Instance Join Limit',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster due to token limits`;
     },
   },
   [eventCodes.BOT_CREATED]: {
@@ -1844,7 +1900,7 @@ export const formatters: Formatters = {
       `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
-    type: 'secreports.audit.query.run"',
+    type: 'secreports.audit.query.run',
     desc: 'Access Monitoring Query Executed',
     format: ({ user, query }) =>
       `User [${user}] executed Access Monitoring query [${truncateStr(
@@ -1853,7 +1909,7 @@ export const formatters: Formatters = {
       )}]`,
   },
   [eventCodes.SECURITY_REPORT_RUN]: {
-    type: 'secreports.report.run""',
+    type: 'secreports.report.run',
     desc: 'Access Monitoring Report Executed',
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
@@ -1881,6 +1937,18 @@ export const formatters: Formatters = {
     desc: 'SPIFFE SVID Issued Failure',
     format: ({ user, spiffe_id }) =>
       `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: {
+    type: 'spiffe.federation.create',
+    desc: 'SPIFFE Federation Created',
+    format: ({ user, name }) =>
+      `User [${user}] created a SPIFFE federation [${name}]`,
+  },
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: {
+    type: 'spiffe.federation.delete',
+    desc: 'SPIFFE Federation Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] deleted a SPIFFE federation [${name}]`,
   },
   [eventCodes.AUTH_PREFERENCE_UPDATE]: {
     type: 'auth_preference.update',
@@ -2450,6 +2518,27 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.BEAMS_CONFIG_CREATE]: {
+    type: 'beams.config.create',
+    desc: 'Beams Config Created',
+    format: ({ user }) => {
+      return `User [${user}] created the Beams config`;
+    },
+  },
+  [eventCodes.BEAMS_CONFIG_UPDATE]: {
+    type: 'beams.config.update',
+    desc: 'Beams Config Updated',
+    format: ({ user }) => {
+      return `User [${user}] updated the Beams config`;
+    },
+  },
+  [eventCodes.BEAMS_CONFIG_DELETE]: {
+    type: 'beams.config.delete',
+    desc: 'Beams Config Deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted the Beams config`;
+    },
+  },
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
     type: 'workload_cluster.create',
     desc: 'Workload Cluster Created',
@@ -2540,6 +2629,24 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Inference Policy [${name}] was deleted by [${user}]`,
   },
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: {
+    type: 'retrieval_model.create',
+    desc: 'Retrieval Model Created',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: {
+    type: 'retrieval_model.update',
+    desc: 'Retrieval Model Updated',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: {
+    type: 'retrieval_model.delete',
+    desc: 'Retrieval Model Deleted',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was deleted by [${user}]`,
+  },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',
     desc: 'Session Summarized',
@@ -2551,6 +2658,96 @@ export const formatters: Formatters = {
     desc: 'Session Summarization Failed',
     format: ({ sid, session_type, model_name }) =>
       `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: {
+    type: 'cert_auth_override.create',
+    desc: 'Certificate Authority Override Created',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] created a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to create a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: {
+    type: 'cert_auth_override.update',
+    desc: 'Certificate Authority Override Updated',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] updated a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to update a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: {
+    type: 'cert_auth_override.upsert',
+    desc: 'Certificate Authority Override Upserted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] upserted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to upsert a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: {
+    type: 'cert_auth_override.delete',
+    desc: 'Certificate Authority Override Deleted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] deleted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_CREATE]: {
+    type: 'scoped_token.create',
+    desc: 'Scoped Join Token Created',
+    format: res => {
+      const { user, roles, join_method, assigned_scope } = res;
+      return `User [${user}] created scoped join token [${formatSqn(res)}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_CREATE_FAILURE]: {
+    type: 'scoped_token.create',
+    desc: 'Scoped Join Token Create Failed',
+    format: res =>
+      `User [${res.user}] failed to create scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPSERT]: {
+    type: 'scoped_token.upsert',
+    desc: 'Scoped Join Token Upserted',
+    format: res => {
+      const { user, roles, join_method, assigned_scope } = res;
+      return `User [${user}] upserted scoped join token [${formatSqn(res)}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: {
+    type: 'scoped_token.upsert',
+    desc: 'Scoped Join Token Upsert Failed',
+    format: res =>
+      `User [${res.user}] failed to upsert scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPDATE]: {
+    type: 'scoped_token.update',
+    desc: 'Scoped Join Token Updated',
+    format: res => {
+      const { user, roles, join_method, assigned_scope } = res;
+      return `User [${user}] updated scoped join token [${formatSqn(res)}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: {
+    type: 'scoped_token.update',
+    desc: 'Scoped Join Token Update Failed',
+    format: res =>
+      `User [${res.user}] failed to update scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_DELETE]: {
+    type: 'scoped_token.delete',
+    desc: 'Scoped Join Token Deleted',
+    format: res =>
+      `User [${res.user}] deleted scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: {
+    type: 'scoped_token.delete',
+    desc: 'Scoped Join Token Delete Failed',
+    format: res =>
+      `User [${res.user}] failed to delete scoped join token [${formatSqn(res)}]`,
   },
 };
 
@@ -2611,4 +2808,19 @@ function contactTypeStr(type: number): string {
     default:
       return `Unknown type: ${type}`;
   }
+}
+
+// Formats an object with a scope and name into a scope-qualified name (RFD0229f).
+// If a scope is not provided, the unformatted name is returned.
+export function formatSqn({
+  scope,
+  name,
+}: {
+  scope?: string;
+  name: string;
+}): string {
+  if (!scope) {
+    return name;
+  }
+  return `${scope}::${name}`;
 }

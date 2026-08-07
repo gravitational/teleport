@@ -21,8 +21,8 @@ the ports to the other parts.
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
 - [Teleport Architecture](https://goteleport.com/docs/reference/architecture/)
-- [Admin Guide](https://goteleport.com/docs/admin-guides/management/admin/)
-- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/admin-guides/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/)
+- [Admin Guide](https://goteleport.com/docs/zero-trust-access/management/)
+- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 
@@ -73,7 +73,7 @@ export TF_VAR_key_name="example"
 export TF_VAR_use_acm="false"
 
 # (optional) Set to true to use TLS routing to multiplex all Teleport traffic over one port
-# See https://goteleport.com/docs/architecture/tls-routing for more information
+# See https://goteleport.com/docs/reference/architecture/tls-routing/ for more information
 # Setting this will disable ALL separate listener ports. If you also use ACM, then:
 # - you must use Teleport and tsh v13+
 # - you must use `tsh proxy` commands for Kubernetes/database access

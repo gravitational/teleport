@@ -159,6 +159,11 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			GitService: u.Git.GitService,
 		}
 	}
+	if u.Beam != nil {
+		sessionStart.Beam = &prehogv1a.SessionStartBeamMetadata{
+			BeamId: a.AnonymizeString(u.Beam.BeamId),
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,
@@ -659,6 +664,39 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 	}
 }
 
+// UIPageViewEvent is a UI event emitted when a user views a page.
+type UIPageViewEvent prehogv1a.UIPageViewEvent
+
+func (u *UIPageViewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiPageView{
+			UiPageView: &prehogv1a.UIPageViewEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				Path:        u.Path,
+				UtmSource:   u.UtmSource,
+				UtmCampaign: u.UtmCampaign,
+			},
+		},
+	}
+}
+
+// UIUsageReportingAlertCtaClickEvent is a UI event emitted when a user clicks the CTA
+// button in a usage reporting alert.
+type UIUsageReportingAlertCtaClickEvent prehogv1a.UIUsageReportingAlertCtaClickEvent
+
+func (u *UIUsageReportingAlertCtaClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiUsageReportingAlertCtaClick{
+			UiUsageReportingAlertCtaClick: &prehogv1a.UIUsageReportingAlertCtaClickEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				Alert:       u.Alert,
+				UtmSource:   u.UtmSource,
+				UtmCampaign: u.UtmCampaign,
+			},
+		},
+	}
+}
+
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
@@ -746,6 +784,7 @@ const (
 	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
 	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
 	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindLinuxDesktop    = prehogv1a.ResourceKind_RESOURCE_KIND_LINUX_DESKTOP
 	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
 	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
@@ -1691,6 +1730,22 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
 		}, nil
 
+	case *usageeventsv1.UsageEventOneOf_UiPageViewEvent:
+		return &UIPageViewEvent{
+			UserName:    userMD.Username,
+			Path:        e.UiPageViewEvent.Path,
+			UtmSource:   e.UiPageViewEvent.UtmSource,
+			UtmCampaign: e.UiPageViewEvent.UtmCampaign,
+		}, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiUsageReportingAlertCtaClickEvent:
+		return &UIUsageReportingAlertCtaClickEvent{
+			UserName:    userMD.Username,
+			Alert:       e.UiUsageReportingAlertCtaClickEvent.Alert,
+			UtmSource:   e.UiUsageReportingAlertCtaClickEvent.UtmSource,
+			UtmCampaign: e.UiUsageReportingAlertCtaClickEvent.UtmCampaign,
+		}, nil
+
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
 			Metadata:     discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
@@ -2076,6 +2131,99 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			InstancesCount: data.InstancesCount,
 		}
 		return ret, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineBasicInfoEvent:
+		ret := &UIAccessListBasicInfoEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineBasicInfoEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineBasicInfoEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListCompleteEvent:
+		ret := &UIAccessListCompletedEvent{
+			Metadata:           accessListMetadataToPrehog(e.UiAccessListCompleteEvent.Metadata, userMD),
+			Status:             accessListStatusToPrehog(e.UiAccessListCompleteEvent.Status),
+			PreferredTerraform: e.UiAccessListCompleteEvent.GetPreferredTerraform(),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineAccessEvent:
+		ret := &UIAccessListDefineAccessEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineAccessEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineAccessEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineIdentitiesEvent:
+		ret := &UIAccessListDefineIdentitiesEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineIdentitiesEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineIdentitiesEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineMembersEvent:
+		ret := &UIAccessListDefineMembersEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineMembersEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineMembersEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListDefineOwnersEvent:
+		ret := &UIAccessListDefineOwnersEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListDefineOwnersEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListDefineOwnersEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListCustomEvent:
+		ret := &UIAccessListCustomEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListCustomEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListCustomEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListIntegrateEvent:
+		ret := &UIAccessListIntegrateEvent{
+			Metadata:  accessListMetadataToPrehog(e.UiAccessListIntegrateEvent.Metadata, userMD),
+			Integrate: accessListIntegrateToPrehog(e.UiAccessListIntegrateEvent.Integrate),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessListStartEvent:
+		ret := &UIAccessListStartedEvent{
+			Metadata: accessListMetadataToPrehog(e.UiAccessListStartEvent.Metadata, userMD),
+			Status:   accessListStatusToPrehog(e.UiAccessListStartEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ret, nil
+
+	case *usageeventsv1.UsageEventOneOf_UiInteraction:
+		data := e.UiInteraction
+		ret := &UIInteractionEvent{
+			UserName: userMD.Username,
+			Path:     data.Path,
+			PageId:   data.PageId,
+			Params:   data.Params,
+		}
+		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
@@ -2113,6 +2261,41 @@ func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 				Success:             e.Success,
 				ResourceName:        a.AnonymizeString(e.ResourceName),
 				IsCloudDefaultModel: e.IsCloudDefaultModel,
+				HasStoredEmbeddings: e.HasStoredEmbeddings,
+			},
+		},
+	}
+}
+
+// SessionSummarySearchEvent is emitted when a user runs a session summary search.
+type SessionSummarySearchEvent prehogv1a.SessionSummarySearchEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummarySearchEvent{
+			SessionSummarySearchEvent: &prehogv1a.SessionSummarySearchEvent{
+				UserName:   a.AnonymizeString(e.UserName),
+				UserKind:   e.UserKind,
+				QueryCount: e.QueryCount,
+				HasFilters: e.HasFilters,
+			},
+		},
+	}
+}
+
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+type UIInteractionEvent prehogv1a.UIInteractionEvent
+
+// Anonymize anonymizes the event.
+func (e *UIInteractionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiInteraction{
+			UiInteraction: &prehogv1a.UIInteractionEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Path:     e.Path,
+				PageId:   e.PageId,
+				Params:   e.Params,
 			},
 		},
 	}
@@ -2131,6 +2314,69 @@ func (e *DiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 				ResourceTypes:       e.ResourceTypes,
 				CloudProviders:      e.CloudProviders,
 				CreationMethod:      e.CreationMethod,
+			},
+		},
+	}
+}
+
+// IdentitySecurityGraphSizeEvent is emitted when the size of a providers access graph is updated.
+type IdentitySecurityGraphSizeEvent prehogv1a.IdentitySecurityGraphSizeEvent
+
+// Anonymize anonymizes the event.
+func (e *IdentitySecurityGraphSizeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_IdentitySecurityGraphSizeEvent{
+			IdentitySecurityGraphSizeEvent: &prehogv1a.IdentitySecurityGraphSizeEvent{
+				Provider:        e.Provider,
+				TotalIdentities: e.TotalIdentities,
+				TotalResources:  e.TotalResources,
+			},
+		},
+	}
+}
+
+// IdentitySecurityAuditLogsIngestedEvent is emitted when logs are ingested into indentity activity center
+type IdentitySecurityAuditLogsIngestedEvent prehogv1a.IdentitySecurityAuditLogsIngestedEvent
+
+// Anonymize anonymizes the event.
+func (e *IdentitySecurityAuditLogsIngestedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_IdentitySecurityAuditLogsIngestedEvent{
+			IdentitySecurityAuditLogsIngestedEvent: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{
+				Provider:     e.Provider,
+				LogsIngested: e.LogsIngested,
+			},
+		},
+	}
+}
+
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+type BeamsCreatedEvent prehogv1a.BeamsCreatedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsCreatedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsCreated{
+			BeamsCreated: &prehogv1a.BeamsCreatedEvent{
+				BeamId:            a.AnonymizeString(e.BeamId),
+				Region:            e.Region,
+				StartupDurationMs: e.StartupDurationMs,
+			},
+		},
+	}
+}
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+type BeamsDestroyedEvent prehogv1a.BeamsDestroyedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsDestroyedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsDestroyed{
+			BeamsDestroyed: &prehogv1a.BeamsDestroyedEvent{
+				BeamId: a.AnonymizeString(e.BeamId),
+				Reason: e.Reason,
+				Region: e.Region,
 			},
 		},
 	}

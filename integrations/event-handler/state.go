@@ -113,7 +113,7 @@ func NewState(c *StartCmdConfig, log *slog.Logger) (*State, error) {
 	return &s, nil
 }
 
-// createStorageDir is used to calculate storage dir path and create dir if it does not exits
+// createStorageDir is used to calculate storage dir path and create dir if it does not exist
 func createStorageDir(c *StartCmdConfig, log *slog.Logger) (string, error) {
 	host, port, err := net.SplitHostPort(c.TeleportAddr)
 	if err != nil {
@@ -296,9 +296,24 @@ func (s *State) GetSessions() (map[string]int64, error) {
 	r := make(map[string]int64)
 
 	for key := range s.dv.KeysPrefix(sessionPrefix, nil) {
+		// skip if the key is exactly the sessionPrefix
+		if key == sessionPrefix {
+			continue
+		}
+
 		b, err := s.dv.Read(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// Assume 0 if byte count is incorrect
+		if len(b) != binary.Size(uint64(0)) {
+			s.log.WarnContext(
+				context.TODO(),
+				"Malformed session state key found in storage. Starting over at index 0.", "session", key,
+			)
+			b = make([]byte, 8)
+			binary.BigEndian.PutUint64(b, uint64(0))
 		}
 
 		id := key[len(sessionPrefix):]
@@ -310,6 +325,11 @@ func (s *State) GetSessions() (map[string]int64, error) {
 
 // SetSessionIndex writes current session index into state
 func (s *State) SetSessionIndex(id string, index int64) error {
+	// refuse to set empty session ID
+	if id == "" {
+		return trace.BadParameter("session ID cannot be empty")
+	}
+
 	var b = make([]byte, 8)
 
 	binary.BigEndian.PutUint64(b, uint64(index))

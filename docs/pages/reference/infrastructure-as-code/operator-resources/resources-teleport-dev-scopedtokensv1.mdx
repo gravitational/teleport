@@ -30,9 +30,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |aws|[object](#specaws)|The AWS-specific configuration used with the "ec2" and "iam" join methods.|
 |azure|[object](#specazure)|The Azure-specific configuration used with the "azure" join method.|
 |azure_devops|[object](#specazure_devops)|The Azure Devops-specific configuration used with the "azure_devops" join method.|
+|bot|string|The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.|
+|bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
+|generic_oidc|[object](#specgeneric_oidc)|Configuration specific to the "generic_oidc" join method.|
+|github|[object](#specgithub)|Configuration specific to the "github" join method.|
 |immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|
-|join_method|string|The joining method required in order to use this token. Supported joining methods for scoped tokens only include 'token'.|
+|join_method|string|The joining method required in order to use this token. Note that not all join methods support joining with scoped tokens.|
+|kubernetes|[object](#speckubernetes)|The Kubernetes-specific configuration used with the "kubernetes" join method.|
 |oracle|[object](#specoracle)|The Oracle-specific configuration used with the "oracle" join method.|
 |roles|[]string|The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.|
 |usage_mode|string|The usage mode of the token. Can be "single_use" or "unlimited". Single use tokens can only be used to provision a single resource. Unlimited tokens can be be used to provision any number of resources until it expires.|
@@ -67,6 +72,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |resource_groups|[]string||
 |subscription|string||
+|tenant|string||
 
 ### spec.azure_devops
 
@@ -88,6 +94,29 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |repository_version|string||
 |sub|string||
 
+### spec.bound_keypair
+
+|Field|Type|Description|
+|---|---|---|
+|onboarding|[object](#specbound_keypaironboarding)|Parameters related to initial onboarding and keypair registration.|
+|recovery|[object](#specbound_keypairrecovery)|Parameters related to recovery after identity expiration, including the initial join.|
+|rotate_after|string|An optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.|
+
+### spec.bound_keypair.onboarding
+
+|Field|Type|Description|
+|---|---|---|
+|initial_public_key|string||
+|must_register_before|string||
+|registration_secret|string||
+
+### spec.bound_keypair.recovery
+
+|Field|Type|Description|
+|---|---|---|
+|limit|integer||
+|mode|string||
+
 ### spec.gcp
 
 |Field|Type|Description|
@@ -102,6 +131,83 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |project_ids|[]string||
 |service_accounts|[]string||
 
+### spec.generic_oidc
+
+|Field|Type|Description|
+|---|---|---|
+|allow_any|[][object](#specgeneric_oidcallow_any-items)|Complex rules evaluated using "OR" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt/ to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.|
+|audience|string|The expected JWT audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining.  For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName  For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.|
+|insecure_allow_http_issuer|boolean|If set, disables the requirement that the issuer must use HTTPS.|
+|issuer|string|The expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.|
+|must_match_fields|object|"Must match" fields perform simple comparison matches using "AND" semantics. Rules are specified by mirroring the structure of the JWT, using values that are expected to be equal to those on the incoming token. These field matching rules can only be used to compare simple values: strings, numbers, booleans, and nested fields. Complex values, including lists, will need to use `allow_any` expression rules instead.  If any field match rules are specified, all must be equal to corresponding JWT fields for the join attempt to succeed. If complex rules are specified in `allow_any`, those are evaluated after `must_match_fields`. If `must_match_fields` is not specified or is empty, only rules in `allow_any` are evaluated.  These rules can be used as "global" rules that apply to all join attempts. For example, you can use these to ensure all attempts originate from your organization, then use `allow_any` rules to allow individual repositories, pipelines, or workspaces.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.|
+|static_jwks|string|An optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.|
+|tls_ca|string|A TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. If unset, the standard web PKI root certificates will be used to verify the connection to the issuer when fetching OIDC metadata. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.|
+
+### spec.generic_oidc.allow_any items
+
+|Field|Type|Description|
+|---|---|---|
+|conditions|[][object](#specgeneric_oidcallow_any-itemsconditions-items)||
+|expression|string||
+
+### spec.generic_oidc.allow_any items.conditions items
+
+|Field|Type|Description|
+|---|---|---|
+|attribute|string||
+|eq|[object](#specgeneric_oidcallow_any-itemsconditions-itemseq)||
+|in|[object](#specgeneric_oidcallow_any-itemsconditions-itemsin)||
+|not_eq|[object](#specgeneric_oidcallow_any-itemsconditions-itemsnot_eq)||
+|not_in|[object](#specgeneric_oidcallow_any-itemsconditions-itemsnot_in)||
+
+### spec.generic_oidc.allow_any items.conditions items.eq
+
+|Field|Type|Description|
+|---|---|---|
+|value|string||
+
+### spec.generic_oidc.allow_any items.conditions items.in
+
+|Field|Type|Description|
+|---|---|---|
+|values|[]string||
+
+### spec.generic_oidc.allow_any items.conditions items.not_eq
+
+|Field|Type|Description|
+|---|---|---|
+|value|string||
+
+### spec.generic_oidc.allow_any items.conditions items.not_in
+
+|Field|Type|Description|
+|---|---|---|
+|values|[]string||
+
+### spec.github
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specgithuballow-items)|allow is a set of claim-matching fields evaluated against the GitHub Actions OIDC token.|
+|enterprise_server_host|string|enterprise_server_host allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.|
+|enterprise_slug|string|enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.|
+|static_jwks|string|static_jwks disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.|
+
+### spec.github.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|actor|string||
+|enterprise|string||
+|enterprise_id|string||
+|environment|string||
+|ref|string||
+|ref_type|string||
+|repository|string||
+|repository_owner|string||
+|sub|string||
+|workflow|string||
+
 ### spec.immutable_labels
 
 |Field|Type|Description|
@@ -114,6 +220,36 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |key|string||
 |value|string||
+
+### spec.kubernetes
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#speckubernetesallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+|oidc|[object](#speckubernetesoidc)|The configuration specific to the `oidc` type.|
+|static_jwks|[object](#speckubernetesstatic_jwks)|The configuration specific to the `static_jwks` type.|
+|type|string|Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`|
+
+### spec.kubernetes.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|service_account|string||
+|service_account_name|string||
+|service_account_namespace|string||
+
+### spec.kubernetes.oidc
+
+|Field|Type|Description|
+|---|---|---|
+|insecure_allow_http_issuer|boolean||
+|issuer|string||
+
+### spec.kubernetes.static_jwks
+
+|Field|Type|Description|
+|---|---|---|
+|jwks|string||
 
 ### spec.oracle
 

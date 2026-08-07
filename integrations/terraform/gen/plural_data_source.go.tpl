@@ -15,12 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package legacy
 
 import (
 	"context"
 
-	{{ if not .IsPlainStruct }}
+	{{ if or (not .IsPlainStruct) .RequestWrapper }}
     {{- protoImport . }}
     {{- end }}
 	"github.com/gravitational/trace"
@@ -33,6 +33,7 @@ import (
 	{{- end }}
 
 	{{ schemaImport . }}
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
 // dataSourceTeleport{{.Name}}Type is the data source metadata type
@@ -51,7 +52,7 @@ func (r dataSourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.S
 // NewDataSource creates the empty data source
 func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
 	return dataSourceTeleport{{.Name}}{
-		p: *(p.(*Provider)),
+		p: p.(Provider),
 	}, nil
 }
 
@@ -74,12 +75,43 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
-	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+{{- if .DefaultSubKind}}
+	var subKind types.String
+	diags = req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
+	if subKind.Value == "" {
+		subKind.Value = {{.DefaultSubKind}}
+	}
+{{- end}}
+{{- if .RequestWrapper}}
+
+	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: id.Value,
+		{{- if .DefaultSubKind}}
+		SubKind: subKind.Value,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
+{{- else}}
+
+	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+{{- end}}
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+{{- if .RequestWrapper}}
+    {{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}I := {{.VarName}}GetResp
+	{{- else }}
+	{{.VarName}}I := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end}}
+{{- end}}
 
 	var state types.Object
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)

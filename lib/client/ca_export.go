@@ -220,6 +220,13 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "app-client":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.AppClientCA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	}
 
 	// If none of the above auth-types was requested, means we are dealing with SSH HostCA or SSH UserCA.
@@ -500,7 +507,7 @@ func exportGitHubCAs(keySet *types.CAKeySet, req ExportIntegrationAuthoritiesReq
 
 		// GitHub only needs the keys like "ssh-rsa xxx" so print them without
 		// cert-authority for easier copy-and-paste.
-		ret.WriteString(fmt.Sprintf("%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration))
+		fmt.Fprintf(&ret, "%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration)
 	}
 	if req.MatchFingerprint != "" && ret.Len() == 0 {
 		return "", trace.NotFound("no authorities found matching the provided fingerprint")

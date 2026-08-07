@@ -159,6 +159,11 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
           href: './zero-trust-access/authentication/passwordless'
         },
         {
+          title: 'Require Managed Devices for Access',
+          description: 'Guarantee access only from trusted devices',
+          href: './zero-trust-access/device-trust/'
+        },
+        {
           title: 'Integrate with SSO Providers',
           description: 'Connect Okta, Entra ID, Google, and more',
           href: './zero-trust-access/sso/'
@@ -186,7 +191,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
         {
           title: 'Manage Clusters with IaC',
           description: 'Create, update, and manage Teleport in declarative code.',
-          href: './zero-trust-access/infrastructure-as-code/'
+          href: './configuration/'
         }
       ]
     },
@@ -211,7 +216,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
         {
           title: 'Secure Infrastructure as Code',
           description: 'Manage IaC workflows in Terraform and Pulumi',
-          href: './zero-trust-access/infrastructure-as-code/terraform-provider/'
+          href: './configuration/terraform-provider/'
         },
         {
           title: 'Hybrid & Multi-Cloud Authentication',
@@ -247,11 +252,6 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
           title: 'Manage Standing Access for Teams',
           description: 'Sync IdP groups to roles w/ automated reviews',
           href: './identity-governance/integrations/okta/app-and-group-sync/'
-        },
-        {
-          title: 'Require Managed Devices for Access',
-          description: 'Guarantee access only from trusted devices',
-          href: './identity-governance/device-trust/'
         },
         {
           title: 'Instantly Lock Identities & Sessions',
@@ -419,7 +419,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
     },
     {
       title: 'Jamf Pro',
-      href: './identity-governance/device-trust/jamf-integration/',
+      href: './zero-trust-access/device-trust/jamf-integration/',
       iconColor: '#788EB11A',
       iconComponent: jamfProSvg,
     },

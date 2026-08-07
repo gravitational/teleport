@@ -23,6 +23,8 @@ import {
   ResponsiveValue,
   type FontFamilyProps,
 } from 'styled-system';
+import type { LineHeightProps } from 'styled-system';
+import { lineHeight } from 'styled-system';
 
 import {
   color,
@@ -55,7 +57,8 @@ export type TextProps<E extends React.ElementType = 'div'> =
     TextAlignProps &
     WhiteSpaceProps &
     FontWeightProps &
-    FontFamilyProps;
+    FontFamilyProps &
+    LineHeightProps;
 
 const Text = styled.div.withConfig({
   shouldForwardProp: shouldForwardTypographyProp,
@@ -71,6 +74,7 @@ const Text = styled.div.withConfig({
   ${whiteSpace}
   ${fontWeight}
   ${fontFamily}
+  ${lineHeight}
 `;
 
 Text.displayName = 'Text';

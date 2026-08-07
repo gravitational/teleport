@@ -26,13 +26,17 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
@@ -62,6 +66,151 @@ func unwrapResource153[T types.Resource153](t *testing.T, r types.Resource) T {
 
 	dst := u.UnwrapT()
 	return dst
+}
+
+func mustEncodeScopeForKey(t *testing.T, scope string) string {
+	t.Helper()
+
+	encoded, err := scopes.EncodeForKey(scope)
+	require.NoError(t, err)
+	return encoded
+}
+
+func TestAccessListParserScopedDelete(t *testing.T) {
+	const scope = "/eng/platform"
+	key := backend.NewKey(scopedPrefix, accessListPrefix, mustEncodeScopeForKey(t, scope), "reviewed")
+	event := backend.Event{
+		Type: types.OpDelete,
+		Item: backend.Item{Key: key},
+	}
+
+	parser := newAccessListParser()
+	require.True(t, parser.match(key))
+
+	resource, err := parser.parse(event)
+	require.NoError(t, err)
+
+	accessList, ok := resource.(*accesslist.AccessList)
+	require.True(t, ok)
+	require.Equal(t, types.KindAccessList, accessList.GetKind())
+	require.Equal(t, "reviewed", accessList.GetName())
+	require.Equal(t, scope, accessList.Scope)
+}
+
+func TestAccessListMemberParserScopedDelete(t *testing.T) {
+	const listScope = "/eng/platform"
+
+	tests := []struct {
+		name                   string
+		member                 scopes.QualifiedName
+		expectedMembershipKind string
+	}{
+		{
+			name:                   "unscoped member",
+			member:                 scopes.QualifiedName{Name: "alice"},
+			expectedMembershipKind: accesslist.MembershipKindUnspecified,
+		},
+		{
+			name:                   "scoped list member",
+			member:                 scopes.QualifiedName{Scope: "/eng", Name: "team"},
+			expectedMembershipKind: accesslist.MembershipKindScopedList,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			key := backend.NewKey(
+				scopedPrefix,
+				accessListMemberPrefix,
+				mustEncodeScopeForKey(t, listScope),
+				"reviewed",
+				mustEncodeScopeForKey(t, test.member.Scope),
+				test.member.Name,
+			)
+			event := backend.Event{
+				Type: types.OpDelete,
+				Item: backend.Item{Key: key},
+			}
+
+			parser := newAccessListMemberParser()
+			require.True(t, parser.match(key))
+
+			resource, err := parser.parse(event)
+			require.NoError(t, err)
+
+			member, ok := resource.(*accesslist.AccessListMember)
+			require.True(t, ok)
+			require.Equal(t, types.KindAccessListMember, member.GetKind())
+			require.Equal(t, test.member.String(), member.GetName())
+			require.Equal(t, listScope, member.Scope)
+			require.Equal(t, scopes.QualifiedName{Scope: listScope, Name: "reviewed"}.String(), member.Spec.AccessList)
+			require.Equal(t, test.member.String(), member.Spec.Name)
+			require.Equal(t, test.expectedMembershipKind, member.Spec.MembershipKind)
+		})
+	}
+}
+
+func TestAccessListReviewParserScopedDelete(t *testing.T) {
+	const scope = "/eng/platform"
+	key := backend.NewKey(scopedPrefix, accessListReviewPrefix, mustEncodeScopeForKey(t, scope), "reviewed", "review-1")
+	event := backend.Event{
+		Type: types.OpDelete,
+		Item: backend.Item{Key: key},
+	}
+
+	parser := newAccessListReviewParser()
+	require.True(t, parser.match(key))
+
+	resource, err := parser.parse(event)
+	require.NoError(t, err)
+
+	review, ok := resource.(*accesslist.Review)
+	require.True(t, ok)
+	require.Equal(t, types.KindAccessListReview, review.GetKind())
+	require.Equal(t, "review-1", review.GetName())
+	require.Equal(t, scope, review.Scope)
+	require.Equal(t, scopes.QualifiedName{Scope: scope, Name: "reviewed"}.String(), review.Spec.AccessList)
+}
+
+func TestAccessListScopedDeleteParserRejectsMalformedKeys(t *testing.T) {
+	tests := []struct {
+		name   string
+		parser resourceParser
+		key    backend.Key
+	}{
+		{
+			name:   "access list missing name",
+			parser: newAccessListParser(),
+			key:    backend.NewKey(scopedPrefix, accessListPrefix, mustEncodeScopeForKey(t, "/eng/platform")),
+		},
+		{
+			name:   "member missing member name",
+			parser: newAccessListMemberParser(),
+			key: backend.NewKey(
+				scopedPrefix,
+				accessListMemberPrefix,
+				mustEncodeScopeForKey(t, "/eng/platform"),
+				"reviewed",
+				mustEncodeScopeForKey(t, "/eng"),
+			),
+		},
+		{
+			name:   "review has bad encoded scope",
+			parser: newAccessListReviewParser(),
+			key:    backend.NewKey(scopedPrefix, accessListReviewPrefix, "bad-scope", "reviewed", "review-1"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.True(t, test.parser.match(test.key))
+			_, err := test.parser.parse(backend.Event{
+				Type: types.OpDelete,
+				Item: backend.Item{Key: test.key},
+			})
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestWatchers(t *testing.T) {
@@ -95,7 +244,7 @@ func TestWatchers(t *testing.T) {
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
 				// EXPECT that we receive at least 3 events notifying us of the
 				// CA creations
-				gotCertAuthIDSet := utils.NewSet[types.CertAuthID]()
+				gotCertAuthIDSet := set.New[types.CertAuthID]()
 				for range 3 {
 					event := fetchEvent(subtestT, watcher, fetchTimeout)
 
@@ -208,6 +357,60 @@ func TestWatchers(t *testing.T) {
 				principalState := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
 				require.NotNil(t, principalState.Spec)
 				require.Equal(subtestT, "foocorp", principalState.Spec.DownstreamId)
+			},
+		},
+		{
+			name: "PendingCSRRequest PUT/DELETE",
+			kind: types.KindPendingCSRRequest,
+			causeEvents: func(ctx context.Context, t *testing.T, bk backend.Backend) {
+				service, err := NewSubCAService(SubCAServiceParams{
+					Backend: bk,
+				})
+				require.NoError(t, err)
+
+				// PUT.
+				res, err := service.CreatePendingCSRRequest(
+					ctx,
+					subcav1.PendingCSRRequest_builder{
+						Kind:    types.KindPendingCSRRequest,
+						Version: types.V1,
+						Metadata: headerv1.Metadata_builder{
+							Name: "2f878e0f-115c-4b48-a4f6-f4deae8efb6f",
+						}.Build(),
+						Spec: subcav1.PendingCSRRequestSpec_builder{
+							ClusterName: "example.com",
+							CaType:      string(types.WindowsCA),
+							PublicKeyHashes: []*subcav1.PublicKeyHash{
+								subcav1.PublicKeyHash_builder{
+									Value: "ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3",
+								}.Build(),
+							},
+						}.Build(),
+					}.Build(),
+				)
+				require.NoError(t, err)
+
+				// DELETE.
+				require.NoError(t,
+					service.DeletePendingCSRRequest(ctx, res.GetMetadata().GetName()),
+				)
+			},
+			validateEvents: func(ctx context.Context, t *testing.T, watcher types.Watcher) {
+				const wantName = "2f878e0f-115c-4b48-a4f6-f4deae8efb6f"
+
+				// PUT.
+				event := fetchEvent(t, watcher, fetchTimeout)
+				require.Equal(t, types.OpPut, event.Type)
+				res, err := types.ConvertResource[*subcav1.PendingCSRRequest](event.Resource)
+				require.NoError(t, err)
+				require.Equal(t, wantName, res.GetMetadata().GetName())
+
+				// DELETE.
+				event = fetchEvent(t, watcher, fetchTimeout)
+				require.Equal(t, types.OpDelete, event.Type)
+				res, err = types.ConvertResource[*subcav1.PendingCSRRequest](event.Resource)
+				require.NoError(t, err)
+				require.Equal(t, wantName, res.GetMetadata().GetName())
 			},
 		},
 	}

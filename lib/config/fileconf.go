@@ -57,8 +57,9 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -93,6 +94,10 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// LinuxDesktop is the "linux_desktop_service" that defines the
+	// configuration for Linux Desktop Access.
+	LinuxDesktop LinuxDesktopService `yaml:"linux_desktop_service,omitempty"`
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
@@ -507,15 +512,62 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName   string           `yaml:"token_name"`
-	TokenSecret string           `yaml:"token_secret,omitempty"`
-	Method      types.JoinMethod `yaml:"method"`
-	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName    string             `yaml:"token_name"`
+	Method       types.JoinMethod   `yaml:"method"`
+	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
+	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
+	GenericOIDC  GenericOIDCParams  `yaml:"generic_oidc,omitempty"`
+}
+
+// IsEqual determines if two JoinParams objects are deeply equal.
+func (a *JoinParams) IsEqual(b *JoinParams) bool {
+	return deriveTeleportEqualJoinParams(a, b)
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
 type AzureJoinParams struct {
 	ClientID string `yaml:"client_id"`
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string `yaml:"registration_secret_value"`
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string `yaml:"registration_secret_path"`
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string `yaml:"static_key_path"`
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env,omitempty"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command,omitempty"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+}
+
+// IsSet returns true if `generic_oidc` contains usable configuration.
+func (p GenericOIDCParams) IsSet() bool {
+	return p.Env != "" || len(p.Command) > 0
 }
 
 // ConnectionRate configures rate limiter
@@ -1223,6 +1275,13 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
 
+	// AllowCLIAuthViaBrowser enables/disables browser-based authentication for
+	// authenticating CLI sessions.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	AllowCLIAuthViaBrowser *types.BoolOption `yaml:"allow_cli_auth_via_browser"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
@@ -1316,6 +1375,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowLocalAuth:          a.LocalAuth,
 		AllowPasswordless:       a.Passwordless,
 		AllowHeadless:           a.Headless,
+		AllowCLIAuthViaBrowser:  a.AllowCLIAuthViaBrowser,
 		DeviceTrust:             dt,
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
@@ -1753,9 +1813,9 @@ type Discovery struct {
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "gce".
+	// Types are GCP resource types to match: "gke", "gce", "cloudsql".
 	Types []string `yaml:"types,omitempty"`
-	// Locations are GKE locations to search resources for.
+	// Locations are GCP locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
 	// Labels are GCP labels to match.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
@@ -1845,13 +1905,13 @@ type PAM struct {
 }
 
 // Parse returns a parsed PAM config.
-func (p *PAM) Parse() *servicecfg.PAMConfig {
+func (p *PAM) Parse() *pamcfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &servicecfg.PAMConfig{
+	return &pamcfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
@@ -2442,6 +2502,12 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *LLM `yaml:"inference,omitempty"`
+
+	// TLS contains the app TLS configuration.
+	TLS *AppTLS `yaml:"tls,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2486,6 +2552,9 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string `yaml:"region,omitempty"`
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
@@ -2509,6 +2578,51 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// LLM contains LLM inference endpoint related configurations.
+type LLM struct {
+	// Format is the LLM inference API format.
+	Format string `yaml:"format"`
+	// Provider is the inference provider that will be used to serve the
+	// requests.
+	Provider string `yaml:"provider"`
+	// Models is the list of supported models, and optionally their name on the
+	// inference provider.
+	Models []LLMModel `yaml:"models,omitempty"`
+	// FallbackModel is a model that will be used if the model requested is not
+	// on the list.
+	FallbackModel string `yaml:"fallback_model,omitempty"`
+}
+
+// LLMModel is a provider model definition.
+type LLMModel struct {
+	// Name defines the model name.
+	Name string `yaml:"name"`
+	// ProviderName is the model name in the configured provider.
+	ProviderName string `yaml:"provider_name,omitempty"`
+}
+
+// AppTLS contains the app TLS configuration.
+type AppTLS struct {
+	// Mode defines the TLS verification.
+	Mode string `yaml:"mode,omitempty"`
+	// ServerName specifies a custom hostname used for TLS verification against
+	// the upstream certificate.
+	ServerName string `yaml:"server_name,omitempty"`
+	// ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+	// certificate.
+	ServerSpiffeId string `yaml:"server_spiffe_id,omitempty"`
+	// AllowedCas is the list of user provided CAs used for verifying upstream
+	// certificates. Accepted values are PEM-encoded CA certificates and
+	// Teleport CA aliases.
+	AllowedCas []string `yaml:"allowed_cas,omitempty"`
+	// AllowedCasFiles list of CA certificates file paths that will be used for
+	// verifying upstream certificates.
+	AllowedCasFiles []string `yaml:"allowed_cas_files,omitempty"`
+	// ClientCertMode specifies which client certificate mode to use for the
+	// upstream connection.
+	ClientCertMode string `yaml:"client_cert_mode,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2874,6 +2988,29 @@ func (wds *WindowsDesktopService) Check() error {
 	return nil
 }
 
+// LinuxDesktopService contains configuration for linux_desktop_service.
+type LinuxDesktopService struct {
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Labels are the configured linux desktops service labels.
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	XSessions XSessions         `yaml:"xsessions,omitempty"`
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string `yaml:"session_wrapper,omitempty"`
+}
+
+// Enabled returns true if the Linux desktop service is enabled.
+func (s *LinuxDesktopService) Enabled() bool {
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	return err == nil && v
+}
+
+type XSessions struct {
+	Included string `yaml:"included,omitempty"`
+	Excluded string `yaml:"excluded,omitempty"`
+}
+
 // WindowsHostLabelRule describes how a set of labels should be applied to
 // a Windows host.
 type WindowsHostLabelRule struct {
@@ -2925,8 +3062,8 @@ type LDAPConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
-	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// PEMEncodedCACerts are optional PEM encoded CA certs to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACerts string `yaml:"ldap_ca_cert,omitempty"`
 	// LocateServer is the config that enables LDAP server location using DNS SRV records.
 	LocateServer `yaml:"locate_server"`
 }
@@ -2940,6 +3077,9 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 	// Labels are static labels applied to all hosts discovered via
 	// this policy.
 	Labels map[string]string `yaml:"labels,omitempty"`
@@ -2949,9 +3089,13 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
-	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
-	// Optional, defaults to 3389 if unspecified.
-	RDPPort int `yaml:"rdp_port"`
+	// LabelAttributeMode determines how multi-valued LDAP attributes are
+	// treated. Valid values are:
+	//     - "first" (the default if unspecified): use the first attribute value
+	//     - "join": multi-valued attributes are joined with the specified separator
+	LabelAttributeMode string `yaml:"label_attribute_mode"`
+	// LabelAttributeJoinSeparator is used when LabelAttributeMode is "join".
+	LabelAttributeJoinSeparator string `yaml:"label_attribute_join_separator"`
 }
 
 // TracingService contains configuration for the tracing_service.
@@ -3120,8 +3264,8 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
 		}
@@ -3129,7 +3273,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
+		SyncDelay:   types.DurationStringForJamfSpecV1(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
 	}

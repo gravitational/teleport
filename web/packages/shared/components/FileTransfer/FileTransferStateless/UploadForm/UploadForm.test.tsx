@@ -51,8 +51,8 @@ test('files can be selected using input', () => {
   });
 
   expect(handleAddUpload).toHaveBeenCalledTimes(2);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[0]);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[1]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[0]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[1]);
 });
 
 test('files can be dropped into upload area', () => {
@@ -65,6 +65,6 @@ test('files can be dropped into upload area', () => {
   });
 
   expect(handleAddUpload).toHaveBeenCalledTimes(2);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[0]);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[1]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[0]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[1]);
 });

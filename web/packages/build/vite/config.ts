@@ -25,9 +25,9 @@ import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
+import { guardWasmPlugin } from './guard-wasm';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
-import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
@@ -65,11 +65,38 @@ export function createViteConfig(
         host: '0.0.0.0',
         port: 3000,
       },
+      resolve: {
+        tsconfigPaths: true,
+      },
+      optimizeDeps: {
+        // Exclude from pre-bundling so the guard-wasm-globals plugin can transform the
+        // module during dev.
+        exclude: ['@xterm/addon-image'],
+      },
       build: {
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
-        rollupOptions: {
+        reportCompressedSize: false,
+        rolldownOptions: {
+          checks: {
+            // We don't really need rolldown to complain about react/assets/wasm taking a "long"
+            // time - the entire build takes ~7s with compression, which is plenty fast.
+            pluginTimings: false,
+          },
+          onLog(level, log, defaultHandler) {
+            // Suppress direct eval warning from @protobufjs/inquire.
+            // The eval is intentional (to call require without bundler detection) and patching
+            // it to indirect eval would break Electron's module-scoped require.
+            if (
+              log.code === 'EVAL' &&
+              log.id?.includes('@protobufjs/inquire')
+            ) {
+              return;
+            }
+
+            defaultHandler(level, log);
+          },
           output: {
             // removes hashing from our entry point file.
             entryFileNames: ENTRY_FILE_NAME,
@@ -82,8 +109,8 @@ export function createViteConfig(
         },
       },
       plugins: [
+        guardWasmPlugin(),
         reactPlugin(mode),
-        tsconfigPathsPlugin(),
         transformPlugin(),
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
@@ -93,6 +120,27 @@ export function createViteConfig(
         'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
     };
+
+    // When using a local design system, the browser will try to load the Ubuntu font from the
+    // design system directory, which is outside the root directory.
+    // These environment variables allow specifying a local design system path for development,
+    // so Vite can serve the font files correctly.
+    if (
+      process.env.VITE_LOCAL_DESIGN_SYSTEM ||
+      process.env.VITE_DESIGN_SYSTEM_DIR
+    ) {
+      const designSystemPath = process.env.VITE_DESIGN_SYSTEM_DIR
+        ? resolve(rootDirectory, process.env.VITE_DESIGN_SYSTEM_DIR)
+        : resolve(rootDirectory, '../design-system');
+
+      if (!existsSync(designSystemPath)) {
+        throw new Error(
+          `Could not find design system at ${designSystemPath}. Please ensure the path is correct.`
+        );
+      }
+
+      config.server.fs.allow.push(designSystemPath);
+    }
 
     if (process.env.VITE_ANALYZE_BUNDLE) {
       config.plugins.push(visualizer());
@@ -127,7 +175,7 @@ export function createViteConfig(
           ws: true,
         },
         // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/(desktops|linuxdesktops)\\/${siteName}\\/connect`]:
           {
             target: `wss://${target}`,
             changeOrigin: false,

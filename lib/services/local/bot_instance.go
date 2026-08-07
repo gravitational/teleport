@@ -124,13 +124,20 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 		}
 	}
 
-	if options.GetFilterSearchTerm() == "" && exp == nil {
+	filterFn := options.GetFilterFn()
+	if options.GetFilterSearchTerm() == "" && exp == nil && filterFn == nil {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		return services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp)
+		if !services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp) {
+			return false
+		}
+		if filterFn != nil {
+			return filterFn(item)
+		}
+		return true
 	})
 
 	return r, nextToken, trace.Wrap(err)

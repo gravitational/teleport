@@ -621,7 +621,10 @@ func TestEditToken(t *testing.T) {
 			// Fetch the token and compare
 			editedToken, err := env.server.Auth().GetToken(ctx, tokenName)
 			require.NoError(t, err)
-			require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+			// TODO(strideynet): When bots become scope namespaced, ensure
+			// this call site reflects scopedness.
+			editedBotName, _ := editedToken.GetBot()
+			require.Equal(t, "test-bot_EDITED", editedBotName)
 			require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
 			require.Equal(t, map[string]string{
 				"test-key": "test-value",
@@ -802,6 +805,16 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				},
 			},
 		}
+	case types.JoinMethodGenericOIDC:
+		spec.GenericOIDC = &types.ProvisionTokenSpecV2GenericOIDC{
+			Issuer:   "https://example.com",
+			Audience: "example.teleport.sh",
+			AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+				{
+					Expression: "claims.foo == \"bar\"",
+				},
+			},
+		}
 	}
 }
 
@@ -902,6 +915,39 @@ func TestGenerateAzureTokenName(t *testing.T) {
 		require.NotEqual(t, hash1, hash2)
 	})
 
+	t.Run("tenant changes hash for subscription rule", func(t *testing.T) {
+		withTenant := types.ProvisionTokenSpecV2Azure_Rule{
+			Subscription: rule1.Subscription,
+			Tenant:       "tenant-a",
+		}
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&withTenant})
+		require.NoError(t, err)
+		require.NotEqual(t, hash1, hash2)
+	})
+
+	t.Run("tenant name hashes differently than an identical subscription name", func(t *testing.T) {
+		rule1 := types.ProvisionTokenSpecV2Azure_Rule{
+			Subscription: "abc123",
+		}
+		rule2 := types.ProvisionTokenSpecV2Azure_Rule{
+			Tenant: "abc123",
+		}
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2})
+		require.NoError(t, err)
+		require.NotEqual(t, hash1, hash2)
+	})
+
+	t.Run("tenant-only rule hashes distinctly", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{{Tenant: "tenant-a"}})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{{Tenant: "tenant-b"}})
+		require.NoError(t, err)
+		require.NotEqual(t, hash1, hash2)
+	})
 }
 
 func TestSortRules(t *testing.T) {
@@ -1130,6 +1176,21 @@ func TestSortAzureRules(t *testing.T) {
 				{Subscription: "100000000000"},
 				{Subscription: "200000000000"},
 				{Subscription: "300000000000"},
+			},
+		},
+		{
+			name: "tenant sorted before subscription",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "200000000000", Tenant: "tenant-b"},
+				{Subscription: "100000000000", Tenant: "tenant-b"},
+				{Subscription: "100000000000", Tenant: "tenant-a"},
+				{Tenant: "tenant-a"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Tenant: "tenant-a"},
+				{Subscription: "100000000000", Tenant: "tenant-a"},
+				{Subscription: "100000000000", Tenant: "tenant-b"},
+				{Subscription: "200000000000", Tenant: "tenant-b"},
 			},
 		},
 	}
@@ -2213,6 +2274,36 @@ func TestIsSameAzureRuleSet(t *testing.T) {
 				},
 			},
 			expected: true,
+		},
+		{
+			name: "tenant-only rules match",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Tenant: "tenant-a",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Tenant: "tenant-a",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "tenant differentiates matching subscription",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+					Tenant:       "tenant-a",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+					Tenant:       "tenant-b",
+				},
+			},
+			expected: false,
 		},
 	}
 

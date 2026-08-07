@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -52,15 +53,17 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -83,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -94,6 +98,7 @@ import (
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
+	enableRLockCheck()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -106,7 +111,11 @@ func TestMain(m *testing.M) {
 			},
 		},
 	})
-	os.Exit(m.Run())
+	code := m.Run()
+	if code == 0 {
+		finalRLockCheck()
+	}
+	os.Exit(code)
 }
 
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
@@ -144,6 +153,7 @@ type testPack struct {
 	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
+	linuxDesktops           *local.LinuxDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
 	userGroups              *local.UserGroupService
 	okta                    *local.OktaService
@@ -166,11 +176,15 @@ type testPack struct {
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
+	beams                   *local.BeamService
+	beamsConfig             *local.BeamsConfigService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
 	plugin                  *local.PluginsService
 	recordingEncryption     *local.RecordingEncryptionService
-	workloadClusters        *local.WorkloadClusterService
+	summarizer              *local.SummarizerService
+	subCA                   *local.SubCAService
+	ignoreRangeEndKey       bool
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -248,20 +262,6 @@ func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Co
 	}
 }
 
-// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
-func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
-	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
-		out, err := fn(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, "", nil
-			}
-			return nil, "", trace.Wrap(err)
-		}
-		return []T{out}, "", nil
-	}
-}
-
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T any] struct {
 	newResource func(string) (T, error)
@@ -315,7 +315,8 @@ func NewTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 type packCfg struct {
-	ignoreKinds []types.WatchKind
+	ignoreKinds       []types.WatchKind
+	ignoreRangeEndKey bool
 }
 
 type packOption func(cfg *packCfg)
@@ -325,6 +326,13 @@ type packOption func(cfg *packCfg)
 func ignoreKinds(kinds []types.WatchKind) packOption {
 	return func(cfg *packCfg) {
 		cfg.ignoreKinds = kinds
+	}
+}
+
+// ignoreRangeEndKey informs resource tests to ignore assertions that require an end key on the range function
+func ignoreRangeEndKey() packOption {
+	return func(cfg *packCfg) {
+		cfg.ignoreRangeEndKey = true
 	}
 }
 
@@ -379,10 +387,17 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
-	p.kubernetes = local.NewKubernetesService(p.backend)
+	p.kubernetes, err = local.NewKubernetesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.linuxDesktops, err = local.NewLinuxDesktopService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
@@ -431,6 +446,9 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: p.backend,
 		Modules: modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -459,6 +477,18 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.workloadIdentity = workloadIdentitySvc
+
+	beamSvc, err := local.NewBeamService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.beams = beamSvc
+
+	beamsConfigSvc, err := local.NewBeamsConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.beamsConfig = beamsConfigSvc
 
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
@@ -526,11 +556,21 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	workloadClusterSvc, err := local.NewWorkloadClusterService(p.backend)
+	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend: p.backend,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.workloadClusters = workloadClusterSvc
+
+	p.subCA, err = local.NewSubCAService(local.SubCAServiceParams{
+		Backend: p.backend,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.ignoreRangeEndKey = cfg.ignoreRangeEndKey
 
 	return p, nil
 }
@@ -558,6 +598,8 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
+		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		SnowflakeSession:        p.snowflakeSessionS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -566,6 +608,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -595,7 +638,8 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -830,6 +874,8 @@ func TestCompletenessInit(t *testing.T) {
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
 			WebToken:                p.webTokenS,
+			Beams:                   p.beams,
+			BeamsConfig:             p.beamsConfig,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
 			Kubernetes:              p.kubernetes,
@@ -837,6 +883,7 @@ func TestCompletenessInit(t *testing.T) {
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
 			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+			LinuxDesktops:           p.linuxDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -866,7 +913,8 @@ func TestCompletenessInit(t *testing.T) {
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
 			StaticScopedToken:       p.clusterConfigS,
-			WorkloadClusterService:  p.workloadClusters,
+			Summarizer:              p.summarizer,
+			SubCAService:            p.subCA,
 		}))
 		require.NoError(t, err)
 
@@ -920,6 +968,8 @@ func TestCompletenessReset(t *testing.T) {
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
 		WebToken:                p.webTokenS,
+		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -927,6 +977,7 @@ func TestCompletenessReset(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -956,7 +1007,8 @@ func TestCompletenessReset(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1085,6 +1137,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1092,6 +1146,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1122,7 +1177,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1187,6 +1243,8 @@ func initStrategy(t *testing.T) {
 		SnowflakeSession:        p.snowflakeSessionS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
+		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1194,6 +1252,7 @@ func initStrategy(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1223,7 +1282,8 @@ func initStrategy(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1331,7 +1391,7 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+func mustCreateDatabase(t testing.TB, name, protocol, uri string) *types.DatabaseV3 {
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
 			Name: name,
@@ -1345,11 +1405,11 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-func newUserTasks(t *testing.T) *usertasksv1.UserTask {
+func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
 	t.Helper()
 
 	ut, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
-		Integration: "my-integration",
+		Integration: "my-integration-" + name,
 		TaskType:    usertasks.TaskTypeDiscoverEC2,
 		IssueType:   "ec2-ssm-agent-not-registered",
 		State:       "OPEN",
@@ -1392,11 +1452,6 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
-	// TODO(rana): Add broader support for virtual resources in list operations.
-	// Virtual resources change the total count returned by list operations,
-	// and is unexpected for the current test. When updated, we can remove virtual
-	// resource filtering and paging from lib/cache/health_check_config_test.go.
-	opts = append(opts, withSkipPaginationTest())
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
 }
@@ -1420,6 +1475,10 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	if !options.skipPaginationTest {
 		testResourcePagination(t, p, funcs)
 	}
+
+	// Ensure the cache is healthy before proceeding to
+	// prevent running the tests falling back to upstream reads.
+	require.True(t, p.cache.ok)
 
 	// Create a resource.
 	r, err := funcs.newResource("test-resource-1")
@@ -1924,6 +1983,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktopService:             &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:                    &types.WindowsDesktopV3{},
 		types.KindDynamicWindowsDesktop:             &types.DynamicWindowsDesktopV1{},
+		types.KindLinuxDesktop:                      types.ProtoResource153ToLegacy(newLinuxDesktop("linux-desktop")),
 		types.KindInstaller:                         &types.InstallerV1{},
 		types.KindKubernetesCluster:                 &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:            &types.SAMLIdPServiceProviderV1{},
@@ -1946,6 +2006,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
+		types.KindBeam:                              types.Resource153ToLegacy(newBeamResource("some-beam", "curious-harbor", clock.Now().Add(time.Hour))),
+		types.KindBeamsConfig:                       types.ProtoResource153ToLegacy(services.DefaultBeamsConfig()),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindSPIFFEFederation:                  types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindStaticHostUser:                    types.Resource153ToLegacy(newStaticHostUser(t, "test")),
@@ -1954,7 +2016,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
 		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
-		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t, "test")),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
@@ -1969,7 +2031,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
-		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
+		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
+		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
+		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
+		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
+		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
+		types.KindPendingCSRRequest:                 types.Resource153ToLegacy(&subcav1.PendingCSRRequest{}),
 	}
 
 	for name, cfg := range cases {
@@ -1991,6 +2058,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				switch uw := event.Resource.(type) {
 				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
@@ -2041,8 +2110,22 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceSecret]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferencePolicy]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferencePolicy]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*beamsv1.Beam]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.BeamsConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2493,6 +2576,20 @@ func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
 	return r
 }
 
+func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
+	return linuxdesktopv1.LinuxDesktop_builder{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+			Addr:     "127.0.0.1:22",
+			Hostname: "host",
+		}.Build(),
+	}.Build()
+}
+
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {
 	t.Helper()
 
@@ -2655,18 +2752,6 @@ func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInsta
 	}
 }
 
-func newWorkloadCluster(t *testing.T, name string) *workloadclusterv1.WorkloadCluster {
-	t.Helper()
-
-	workloadCluster := &workloadclusterv1.WorkloadCluster{
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-	}
-
-	return workloadCluster
-}
-
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
@@ -2762,10 +2847,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	assert.Len(t, page3, 1)
 	assert.Empty(t, end)
 
-	var listed []T
-	listed = append(listed, page1...)
-	listed = append(listed, page2...)
-	listed = append(listed, page3...)
+	listed := slices.Concat(page1, page2, page3)
 
 	// All items have been returned as expected
 	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
@@ -2776,13 +2858,40 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	assert.Len(t, pageSmall, 1)
 	assert.NotEmpty(t, pageSmallNext)
 
-	if funcs.Range != nil && funcs.cacheRange != nil {
-		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
-		require.NoError(t, err)
-		assert.Len(t, out, len(page1))
-		assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
+	// Verify pagination behaves correctly through the upstream-fallback path
+	// when the cache is not healthy.
+	p.cache.ok = false
 
-		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+	upstreamPage1, upstreamNext1, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage1, defaultTestPageSize)
+	assert.NotEmpty(t, upstreamNext1)
+
+	upstreamPage2, upstreamNext2, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext1)
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage2, defaultTestPageSize)
+	assert.NotEmpty(t, upstreamNext2)
+	assert.NotEqual(t, upstreamPage1, upstreamPage2)
+
+	upstreamPage3, end, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext2)
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage3, 1)
+	assert.Empty(t, end)
+
+	upstreamListed := slices.Concat(upstreamPage1, upstreamPage2, upstreamPage3)
+	assert.Empty(t, cmp.Diff(expected, upstreamListed, cmpOpts...))
+
+	p.cache.ok = true
+
+	if funcs.Range != nil && funcs.cacheRange != nil {
+		if !p.ignoreRangeEndKey {
+			out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
+			require.NoError(t, err)
+			assert.Len(t, out, len(page1))
+			assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
+		}
+
+		out, err := stream.Collect(funcs.cacheRange(ctx, "", ""))
 		require.NoError(t, err)
 		assert.Len(t, out, len(expected))
 		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
@@ -2810,6 +2919,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
+	p.cache.ok = true
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		items, err := funcs.cacheListAll(ctx)
 		assert.NoError(t, err)

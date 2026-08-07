@@ -5,6 +5,7 @@ description: How to securely configure PROXY protocol usage with Teleport.
 tags:
  - how-to
  - platform-wide
+page_type: how-to
 ---
 
 This guide shows you how to configure the Teleport Auth Service and Proxy
@@ -42,6 +43,10 @@ Here is an example of the PROXYv1 protocol header:
 PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n
 ```
 
+<Admonition type="note">
+Teleport supports both PROXY protocol v1 and v2.
+</Admonition>
+
 ## Prerequisites
 
 - A self-hosted Teleport Enterprise account. If you want to get started with
@@ -54,7 +59,7 @@ PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n
 
 - The `tctl` admin tool and `tsh` client tool.
 
-  Visit [Installation](../../../installation/installation.mdx) for instructions on downloading
+  Visit [Installation](../../../installation/single-machine/single-machine.mdx) for instructions on downloading
   `tctl` and `tsh`.
 
 ## Step 1/2. Plan your Teleport deployment

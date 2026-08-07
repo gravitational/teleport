@@ -83,8 +83,8 @@ type s3V2FileWriter struct {
 
 // NewS3V2FileWriter created s3V2FileWriter. Close method on writer should be called
 // to make sure that reader has finished.
-func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerv2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) {
-	uploader := managerv2.NewUploader(s3Client, uploaderOptions...)
+func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerv2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) { //nolint:staticcheck // TODO(tigrato)
+	uploader := managerv2.NewUploader(s3Client, uploaderOptions...) //nolint:staticcheck // TODO(tigrato)
 	pr, pw := io.Pipe()
 
 	uploadParams := &s3v2.PutObjectInput{
@@ -99,7 +99,7 @@ func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, 
 	uploadFinisherErrChan := make(chan error)
 	go func() {
 		defer close(uploadFinisherErrChan)
-		_, err := uploader.Upload(ctx, uploadParams)
+		_, err := uploader.Upload(ctx, uploadParams) //nolint:staticcheck // TODO(tigrato)
 		if err != nil {
 			pr.CloseWithError(err)
 		}

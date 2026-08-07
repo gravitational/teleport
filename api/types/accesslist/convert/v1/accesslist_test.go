@@ -292,7 +292,11 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	require.NoError(t, err)
 
 	accessList.Status = accesslist.Status{
-		MemberCount: &memberCount,
+		MemberCount:    &memberCount,
+		OwnerOf:        []string{"ownerof"},
+		MemberOf:       []string{"memberof"},
+		ScopedOwnerOf:  []string{"scopedownerof"},
+		ScopedMemberOf: []string{"scopedmemberof"},
 	}
 
 	return accessList
@@ -502,5 +506,5 @@ func Test_convertGrantsToProto_never_nil(t *testing.T) {
 	//
 	// See https://github.com/gravitational/teleport/issues/58948
 	emptyGrants := accesslist.Grants{}
-	require.NotNil(t, convertGrantsToProto(emptyGrants))
+	require.NotNil(t, ConvertGrantsToProto(emptyGrants))
 }

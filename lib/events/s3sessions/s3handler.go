@@ -273,7 +273,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
 
-	uploader := manager.NewUploader(client)
+	uploader := manager.NewUploader(client) //nolint:staticcheck // TODO(tigrato)
 
 	h := &Handler{
 		logger:   logger,
@@ -307,7 +307,7 @@ type Handler struct {
 	Config
 	// logger emits log messages
 	logger   *slog.Logger
-	uploader *manager.Uploader
+	uploader *manager.Uploader //nolint:staticcheck // TODO(tigrato)
 	client   s3Client
 }
 
@@ -435,7 +435,7 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	if h.Config.ACL != "" {
 		uploadInput.ACL = awstypes.ObjectCannedACL(h.Config.ACL)
 	}
-	_, err := h.uploader.Upload(ctx, uploadInput)
+	_, err := h.uploader.Upload(ctx, uploadInput) //nolint:staticcheck // TODO(tigrato)
 	if err != nil {
 		return "", awsutils.ConvertS3Error(err)
 	}

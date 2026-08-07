@@ -21,13 +21,15 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from 'react';
 
+import { Logger } from 'design/logger';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
-import { ClipboardData, TdpClient } from 'shared/libs/tdp';
+import { ClientScreenSpec, ClipboardData, TdpClient } from 'shared/libs/tdp';
 import { isAbortError } from 'shared/utils/error';
 
 declare global {
@@ -35,6 +37,15 @@ declare global {
     showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
   }
 }
+
+const supportsClipboardChangeEvent =
+  navigator.clipboard && 'onclipboardchange' in navigator.clipboard;
+
+const logger = new Logger('DesktopSession');
+export type DirectoryEntry = {
+  name: string;
+  id: number;
+};
 
 export default function useDesktopSession(
   tdpClient: TdpClient,
@@ -46,14 +57,16 @@ export default function useDesktopSession(
 ) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  const [directorySharingState, setDirectorySharingState] = useState<{
-    directorySelected: boolean;
-  }>({ directorySelected: false });
+  const triggeredClipboardPermissionsCheck = useRef(false);
 
   const [clipboardSharingState, setClipboardSharingState] = useState<{
     readState?: PermissionState;
     writeState?: PermissionState;
   }>({});
+
+  const [sharedDirectoriesState, setSharedDirectoriesState] = useState<
+    DirectoryEntry[]
+  >([]);
 
   const clipboardSharing: ClipboardSharingState = {
     ...clipboardSharingState,
@@ -63,7 +76,6 @@ export default function useDesktopSession(
       aclAttempt.data.clipboardSharingEnabled,
   };
   const directorySharing: DirectorySharingState = {
-    ...directorySharingState,
     browserSupported: browserSupportsSharing,
     allowedByAcl:
       aclAttempt.status === 'success' &&
@@ -80,18 +92,31 @@ export default function useDesktopSession(
       setClipboardSharingState
     );
 
+    if (supportsClipboardChangeEvent) {
+      navigator.clipboard.addEventListener(
+        'clipboardchange',
+        handleNativeClipboardChange
+      );
+    }
+
     return () => {
       clearReadListenerPromise.then(clearReadListener => clearReadListener());
       clearWriteListenerPromise.then(clearWriteListener =>
         clearWriteListener()
       );
+      if (supportsClipboardChangeEvent) {
+        navigator.clipboard.removeEventListener(
+          'clipboardchange',
+          handleNativeClipboardChange
+        );
+      }
     };
   }, []);
 
   const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
-  const onRemoveAlert = (id: string) => {
+  const onRemoveAlert = useCallback((id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
-  };
+  }, []);
   const addAlert = useCallback((alert: Omit<ToastNotificationItem, 'id'>) => {
     setAlerts(prevState => [
       ...prevState,
@@ -99,8 +124,34 @@ export default function useDesktopSession(
     ]);
   }, []);
 
+  const handleNativeClipboardChange = useEffectEvent(() => {
+    logger.info('Native clipboardchange event received, syncing clipboard');
+    void sendLocalClipboardToRemote();
+  });
+
+  function onTransientUserActivation() {
+    // Fallback for Chromium versions without the native clipboardchange event.
+    // In browsers with native support, still trigger one read on the first user
+    // action so the browser shows the clipboard prompt before remote-to-local
+    // clipboard writes.
+    if (!supportsClipboardChangeEvent) {
+      void sendLocalClipboardToRemote();
+      return;
+    }
+
+    if (triggeredClipboardPermissionsCheck.current) {
+      return;
+    }
+
+    triggeredClipboardPermissionsCheck.current = true;
+    void sendLocalClipboardToRemote();
+  }
+
   async function sendLocalClipboardToRemote() {
     if (!(await sysClipboardGuard(clipboardSharing, 'read'))) {
+      logger.warn(
+        'Skipping clipboard sync: local clipboard read is not allowed'
+      );
       return;
     }
     const text = await navigator.clipboard.readText();
@@ -114,31 +165,43 @@ export default function useDesktopSession(
   }
 
   async function onClipboardData(clipboardData: ClipboardData) {
-    if (
-      clipboardData.data &&
-      (await sysClipboardGuard(clipboardSharing, 'write'))
-    ) {
-      await navigator.clipboard.writeText(clipboardData.data);
-      latestClipboardDigest.current = await sha256Digest(
-        clipboardData.data,
-        encoder.current
-      );
+    if (!clipboardData.data) {
+      return;
     }
+    if (!(await sysClipboardGuard(clipboardSharing, 'write'))) {
+      logger.warn(
+        'Skipping clipboard sync: local clipboard write is not allowed'
+      );
+      return;
+    }
+    await navigator.clipboard.writeText(clipboardData.data);
+    latestClipboardDigest.current = await sha256Digest(
+      clipboardData.data,
+      encoder.current
+    );
   }
 
-  const onShareDirectory = async () => {
+  const connect = (
+    options: {
+      keyboardLayout?: number;
+      screenSpec?: ClientScreenSpec;
+    } = {}
+  ) => {
+    // The client clears any tracked shared directories on each connect.
+    setSharedDirectoriesState([]);
+    return tdpClient.connect(options);
+  };
+
+  const addSharedDirectory = useCallback(async () => {
     try {
       await tdpClient.shareDirectory();
-      setDirectorySharingState({
-        directorySelected: true,
-      });
+      setSharedDirectoriesState(tdpClient.listSharedDirectories());
     } catch (e) {
+      // An abort error is thrown when the user cancels
+      // the directory picker dialogue.
       if (isAbortError(e)) {
         return;
       }
-      setDirectorySharingState({
-        directorySelected: false,
-      });
       addAlert({
         severity: 'warn',
         content: {
@@ -147,25 +210,39 @@ export default function useDesktopSession(
         },
       });
     }
-  };
+  }, [tdpClient, addAlert]);
 
-  /** Clears sharing state. */
-  const clearSharing = useCallback(() => {
-    setDirectorySharingState({
-      directorySelected: false,
-    });
-  }, []);
+  const removeSharedDirectory = useCallback(
+    (directoryId: number) => {
+      try {
+        tdpClient.unshareDirectory(directoryId);
+        setSharedDirectoriesState(tdpClient.listSharedDirectories());
+      } catch (e) {
+        addAlert({
+          severity: 'warn',
+          content: {
+            title: 'Failed to unmount the shared directory',
+            description: e.message,
+          },
+        });
+      }
+    },
+    [tdpClient, addAlert]
+  );
 
   return {
-    clipboardSharingState: clipboardSharing,
     directorySharingState: directorySharing,
-    clearSharing,
-    onShareDirectory,
+    onClipboardData,
+    sendLocalClipboardToRemote,
+    clipboardSharingState: clipboardSharing,
+    sharedDirectoriesState,
+    addSharedDirectory,
+    removeSharedDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
-    sendLocalClipboardToRemote,
-    onClipboardData,
+    onTransientUserActivation,
+    connect,
   };
 }
 
@@ -185,12 +262,7 @@ type CommonFeatureState = {
 /**
  * The state of the directory sharing feature.
  */
-export type DirectorySharingState = CommonFeatureState & {
-  /**
-   * Whether the user is currently sharing a directory.
-   */
-  directorySelected: boolean;
-};
+export type DirectorySharingState = CommonFeatureState;
 
 /**
  * The state of the clipboard sharing feature.
@@ -311,16 +383,18 @@ export function directorySharingPossible(
 }
 
 /**
- * Returns whether directory sharing is active.
+ * Provides a user-friendly message indicating whether directory sharing is enabled,
+ * and the reason it is disabled.
  */
-export function isSharingDirectory(
-  directorySharingState: DirectorySharingState
-): boolean {
-  return (
-    directorySharingState.allowedByAcl &&
-    directorySharingState.browserSupported &&
-    directorySharingState.directorySelected
-  );
+export function directorySharingMessage(state: DirectorySharingState): string {
+  if (!state.allowedByAcl) {
+    return 'Directory Sharing disabled by Teleport RBAC.';
+  }
+  if (!state.browserSupported) {
+    return 'Directory Sharing is not supported in this browser.';
+  }
+
+  return 'Share local directories with this Windows desktop.';
 }
 
 /**

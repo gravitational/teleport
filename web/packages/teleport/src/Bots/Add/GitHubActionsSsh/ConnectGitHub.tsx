@@ -299,7 +299,7 @@ const MultipleHostsError = () => {
 const EnterpriseHostError = () => {
   return (
     <Box>
-      GitHub Enterprise Server Host require Teleport Enterprise.Please use a
+      GitHub Enterprise Server Host requires Teleport Enterprise. Please use a
       repository hosted at github.com or{' '}
       <Link target="_blank" href="https://goteleport.com/signup/enterprise/">
         contact us

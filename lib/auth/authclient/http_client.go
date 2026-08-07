@@ -468,19 +468,6 @@ func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (t
 	return services.UnmarshalWebSession(out.Bytes())
 }
 
-// CreateWebSession creates a new web session for a user
-func (c *HTTPClient) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	out, err := c.PostJSON(
-		ctx,
-		c.Endpoint("users", url.PathEscape(user), "web", "sessions"),
-		WebSessionReq{User: user},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
@@ -498,7 +485,7 @@ func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUs
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
 	out, err := c.PostJSON(
 		ctx,
 		c.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
@@ -507,7 +494,7 @@ func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSS
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re SSHLoginResponse
+	var re CLILoginResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, trace.Wrap(err)
 	}

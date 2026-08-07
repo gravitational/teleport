@@ -43,7 +43,7 @@ type Command struct {
 func (c *Command) Initialize(app *kingpin.Application, _ *config.GlobalCLIFlags, _ *servicecfg.Config) {
 	rootCmd := app.Command("stable-unix-users", "Manage the database of stable UNIX users.")
 	c.lsCmd = rootCmd.Command("ls", "List the stable UNIX users currently persisted in the cluster.")
-	c.lsCmd.Flag("format", "Output format, 'text', or 'json'").Default(teleport.Text).EnumVar(&c.lsFormat, teleport.Text, teleport.JSON, teleport.YAML)
+	c.lsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.lsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun implements [tool/tctl/common.CLICommand].

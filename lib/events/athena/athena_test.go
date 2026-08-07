@@ -339,7 +339,7 @@ func TestPublisherConsumer(t *testing.T) {
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
 			Type: events.AppCreateEvent,
-			Code: strings.Repeat("d", 2*maxDirectMessageSize),
+			Code: strings.Repeat("d", 2*maxSNSDirectMessageSize),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppName: "app-large",
@@ -420,12 +420,10 @@ func TestPublisherConsumer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fS3 := newFakeS3manager()
 			fq := newFakeQueue()
-			p := &publisher{
-				PublisherConfig: PublisherConfig{
-					MessagePublisher: fq,
-					Uploader:         fS3,
-				},
-			}
+			p := NewPublisher(PublisherConfig{
+				MessagePublisher: fq,
+				Uploader:         fS3,
+			})
 			cfg := validCollectCfgForTests(t)
 			cfg.sqsReceiver = fq
 			cfg.payloadDownloader = fS3
@@ -484,7 +482,7 @@ func newFakeS3manager() *fakeS3manager {
 	}
 }
 
-func (f *fakeS3manager) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
+func (f *fakeS3manager) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) { //nolint:staticcheck // TODO(tigrato)
 	data, err := io.ReadAll(input.Body)
 	if err != nil {
 		return nil, err
@@ -494,7 +492,7 @@ func (f *fakeS3manager) Upload(ctx context.Context, input *s3.PutObjectInput, op
 	return &manager.UploadOutput{Key: input.Key}, nil
 }
 
-func (f *fakeS3manager) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) {
+func (f *fakeS3manager) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) { //nolint:staticcheck // TODO(tigrato)
 	data, ok := f.objects[*input.Key]
 	if !ok {
 		return 0, errors.New("object not found")

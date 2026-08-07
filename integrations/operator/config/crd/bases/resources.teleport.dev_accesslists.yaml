@@ -1,7 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: null
   name: teleportaccesslists.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -82,10 +81,24 @@ spec:
                 nullable: true
                 properties:
                   roles:
-                    description: roles are the roles that are granted to users who
-                      are members of the Access List.
+                    description: roles are the names of roles to be granted to users.
                     items:
                       type: string
+                    nullable: true
+                    type: array
+                  scoped_roles:
+                    description: scoped_roles are scoped roles to be granted to users.
+                    items:
+                      properties:
+                        role:
+                          description: role is the scope-qualified name of the scoped
+                            role to be granted.
+                          type: string
+                        scope:
+                          description: scope is the scope the role will be granted
+                            at. It must be an assignable scope of the role.
+                          type: string
+                      type: object
                     nullable: true
                     type: array
                   traits:
@@ -93,8 +106,7 @@ spec:
                       items:
                         type: string
                       type: array
-                    description: traits are the traits that are granted to users who
-                      are members of the Access List.
+                    description: traits are the traits to be granted to users.
                     type: object
                 type: object
               membership_requires:
@@ -126,10 +138,24 @@ spec:
                 nullable: true
                 properties:
                   roles:
-                    description: roles are the roles that are granted to users who
-                      are members of the Access List.
+                    description: roles are the names of roles to be granted to users.
                     items:
                       type: string
+                    nullable: true
+                    type: array
+                  scoped_roles:
+                    description: scoped_roles are scoped roles to be granted to users.
+                    items:
+                      properties:
+                        role:
+                          description: role is the scope-qualified name of the scoped
+                            role to be granted.
+                          type: string
+                        scope:
+                          description: scope is the scope the role will be granted
+                            at. It must be an assignable scope of the role.
+                          type: string
+                      type: object
                     nullable: true
                     type: array
                   traits:
@@ -137,8 +163,7 @@ spec:
                       items:
                         type: string
                       type: array
-                    description: traits are the traits that are granted to users who
-                      are members of the Access List.
+                    description: traits are the traits to be granted to users.
                     type: object
                 type: object
               owners:
@@ -155,10 +180,14 @@ spec:
                       x-kubernetes-int-or-string: true
                     membership_kind:
                       description: membership_kind describes the type of membership,
-                        either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+                        either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or
+                        `MEMBERSHIP_KIND_SCOPED_LIST`.
                       x-kubernetes-int-or-string: true
                     name:
-                      description: name is the username of the owner.
+                      description: 'name is the name of the owner, depending on MembershipKind:
+                        MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST:
+                        the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST:
+                        the scope-qualified name of the owner Access List.'
                       type: string
                   type: object
                 nullable: true

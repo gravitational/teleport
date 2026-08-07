@@ -62,7 +62,7 @@ describe('proxyHostToBrowserProxyHost', () => {
         input: 'https://cluster.example.com:3090',
       },
       {
-        name: 'whatwg-url parsing error',
+        name: 'URL parsing error',
         input: '<teleport>',
       },
     ];

@@ -31,8 +31,109 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 )
+
+// requireValidIDFile reads the id_bkp file in storage and checks it parses as
+// a valid private key.
+func requireValidIDFile(t *testing.T, storage string) {
+	t.Helper()
+	keyPath := filepath.Join(storage, boundkeypair.PrivateKeyPath)
+	require.FileExists(t, keyPath)
+	keyBytes, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+	_, err = keys.ParsePrivateKey(keyBytes)
+	require.NoError(t, err)
+}
+
+// TestOnKeypairCreateCommand exercises the main code paths of onKeypairCreateCommand.
+func TestOnKeypairCreateCommand(t *testing.T) {
+	t.Run("directory already exists", func(t *testing.T) {
+		storage := t.TempDir()
+		require.DirExists(t, storage)
+
+		require.NoError(t, onKeypairCreateCommand(t.Context(), &cli.GlobalArgs{}, &cli.KeypairCreateCommand{
+			GetSuite: dummyGetSuite,
+			Format:   teleport.JSON,
+			Storage:  storage,
+			Writer:   &bytes.Buffer{},
+		}))
+
+		requireValidIDFile(t, storage)
+	})
+
+	t.Run("directory does not exist", func(t *testing.T) {
+		storage := filepath.Join(t.TempDir(), "nonexistent", "subdir")
+		require.NoDirExists(t, storage)
+
+		require.NoError(t, onKeypairCreateCommand(t.Context(), &cli.GlobalArgs{}, &cli.KeypairCreateCommand{
+			GetSuite: dummyGetSuite,
+			Format:   teleport.JSON,
+			Storage:  storage,
+			Writer:   &bytes.Buffer{},
+		}))
+
+		require.DirExists(t, storage)
+		requireValidIDFile(t, storage)
+	})
+
+	t.Run("state already exists without overwrite", func(t *testing.T) {
+		storage := t.TempDir()
+
+		require.NoError(t, onKeypairCreateCommand(t.Context(), &cli.GlobalArgs{}, &cli.KeypairCreateCommand{
+			GetSuite: dummyGetSuite,
+			Format:   teleport.JSON,
+			Storage:  storage,
+			Writer:   &bytes.Buffer{},
+		}))
+
+		firstKeyBytes, err := os.ReadFile(filepath.Join(storage, boundkeypair.PrivateKeyPath))
+		require.NoError(t, err)
+
+		// Without --overwrite the existing key should be returned unchanged.
+		require.NoError(t, onKeypairCreateCommand(t.Context(), &cli.GlobalArgs{}, &cli.KeypairCreateCommand{
+			GetSuite:  dummyGetSuite,
+			Format:    teleport.JSON,
+			Storage:   storage,
+			Overwrite: false,
+			Writer:    &bytes.Buffer{},
+		}))
+
+		secondKeyBytes, err := os.ReadFile(filepath.Join(storage, boundkeypair.PrivateKeyPath))
+		require.NoError(t, err)
+		require.Equal(t, firstKeyBytes, secondKeyBytes)
+	})
+
+	t.Run("state already exists with overwrite", func(t *testing.T) {
+		storage := t.TempDir()
+
+		require.NoError(t, onKeypairCreateCommand(t.Context(), &cli.GlobalArgs{}, &cli.KeypairCreateCommand{
+			GetSuite: dummyGetSuite,
+			Format:   teleport.JSON,
+			Storage:  storage,
+			Writer:   &bytes.Buffer{},
+		}))
+
+		firstKeyBytes, err := os.ReadFile(filepath.Join(storage, boundkeypair.PrivateKeyPath))
+		require.NoError(t, err)
+
+		// With --overwrite a new key should be generated and stored.
+		require.NoError(t, onKeypairCreateCommand(t.Context(), &cli.GlobalArgs{}, &cli.KeypairCreateCommand{
+			GetSuite:  dummyGetSuite,
+			Format:    teleport.JSON,
+			Storage:   storage,
+			Overwrite: true,
+			Writer:    &bytes.Buffer{},
+		}))
+
+		requireValidIDFile(t, storage)
+		secondKeyBytes, err := os.ReadFile(filepath.Join(storage, boundkeypair.PrivateKeyPath))
+		require.NoError(t, err)
+		require.NotEqual(t, firstKeyBytes, secondKeyBytes)
+	})
+}
 
 func dummyGetSuite(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
 	return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil

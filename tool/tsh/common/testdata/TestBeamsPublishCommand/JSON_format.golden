@@ -1,0 +1,7 @@
+{
+  "id": "alpha",
+  "uuid": "11111111-1111-1111-1111-111111111111",
+  "owner": "alice",
+  "expires": "2026-01-02T03:04:05Z",
+  "url": "https://alpha-app.proxy.example.com"
+}

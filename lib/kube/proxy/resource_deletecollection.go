@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -335,15 +335,20 @@ func deleteResources[T kubeObjectInterface](
 	deleteOptions metav1.DeleteOptions,
 ) ([]T, error) {
 	deletedItems := make([]T, 0, len(items))
+	checker, err := params.authCtx.getAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, item := range items {
 		// Compute users and groups from available roles that match the
 		// cluster labels and kubernetes resources.
-		allowedKubeGroups, allowedKubeUsers, err := params.authCtx.Checker.CheckKubeGroupsAndUsers(
+		allowedKubeGroups, allowedKubeUsers, err := checker.Kube().GetGroupsAndUsers(
 			params.authCtx.sessionTTL,
 			false,
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,
-				params.authCtx.Checker.Traits(),
+				checker.AccessInfo().Username,
+				params.authCtx.CheckerContext.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
@@ -357,7 +362,7 @@ func deleteResources[T kubeObjectInterface](
 		allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, params.authCtx.User.GetName())
 
 		impersonatedUsers, impersonatedGroups, err := computeAndValidateImpersonatedPrincipals(
-			utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+			set.New(allowedKubeUsers...), set.New(allowedKubeGroups...),
 			params.authCtx.User.GetName(),
 			params.header,
 		)

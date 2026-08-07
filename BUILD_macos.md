@@ -51,6 +51,16 @@ PRs with corrections and updates are welcome!
   # or open a new shell
   ```
 
+* Install `llvm`:
+
+   ```shell
+   brew install llvm
+
+   # Update PATH and apply changes to shell
+   echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   ```
+
 * To install `libfido2` (pulls `openssl 3` as dependency)
 
   ```shell

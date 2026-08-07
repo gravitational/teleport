@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package access
 
 import "github.com/gravitational/teleport/api/types"
@@ -29,6 +30,21 @@ func isAllowedScopedRule(kind string, verb string) bool {
 		return isReadWriteNoSecrets(verb)
 	case types.KindScopedToken:
 		// scoped tokens can be read/written, and contain secrets.
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
+	case types.KindBot:
+		// bots can be read/written, and do not currently contain a concept of a secret.
+		return isReadWriteNoSecrets(verb)
+	case types.KindBotInstance:
+		// bot instances can be read/written, and do not currently contain a concept of a secret.
+		return isReadWriteNoSecrets(verb)
+	case types.KindAppServer:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
+	case types.KindAccessList:
+		// access lists can be read/written, and do not contain a concept of a secret.
+		// permissions for access list members are conferred by permissions for
+		// access list themselves, and/or list ownership.
+		return isReadWriteNoSecrets(verb)
+	case types.KindKubernetesCluster:
 		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
 	default:
 		return false

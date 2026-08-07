@@ -103,25 +103,31 @@ const appRedirectHTML = `
     <title>Teleport Redirection Service</title>
     <script nonce="{{.}}">
       (function() {
-        var currentUrl = new URL(window.location);
-        var currentOrigin = currentUrl.origin;
-        var params = new URLSearchParams(currentUrl.search);
-        var stateValue = params.get('state');
-        var subjectValue = params.get('subject');
-        var path = params.get('path');
+        var currentUrl = new URL(window.location)
+        var currentOrigin = currentUrl.origin
+        var params = new URLSearchParams(currentUrl.search)
+        var stateValue = params.get('state')
+        var subjectValue = params.get('subject')
+        var path = params.get('path')
         if (!stateValue) {
-          return;
+          return
         }
-        var hashParts = window.location.hash.split('=');
-        if (hashParts.length !== 2 || hashParts[0] !== '#value') {
-          return;
+        // The URL fragment encodes two URLSearchParams values:
+        // 'value' is the session cookie, and 'fragment' (optional)
+        // is the user's original fragment, reattached to the final
+        // navigation below.
+        var hashParams = new URLSearchParams(window.location.hash.slice(1))
+        var cookieValue = hashParams.get('value')
+        if (!cookieValue) {
+          return
         }
+        var fragment = hashParams.get('fragment')
         const data = {
           state_value: stateValue,
-          cookie_value: hashParts[1],
+          cookie_value: cookieValue,
           subject_cookie_value: subjectValue,
           required_apps: params.get('required-apps'),
-        };
+        }
         fetch('/x-teleport-auth', {
           method: 'POST',
           mode: 'same-origin',
@@ -131,31 +137,37 @@ const appRedirectHTML = `
           },
           body: JSON.stringify(data),
         }).then(response => {
-          if (response.ok) {
-            const nextAppRedirectUrl = response.headers.get("X-Teleport-NextAppRedirectUrl")
-            if (nextAppRedirectUrl) {
-              window.location.replace(nextAppRedirectUrl)
-              return;
-            }
+          if (!response.ok) {
+            return
+          }
+          var target = currentOrigin
+          const nextAppRedirectUrl = response.headers.get("X-Teleport-NextAppRedirectUrl")
+          if (nextAppRedirectUrl) {
+            // Drop the fragment on a chain hop: reattaching it
+            // here would leak it to an intermediate app's
+            // origin. The launcher already skips packing it on
+            // chain redirects.
+            target = nextAppRedirectUrl
+          } else {
             try {
-              // if a path parameter was passed through the redirect, append that path to the current origin
-              if (path) {
-                var redirectUrl = new URL(path, currentOrigin)
-                if (redirectUrl.origin === currentOrigin) {
-                  window.location.replace(redirectUrl.toString())
-                } else {
-                  window.location.replace(currentOrigin)
-                }
-              } else {
-                window.location.replace(currentOrigin)
+              // Resolve path relative to currentOrigin; fall back
+              // to the origin root if the path crosses origins
+              // (e.g. "//attacker.com/foo").
+              var redirectUrl = new URL(path || '/', currentOrigin)
+              if (redirectUrl.origin !== currentOrigin) {
+                redirectUrl = new URL('/', currentOrigin)
               }
+              if (fragment) {
+                redirectUrl.hash = fragment
+              }
+              target = redirectUrl.toString()
             } catch (error) {
-              // in case of malformed url, return to current origin
-              window.location.replace(currentOrigin)
+              // Malformed URL: target stays as currentOrigin.
             }
           }
-        });
-      })();
+          window.location.replace(target)
+        })
+      })()
     </script>
   </head>
   <body></body>

@@ -237,7 +237,7 @@ func parseIP(protocol string, addrString string) (net.IP, error) {
 		return nil, trace.BadParameter("failed to parse address")
 	case addr.To4() != nil && protocol != TCP4:
 		return nil, trace.BadParameter("got IPV4 address %q for IPV6 proto %q", addr.String(), protocol)
-	case addr.To4() == nil && protocol == TCP6:
+	case addr.To4() == nil && protocol != TCP6:
 		return nil, trace.BadParameter("got IPV6 address %v %q for IPV4 proto %q", len(addr), addr.String(), protocol)
 	}
 	return addr, nil
@@ -476,6 +476,11 @@ func (p *ProxyLine) getTeleportTLVs() (teleportTLVs, error) {
 					addr, err := net.ResolveTCPAddr("tcp", string(subTLV.Value))
 					if err != nil {
 						return tlvs, trace.Wrap(err)
+					}
+					// If the source address was marked with a port of 0 to prevent IP Pinning,
+					// then the original address should also have a port of 0.
+					if p.Source.Port == 0 {
+						addr.Port = 0
 					}
 					tlvs.originalAddress = addr
 				}

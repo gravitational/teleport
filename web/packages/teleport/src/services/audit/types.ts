@@ -119,6 +119,9 @@ export const eventCodes = {
   DESKTOP_SHARED_DIRECTORY_READ_FAILURE: 'TDP05W',
   DESKTOP_SHARED_DIRECTORY_WRITE: 'TDP06I',
   DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE: 'TDP06W',
+  LINUX_DESKTOP_SESSION_STARTED: 'TDP07I',
+  LINUX_DESKTOP_SESSION_STARTED_FAILED: 'TDP07W',
+  LINUX_DESKTOP_SESSION_ENDED: 'TDP08I',
   DEVICE_CREATE: 'TV001I',
   DEVICE_DELETE: 'TV002I',
   DEVICE_ENROLL_TOKEN_CREATE: 'TV003I',
@@ -201,6 +204,8 @@ export const eventCodes = {
   SESSION_RECORDING_ACCESS: 'T2012I',
   SSMRUN_FAIL: 'TDS00W',
   SSMRUN_SUCCESS: 'TDS00I',
+  AZURERUN_FAIL: 'TDA00W',
+  AZURERUN_SUCCESS: 'TDA00I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -230,10 +235,13 @@ export const eventCodes = {
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
+  ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
   BOT_JOIN: 'TJ001I',
   BOT_JOIN_FAILURE: 'TJ001E',
+  BOT_JOIN_LIMIT: 'TJ001L',
   INSTANCE_JOIN: 'TJ002I',
   INSTANCE_JOIN_FAILURE: 'TJ002E',
+  INSTANCE_JOIN_LIMIT: 'TJ002L',
   BOT_CREATED: 'TB001I',
   BOT_UPDATED: 'TB002I',
   BOT_DELETED: 'TB003I',
@@ -290,6 +298,8 @@ export const eventCodes = {
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
   SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
   SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
+  SPIFFE_FEDERATION_CREATE: 'TSPIFFE001I',
+  SPIFFE_FEDERATION_DELETE: 'TSPIFFE002I',
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
@@ -363,6 +373,9 @@ export const eventCodes = {
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
+  BEAMS_CONFIG_CREATE: 'TBEAM001I',
+  BEAMS_CONFIG_UPDATE: 'TBEAM002I',
+  BEAMS_CONFIG_DELETE: 'TBEAM003I',
   WORKLOAD_CLUSTER_CREATE: 'WC001I',
   WORKLOAD_CLUSTER_CREATE_FAILURE: 'WC001E',
   WORKLOAD_CLUSTER_UPDATE: 'WC002I',
@@ -380,6 +393,21 @@ export const eventCodes = {
   INFERENCE_POLICY_DELETE: 'INF009I',
   SESSION_SUMMARIZED: 'INF010I',
   SESSION_SUMMARIZED_FAILURE: 'INF010E',
+  RETRIEVAL_MODEL_CREATE: 'INF011I',
+  RETRIEVAL_MODEL_UPDATE: 'INF012I',
+  RETRIEVAL_MODEL_DELETE: 'INF013I',
+  CERT_AUTH_OVERRIDE_CREATE: 'TCO01I',
+  CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
+  CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
+  CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
+  SCOPED_TOKEN_CREATE: 'TST000I',
+  SCOPED_TOKEN_CREATE_FAILURE: 'TST000E',
+  SCOPED_TOKEN_UPSERT: 'TST001I',
+  SCOPED_TOKEN_UPSERT_FAILURE: 'TST001E',
+  SCOPED_TOKEN_UPDATE: 'TST002I',
+  SCOPED_TOKEN_UPDATE_FAILURE: 'TST002E',
+  SCOPED_TOKEN_DELETE: 'TST003I',
+  SCOPED_TOKEN_DELETE_FAILURE: 'TST003E',
 } as const;
 
 /**
@@ -1232,6 +1260,33 @@ export type RawEvents = {
       windows_domain: string;
     }
   >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_ENDED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: RawEvent<
     typeof eventCodes.DESKTOP_CLIPBOARD_RECEIVE,
     {
@@ -1360,11 +1415,18 @@ export type RawEvents = {
       upgrade_window_start: string;
     }
   >;
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: RawEvent<
+    typeof eventCodes.ENVIRONMENT_PROFILE_UPDATED,
+    {
+      environment_profile: string;
+    }
+  >;
   [eventCodes.SESSION_RECORDING_ACCESS]: RawEvent<
     typeof eventCodes.SESSION_RECORDING_ACCESS,
     {
       sid: string;
       user: string;
+      session_type?: string;
     }
   >;
   [eventCodes.SSMRUN_SUCCESS]: RawEvent<
@@ -1389,16 +1451,59 @@ export type RawEvents = {
       exit_code: number;
     }
   >;
+  [eventCodes.AZURERUN_SUCCESS]: RawEvent<
+    typeof eventCodes.AZURERUN_SUCCESS,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
+  [eventCodes.AZURERUN_FAIL]: RawEvent<
+    typeof eventCodes.AZURERUN_FAIL,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
   [eventCodes.BOT_JOIN]: RawEvent<
     typeof eventCodes.BOT_JOIN,
     {
       bot_name: string;
       method: string;
       token_name: string;
+      scope: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.BOT_JOIN,
+    typeof eventCodes.BOT_JOIN_FAILURE,
+    {
+      bot_name: string;
+      method: string;
+      token_name: string;
+    }
+  >;
+  [eventCodes.BOT_JOIN_LIMIT]: RawEvent<
+    typeof eventCodes.BOT_JOIN_LIMIT,
     {
       bot_name: string;
       method: string;
@@ -1411,14 +1516,28 @@ export type RawEvents = {
       node_name: string;
       method: string;
       role: string;
+      roles: string[];
+      scope: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN,
+    typeof eventCodes.INSTANCE_JOIN_FAILURE,
     {
       node_name: string;
       method: string;
       role: string;
+      roles: string[];
+      scope: string;
+    }
+  >;
+  [eventCodes.INSTANCE_JOIN_LIMIT]: RawEvent<
+    typeof eventCodes.INSTANCE_JOIN_LIMIT,
+    {
+      node_name: string;
+      method: string;
+      role: string;
+      roles: string[];
+      scope: string;
     }
   >;
   [eventCodes.BOT_CREATED]: RawEvent<typeof eventCodes.BOT_CREATED, HasName>;
@@ -1566,7 +1685,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
-    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP,
     {
       name: string;
       source: string;
@@ -1760,6 +1879,14 @@ export type RawEvents = {
     {
       spiffe_id: string;
     }
+  >;
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: RawEvent<
+    typeof eventCodes.SPIFFE_FEDERATION_CREATE,
+    HasName
+  >;
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: RawEvent<
+    typeof eventCodes.SPIFFE_FEDERATION_DELETE,
+    HasName
   >;
   [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<
     typeof eventCodes.AUTH_PREFERENCE_UPDATE,
@@ -2156,6 +2283,18 @@ export type RawEvents = {
     typeof eventCodes.VNET_CONFIG_DELETE,
     HasName
   >;
+  [eventCodes.BEAMS_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.BEAMS_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.BEAMS_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_DELETE,
+    HasName
+  >;
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
     typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
     HasName
@@ -2216,6 +2355,18 @@ export type RawEvents = {
     typeof eventCodes.INFERENCE_POLICY_DELETE,
     HasName
   >;
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_DELETE,
+    HasName
+  >;
   [eventCodes.SESSION_SUMMARIZED]: RawEvent<
     typeof eventCodes.SESSION_SUMMARIZED,
     {
@@ -2234,6 +2385,51 @@ export type RawEvents = {
       model_name?: string;
       risk_level?: string;
       short_description?: string;
+    }
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_CREATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPDATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPSERT
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
+  >;
+  [eventCodes.SCOPED_TOKEN_CREATE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_CREATE
+  >;
+  [eventCodes.SCOPED_TOKEN_CREATE_FAILURE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_CREATE_FAILURE
+  >;
+  [eventCodes.SCOPED_TOKEN_UPSERT]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPSERT
+  >;
+  [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPSERT_FAILURE
+  >;
+  [eventCodes.SCOPED_TOKEN_UPDATE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPDATE
+  >;
+  [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: RawScopedTokenEvent<
+    typeof eventCodes.SCOPED_TOKEN_UPDATE_FAILURE
+  >;
+  [eventCodes.SCOPED_TOKEN_DELETE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_DELETE,
+    {
+      name: string;
+      scope: string;
+    }
+  >;
+  [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SCOPED_TOKEN_DELETE_FAILURE,
+    {
+      name: string;
+      scope: string;
+      error: string;
     }
   >;
 };
@@ -2470,6 +2666,45 @@ type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
     external_id: string;
     integration: string;
     display: string;
+  }
+>;
+
+type RawCertAuthOverrideEvent<T extends EventCode> = RawEvent<
+  T,
+  HasName & {
+    ca_override?: {
+      ca_type?: string;
+      cluster_name?: string;
+      certificate_overrides?: {
+        certificate?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        };
+        chain?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        }[];
+        disabled?: boolean;
+      }[];
+    };
+    success?: boolean;
+    user?: string;
+  }
+>;
+
+type RawScopedTokenEvent<T extends EventCode> = RawEvent<
+  T,
+  HasName & {
+    scope: string;
+    assigned_scope: string;
+    roles: string[];
+    join_method: string;
+    success: boolean;
+    error?: string;
   }
 >;
 

@@ -31,6 +31,7 @@ import {
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
@@ -56,6 +57,7 @@ const rootClusterDoc = makeDocumentCluster({
 export function InfoGuideSidePanel() {
   const topBarConnectMyComputerRef = useRef<HTMLDivElement>(null);
   const topBarAccessRequestRef = useRef<HTMLDivElement>(null);
+  const desktopSessionControlsRef = useRef<HTMLDivElement>(null);
 
   const appContext = new MockAppContext();
   const cluster = makeRootCluster({
@@ -68,28 +70,35 @@ export function InfoGuideSidePanel() {
       <ConnectionsContextProvider>
         <VnetContextProvider>
           <MockWorkspaceContextProvider>
-            <ResourcesContextProvider>
-              <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-                <Wrapper>
-                  <InfoGuidePanelProvider>
-                    <Flex flexDirection="column" height="100%">
-                      <Flex flex="1" flexDirection="column">
-                        <TopBar
-                          connectMyComputerRef={topBarConnectMyComputerRef}
-                          accessRequestRef={topBarAccessRequestRef}
+            <AppUpdaterContextProvider>
+              <ResourcesContextProvider>
+                <ConnectMyComputerContextProvider
+                  rootClusterUri={rootClusterUri}
+                >
+                  <Wrapper>
+                    <InfoGuidePanelProvider>
+                      <Flex flexDirection="column" height="100%">
+                        <Flex flex="1" flexDirection="column">
+                          <TopBar
+                            connectMyComputerRef={topBarConnectMyComputerRef}
+                            accessRequestRef={topBarAccessRequestRef}
+                          />
+                          <StyledTabs width="100%" pl={2}>
+                            Dummy tab just for height placement for the guide
+                            info.
+                          </StyledTabs>
+                          <Example />
+                        </Flex>
+                        <StatusBar
+                          onAssumedRolesClick={() => null}
+                          desktopSessionControlsRef={desktopSessionControlsRef}
                         />
-                        <StyledTabs width="100%" pl={2}>
-                          Dummy tab just for height placement for the guide
-                          info.
-                        </StyledTabs>
-                        <Example />
                       </Flex>
-                      <StatusBar onAssumedRolesClick={() => null} />
-                    </Flex>
-                  </InfoGuidePanelProvider>
-                </Wrapper>
-              </ConnectMyComputerContextProvider>
-            </ResourcesContextProvider>
+                    </InfoGuidePanelProvider>
+                  </Wrapper>
+                </ConnectMyComputerContextProvider>
+              </ResourcesContextProvider>
+            </AppUpdaterContextProvider>
           </MockWorkspaceContextProvider>
         </VnetContextProvider>
       </ConnectionsContextProvider>

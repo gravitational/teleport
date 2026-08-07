@@ -72,3 +72,22 @@ var EntraIDGroupsTypes = []string{
 	EntraIDDirectoryRoles,
 	EntraIDAllGroups,
 }
+
+// checkAndSetDefaults validates fields on the Entra ID groups provider and
+// returns an error for invalid configurations.
+func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
+	if e.GroupType != "" {
+		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
+			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
+		}
+	}
+
+	// Pass empty string for login endpoint option, only Graph endpoint applicable to EntraIDGroupsProvider.
+	// TODO(nixpig): Refactor ValidateMSGraphEndpoints. Split out into two separate validation functions.
+	// One for Graph endpoint and one for login endpoint.
+	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}

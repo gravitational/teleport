@@ -39,6 +39,7 @@ test('fetching requestable roles for servers uses UUID, not hostname', async () 
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootClusterUri, cluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   await appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
@@ -76,6 +77,7 @@ test('fetching requestable roles for a kube_cluster resource without specifying 
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootClusterUri, cluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   await appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
@@ -120,6 +122,7 @@ test(`fetching requestable roles for a kube cluster's namespaces only creates re
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootClusterUri, cluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   await appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
@@ -200,6 +203,7 @@ test('after creating an access request, pending requests and specifiable fields 
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootClusterUri, cluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   await appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
@@ -268,6 +272,7 @@ test('after creating an access request, pending requests and specifiable fields 
     ],
     roles: ['apple', 'banana'],
     suggestedReviewers: ['bob'],
+    resourceAccessIds: [],
   });
   expect(result.current.requestedCount).toBe(2);
 
@@ -305,6 +310,7 @@ test('after creating an access request, pending requests and specifiable fields 
     // These fields gotten cleared after the first create.
     roles: [],
     suggestedReviewers: [],
+    resourceAccessIds: [],
   });
 });
 
@@ -316,6 +322,7 @@ test('updating kube namespaces', async () => {
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootClusterUri, cluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   await appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)

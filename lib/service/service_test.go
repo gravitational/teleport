@@ -35,7 +35,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -48,11 +47,15 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -60,8 +63,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -74,6 +77,9 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -837,6 +843,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"acme-tls/1",
 				"teleport-tcp-ping",
 				"teleport-mcp-ping",
+				"teleport-app-https-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -879,6 +886,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			wantNextProtos: []string{
 				"teleport-tcp-ping",
 				"teleport-mcp-ping",
+				"teleport-app-https-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -1086,7 +1094,7 @@ func testInstanceSelfRepair(t *testing.T, params instanceSelfRepairParams) {
 	const hostName = "testhost"
 	newStartedProcess := func(token string, sshEnabled bool) *TeleportProcess {
 		cfg := servicecfg.MakeDefaultConfig()
-		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Listener.Addr().String()))
+		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Addr().String()))
 		cfg.Clock = clockwork.NewRealClock()
 		cfg.DataDir = dataDir
 		cfg.Hostname = hostName
@@ -1175,7 +1183,7 @@ func TestSSHPrincipals(t *testing.T) {
 	logger := logtest.NewLogger()
 	const hostName = "testhost"
 	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Listener.Addr().String()))
+	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Addr().String()))
 	nodeCfg.Clock = clockwork.NewRealClock()
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.Hostname = hostName
@@ -1212,92 +1220,6 @@ func expectedSSHPrincipals(hostID, hostName, clusterName string) []string {
 		string(teleport.PrincipalLoopbackV6),
 	}
 
-}
-
-func TestTeleportProcessAuthVersionCheck(t *testing.T) {
-	t.Parallel()
-
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	token := "join-token"
-
-	// Create Auth Service process.
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			{
-				Roles: []types.SystemRole{
-					types.RoleNode,
-				},
-				Token: token,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.SetAuthServerAddress(listenAddr)
-	authCfg.DataDir = makeTempDir(t)
-	authCfg.Auth.Enabled = true
-	authCfg.Auth.StaticTokens = staticTokens
-	authCfg.Auth.StorageConfig.Type = lite.GetName()
-	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir)}
-	authCfg.Auth.ListenAddr = listenAddr
-	authCfg.Proxy.Enabled = false
-	authCfg.SSH.Enabled = false
-
-	authProc, err := NewTeleport(authCfg)
-	require.NoError(t, err)
-
-	err = authProc.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		authProc.Close()
-	})
-
-	// Create Node process, pointing at the auth server's local port
-	authListenAddr := authProc.Config.AuthServerAddresses()[0]
-	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(authListenAddr)
-	nodeCfg.DataDir = makeTempDir(t)
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	// Set the Node's major version to be greater than the Auth Service's,
-	// which should make the version check fail.
-	currentVersion := semver.Version{Major: api.VersionMajor + 1}
-	nodeCfg.Testing.TeleportVersion = currentVersion.String()
-
-	t.Run("with version check", func(t *testing.T) {
-		testVersionCheck(t, nodeCfg, false)
-	})
-
-	t.Run("without version check", func(t *testing.T) {
-		testVersionCheck(t, nodeCfg, true)
-	})
-}
-
-func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck bool) {
-	nodeCfg.SkipVersionCheck = skipVersionCheck
-
-	nodeProc, err := NewTeleport(nodeCfg)
-	require.NoError(t, err)
-
-	c, err := nodeProc.reconnectToAuthService(types.RoleInstance)
-	if skipVersionCheck {
-		require.NoError(t, err)
-		require.NotNil(t, c)
-	} else {
-		require.ErrorAs(t, err, &invalidVersionErr{})
-		require.Nil(t, c)
-	}
-
-	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
-	require.True(t, ok)
-	supervisor.signalExit()
 }
 
 func TestProxyGRPCServers(t *testing.T) {
@@ -2471,4 +2393,466 @@ func basicDirCopy(src string, dst string) error {
 	}
 
 	return nil
+}
+
+func TestInitAppsEmptyConfig(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	log := logtest.NewLogger()
+	supervisor, err := NewSupervisor("test-initApps", log, clock)
+	require.NoError(t, err)
+	t.Cleanup(func() { supervisor.Wait() })
+	process := &TeleportProcess{
+		Supervisor: supervisor,
+		Clock:      clock,
+		Config:     &servicecfg.Config{Apps: servicecfg.AppsConfig{Enabled: true}},
+		logger:     log,
+	}
+
+	process.initApps()
+
+	event, err := process.WaitForEventTimeout(5*time.Second, AppsReady)
+	require.NoError(t, err)
+	require.Equal(t, AppsReady, event.Name)
+}
+
+func TestInitKubernetesUnlicensed(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	log := logtest.NewLogger()
+	supervisor, err := NewSupervisor("test-initKube", log, clock)
+	require.NoError(t, err)
+	dataDir := t.TempDir()
+	stor, err := storage.NewProcessStorage(context.Background(), dataDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { stor.Close() })
+	t.Cleanup(func() { supervisor.signalExit(); supervisor.Wait() })
+
+	process := &TeleportProcess{
+		Supervisor:    supervisor,
+		Clock:         clock,
+		Config:        servicecfg.MakeDefaultConfig(),
+		logger:        log,
+		storage:       stor,
+		instanceRoles: map[types.SystemRole]string{types.RoleKube: KubeIdentityEvent},
+	}
+	// clusterFeatures is zero-valued so K8s entitlement is
+	// disabled, matching the unlicensed early-return path.
+	process.Config.Kube.Enabled = true
+	process.Config.DataDir = dataDir
+
+	process.initKubernetes()
+
+	// Broadcast a fake connector to unblock WaitForConnector
+	// inside the registered critical func.
+	process.BroadcastEvent(Event{Name: KubeIdentityEvent, Payload: &Connector{ReusedClient: true}})
+
+	err = supervisor.Start()
+	require.NoError(t, err)
+
+	event, err := process.WaitForEventTimeout(5*time.Second, KubernetesReady)
+	require.NoError(t, err)
+	require.Equal(t, KubernetesReady, event.Name)
+
+	// Verify OnHeartbeat transitioned the component to stateOK
+	// so that /readyz returns HTTP 200.
+	okEvent, err := process.WaitForEventTimeout(5*time.Second, TeleportOKEvent)
+	require.NoError(t, err)
+	require.Equal(t, teleport.ComponentKube, okEvent.Payload)
+}
+
+// TestInitAppsFromConfig given a list of static apps, ensure that they are
+// correctly registered.
+func TestInitAppsFromConfig(t *testing.T) {
+	t.Parallel()
+
+	authDir := t.TempDir()
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.Version = defaults.TeleportConfigVersionV3
+	cfg.DataDir = authDir
+	cfg.Auth.Enabled = true
+	cfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &cfg.FileDescriptors)
+	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	var err error
+	cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "auth-server",
+	})
+	require.NoError(t, err)
+	cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr.Addr = newListener(t, ListenerProxyWeb, &cfg.FileDescriptors)
+
+	cfg.SSH.Enabled = false
+	cfg.Apps.Enabled = true
+	cfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: "example-http",
+			URI:  "http://localhost:8080",
+		},
+		{
+			Name: "example-mtls",
+			URI:  "https://localhost:8080",
+			TLS: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "localhost",
+				ServerSpiffeId: "spiffe://mycluster/svc/local",
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
+		{
+			Name: "example-llm",
+			URI:  "llm://",
+			LLM: &types.LLM{
+				Format:        types.LLMFormatAnthropic,
+				Provider:      types.LLMProviderAWSBedrock,
+				Models:        []*types.LLM_Model{{Name: "claude-opus-4-7", ProviderName: "global.claude-opus-4-7"}},
+				FallbackModel: "claude-opus-4-7",
+			},
+		},
+	}
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	authC := process.GetAuthServer()
+	watchCtx, watchCancel := context.WithTimeout(t.Context(), 20*time.Second)
+	watcher, err := authC.NewWatcher(watchCtx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		watchCancel()
+		_ = watcher.Close()
+	})
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		_ = process.Close()
+		_ = process.Wait()
+	})
+
+	_, err = process.WaitForEventTimeout(5*time.Second, TeleportReadyEvent)
+	require.NoError(t, err)
+
+	// Ensure watcher starts correctly.
+	select {
+	case ev := <-watcher.Events():
+		require.Equal(t, types.OpInit, ev.Type)
+	case <-watcher.Done():
+		t.Fatalf("watcher closed before init: %v", watcher.Error())
+	case <-watchCtx.Done():
+		t.Fatal("timed out waiting for watcher init")
+	}
+
+	// Subscribe to backend writes for KindAppServer so we can assert their
+	// contents. This is required because the available process events don't
+	// guarantee that the heartbeat event is fired after the resource is
+	// persisted.
+	expected := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, a := range cfg.Apps.Apps {
+		expected[a.Name] = struct{}{}
+	}
+	for len(expected) > 0 {
+		select {
+		case ev := <-watcher.Events():
+			if ev.Type != types.OpPut {
+				continue
+			}
+			srv, ok := ev.Resource.(types.AppServer)
+			if !ok {
+				continue
+			}
+			delete(expected, srv.GetApp().GetName())
+		case <-watcher.Done():
+			t.Fatalf("watcher closed before all apps were registered: %v", watcher.Error())
+		case <-watchCtx.Done():
+			t.Fatalf("timed out waiting for app servers, still expecting: %v", expected)
+		}
+	}
+
+	servers, err := authC.GetApplicationServers(t.Context(), apidefaults.Namespace)
+	require.NoError(t, err)
+
+	byName := make(map[string]types.Application, len(servers))
+	for _, s := range servers {
+		byName[s.GetApp().GetName()] = s.GetApp()
+	}
+	for _, appCfg := range cfg.Apps.Apps {
+		app, ok := byName[appCfg.Name]
+		require.True(t, ok, "expected app %q to be registered", appCfg.Name)
+		require.Equal(t, appCfg.URI, app.GetURI())
+		require.Empty(t, cmp.Diff(appCfg.TLS, app.GetTLS(), protocmp.Transform()))
+		require.Empty(t, cmp.Diff(appCfg.LLM, app.GetLLM(), protocmp.Transform()))
+	}
+}
+
+func TestValidateScopedAppRegistration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		isScoped     bool
+		publicAddr   string
+		cloud        string
+		mcp          *types.MCP
+		llm          *types.LLM
+		requiredApps []string
+		aws          *servicecfg.AppAWS
+		wantErr      bool
+	}{
+		{
+			name:         "unscoped app ignores all guards",
+			isScoped:     false,
+			publicAddr:   "app.example.com",
+			cloud:        types.CloudAWS,
+			mcp:          &types.MCP{},
+			llm:          &types.LLM{},
+			requiredApps: []string{"other"},
+			aws:          &servicecfg.AppAWS{},
+			wantErr:      false,
+		},
+		{
+			name:       "scoped app with public_addr rejected",
+			isScoped:   true,
+			publicAddr: "app.example.com",
+			wantErr:    true,
+		},
+		{
+			name:     "scoped app with cloud rejected",
+			isScoped: true,
+			cloud:    types.CloudAWS,
+			wantErr:  true,
+		},
+		{
+			name:     "scoped app with mcp rejected",
+			isScoped: true,
+			mcp:      &types.MCP{},
+			wantErr:  true,
+		},
+		{
+			name:     "scoped app with llm rejected",
+			isScoped: true,
+			llm:      &types.LLM{},
+			wantErr:  true,
+		},
+		{
+			name:         "scoped app with required apps rejected",
+			isScoped:     true,
+			requiredApps: []string{"other"},
+			wantErr:      true,
+		},
+		{
+			name:     "scoped app with aws rejected",
+			isScoped: true,
+			aws:      &servicecfg.AppAWS{},
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateScopedAppRegistration(
+				tt.isScoped,
+				"test-app",
+				tt.publicAddr,
+				tt.cloud,
+				tt.mcp,
+				tt.llm,
+				tt.requiredApps,
+				tt.aws,
+			)
+			if tt.wantErr {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			}
+		})
+	}
+}
+
+func TestInitScopedAppsFromConfig(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+	const (
+		tokenName   = "scoped-app-token"
+		tokenSecret = "scoped-app-secret"
+		agentScope  = "/test"
+	)
+
+	// --- Auth + proxy process ---
+	authDir := makeTempDir(t)
+	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.Version = defaults.TeleportConfigVersionV3
+	authCfg.DataDir = authDir
+	authCfg.Auth.Enabled = true
+	authCfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &authCfg.FileDescriptors)
+	authCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "auth-server"})
+	require.NoError(t, err)
+	authCfg.Auth.ClusterName = clusterName
+	authCfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	authCfg.ScopesFeatures = scopes.Features{
+		Enabled:         true,
+		AgentPinEnabled: true,
+	}
+
+	token := joiningv1.ScopedToken_builder{
+		Version: types.V1,
+		Kind:    types.KindScopedToken,
+		Metadata: headerv1.Metadata_builder{
+			Name: tokenName,
+		}.Build(),
+		Scope: scopes.Root,
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:         []string{types.RoleApp.String()},
+			AssignedScope: agentScope,
+			JoinMethod:    string(types.JoinMethodToken),
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
+			Secret: tokenSecret,
+		}.Build(),
+	}.Build()
+	require.NoError(t, joining.StrongValidateToken(token))
+
+	authCfg.Auth.StaticScopedTokens = joiningv1.StaticScopedTokens_builder{
+		Version: types.V1,
+		Kind:    types.KindStaticScopedTokens,
+		Scope:   scopes.Root,
+		Metadata: headerv1.Metadata_builder{
+			Name: types.MetaNameStaticScopedTokens,
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
+			Tokens: []*joiningv1.ScopedToken{token},
+		}.Build(),
+	}.Build()
+
+	authCfg.Proxy.Enabled = true
+	authCfg.Proxy.DisableWebInterface = true
+	proxyAddr := newListener(t, ListenerProxyWeb, &authCfg.FileDescriptors)
+	authCfg.Proxy.WebAddr.Addr = proxyAddr
+	authCfg.SSH.Enabled = false
+
+	authProc, err := NewTeleport(authCfg)
+	require.NoError(t, err)
+	require.NoError(t, authProc.Start())
+	t.Cleanup(func() {
+		_ = authProc.Close()
+		_ = authProc.Wait()
+	})
+
+	_, err = authProc.WaitForEventTimeout(30*time.Second, TeleportReadyEvent)
+	require.NoError(t, err)
+
+	authC := authProc.GetAuthServer()
+	encodedToken := joining.EncodeScopedToken(tokenName, tokenSecret)
+
+	watchCtx, watchCancel := context.WithTimeout(t.Context(), 30*time.Second)
+	t.Cleanup(watchCancel)
+	watcher, err := authC.NewWatcher(watchCtx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = watcher.Close()
+	})
+
+	select {
+	case ev := <-watcher.Events():
+		require.Equal(t, types.OpInit, ev.Type)
+	case <-watchCtx.Done():
+		t.Fatal("timed out waiting for watcher init")
+	}
+
+	const appName = "scoped-graf"
+	agentCfg := servicecfg.MakeDefaultConfig()
+	agentCfg.Version = defaults.TeleportConfigVersionV3
+	agentCfg.DataDir = makeTempDir(t)
+	agentCfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyAddr}
+	agentCfg.SetToken(encodedToken)
+	agentCfg.JoinMethod = types.JoinMethodToken
+	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
+	agentCfg.Auth.Enabled = false
+	agentCfg.Proxy.Enabled = false
+	agentCfg.SSH.Enabled = false
+	agentCfg.Apps.Enabled = true
+	agentCfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: appName,
+			URI:  "http://localhost:8080",
+		},
+	}
+
+	agentProc, err := NewTeleport(agentCfg)
+	require.NoError(t, err)
+	require.NoError(t, agentProc.Start())
+	t.Cleanup(func() {
+		_ = agentProc.Close()
+		_ = agentProc.Wait()
+	})
+
+	for {
+		select {
+		case ev := <-watcher.Events():
+			if ev.Type != types.OpPut {
+				continue
+			}
+			srv, ok := ev.Resource.(types.AppServer)
+			if !ok || srv.GetApp().GetName() != appName {
+				continue
+			}
+			require.Equal(t, agentScope, srv.GetScope())
+			require.Equal(t, agentScope, srv.GetApp().GetScope())
+			// public_addr is derived from (name, scope)
+			require.True(t,
+				scopedapp.ScopedAppPublicAddrValid(agentScope, appName, srv.GetApp().GetPublicAddr()),
+				"public addr %q is not a valid scoped address for %q@%q", srv.GetApp().GetPublicAddr(), appName, agentScope)
+			return
+		case <-watcher.Done():
+			t.Fatalf("watcher closed before scoped app registered: %v", watcher.Error())
+		case <-watchCtx.Done():
+			t.Fatal("timed out waiting for scoped app server")
+		}
+	}
+}
+
+func TestAgentPinsCheck(t *testing.T) {
+	t.Parallel()
+
+	agentPin := func(scope string) *scopesv1.Pin {
+		return scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: scope,
+		}.Build()
+	}
+
+	tests := []struct {
+		name      string
+		conn      *Connector
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "unscoped agent is allowed",
+			conn:      &Connector{},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "scoped agent with a pin is allowed",
+			conn:      &Connector{scopePin: agentPin("/staging/west")},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "scoped agent without a pin is rejected",
+			conn:      &Connector{scope: "/staging/west"},
+			assertErr: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.assertErr(t, checkScopedAppJoin(tt.conn))
+		})
+	}
 }

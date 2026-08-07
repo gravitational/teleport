@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -257,6 +258,56 @@ func TestParseLabels(t *testing.T) {
 	require.Nil(t, m)
 	require.Error(t, err)
 	m, err = ParseLabelSpec(`type="database",role,master`)
+	require.Nil(t, m)
+	require.Error(t, err)
+}
+
+func TestMultiValueLabelSelectorSpec(t *testing.T) {
+	// empty:
+	m, err := MultiValueLabelSelectorSpec("")
+	require.NoError(t, err)
+	require.Empty(t, m)
+
+	// simplest case:
+	m, err = MultiValueLabelSelectorSpec("key=value")
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"key": {"value"},
+	}))
+
+	// repeated keys, same values de-dupped:
+	m, err = MultiValueLabelSelectorSpec("env=staging,region=west,region=east,env=prod,fruit=apple,fruit=apple,region=east")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"env":    {"staging", "prod"},
+		"region": {"west", "east"},
+		"fruit":  {"apple"},
+	}))
+
+	// unicode, same value unicode de-dupped:
+	m, err = MultiValueLabelSelectorSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北,服务器环境=something,服务器环境=测试`)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"服务器环境":  {"测试", "something"},
+		"操作系统类别": {"Linux"},
+		"机房":     {"华北"},
+	}))
+
+	// quoting and separators inside quotes:
+	m, err = MultiValueLabelSelectorSpec(`type="database";" role"=master,ver="mongoDB v1,2", type=db2`)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"type": {"database", "db2"},
+		"role": {"master"},
+		"ver":  {"mongoDB v1,2"},
+	}))
+
+	// invalid specs
+	m, err = MultiValueLabelSelectorSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
+	require.Nil(t, m)
+	require.Error(t, err)
+	m, err = MultiValueLabelSelectorSpec(`type="database",role,master`)
 	require.Nil(t, m)
 	require.Error(t, err)
 }
@@ -1717,4 +1768,50 @@ func TestCalculateSSHLogins(t *testing.T) {
 			})))
 		})
 	}
+}
+
+func TestKeyRing_accessGraphHelpers(t *testing.T) {
+	t.Parallel()
+	a := newTestAuthority(t)
+	idx := KeyRingIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: a.trustedCerts.ClusterName,
+		Username:    "alice",
+	}
+
+	t.Run("missing cert returns NotFound", func(t *testing.T) {
+		t.Parallel()
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+
+		_, err := keyRing.AccessGraphTLSCertificate()
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = keyRing.AccessGraphTLSCertValidBefore()
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = keyRing.AccessGraphClientTLSConfig(nil)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("present cert parses and builds TLS config", func(t *testing.T) {
+		t.Parallel()
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+		keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
+
+		parsed, err := keyRing.AccessGraphTLSCertificate()
+		require.NoError(t, err)
+		require.Equal(t, "alice", parsed.Subject.CommonName)
+
+		notAfter, err := keyRing.AccessGraphTLSCertValidBefore()
+		require.NoError(t, err)
+		require.Equal(t, parsed.NotAfter, notAfter)
+
+		tlsConfig, err := keyRing.AccessGraphClientTLSConfig(nil)
+		require.NoError(t, err)
+		require.Len(t, tlsConfig.Certificates, 1)
+		require.Equal(t, keyRing.ProxyHost, tlsConfig.ServerName)
+		// AccessGraph config talks directly to the public proxy; it relies on system CAs.
+		require.Nil(t, tlsConfig.RootCAs)
+		require.GreaterOrEqual(t, tlsConfig.MinVersion, uint16(tls.VersionTLS12))
+	})
 }

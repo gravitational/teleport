@@ -27,6 +27,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -140,6 +142,8 @@ type AgentPoolConfig struct {
 	LocalAuthAddresses []string
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
+	// StaleConnTimeoutDisabled is true if connection timeouts are disabled.
+	StaleConnTimeoutDisabled bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -252,15 +256,13 @@ func (p *AgentPool) Start() error {
 		"cluster", p.Cluster,
 	)
 
-	p.wg.Add(1)
-	go func() {
+	p.wg.Go(func() {
 		if err := p.run(); err != nil {
 			p.logger.WarnContext(p.ctx, "Agent pool exited", "error", err)
 		}
 
 		p.cancel()
-		p.wg.Done()
-	}()
+	})
 	return nil
 }
 
@@ -283,9 +285,7 @@ func (p *AgentPool) run() error {
 
 			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
-			p.wg.Add(1)
-			p.active.add(agent)
-			p.updateConnectedProxies()
+			p.addActiveAgent(p.ctx, agent)
 		}
 
 		err = p.waitForBackoff(p.ctx, p.events)
@@ -295,6 +295,22 @@ func (p *AgentPool) run() error {
 			p.logger.DebugContext(p.ctx, "Failed to wait for backoff", "error", err)
 		}
 	}
+}
+
+// addActiveAgent registers a successfully started agent with the pool.
+func (p *AgentPool) addActiveAgent(ctx context.Context, agent Agent) {
+	p.wg.Add(1)
+	p.active.add(agent)
+
+	if agent.GetState() == AgentClosed {
+		// The agent can close after Start succeeds but before run registers it.
+		// If the AgentClosed callback already ran, it could not remove the agent
+		// from the active set, so reconcile the state after registration.
+		p.handleEvent(ctx, agent)
+		return
+	}
+
+	p.updateConnectedProxies()
 }
 
 // connectAgent connects a new agent and processes any agent events blocking until a
@@ -442,6 +458,22 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 	}
 }
 
+// isHeartbeatTimeoutDisabledByEnv returns true if the TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT
+// environment variable is set.
+//
+// Either "yes" or a "truthy" value (as defined by [strconv.ParseBool]) are
+// considered true.
+func IsAgentStaleConnTimeoutDisabledByEnv() bool {
+	const envVar = "TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT"
+
+	if val := os.Getenv(envVar); val != "" {
+		b, _ := strconv.ParseBool(val)
+		return b || val == "yes"
+	}
+
+	return false
+}
+
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 	addr, _, err := p.Resolver(ctx)
@@ -470,17 +502,19 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:               *addr,
-		keepAlive:          p.runtimeConfig.keepAliveInterval,
-		sshDialer:          dialer,
-		transportHandler:   p,
-		versionGetter:      p,
-		tracker:            tracker,
-		lease:              lease,
-		clock:              p.Clock,
-		logger:             p.logger,
-		localAuthAddresses: p.LocalAuthAddresses,
-		proxySigner:        p.PROXYSigner,
+		addr:                     *addr,
+		keepAlive:                p.runtimeConfig.keepAliveInterval,
+		keepAliveCount:           p.runtimeConfig.keepAliveCount,
+		sshDialer:                dialer,
+		transportHandler:         p,
+		versionGetter:            p,
+		tracker:                  tracker,
+		lease:                    lease,
+		clock:                    p.Clock,
+		logger:                   p.logger,
+		localAuthAddresses:       p.LocalAuthAddresses,
+		proxySigner:              p.PROXYSigner,
+		staleConnTimeoutDisabled: p.StaleConnTimeoutDisabled,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -601,7 +635,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 
 	dialReq := parseDialReq(req.Payload)
 	switch dialReq.Address {
-	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop:
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop, reversetunnelclient.LocalLinuxDesktop:
 	default:
 		p.logger.WarnContext(ctx, "Received dial request for unexpected address, routing to the local service anyway",
 			"dial_addr", dialReq.Address,
@@ -625,6 +659,9 @@ type agentPoolRuntimeConfig struct {
 	connectionCount int
 	// keepAliveInterval is the interval agents will send heartbeats at.
 	keepAliveInterval time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// isRemoteCluster forces the agent pool to connect to all proxies
 	// regardless of the configured tunnel strategy.
 	isRemoteCluster bool
@@ -652,6 +689,7 @@ func newAgentPoolRuntimeConfig() *agentPoolRuntimeConfig {
 		connectionCount:    defaultAgentConnectionCount,
 		proxyListenerMode:  types.ProxyListenerMode_Separate,
 		keepAliveInterval:  defaults.KeepAliveInterval(),
+		keepAliveCount:     defaults.KeepAliveCountMax,
 		clock:              clockwork.NewRealClock(),
 	}
 }
@@ -790,6 +828,9 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 
 	oldProxyListenerMode := c.proxyListenerMode
 	c.keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if v := int(netConfig.GetKeepAliveCountMax()); v > 0 {
+		c.keepAliveCount = v
+	}
 	c.proxyListenerMode = netConfig.GetProxyListenerMode()
 
 	// Fallback to agent mesh strategy if there is an error.

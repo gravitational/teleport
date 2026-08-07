@@ -64,7 +64,7 @@ func (s *RestrictionsService) SetNetworkRestrictions(ctx context.Context, nr typ
 }
 
 func (s *RestrictionsService) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	item, err := s.Get(context.TODO(), backend.NewKey(restrictionsPrefix, network))
+	item, err := s.Get(ctx, backend.NewKey(restrictionsPrefix, network))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

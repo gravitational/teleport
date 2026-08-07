@@ -165,6 +165,18 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 	return updated, trace.Wrap(err)
 }
 
+// UpsertOktaAssignment upsert the Okta assignment resource, creating it if it doesn't exist or updating it if it does.
+func (o *OktaService) UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	upserted, err := o.assignmentSvc.UpsertResource(ctx, assignment)
+	return upserted, trace.Wrap(err)
+}
+
+// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+func (o *OktaService) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
+	return updated, trace.Wrap(err)
+}
+
 // UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
 // since the last transition.
 func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
@@ -192,6 +204,11 @@ func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return o.assignmentSvc.DeleteResource(ctx, name)
+}
+
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (o *OktaService) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return o.assignmentSvc.ConditionalDeleteResource(ctx, name, revision)
 }
 
 // DeleteAllOktaAssignments removes all Okta assignments.

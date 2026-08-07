@@ -458,6 +458,44 @@ func TestConfigReading(t *testing.T) {
 						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
 					},
 				},
+				{
+					Name:         "anthropic-bedrock",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "bedrock",
+						Models: []LLMModel{
+							{
+								Name:         "claude-opus-4-6",
+								ProviderName: "arn:bedrock:inference-profile",
+							},
+						},
+						FallbackModel: "claude-opus-4-6",
+					},
+					AWS: &AppAWS{
+						Region: "us-west-2",
+					},
+				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "anthropic",
+					},
+				},
+				{
+					Name:         "grpc-with-mtls",
+					StaticLabels: Labels,
+					URI:          "tcp://127.0.0.1:8080",
+					TLS: &AppTLS{
+						Mode:           types.AppTLSModeVerifyFull,
+						ServerName:     "example.com",
+						ServerSpiffeId: "spiffe://mycluster/svc/example",
+						AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+						ClientCertMode: types.AppClientCertModeManaged,
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1666,6 +1704,44 @@ func makeConfigFixture() string {
 				RunAsHostUser: "docker",
 			},
 		},
+		{
+			Name:         "anthropic-bedrock",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "bedrock",
+				Models: []LLMModel{
+					{
+						Name:         "claude-opus-4-6",
+						ProviderName: "arn:bedrock:inference-profile",
+					},
+				},
+				FallbackModel: "claude-opus-4-6",
+			},
+			AWS: &AppAWS{
+				Region: "us-west-2",
+			},
+		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "anthropic",
+			},
+		},
+		{
+			Name:         "grpc-with-mtls",
+			StaticLabels: Labels,
+			URI:          "tcp://127.0.0.1:8080",
+			TLS: &AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2256,10 +2332,23 @@ func TestProxyConfigurationVersion(t *testing.T) {
 func TestWindowsDesktopService(t *testing.T) {
 	t.Parallel()
 
+	const testCA = `-----BEGIN CERTIFICATE-----
+MIIBfjCCASOgAwIBAgIUcgtowC2aiqtoaaqg8Wz9IQsUV5cwCgYIKoZIzj0EAwIw
+FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDIyNjE5MzAzOVoXDTI3MDIyNjE5
+MzAzOVowFDESMBAGA1UEAwwJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0D
+AQcDQgAExP70cLQNy03OwKKr5DadftNYQyLEe6POP0ncvRxOV4PwlTSjPzetJJvV
+cvD8osxLRHxoUIO6XHP15NjcMo3gpKNTMFEwHQYDVR0OBBYEFL9zTzq0IkOOQysJ
+4oHUm5wv7cSdMB8GA1UdIwQYMBaAFL9zTzq0IkOOQysJ4oHUm5wv7cSdMA8GA1Ud
+EwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSQAwRgIhAPiuMeGa9LOZzAb1QzRvS3hW
+1CnGa5we8zUbh+L7g8/kAiEAt4OjLC0bXoq0pLYoMcPhFP3QOBSA3LPd+vH939ym
+uQM=
+-----END CERTIFICATE-----`
+
 	for _, test := range []struct {
 		desc        string
 		mutate      func(fc *FileConfig)
 		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
 	}{
 		{
 			desc:        "NOK - invalid static host addr",
@@ -2290,6 +2379,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.BaseDN = "*"
 				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
@@ -2360,6 +2450,19 @@ func TestWindowsDesktopService(t *testing.T) {
 			},
 		},
 		{
+			desc:        "OK -  new discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "something"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr:   "something",
+					Domain: "example.com",
+				}
+			},
+		},
+		{
 			desc:        "OK - discovery not specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -2396,6 +2499,30 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:             "*",
+						LabelAttributes:    []string{"foo"},
+						LabelAttributeMode: "invalid",
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute  (legacy)",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN:             "*",
+					LabelAttributes:    []string{"foo"},
+					LabelAttributeMode: "invalid",
 				}
 			},
 		},
@@ -2442,6 +2569,49 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
+		{
+			desc:        "NOK - invalid ldaps ca",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = "invalid string"
+			},
+		},
+		{
+			desc:        "OK - single ldaps ca",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = testCA
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.Len(t, cfg.WindowsDesktop.LDAP.CAs, 1)
+				},
+			},
+		},
+		{
+			desc:        "OK - multiple ldaps ca",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"key": "value"}},
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = strings.ReplaceAll("pem\npem\npem", "pem", testCA)
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.Len(t, cfg.WindowsDesktop.LDAP.CAs, 3)
+				},
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := &FileConfig{}
@@ -2449,6 +2619,66 @@ func TestWindowsDesktopService(t *testing.T) {
 			cfg := &servicecfg.Config{}
 			err := applyWindowsDesktopConfig(fc, cfg)
 			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
+		})
+	}
+}
+
+func TestLinuxDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
+	}{
+		{
+			desc:        "OK",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "^inc.*$"
+				fc.LinuxDesktop.XSessions.Excluded = "^exc.*$"
+				fc.LinuxDesktop.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.NotNil(t, cfg.LinuxDesktop.IncludedSessions)
+					assert.NotNil(t, cfg.LinuxDesktop.ExcludedSessions)
+					assert.True(t, cfg.LinuxDesktop.Enabled)
+					assert.Len(t, cfg.LinuxDesktop.Labels, 1)
+					assert.Equal(t, "bar", cfg.LinuxDesktop.Labels["foo"])
+				},
+			},
+		},
+		{
+			desc:        "NOK - invalid include",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "\\"
+			},
+		},
+		{
+			desc:        "NOK - invalid exclude",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Excluded = "\\"
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &servicecfg.Config{}
+			err := applyLinuxDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
 		})
 	}
 }
@@ -2582,6 +2812,63 @@ app_service:
 `,
 			name:   "TCP app with port bigger than 65535",
 			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: anthropic
+      inference:
+        format: anthropic
+        provider: anthropic
+`,
+			name:   "LLM inference endpoint",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        client_cert_mode: managed
+`,
+			name:   "App TLS configuration",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        allowed_cas_files:
+        - _random-file.pem
+`,
+			name:   "App TLS configuration fails to read file",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-llm-bedrock
+      inference:
+        format: anthropic
+        provider: bedrock
+      aws:
+        region: us-west-2
+`,
+			name:   "App configuration with valid AWS region",
+			outErr: require.NoError,
 		},
 	}
 
@@ -3238,6 +3525,76 @@ func TestTLSCert(t *testing.T) {
 	}
 }
 
+func TestAppTLSCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpCA := filepath.Join(tmpDir, "ca.pem")
+
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		conf               *FileConfig
+		expectedAllowedCas []string
+	}{
+		{
+			"only files",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{string(fixtures.LocalhostCert)},
+		},
+		{
+			"mixed configuration",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCas:      []string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert)},
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert), string(fixtures.LocalhostCert)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := servicecfg.MakeDefaultConfig()
+
+			err = ApplyFileConfig(tt.conf, cfg)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.Apps.Apps, 1)
+			require.ElementsMatch(t, tt.expectedAllowedCas, cfg.Apps.Apps[0].TLS.AllowedCas)
+		})
+	}
+}
+
 func TestApplyKeyStoreConfig(t *testing.T) {
 	slotNumber := 1
 
@@ -3544,6 +3901,7 @@ func TestJoinParams(t *testing.T) {
 		expectToken      string
 		expectJoinMethod types.JoinMethod
 		expectError      bool
+		expectParsed     *servicecfg.JoinParams
 	}{
 		{
 			desc: "empty",
@@ -3611,6 +3969,98 @@ teleport:
 `,
 			expectError: true,
 		},
+		{
+			desc: "bound keypair with registration secret value",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_value: "example-secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: "example-secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair with registration secret path",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_path: "/path/to/secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair with static keypair path",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      static_key_path: "/path/to/secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					StaticPrivateKeyPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with command and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      command: ["get-jwt", "--audience=teleport.example.sh"]
+      timeout: 60s
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Command: []string{"get-jwt", "--audience=teleport.example.sh"},
+					Timeout: time.Minute,
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with environment variable",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      env: EXAMPLE_ENV_VAR
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env: "EXAMPLE_ENV_VAR",
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))
@@ -3629,6 +4079,10 @@ teleport:
 			require.NoError(t, err)
 			require.Equal(t, tc.expectToken, token)
 			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+
+			if tc.expectParsed != nil {
+				require.Empty(t, cmp.Diff(cfg.JoinParams, *tc.expectParsed))
+			}
 		})
 	}
 }
@@ -3705,13 +4159,13 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					Name:        "jamf2",
-					SyncDelay:   types.Duration(1 * time.Minute),
+					SyncDelay:   types.DurationStringForJamfSpecV1(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
-							SyncPeriodPartial: types.Duration(4 * time.Hour),
-							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+							SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 							OnMissing:         "NOOP",
 							PageSize:          10,
 						},
@@ -4667,6 +5121,32 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
+			desc:          "GCP section is filled with Cloud SQL matcher",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"cloudsql"},
+						"locations": []string{"eucentral1"},
+						"labels": cfgMap{
+							"env": "prod",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"cloudsql"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+				ProjectIDs: []string{"p1", "p2"},
+			}},
+		},
+		{
 			desc:          "Azure section is filled with defaults (aks)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
@@ -5034,15 +5514,6 @@ func TestDiscoveryConfig(t *testing.T) {
 				Tags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},
-				Params: &types.InstallerParams{
-					JoinMethod:      types.JoinMethodIAM,
-					JoinToken:       "aws-discovery-iam-token",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					ScriptName:      "default-installer",
-					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-				},
-				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				AssumeRole: &types.AssumeRole{
 					RoleARN:    "",
 					ExternalID: "externalid123",

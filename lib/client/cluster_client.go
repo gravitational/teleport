@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/resumption"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -234,7 +236,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 		keyRing.SSHPrivateKey = newUserKeys.ssh
 		keyRing.Cert = certs.SSH
 	case proto.UserCertsRequest_App:
-		keyRing.AppTLSCredentials[params.RouteToApp.Name] = TLSCredential{
+		keyRing.AppTLSCredentials[ScopedAppName(scopes.QualifiedName{Name: params.RouteToApp.Name, Scope: params.RouteToApp.Scope})] = TLSCredential{
 			PrivateKey: newUserKeys.app,
 			Cert:       certs.TLS,
 		}
@@ -255,6 +257,11 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 	case proto.UserCertsRequest_WindowsDesktop:
 		keyRing.WindowsDesktopTLSCredentials[params.RouteToWindowsDesktop.WindowsDesktop] = TLSCredential{
 			PrivateKey: newUserKeys.windowsDesktop,
+			Cert:       certs.TLS,
+		}
+	case proto.UserCertsRequest_LinuxDesktop:
+		keyRing.LinuxDesktopTLSCredentials[params.RouteToLinuxDesktop.LinuxDesktop] = TLSCredential{
+			PrivateKey: newUserKeys.linuxDesktop,
 			Cert:       certs.TLS,
 		}
 	}
@@ -361,6 +368,7 @@ func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, targ
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
+			SSHLogin:       user,
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
@@ -428,6 +436,12 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 		newUserKeys.windowsDesktop = tlsSubjectKey
+	case proto.UserCertsRequest_LinuxDesktop:
+		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		newUserKeys.linuxDesktop = tlsSubjectKey
 	default:
 		// Assume we're reissuing the base SSH and TLS certs, reuse the existing
 		// private keys.
@@ -461,6 +475,8 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	}
 
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+
 	return newUserKeys, &proto.UserCertsRequest{
 		SSHPublicKey:                     sshPub,
 		TLSPublicKey:                     tlsPub,
@@ -473,11 +489,12 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		RouteToDatabase:                  params.RouteToDatabase,
 		RouteToApp:                       params.RouteToApp,
 		RouteToWindowsDesktop:            params.RouteToWindowsDesktop,
+		RouteToLinuxDesktop:              params.RouteToLinuxDesktop,
 		NodeName:                         params.NodeName,
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
 		RequesterName:                    params.RequesterName,
-		SSHLogin:                         c.tc.HostLogin,
+		SSHLogin:                         sshLogin,
 		SSHPublicKeyAttestationStatement: sshAttestationStatement.ToProto(),
 		TLSPublicKeyAttestationStatement: tlsAttestationStatement.ToProto(),
 		Purpose:                          purpose,
@@ -493,30 +510,52 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
-	mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// A nil request tells PerformSessionMFACeremony that the requirement is settled, so no cluster is asked again.
+	// Only the cluster holding the target could answer, and it already has.
+	var mfaRequiredReq *proto.IsMFARequiredRequest
+	if !params.MFACheck.GetRequired() {
+		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+		mfaRequiredReq, err = params.isMFARequiredRequest(sshLogin)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// mfaAgainstRoot tells PerformSessionMFACeremony not to ask c.AuthClient whether MFA is required,
+	// leaving the root to evaluate it while creating the challenge.
+	// So ask c.AuthClient only when its cluster holds the target, since no other cluster can answer for it,
+	// and skip it when that cluster is the root.
+	connectedIsRoot := c.cluster == c.root
+	targetElsewhere := params.RouteToCluster != "" && params.RouteToCluster != c.cluster
+	mfaAgainstRoot := connectedIsRoot || targetElsewhere
+
+	// leafClusterName only names the target's cluster in the MFA prompt, and the root is not worth naming.
+	var leafClusterName string
+	if params.RouteToCluster != c.root {
+		leafClusterName = params.RouteToCluster
 	}
 
 	var promptOpts []mfa.PromptOpt
 	switch {
 	case params.NodeName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("node", params.NodeName, leafClusterName))
 	case params.KubernetesCluster != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster, leafClusterName))
 	case params.RouteToDatabase.ServiceName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("database", params.RouteToDatabase.ServiceName, leafClusterName))
 	case params.RouteToApp.Name != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("application", params.RouteToApp.Name, leafClusterName))
 	case params.RouteToWindowsDesktop.WindowsDesktop != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
+	case params.RouteToLinuxDesktop.LinuxDesktop != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Linux desktop", params.RouteToLinuxDesktop.LinuxDesktop, leafClusterName))
 	}
 
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFACeremony:       c.tc.NewMFACeremony(),
-		MFAAgainstRoot:    c.cluster == rootClient.cluster,
+		MFAAgainstRoot:    mfaAgainstRoot,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
 		KeyRing:           keyRing,
@@ -541,6 +580,13 @@ type IssueUserCertsWithMFAResult struct {
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
 func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*IssueUserCertsWithMFAResult, error) {
+	return c.issueUserCertsWithMFA(ctx, c.ConnectToCluster, params)
+}
+
+// dialAuthClientFunc dials the auth server of the named cluster.
+type dialAuthClientFunc func(ctx context.Context, clusterName string) (authclient.ClientI, error)
+
+func (c *ClusterClient) issueUserCertsWithMFA(ctx context.Context, dial dialAuthClientFunc, params ReissueParams) (*IssueUserCertsWithMFAResult, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -564,48 +610,11 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}
 	}
 
-	certClient := c
-	var mfaRequired bool
-	if params.MFACheck == nil {
-		var err error
-		authClient := params.AuthClient
-		if authClient == nil {
-			authClient, err = c.ConnectToCluster(ctx, params.RouteToCluster)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resp, err := authClient.IsMFARequired(ctx, mfaRequiredReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mfaRequired = resp.Required
-
-		// If connected to the root cluster, store the client so that it
-		// can be reused below.
-		if params.RouteToCluster == c.root {
-			certClient = &ClusterClient{
-				tc:          c.tc,
-				ProxyClient: c.ProxyClient,
-				AuthClient:  authClient,
-				Tracer:      c.Tracer,
-				cluster:     c.root,
-				root:        c.root,
-			}
-		}
-
-		// only close the new auth client and not the copied cluster client.
-		if params.AuthClient == nil {
-			defer authClient.Close()
-		}
-	} else {
-		mfaRequired = params.MFACheck.Required
+	mfaRequired, rootAuthClient, releaseRootAuthClient, err := c.mfaRequired(ctx, dial, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	defer releaseRootAuthClient()
 
 	// SSH certs can be used without embedding the node name.
 	if !mfaRequired && params.usage() == proto.UserCertsRequest_SSH && keyRing.Cert != nil {
@@ -615,26 +624,11 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}, nil
 	}
 
-	// At this point, a connection to the root cluster is required to generate
-	// an MFA verified certificate OR to issue certificates with the target
-	// embedded in them for routing.
-	if params.RouteToCluster != certClient.root {
-		authClient, err := c.ConnectToRootCluster(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		certClient = &ClusterClient{
-			tc:          c.tc,
-			ProxyClient: c.ProxyClient,
-			AuthClient:  authClient,
-			Tracer:      c.Tracer,
-			cluster:     c.root,
-			root:        c.root,
-		}
-		// only close the new auth client and not the copied cluster client.
-		defer authClient.Close()
+	certClient, closeCertClient, err := c.rootClusterClient(ctx, dial, rootAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	defer closeCertClient()
 
 	// MFA is not required, but the user requires a new certificate with the
 	// target included in it for routing.
@@ -668,6 +662,12 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			}, nil
 		}
+	}
+
+	// The cluster holding the target has answered by now, so record it and spare the ceremony from asking again.
+	params.MFACheck = &proto.IsMFARequiredResponse{
+		Required:    true,
+		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 	}
 
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
@@ -729,7 +729,7 @@ type PerformSessionMFACeremonyParams struct {
 }
 
 type newUserKeys struct {
-	ssh, tls, app, db, kube, windowsDesktop *keys.PrivateKey
+	ssh, tls, app, db, kube, windowsDesktop, linuxDesktop *keys.PrivateKey
 }
 
 // PerformSessionMFACeremonyResult contains the result of a successful
@@ -772,7 +772,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		log.DebugContext(ctx, "MFA requirement acquired from leaf", "mfa_required", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
-			return nil, trace.Wrap(MFARequiredUnknown(err))
+			return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
 		case !mfaRequiredResp.Required:
 			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
@@ -784,7 +784,20 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
-	params.MFACeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
+	params.MFACeremony.CreateAuthenticateChallenge = func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+		chal, err := rootClient.CreateAuthenticateChallenge(ctx, req)
+		if err != nil {
+			// not an exhaustive list, but connection problem and limit exceeded are
+			// almost surely caused by network conditions or general problems rather
+			// than being from the actual handling of the request
+			if mfaRequiredReq != nil && (trace.IsConnectionProblem(err) || trace.IsLimitExceeded(err)) {
+				return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
+			}
+			return nil, trace.Wrap(err)
+		}
+		return chal, nil
+	}
+
 	mfaResp, err := params.MFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -862,7 +875,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			if keyRing.AppTLSCredentials == nil {
 				keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.AppTLSCredentials[certsReq.RouteToApp.Name] = TLSCredential{
+			keyRing.AppTLSCredentials[ScopedAppName(scopes.QualifiedName{Name: certsReq.RouteToApp.Name, Scope: certsReq.RouteToApp.Scope})] = TLSCredential{
 				Cert:       newCerts.TLS,
 				PrivateKey: params.newUserKeys.app,
 			}
@@ -873,6 +886,14 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			keyRing.WindowsDesktopTLSCredentials[certsReq.RouteToWindowsDesktop.WindowsDesktop] = TLSCredential{
 				Cert:       newCerts.TLS,
 				PrivateKey: params.newUserKeys.windowsDesktop,
+			}
+		case proto.UserCertsRequest_LinuxDesktop:
+			if keyRing.LinuxDesktopTLSCredentials == nil {
+				keyRing.LinuxDesktopTLSCredentials = make(map[string]TLSCredential)
+			}
+			keyRing.LinuxDesktopTLSCredentials[certsReq.RouteToLinuxDesktop.LinuxDesktop] = TLSCredential{
+				Cert:       newCerts.TLS,
+				PrivateKey: params.newUserKeys.linuxDesktop,
 			}
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
@@ -885,4 +906,81 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		NewCerts:            newCerts,
 		ReusableMFAResponse: reusableMFAResponse,
 	}, nil
+}
+
+// mfaRequired reports whether MFA is required for the target.
+// When it dials the root cluster to ask, it hands that client back so the certs can be issued with it.
+func (c *ClusterClient) mfaRequired(ctx context.Context, dial dialAuthClientFunc, params ReissueParams) (bool, authclient.ClientI, func() error, error) {
+	if params.MFACheck != nil {
+		return params.MFACheck.Required, nil, noop, nil
+	}
+
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+	req, err := params.isMFARequiredRequest(sshLogin)
+	if err != nil {
+		return false, nil, noop, trace.Wrap(err)
+	}
+
+	if params.MFAChecker != nil {
+		resp, err := params.MFAChecker.IsMFARequired(ctx, req)
+		if err != nil {
+			return false, nil, noop, trace.Wrap(err)
+		}
+		return resp.Required, nil, noop, nil
+	}
+
+	authClient, err := dial(ctx, params.RouteToCluster)
+	if err != nil {
+		return false, nil, noop, trace.Wrap(err)
+	}
+
+	resp, err := authClient.IsMFARequired(ctx, req)
+	if err != nil {
+		return false, nil, noop, trace.NewAggregate(err, authClient.Close())
+	}
+
+	if params.RouteToCluster != c.root {
+		// A leaf's client answers the check and nothing more.
+		return resp.Required, nil, noop, trace.Wrap(authClient.Close())
+	}
+
+	return resp.Required, authClient, authClient.Close, nil
+}
+
+// rootClusterClient returns a cluster client whose auth client serves the root cluster,
+// which is where certs must be issued.
+// An MFA verified cert can only be minted where the challenge was validated,
+// and routing needs the target embedded by the root.
+// It reuses the client held for the MFA check when that client was dialed for the root,
+// so a call opens at most one root connection.
+func (c *ClusterClient) rootClusterClient(ctx context.Context, dial dialAuthClientFunc, rootAuthClient authclient.ClientI) (*ClusterClient, func() error, error) {
+	switch {
+	case rootAuthClient != nil:
+		// The client dialed for the MFA check serves the root, so reuse it.
+		return c.withRootAuthClient(rootAuthClient), noop, nil
+	case c.cluster != c.root:
+		// This client is backed by a leaf, so connect to the root.
+		var err error
+		rootAuthClient, err = dial(ctx, c.root)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return c.withRootAuthClient(rootAuthClient), rootAuthClient.Close, nil
+	default:
+		// This client is already backed by the root.
+		return c, noop, nil
+	}
+}
+
+func noop() error { return nil }
+
+func (c *ClusterClient) withRootAuthClient(authClient authclient.ClientI) *ClusterClient {
+	return &ClusterClient{
+		tc:          c.tc,
+		ProxyClient: c.ProxyClient,
+		AuthClient:  authClient,
+		Tracer:      c.Tracer,
+		cluster:     c.root,
+		root:        c.root,
+	}
 }

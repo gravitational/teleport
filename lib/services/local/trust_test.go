@@ -29,11 +29,13 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -654,4 +656,66 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	require.NoError(t, err)
 
 	return ca
+}
+
+func TestRemoteCluster_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewCAService(mem)
+
+	createResource := func(name string) {
+		rc, err := types.NewRemoteCluster(name)
+		require.NoError(t, err)
+		_, err = service.CreateRemoteCluster(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(remoteClustersPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListRemoteClusters(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListRemoteClusters(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListRemoteClusters(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.RemoteCluster{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }

@@ -47,11 +47,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -199,8 +197,10 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
+	t.Run("drop requests keeps access list grants", func(t *testing.T) { testDropRequestsKeepsAccessListGrants(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
+	t.Run("cert extension resource IDs", func(t *testing.T) { testCertExtensionResourceIDs(t, testPack) })
 }
 
 // waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
@@ -907,12 +907,14 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.Equal(t, tc.expectRequestableRoles, caps.RequestableRoles)
 
 			// create the access request object
-			requestResourceIDs := []types.ResourceID{}
+			requestResourceIDs := []types.ResourceAccessID{}
 			for _, nodeName := range tc.requestResources {
-				requestResourceIDs = append(requestResourceIDs, types.ResourceID{
-					ClusterName: testPack.clusterName,
-					Kind:        types.KindNode,
-					Name:        nodeName,
+				requestResourceIDs = append(requestResourceIDs, types.ResourceAccessID{
+					Id: types.ResourceID{
+						ClusterName: testPack.clusterName,
+						Kind:        types.KindNode,
+						Name:        nodeName,
+					},
 				})
 			}
 			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
@@ -1111,18 +1113,22 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 	username := "requester"
 
-	prodResourceIDs := []types.ResourceID{{
-		ClusterName: testPack.clusterName,
-		Kind:        types.KindNode,
-		Name:        "prod",
+	prodResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "prod",
+		},
 	}}
 	prodResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, prodResourceIDs)
 	require.NoError(t, err)
 
-	stagingResourceIDs := []types.ResourceID{{
-		ClusterName: testPack.clusterName,
-		Kind:        types.KindNode,
-		Name:        "staging",
+	stagingResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "staging",
+		},
 	}}
 	stagingResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, stagingResourceIDs)
 	require.NoError(t, err)
@@ -1197,7 +1203,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		desc                 string
 		steps                []newClientFunc
 		expectRoles          []string
-		expectResources      []types.ResourceID
+		expectResources      []types.ResourceAccessID
 		expectAccessRequests []string
 		expectLogins         []string
 	}{
@@ -1359,6 +1365,123 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	checkCerts(t, certs, []string{"requesters", "operators"}, nil, nil, nil)
 }
 
+// testDropRequestsKeepsAccessListGrants verifies that dropping access requests
+// resets the certificate roles and traits to the user login state, which
+// includes roles and traits granted by access lists, rather than to the bare
+// backend user. See https://github.com/gravitational/teleport/issues/45797.
+func testDropRequestsKeepsAccessListGrants(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "requester-with-access-list"
+	authServer := testPack.tlsServer.Auth()
+
+	// Create a user with the base "requesters" role.
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.AddRole("requesters")
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Create a role that is granted only through an access list.
+	aclRole, err := types.NewRole("access-list-granted", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"acl-login"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, aclRole)
+	require.NoError(t, err)
+
+	// Grant the role through a real access list. Dropping access requests
+	// regenerates the user login state from the backend user and access
+	// lists, so the grant must be backed by an actual list membership.
+	acl, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "requester-acl",
+		},
+		accesslist.Spec{
+			Title:  "requester-acl",
+			Owners: []accesslist.Owner{{Name: "acl-owner"}},
+			Audit:  accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour).UTC()},
+			Grants: accesslist.Grants{
+				Roles: []string{aclRole.GetName()},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessList(ctx, acl)
+	require.NoError(t, err)
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: username,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: acl.GetName(),
+			Name:       username,
+			Joined:     time.Now().UTC(),
+			AddedBy:    "acl-owner",
+			Expires:    time.Now().Add(24 * time.Hour).UTC(),
+		},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	// Create an approved access request for the "admins" role.
+	accessRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+	accessRequest.SetState(types.RequestState_APPROVED)
+	accessRequest.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+	require.NoError(t, authServer.UpsertAccessRequest(ctx, accessRequest))
+
+	clt, err := testPack.tlsServer.NewClient(authtest.TestUser(username))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	// Assume the access request.
+	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:   testPack.sshPubKey,
+		TLSPublicKey:   testPack.tlsPubKey,
+		Username:       username,
+		Expires:        time.Now().Add(time.Hour).UTC(),
+		AccessRequests: []string{accessRequest.GetName()},
+	})
+	require.NoError(t, err)
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
+	require.NoError(t, err)
+	elevatedClient, err := testPack.tlsServer.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
+	defer elevatedClient.Close()
+
+	// Drop all access requests. The reissued certs must keep the roles and
+	// traits granted by access lists via the user login state.
+	certs, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{"*"},
+	})
+	require.NoError(t, err)
+	checkCerts(t, certs, []string{"requesters", aclRole.GetName()}, []string{"acl-login"}, nil, nil)
+
+	// Dropping a single request by ID must behave the same way.
+	certs, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{accessRequest.GetName()},
+	})
+	require.NoError(t, err)
+	checkCerts(t, certs, []string{"requesters", aclRole.GetName()}, []string{"acl-login"}, nil, nil)
+}
+
 // checkCerts checks that the ssh and tls certs include the given roles, logins,
 // accessRequests, and resourceIDs
 func checkCerts(t *testing.T,
@@ -1366,7 +1489,7 @@ func checkCerts(t *testing.T,
 	roles []string,
 	logins []string,
 	accessRequests []string,
-	resourceIDs []types.ResourceID,
+	resourceAccessIDs []types.ResourceAccessID,
 ) {
 	t.Helper()
 
@@ -1403,10 +1526,32 @@ func checkCerts(t *testing.T,
 	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.
-	sshCertAllowedResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	sshCertAllowedResources, err := types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
 	require.NoError(t, err)
-	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
-	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
+	assert.ElementsMatch(t, resourceAccessIDs, sshCertAllowedResources)
+	assert.ElementsMatch(t, resourceAccessIDs, sshIdentity.AllowedResourceAccessIDs)
+	assert.ElementsMatch(t, resourceAccessIDs, tlsIdentity.AllowedResourceAccessIDs)
+
+	// Verify the legacy AllowedResourceIDs extension contains the expected values.
+	// Plain (unconstrained) resource IDs should appear in the old extension so that older
+	// agents/proxies that don't understand AllowedResourceAccessIDs can still enforce
+	// resource-level restrictions. The sentinel should only appear when all requested
+	// resources carry constraints that old agents can't enforce.
+	sshCertLegacyResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	require.NoError(t, err)
+	plainIDs, constrainedOnly := types.UnwrapResourceAccessIDs(resourceAccessIDs)
+	if len(plainIDs) > 0 {
+		// Plain resources should be in the old extension.
+		assert.ElementsMatch(t, plainIDs, sshCertLegacyResources, "SSH cert legacy extension should contain plain resource IDs")
+		// Sentinel should not be present.
+		for _, rid := range sshCertLegacyResources {
+			assert.False(t, types.IsSentinelResourceID(rid), "SSH cert legacy extension should not contain sentinel when plain resources are present")
+		}
+	} else if len(constrainedOnly) > 0 {
+		// Constraint-only requests should have the sentinel in the old extension.
+		require.Len(t, sshCertLegacyResources, 1, "SSH cert legacy extension should contain only sentinel")
+		assert.True(t, types.IsSentinelResourceID(sshCertLegacyResources[0]), "SSH cert legacy extension should be sentinel")
+	}
 }
 
 func TestCreateSuggestions(t *testing.T) {
@@ -1550,7 +1695,6 @@ func TestPromotedRequest(t *testing.T) {
 }
 
 func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
-	clock := clockwork.NewFakeClock()
 	testModules := modulestest.EnterpriseModules()
 	modulestest.SetTestModules(t, *testModules)
 
@@ -1561,175 +1705,34 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return req
 	}
 
-	type testAccessListOwner struct {
-		name string
-		kind string
-	}
-
-	mustAccessListWithMembershipKind := func(name string, owners ...testAccessListOwner) *accesslist.AccessList {
-		ownersSpec := make([]accesslist.Owner, len(owners))
-		for i, owner := range owners {
-			ownersSpec[i] = accesslist.Owner{
-				Name:           owner.name,
-				MembershipKind: owner.kind,
-			}
-		}
-		accessList, err := accesslist.NewAccessList(header.Metadata{
-			Name: name,
-		}, accesslist.Spec{
-			Title: "simple",
-			Grants: accesslist.Grants{
-				Roles: []string{"grant-role"},
-			},
-			Audit: accesslist.Audit{
-				NextAuditDate: clock.Now().AddDate(1, 0, 0),
-			},
-			Owners: ownersSpec,
-		})
-		require.NoError(t, err)
-		return accessList
-	}
-
-	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
-		ownersStruct := make([]testAccessListOwner, 0, len(owners))
-		for _, owner := range owners {
-			ownersStruct = append(ownersStruct, testAccessListOwner{owner, accesslist.MembershipKindUser})
-		}
-		return mustAccessListWithMembershipKind(name, ownersStruct...)
-	}
-
 	tests := []struct {
-		name              string
-		req               types.AccessRequest
-		accessLists       []*accesslist.AccessList
-		accessListMembers []struct {
-			Header header.Metadata
-			Spec   accesslist.AccessListMemberSpec
-		}
-		promotions        *types.AccessRequestAllowedPromotions
-		expectedReviewers []string
+		name               string
+		req                types.AccessRequest
+		suggestedReviewers []string
+		expectedReviewers  []string
 	}{
 		{
-			name:              "nil promotions",
+			name:              "nil additional reviewers",
 			req:               mustRequest("rev1", "rev2"),
 			expectedReviewers: []string{"rev1", "rev2"},
 		},
 		{
-			name: "a few promotions",
-			req:  mustRequest("rev1", "rev2"),
-			accessLists: []*accesslist.AccessList{
-				mustAccessList("name1", "owner1", "owner2"),
-				mustAccessList("name2", "owner1", "owner3"),
-				mustAccessList("name3", "owner4", "owner5"),
-			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{
-					{AccessListName: "name1"},
-					{AccessListName: "name2"},
-				},
-			},
-			expectedReviewers: []string{"rev1", "rev2", "owner1", "owner2", "owner3"},
+			name:               "a few additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{"name1", "name2", "name3"},
+			expectedReviewers:  []string{"rev1", "rev2", "name1", "name2", "name3"},
 		},
 		{
-			name: "with ownership through nested list",
-			req:  mustRequest("rev1"),
-			accessLists: []*accesslist.AccessList{
-				mustAccessList("nested1", "owner1"),
-				mustAccessListWithMembershipKind(
-					"nested",
-					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
-					testAccessListOwner{"nested1", accesslist.MembershipKindList},
-				),
-				mustAccessListWithMembershipKind(
-					"root",
-					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
-					testAccessListOwner{"nested", accesslist.MembershipKindList},
-				),
-			},
-			accessListMembers: []struct {
-				Header header.Metadata
-				Spec   accesslist.AccessListMemberSpec
-			}{
-				{
-					Header: header.Metadata{
-						Name: "nested",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "root",
-						Name:           "nested",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindList,
-					},
-				},
-				{
-					Header: header.Metadata{
-						Name: "nested1",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "nested",
-						Name:           "nested1",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindList,
-					},
-				},
-				{
-					Header: header.Metadata{
-						Name: "owner2",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "nested",
-						Name:           "owner2",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindUser,
-					},
-				},
-				{
-					Header: header.Metadata{
-						Name: "owner3",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "nested1",
-						Name:           "owner3",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindUser,
-					},
-				},
-			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{
-					{AccessListName: "root"},
-					{AccessListName: "nested"},
-				},
-			},
-			// owner1 is owner of 'root', should be included
-			// owner2 is member of 'nested', which is owner of 'root', should be included via inheritance
-			// owner3 is member of 'nested1', which is member of 'nested', which is owner of 'root', should be included via two levels of inheritance
-			expectedReviewers: []string{"rev1", "owner1", "owner2", "owner3"},
+			name:               "no additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{},
+			expectedReviewers:  []string{"rev1", "rev2"},
 		},
 		{
-			name: "no promotions",
-			req:  mustRequest("rev1", "rev2"),
-			accessLists: []*accesslist.AccessList{
-				mustAccessList("name1", "owner1", "owner2"),
-				mustAccessList("name2", "owner1", "owner3"),
-				mustAccessList("name3", "owner4", "owner5"),
-			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{},
-			},
-			expectedReviewers: []string{"rev1", "rev2"},
+			name:               "duplicate additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{"rev2", "name1", "name2", "name1"},
+			expectedReviewers:  []string{"rev1", "rev2", "name1", "name2"},
 		},
 	}
 
@@ -1737,31 +1740,9 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			mem, err := memory.New(memory.Config{})
-			require.NoError(t, err)
-
-			accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-				Backend: mem,
-				Modules: testModules,
-			})
-			require.NoError(t, err)
-
 			ctx := context.Background()
-			for _, accessList := range test.accessLists {
-				_, err = accessLists.UpsertAccessList(ctx, accessList)
-				require.NoError(t, err)
-			}
-			if test.accessListMembers != nil {
-				for _, memberData := range test.accessListMembers {
-					member, err := accesslist.NewAccessListMember(memberData.Header, memberData.Spec)
-					require.NoError(t, err)
-					_, err = accessLists.UpsertAccessListMember(ctx, member)
-					require.NoError(t, err)
-				}
-			}
-
 			req := test.req.Copy()
-			auth.UpdateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
+			auth.UpdateAccessRequestWithAdditionalReviewers(ctx, req, test.suggestedReviewers)
 			require.ElementsMatch(t, test.expectedReviewers, req.GetSuggestedReviewers())
 		})
 	}
@@ -1965,4 +1946,151 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 		requesterUserName:             requesterUserName,
 		createdRequest:                createdReq,
 	}
+}
+
+// testCertExtensionResourceIDs verifies that both the legacy AllowedResourceIDs
+// and the new AllowedResourceAccessIDs cert extensions are correctly populated
+// for access requests with constrained resources only, unconstrained resources
+// only, and a mix of both.
+//
+// Plain (unconstrained) resources should appear in both extensions.
+// Constrained resources appear only in the new extension. When all resources
+// are constrained, the legacy extension receives a sentinel value to prevent
+// older agents from interpreting an empty extension as "unrestricted access".
+// When a mix of plain and constrained resources is requested, only the plain
+// resource IDs appear in the legacy extension (no sentinel).
+func testCertExtensionResourceIDs(t *testing.T, testPack *accessRequestTestPack) {
+	// TODO(kiosion): Unskip after https://github.com/gravitational/teleport/pull/66371 is merged.
+	t.Skipf("skipping until ssh certs constraints will be supported")
+
+	t.Parallel()
+
+	ctx := t.Context()
+
+	username := "requester"
+
+	constrainedResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "staging",
+		},
+		Constraints: &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Ssh{
+				Ssh: &types.SSHResourceConstraints{Logins: []string{"root"}},
+			},
+		},
+	}}
+
+	plainResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "prod",
+		},
+	}}
+
+	mixedResourceIDs := append(plainResourceIDs, constrainedResourceIDs...)
+
+	constrainedRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, constrainedResourceIDs)
+	require.NoError(t, err)
+	plainRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, plainResourceIDs)
+	require.NoError(t, err)
+	mixedRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, mixedResourceIDs)
+	require.NoError(t, err)
+
+	for _, req := range []types.AccessRequest{constrainedRequest, plainRequest, mixedRequest} {
+		req.SetState(types.RequestState_APPROVED)
+		req.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+		require.NoError(t, testPack.tlsServer.Auth().UpsertAccessRequest(ctx, req))
+	}
+
+	requester := authtest.TestUser(username)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	generateCerts := func(t *testing.T, requestName string) *proto.Certs {
+		t.Helper()
+		certs, err := requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			SSHPublicKey:   testPack.sshPubKey,
+			TLSPublicKey:   testPack.tlsPubKey,
+			Username:       username,
+			Expires:        time.Now().Add(time.Hour).UTC(),
+			AccessRequests: []string{requestName},
+		})
+		require.NoError(t, err)
+		return certs
+	}
+
+	type certResources struct {
+		AllowedResourceIDs       []types.ResourceID
+		AllowedResourceAccessIDs []types.ResourceAccessID
+	}
+
+	parseCertResources := func(t *testing.T, certs *proto.Certs) (ssh, tls certResources) {
+		t.Helper()
+
+		sshCert, err := sshutils.ParseCertificate(certs.SSH)
+		require.NoError(t, err)
+		ssh.AllowedResourceIDs, err = types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+		require.NoError(t, err)
+		ssh.AllowedResourceAccessIDs, err = types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
+		require.NoError(t, err)
+
+		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		for _, attr := range tlsCert.Subject.Names {
+			switch {
+			case attr.Type.Equal(tlsca.AllowedResourcesASN1ExtensionOID):
+				tls.AllowedResourceIDs, err = types.ResourceIDsFromString(attr.Value.(string))
+				require.NoError(t, err)
+			case attr.Type.Equal(tlsca.AllowedResourceAccessIDsASN1ExtensionOID):
+				tls.AllowedResourceAccessIDs, err = types.ResourceAccessIDsFromString(attr.Value.(string))
+				require.NoError(t, err)
+			}
+		}
+
+		return ssh, tls
+	}
+
+	t.Run("constrained", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, constrainedRequest.GetName()))
+
+		// All resources are constrained, so the legacy extension gets the
+		// sentinel and the new extension carries the full access IDs.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{types.CreateSentinelResourceID()},
+			AllowedResourceAccessIDs: constrainedResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+
+	t.Run("without constraints", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, plainRequest.GetName()))
+
+		// No constraints, so the legacy extension carries the actual
+		// resource IDs and no sentinel is needed.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{plainResourceIDs[0].Id},
+			AllowedResourceAccessIDs: plainResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+
+	t.Run("mixed constrained and unconstrained", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, mixedRequest.GetName()))
+
+		// The legacy extension should contain only the plain resource IDs
+		// (no sentinel) because older agents can still enforce those.
+		// The new extension carries all resources including constrained ones.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{plainResourceIDs[0].Id},
+			AllowedResourceAccessIDs: mixedResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
 }

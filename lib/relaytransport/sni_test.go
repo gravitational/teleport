@@ -33,7 +33,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func TestSNIDispatch_NoDispatch(t *testing.T) {

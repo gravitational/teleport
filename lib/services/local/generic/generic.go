@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -224,39 +225,46 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 	return out, nil
 }
 
-// Resources returns a stream of resources within the range [startKey, endKey].
-// If both keys are empty, then the entire range is returned.
+// Resources returns a stream of resources within the range [startKey, endKey).
+// If endKey is empty, iteration continues to the end of the prefix range.
+//
+// This method can be used to implement RangeFoo.
 func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
 	params := backend.ItemsParams{
 		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(startKey)),
 	}
-	if endKey == "" {
-		params.EndKey = backend.RangeEnd(s.backendPrefix.ExactKey())
+	if endKey != "" {
+		params.EndKey = s.backendPrefix.AppendKey(backend.KeyFromString(endKey)).ExactKey()
 	} else {
-		params.EndKey = s.backendPrefix.AppendKey(backend.KeyFromString(endKey))
+		// Defaults to end of range if not specified.
+		params.EndKey = backend.RangeEnd(s.backendPrefix.ExactKey())
 	}
-	return func(yield func(T, error) bool) {
-		for item, err := range s.backend.Items(ctx, params) {
-			if err != nil {
-				var t T
-				yield(t, trace.Wrap(err))
-				return
-			}
 
-			resource, err := s.unmarshalFunc(item.Value,
-				services.WithExpires(item.Expires),
-				services.WithRevision(item.Revision))
-			if err != nil {
-				// unmarshal errors are logged and skipped
-				slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
-				return
-			}
-
-			if !yield(resource, nil) {
-				return
-			}
+	mapFn := func(item backend.Item) (T, bool) {
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			// unmarshal errors are logged and skipped
+			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+			return *new(T), false
 		}
+		return resource, true
 	}
+
+	items := s.backend.Items(ctx, params)
+	if endKey != "" {
+		exclusiveEndKey := s.backendPrefix.AppendKey(backend.KeyFromString(endKey))
+		items = stream.TakeWhile(items, func(item backend.Item) bool {
+			// We promise consumers that the returned results are exclusive of
+			// endKey, but the underlying Items method returns an inclusive end
+			// key. Compare the full backend key so composite relative keys such
+			// as "<prefix>/<name>" are handled correctly.
+			return item.Key.Compare(exclusiveEndKey) < 0
+		})
+	}
+
+	return stream.FilterMap(items, mapFn)
 }
 
 // ListResources returns a paginated list of resources.
@@ -282,7 +290,6 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 	for item, err := range s.backend.Items(ctx, backend.ItemsParams{
 		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(pageToken)),
 		EndKey:   backend.RangeEnd(s.backendPrefix.ExactKey()),
-		Limit:    pageSize + 1,
 	}) {
 		if err != nil {
 			return nil, nil, "", trace.Wrap(err)
@@ -474,6 +481,27 @@ func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
 func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 	startKey := s.backendPrefix.ExactKey()
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+// ConditionalDeleteResource conditionally deletes the resource based on its
+// revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *Service[T]) ConditionalDeleteResource(ctx context.Context, name, revision string) error {
+	if revision == "" {
+		return trace.BadParameter("revision required")
+	}
+	err := s.backend.ConditionalDelete(ctx, s.resourceKey(name), revision)
+	if trace.IsCompareFailed(err) {
+		// Specialize the message from backend.ErrIncorrectRevision so we mention
+		// the resource name and don't mention --force. Deletes often don't have a
+		// --force flag.
+		return trace.CompareFailed(
+			"%s %q does not exist or revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state",
+			s.resourceKind, name,
+		)
+	}
+	return trace.Wrap(err)
 }
 
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.

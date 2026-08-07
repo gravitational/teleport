@@ -175,6 +175,8 @@ export function AppGateway(props: {
                 placeholder="Pick target port"
                 ButtonComponent={ButtonSecondary}
                 buttonText="Open New Connection"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
               />
             )}
             <ButtonSecondary size="small" onClick={props.disconnect}>

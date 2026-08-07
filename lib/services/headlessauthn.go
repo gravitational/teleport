@@ -46,7 +46,7 @@ func ValidateHeadlessAuthentication(h *types.HeadlessAuthentication) error {
 	case len(h.SshPublicKey) == 0:
 		return trace.BadParameter("headless authentication resource must have non-empty SSH public key")
 	case h.Metadata.Name != NewHeadlessAuthenticationID(h.SshPublicKey):
-		return trace.BadParameter("headless authentication authentication resource name must be derived from public key")
+		return trace.BadParameter("headless authentication resource name must be derived from public key")
 	}
 
 	return nil

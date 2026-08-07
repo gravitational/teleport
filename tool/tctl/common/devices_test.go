@@ -19,9 +19,13 @@ package common
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 func TestDeviceSourceToString(t *testing.T) {
@@ -57,6 +61,44 @@ func TestDeviceSourceToString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, deviceSourceToString(tt.source))
+		})
+	}
+}
+
+// TestOSTypeFlagValues covers the --os values offered by `tctl devices add`.
+// They come from devicepb.OSType, so an OSType that ResourceOSTypeToString
+// doesn't know about would reach the CLI as its bare proto name.
+func TestOSTypeFlagValues(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, []string{"linux", "macos", "windows"},
+		osTypeFlagValues(), "osTypeFlagValues mismatch")
+}
+
+// TestDeviceAddOSFlag covers the --os values `tctl devices add` accepts.
+// The flag is the only thing keeping UNSPECIFIED out, as
+// types.ResourceOSTypeFromString resolves "unspecified" without an error.
+func TestDeviceAddOSFlag(t *testing.T) {
+	t.Parallel()
+
+	parse := func(t *testing.T, os string) error {
+		t.Helper()
+		c := DevicesCommand{}
+		app := utils.InitCLIParser("tctl", GlobalHelpString)
+		c.Initialize(app, &tctlcfg.GlobalCLIFlags{}, servicecfg.MakeDefaultConfig())
+		_, err := app.Parse([]string{"devices", "add", "--os", os, "--asset-tag", "C00AA0AAAA0A"})
+		return err
+	}
+
+	for _, os := range osTypeFlagValues() {
+		t.Run(os, func(t *testing.T) {
+			assert.NoError(t, parse(t, os), "--os %v rejected", os)
+		})
+	}
+
+	for _, os := range []string{"unspecified", "OS_TYPE_MACOS", "bogus"} {
+		t.Run("rejects "+os, func(t *testing.T) {
+			assert.ErrorContains(t, parse(t, os), "enum value must be one of linux,", "--os %v accepted", os)
 		})
 	}
 }

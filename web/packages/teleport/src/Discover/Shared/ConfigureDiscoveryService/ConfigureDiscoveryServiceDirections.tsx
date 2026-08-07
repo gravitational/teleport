@@ -86,7 +86,7 @@ discovery_service:
         <TextSelectCopyMulti
           lines={[
             {
-              text: `tctl tokens add --type=discovery`,
+              text: `tctl tokens add --type=discovery --format=text`,
             },
           ]}
         />

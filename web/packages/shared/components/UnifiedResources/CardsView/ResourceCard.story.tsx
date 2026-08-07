@@ -96,6 +96,7 @@ type StoryProps = {
   withHoverState: boolean;
   withLabelIcon: boolean;
   showResourceSelectedIcon: boolean;
+  showSelectedResourceIconForMatchingLabels: boolean;
   labelIconPlacement: 'left' | 'right';
   labelKind: LabelKind;
 };
@@ -121,6 +122,9 @@ const meta: Meta<StoryProps> = {
     showResourceSelectedIcon: {
       control: { type: 'boolean' },
     },
+    showSelectedResourceIconForMatchingLabels: {
+      control: { type: 'boolean' },
+    },
     labelIconPlacement: {
       control: { type: 'select' },
       options: ['left', 'right'],
@@ -138,6 +142,7 @@ const meta: Meta<StoryProps> = {
     withCopy: true,
     withHoverState: true,
     showResourceSelectedIcon: false,
+    showSelectedResourceIconForMatchingLabels: false,
   },
 };
 export default meta;
@@ -191,7 +196,12 @@ export function Cards(props: StoryProps) {
               onShowStatusInfo={() => null}
               showingStatusInfo={false}
               viewItem={res}
-              showResourceSelectedIcon={props.showResourceSelectedIcon}
+              showResourceSelectedIcon={
+                props.showSelectedResourceIconForMatchingLabels
+                  ? labels =>
+                      labels.some(l => l.name === 'env' && l.value === 'prod')
+                  : props.showResourceSelectedIcon
+              }
               visibleInputFields={{
                 checkbox: props.withCheckbox,
                 pin: props.withPin,

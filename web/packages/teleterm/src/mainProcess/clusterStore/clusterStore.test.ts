@@ -18,6 +18,8 @@
 
 import { enableMapSet, enablePatches } from 'immer';
 
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockTshClient } from 'teleterm/services/tshd/fixtures/mocks';
 import {
@@ -78,14 +80,7 @@ test('adding a cluster does not overwrite an existing one', async () => {
 });
 
 test('syncs cluster', async () => {
-  const mockClient = new MockTshClient();
-  mockClient.getCluster = () => new MockedUnaryCall(clusterWithDetails);
-  mockClient.listLeafClusters = () =>
-    new MockedUnaryCall({ clusters: [leafCluster] });
-  const clusterStore = new ClusterStore(
-    () => Promise.resolve(mockClient),
-    mockWindowsManager
-  );
+  const { clusterStore } = getTestSetup();
 
   await clusterStore.sync(cluster.uri);
 
@@ -94,19 +89,32 @@ test('syncs cluster', async () => {
   expect(state.get(leafCluster.uri)).toStrictEqual(leafCluster);
 });
 
-test('logs out of cluster', async () => {
-  const mockClient = new MockTshClient();
-  mockClient.getCluster = () => new MockedUnaryCall(clusterWithDetails);
-  mockClient.listLeafClusters = () =>
-    new MockedUnaryCall({ clusters: [leafCluster] });
-  const logoutMock = jest.spyOn(mockClient, 'logout');
-  const clusterStore = new ClusterStore(
-    () => Promise.resolve(mockClient),
-    mockWindowsManager
-  );
+test('logs out of cluster and keeps profile', async () => {
+  const { clusterStore, logoutMock } = getTestSetup();
   await clusterStore.sync(cluster.uri);
 
-  await clusterStore.logoutAndRemove(cluster.uri);
+  await clusterStore.logout(cluster.uri);
+
+  expect(logoutMock).toHaveBeenCalledWith({
+    clusterUri: cluster.uri,
+    removeProfile: false,
+  });
+  const state = clusterStore.getState();
+  expect(state.get(clusterWithDetails.uri)).toEqual(
+    expect.objectContaining({
+      ...clusterWithDetails,
+      connected: false,
+      loggedInUser: LoggedInUser.create(),
+    })
+  );
+  expect(state.get(leafCluster.uri)).toBeUndefined();
+});
+
+test('logs out of cluster and removes profile', async () => {
+  const { clusterStore, logoutMock } = getTestSetup();
+  await clusterStore.sync(cluster.uri);
+
+  await clusterStore.logout(cluster.uri, { removeProfile: true });
 
   expect(logoutMock).toHaveBeenCalledWith({
     clusterUri: cluster.uri,
@@ -116,3 +124,16 @@ test('logs out of cluster', async () => {
   expect(state.get(clusterWithDetails.uri)).toBeUndefined();
   expect(state.get(leafCluster.uri)).toBeUndefined();
 });
+
+function getTestSetup() {
+  const mockClient = new MockTshClient();
+  mockClient.getCluster = () => new MockedUnaryCall(clusterWithDetails);
+  mockClient.listLeafClusters = () =>
+    new MockedUnaryCall({ clusters: [leafCluster] });
+  const logoutMock = jest.spyOn(mockClient, 'logout');
+  const clusterStore = new ClusterStore(
+    () => Promise.resolve(mockClient),
+    mockWindowsManager
+  );
+  return { clusterStore, logoutMock };
+}

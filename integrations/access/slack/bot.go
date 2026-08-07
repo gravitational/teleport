@@ -98,8 +98,8 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
-		appAccesslist.NewApp(b),
+		accessrequest.NewApp(),
+		appAccesslist.NewApp(),
 	}
 }
 
@@ -364,10 +364,11 @@ func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.
 func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
 	fields := accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
 	statusText := accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
+	titleText := accessrequest.MsgTitle(reqData)
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: "You have a new Role Request:"}),
+			Text: NewTextObjectItem(MarkdownObject{Text: titleText}),
 		}),
 		NewBlockItem(SectionBlock{
 			Text: NewTextObjectItem(MarkdownObject{

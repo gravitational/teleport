@@ -32,7 +32,11 @@ export function createPtyHostClient(
   address: string,
   credentials: ChannelCredentials
 ): PtyHostClient {
-  const client = new GrpcClient(address, credentials);
+  const client = new GrpcClient(address, credentials, {
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    'grpc.enable_http_proxy': 0,
+  });
   return {
     createPtyProcess(ptyOptions) {
       const request = PtyCreate.create({

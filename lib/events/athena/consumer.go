@@ -113,7 +113,7 @@ type sqsDeleter interface {
 }
 
 type s3downloader interface {
-	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error) //nolint:staticcheck // TODO(tigrato)
 }
 
 func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
@@ -148,7 +148,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(nklaassen): use s3 manager from teleport observability.
-		payloadDownloader: manager.NewDownloader(publisherS3Client),
+		payloadDownloader: manager.NewDownloader(publisherS3Client), //nolint:staticcheck // TODO(tigrato)
 		payloadBucket:     cfg.largeEventsBucket,
 		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:     cfg.BatchMaxItems,

@@ -5,7 +5,7 @@ sidebar_label: Bot Instance
 ---
 {/* vale 3rd-party-products.former-names = NO */}
 {/* vale messaging.capitalization = NO */}
-{/* Automatically generated from: gen/proto/go/teleport/machineid/v1/bot_instance.pb.go */}
+{/* Automatically generated from: gen/proto/go/teleport/machineid/v1/bot_instance_protohybrid.pb.go */}
 {/* DO NOT EDIT */}
 
 **Kind**: `bot_instance`<br/>
@@ -28,11 +28,13 @@ version: "string"
 metadata: # [...]
 spec: # [...]
 status: # [...]
+scope: "string"
 ```
 |Field Name|Description|Type|
 |---|---|---|
 |kind|The kind of resource represented.|string|
 |metadata|Common metadata that all resources share.|[Metadata](#metadata)|
+|scope|Of the BotInstance. This is determined based on the scope of the Bot associated with this instance, and may be used for scoped RBAC on the BotInstance resource.|string|
 |spec|The configured properties of a BotInstance.|[Bot Instance Spec](#bot-instance-spec)|
 |status|Fields that are set by the server as results of operations. These should not be modified by users.|[Bot Instance Status](#bot-instance-status)|
 |sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
@@ -226,6 +228,7 @@ kubernetes: # [...]
 oracle: # [...]
 azure_devops: # [...]
 env0: # [...]
+generic_oidc: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -236,6 +239,7 @@ env0: # [...]
 |circleci|Attributes that are specific to the CircleCI (`circleci`) join method.|[Join Attrs CircleCI](#join-attrs-circleci)|
 |env0|Attributes that are specific to the Env0 (`env0`) join method.|[Join Attrs Env0](#join-attrs-env0)|
 |gcp|Attributes that are specific to the GCP (`gcp`) join method.|[Join Attrs GCP](#join-attrs-gcp)|
+|generic_oidc|Attributes that are specific to the generic OIDC (`generic_oidc`) join method.|[Join Attrs Generic OIDC](#join-attrs-generic-oidc)|
 |github|Attributes that are specific to the GitHub (`github`) join method.|[Join Attrs GitHub](#join-attrs-github)|
 |gitlab|Attributes that are specific to the GitLab (`gitlab`) join method.|[Join Attrs GitLab](#join-attrs-gitlab)|
 |iam|Attributes that are specific to the AWS IAM (`iam`) join method.|[Join Attrs AWS IAM](#join-attrs-aws-iam)|
@@ -273,12 +277,14 @@ Example:
 ```yaml
 subscription: "string"
 resource_group: "string"
+tenant: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |resource_group|The resource group of the Azure account that the joining entity is a part of.|string|
 |subscription|The subscription ID of the Azure account that the joining entity is a part of.|string|
+|tenant|The tenant ID of the Azure account that the joining entity is a part of.|string|
 
 ## Join Attrs Azure Devops
 
@@ -456,6 +462,21 @@ project: "string"
 |project|The project ID of the GCP project that the instance is running within.|string|
 |zone|The zone of the GCE instance that the joining entity is running on.|string|
 
+## Join Attrs Generic OIDC
+
+Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+
+
+Example:
+
+```yaml
+claims: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|claims|A complete set of token claims.||
+
 ## Join Attrs GitHub
 
 Attributes that are specific to the GitHub (`github`) join method.  Typically, these are mapped directly from the claims of the GitHub JWT that was used to join. You can view the documentation for those claims at: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
@@ -475,11 +496,15 @@ workflow: "string"
 event_name: "string"
 sha: "string"
 run_id: "string"
+enterprise: "string"
+enterprise_id: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |actor|The username of the actor that initiated the workflow run.|string|
+|enterprise|The name of the enterprise that the repository belongs to, if any.|string|
+|enterprise_id|The ID of the enterprise that the repository belongs to, if any.|string|
 |environment|The name of the environment that the workflow is running against, if any.|string|
 |event_name|The name of the event that triggered the workflow run.|string|
 |ref|The ref that the workflow is running against.|string|

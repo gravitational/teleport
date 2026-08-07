@@ -1,0 +1,5 @@
+ID      URL                                      Expires          
+------- ---------------------------------------- ---------------- 
+alpha   https://alpha-app.proxy.example.com      3 hours from now 
+bravo                                            4 hours from now 
+charlie tcp://charlie-app.proxy.example.com:5432 5 hours from now 

@@ -42,7 +42,10 @@ export default function useLogin() {
   const [showMotd, setShowMotd] = useState<boolean>(() => {
     const redirectUri = history.getRedirectParam();
 
-    if (redirectUri?.includes('headless')) {
+    if (
+      redirectUri?.includes('headless') ||
+      redirectUri?.includes('/mfa/browser')
+    ) {
       return false;
     }
     return !!cfg.getMotd();

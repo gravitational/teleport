@@ -41,8 +41,9 @@ type ConnectionsLimiter struct {
 	connections map[string]int64
 }
 
-// NewConnectionsLimiter returns new connection limiter, in case if connection
-// limits are not set, they won't be tracked
+// NewConnectionsLimiter returns a new connection limiter. If
+// maxConnections is zero, the limiter performs no tracking and
+// all requests pass through.
 func NewConnectionsLimiter(maxConnections int64) *ConnectionsLimiter {
 	return &ConnectionsLimiter{
 		maxConnections: maxConnections,
@@ -60,6 +61,11 @@ func (l *ConnectionsLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if l.next == nil {
 		sc := http.StatusInternalServerError
 		http.Error(w, http.StatusText(sc), sc)
+		return
+	}
+
+	if l.maxConnections == 0 {
+		l.next.ServeHTTP(w, r)
 		return
 	}
 
@@ -82,7 +88,9 @@ func (l *ConnectionsLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	l.next.ServeHTTP(w, r)
 }
 
-// AcquireConnection acquires connection and bumps counter
+// AcquireConnection increments the connection count for the
+// given token. If maxConnections is zero, it returns nil
+// immediately without tracking.
 func (l *ConnectionsLimiter) AcquireConnection(token string) error {
 	if l.maxConnections == 0 {
 		return nil
@@ -105,7 +113,8 @@ func (l *ConnectionsLimiter) AcquireConnection(token string) error {
 	return nil
 }
 
-// ReleaseConnection decrements the counter
+// ReleaseConnection decrements the connection count for the
+// given token. If maxConnections is zero, it returns immediately.
 func (l *ConnectionsLimiter) ReleaseConnection(token string) {
 	if l.maxConnections == 0 {
 		return
@@ -126,7 +135,9 @@ func (l *ConnectionsLimiter) ReleaseConnection(token string) {
 	}
 }
 
-// GetNumConnection returns the current number of connections for a token
+// GetNumConnection returns the current connection count for the
+// given token. If maxConnections is zero, it returns 0 because
+// connections are not tracked.
 func (l *ConnectionsLimiter) GetNumConnection(token string) (int64, error) {
 	if l.maxConnections == 0 {
 		return 0, nil

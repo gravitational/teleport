@@ -22,8 +22,10 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/tunnel"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,14 +48,16 @@ func TunnelServiceBuilder(
 	cfg *TunnelConfig,
 	connCfg connection.Config,
 	defaultCredentialLifetime bot.CredentialLifetime,
+	leeway time.Duration,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &TunnelService{
 			connCfg:                   connCfg,
 			defaultCredentialLifetime: defaultCredentialLifetime,
+			leeway:                    leeway,
 			cfg:                       cfg,
 			proxyPinger:               deps.ProxyPinger,
 			botClient:                 deps.Client,
@@ -74,6 +79,7 @@ func TunnelServiceBuilder(
 type TunnelService struct {
 	connCfg                   connection.Config
 	defaultCredentialLifetime bot.CredentialLifetime
+	leeway                    time.Duration
 	cfg                       *TunnelConfig
 	proxyPinger               connection.ProxyPinger
 	log                       *slog.Logger
@@ -139,18 +145,38 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
+	// Attempt to provide a sensible cap for leeway values based on the
+	// configured and actual cert TTLs. This check is simple and imperfect, and
+	// the right set of unreasonable values can still trigger vaguely bad
+	// behavior.
+	issuedCertTTL := dbCert.Leaf.NotAfter.Sub(dbCert.Leaf.NotBefore)
+	effectiveConfiguredLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	realTTL := min(issuedCertTTL, effectiveConfiguredLifetime.TTL)
+
+	leeway := s.leeway
+	if leeway >= realTTL {
+		s.log.WarnContext(ctx,
+			"leeway is greater than the credential lifetime and will be "+
+				"ignored, be aware of potential failures due to clock drift",
+			"configured_ttl", effectiveConfiguredLifetime.TTL,
+			"configured_leeway", leeway,
+			"issued_cert_ttl", issuedCertTTL,
+		)
+		leeway = 0
+	}
+
 	middleware := internal.ALPNProxyMiddleware{
 		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "TunnelService/OnNewConnection")
 			defer span.End()
 
 			// Check if the certificate needs reissuing, if so, reissue.
-			if err := lp.CheckDBCert(ctx, tlsca.RouteToDatabase{
+			if err := lp.CheckDBCertWithLeeway(ctx, tlsca.RouteToDatabase{
 				ServiceName: routeToDatabase.ServiceName,
 				Protocol:    routeToDatabase.Protocol,
 				Database:    routeToDatabase.Database,
 				Username:    routeToDatabase.Username,
-			}); err != nil {
+			}, leeway); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
 				cert, err := s.issueCert(ctx, routeToDatabase)
 				if err != nil {
@@ -165,7 +191,6 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	alpnProtocol, err := common.ToALPNProtocol(routeToDatabase.Protocol)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
-
 	}
 	lpConfig := alpnproxy.LocalProxyConfig{
 		Middleware: middleware,
@@ -209,8 +234,20 @@ func (s *TunnelService) Run(ctx context.Context) error {
 		}()
 	}
 
-	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	var lpCfg alpnproxy.LocalProxyConfig
+	err := tunnel.RetryInitialization(ctx, s.log, s.statusReporter, func(ctx context.Context) error {
+		var proxyErr error
+		lpCfg, proxyErr = s.buildLocalProxyConfig(ctx)
+		return proxyErr
+	})
 	if err != nil {
+		// If the context got canceled do not to pollute
+		// the shutdown with that error. Similar to what is
+		// being done at the end of this function.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+
 		return trace.Wrap(err, "building local proxy config")
 	}
 	lpCfg.Listener = l
@@ -229,7 +266,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	// lp.Start will block and continues to block until lp.Close() is called.
 	// Despite taking a context, it will not exit until the first connection is
 	// made after the context is canceled.
-	var errCh = make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		errCh <- lp.Start(ctx)
 	}()
@@ -258,11 +295,16 @@ func (s *TunnelService) getRouteToDatabaseWithImpersonation(ctx context.Context)
 	defer span.End()
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx,
-		identity.WithRoles(s.cfg.Roles),
+	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+	if s.cfg.DelegationSessionID == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
@@ -289,18 +331,28 @@ func (s *TunnelService) issueCert(
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	ident, err := s.identityGenerator.Generate(ctx,
-		identity.WithRoles(s.cfg.Roles),
+	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 		identity.WithRouteToDatabase(route),
-	)
+	}
+	if s.cfg.DelegationSessionID == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	ident, err := s.identityGenerator.Generate(ctx, identityOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
 
-	return ident.TLSCert, nil
+	// The leaf isn't appended by the stdlib, so add it here so we can inspect
+	// the TTL downstream.
+	cert := ident.TLSCert
+	cert.Leaf = ident.X509Cert
+
+	return cert, nil
 }
 
 // String returns a human-readable string that can uniquely identify the

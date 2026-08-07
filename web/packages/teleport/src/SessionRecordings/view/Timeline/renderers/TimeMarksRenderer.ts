@@ -217,5 +217,7 @@ function formatAbsoluteTime(timestamp: number) {
   return date
     .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     .replace(' AM', 'am')
-    .replace(' PM', 'pm');
+    .replace(' a.m.', 'am')
+    .replace(' PM', 'pm')
+    .replace(' p.m.', 'pm');
 }

@@ -44,6 +44,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -103,6 +105,7 @@ type AuthService interface {
 	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
+	GetGenericOIDCIDTokenValidator() GenericOIDCTokenValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
 	GetK8sJWKSValidator() kubetoken.JWKSValidator
@@ -118,11 +121,14 @@ type AuthService interface {
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
 	AuthService        AuthService
-	Authorizer         authz.Authorizer
+	ScopedAuthorizer   authz.ScopedAuthorizer
 	FIPS               bool
 	OracleHTTPClient   utils.HTTPDoClient
 	ScopedTokenService services.ScopedTokenService
 	Logger             *slog.Logger
+	// ScopesFeatures dictate which scoped components are enabled.
+	ScopesFeatures scopes.Features
+	Emitter        apievents.Emitter
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -180,7 +186,7 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 			scopedErr = err
 			return
 		}
-		if err := joining.ValidateTokenForUse(res.GetToken()); err != nil {
+		if err := joining.ValidateTokenForUse(res.GetToken(), s.cfg.ScopesFeatures); err != nil {
 			scopedErr = err
 			return
 		}
@@ -261,6 +267,12 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if clientInit.JoinMethod != nil {
 			i.RequestedJoinMethod = joinutils.SanitizeUntrustedString(*clientInit.JoinMethod)
 		}
+		if clientInit.HostName != "" {
+			// Sanitizing won't prevent an invalid hostname from being used
+			// but we don't care about that because the ClientInit.HostName
+			// is only used for diagnostic purposes.
+			i.NodeName = joinutils.SanitizeUntrustedString(clientInit.HostName)
+		}
 	})
 	if err := clientInit.Check(); err != nil {
 		return trace.Wrap(err, "validating ClientInit message")
@@ -278,12 +290,26 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// collect the union of already assigned system roles, if any, and any system roles
+	// that will be added by the join token
+	var resultingSystemRoles types.SystemRoles
+	for _, role := range slices.Concat(authCtx.SystemRoles, token.GetRoles()) {
+		if role.IsLocalService() && !resultingSystemRoles.Include(role) {
+			resultingSystemRoles = append(resultingSystemRoles, role)
+		}
+	}
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
 		i.SafeTokenName = token.GetSafeName()
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
-		i.BotName = token.GetBotName()
+		i.BotName, i.BotScope = token.GetBot()
+		i.AssignedScope = token.GetAssignedScope()
+		i.SystemRoles = resultingSystemRoles.StringSlice()
+
+		// It's not worth fetching the true bot scope here (via bot user label)
+		// so we'll just include the one embedded in the token.
+		i.BotName, i.BotScope = token.GetBot()
 	})
 
 	// Validate that the requested join method matches the join method
@@ -324,6 +350,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	handleJoinSuccess(ctx, s.cfg.AuthService, diag)
 	// Finally, send the result back to the client.
 	return trace.Wrap(stream.Send(result))
 }
@@ -352,6 +379,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodGCP:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
+	case types.JoinMethodGenericOIDC:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGenericOIDCToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
@@ -377,7 +406,7 @@ func (s *Server) handleJoinMethod(
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err, "unexpected error authorizing request")
 	}
@@ -385,9 +414,20 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		// No authentication or AccessDenied is okay, this is not normally an
 		// authenticated endpoint unless the client is re-joining or the
 		// request was forwarded by a proxy, just return an empty Context.
+
+		// A note around use of ScopedAuthorizer: it will return an empty
+		// context if the scopes feature is disabled even if an otherwise-valid
+		// scoped identity is presented, so they will be treated as
+		// unauthenticated and ultimately will fail to join. This edge case will
+		// be resolved when the scopes feature flag is removed.
 		return &joinauthz.Context{}, nil
 	}
-	isProxy := authz.HasBuiltinRole(*authCtx, types.RoleProxy.String())
+	var isProxy bool
+	if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+		// Proxy identities are always unscoped, so the unscoped context should
+		// always be available.
+		isProxy = authz.HasBuiltinRole(*unscopedCtx, types.RoleProxy.String())
+	}
 	if !isProxy && clientInit.ProxySuppliedParams != nil {
 		return nil, trace.AccessDenied("client set ProxySuppliedParameters but did not authenticate as a proxy")
 	}
@@ -446,7 +486,7 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		HostID:        hostID,
 		BotInstanceID: botInstanceID,
 		BotGeneration: botGeneration,
-		Scope:         id.AgentScope,
+		Scope:         id.GetAgentScope(),
 	}, nil
 }
 
@@ -531,6 +571,9 @@ func (s *Server) makeHostResult(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.HostID = certsParams.HostID
+	})
 	return &messages.HostResult{
 		Certificates:    *certificates,
 		HostID:          certsParams.HostID,
@@ -615,6 +658,9 @@ func (s *Server) makeBotResult(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.BotInstanceID = botInstanceID
+	})
 	certificates, err := convertCerts(certs)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -751,20 +797,46 @@ func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *dia
 	}
 }
 
+func handleJoinSuccess(ctx context.Context, emitter apievents.Emitter, diag *diagnostic.Diagnostic) {
+	diagInfo := diag.Get()
+
+	// Fetch and encode RawJoinAttrs if they are available.
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(diagInfo.RawJoinAttrs)
+	if err != nil {
+		log.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
+	}
+
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diagInfo, attributesStruct)); err != nil {
+		log.WarnContext(ctx, "Failed to emit join event", "error", err)
+	}
+}
+
 func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
-	errorMessage := info.Error.Error()
-	if errors.Is(info.Error, context.Canceled) || status.Code(info.Error) == codes.Canceled {
+	var errorMessage string
+	switch {
+	case errors.Is(info.Error, context.Canceled), status.Code(info.Error) == codes.Canceled:
 		errorMessage = "join attempt timed out or was aborted"
+	case info.Error != nil:
+		errorMessage = info.Error.Error()
 	}
 	status := apievents.Status{
-		Success: false,
+		Success: info.Error == nil,
 		Error:   errorMessage,
 	}
+	var code string
 	if info.Role == types.RoleBot.String() {
+		switch {
+		case errors.Is(info.Error, joining.ErrTokenExhausted):
+			code = events.BotJoinLimitCode
+		case info.Error != nil:
+			code = events.BotJoinFailureCode
+		default:
+			code = events.BotJoinCode
+		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
-				Code: events.BotJoinFailureCode,
+				Code: code,
 				Time: time.Now(),
 			},
 			Status: status,
@@ -773,27 +845,40 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			},
 			Method:        cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 			TokenName:     info.SafeTokenName,
+			UserName:      machineidv1.BotResourceName(info.BotName),
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
+			Scope:         info.BotScope,
 			Attributes:    attributesStruct,
 		}
+	}
+	switch {
+	case errors.Is(info.Error, joining.ErrTokenExhausted):
+		code = events.InstanceJoinLimitCode
+	case info.Error != nil:
+		code = events.InstanceJoinFailureCode
+	default:
+		code = events.InstanceJoinCode
 	}
 	return &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
 			Type: events.InstanceJoinEvent,
-			Code: events.InstanceJoinFailureCode,
+			Code: code,
 			Time: time.Now(),
 		},
 		Status: status,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: info.RemoteAddr,
 		},
+		HostID:       info.HostID,
 		Method:       cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 		TokenName:    info.SafeTokenName,
 		TokenExpires: info.TokenExpires,
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 		Attributes:   attributesStruct,
+		Scope:        info.AssignedScope,
+		Roles:        info.SystemRoles,
 	}
 }
 

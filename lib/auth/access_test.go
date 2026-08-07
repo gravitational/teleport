@@ -48,7 +48,7 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(t.Context(), testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	// test create new role
@@ -104,7 +104,7 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 func TestUpsertDeleteDependentRoles(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	// test create new role
@@ -1127,7 +1127,7 @@ func TestDeleteRole(t *testing.T) {
 func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{

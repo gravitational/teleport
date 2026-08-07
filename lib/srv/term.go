@@ -39,6 +39,11 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+)
+
+const (
+	defaultTerm = "xterm"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -110,6 +115,12 @@ type Terminal interface {
 // NewTerminal returns a new terminal. Terminal can be local or remote
 // depending on cluster configuration.
 func NewTerminal(ctx *ServerContext) (Terminal, error) {
+	// In tests, use a remote terminal (ptybuffer) rather than allocating a real PTY
+	// for higher throughput, especially under high CPU load.
+	if ctx.IsTestStub {
+		return newRemoteTerminal(ctx)
+	}
+
 	// It doesn't matter what mode the cluster is in, if this is a Teleport node
 	// return a local terminal.
 	if ctx.srv.Component() == teleport.ComponentNode {
@@ -490,7 +501,6 @@ func (t *terminal) setOwner() error {
 }
 
 type remoteTerminal struct {
-	wg sync.WaitGroup
 	mu sync.Mutex
 
 	log *slog.Logger
@@ -519,9 +529,7 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 	return t, nil
 }
 
-func (t *remoteTerminal) AddParty(delta int) {
-	t.wg.Add(delta)
-}
+func (t *remoteTerminal) AddParty(delta int) {}
 
 type ptyBuffer struct {
 	r io.Reader
@@ -602,13 +610,13 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		}
 
 		return &ExecResult{
-			Code:    teleport.RemoteCommandFailure,
+			Code:    reexecconstants.RemoteCommandFailure,
 			Command: execRequest.GetCommand(),
 		}, err
 	}
 
 	return &ExecResult{
-		Code:    teleport.RemoteCommandSuccess,
+		Code:    reexecconstants.RemoteCommandSuccess,
 		Command: execRequest.GetCommand(),
 	}, nil
 }
@@ -655,11 +663,6 @@ func (t *remoteTerminal) Close() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Wait for parties to be relased after closing the remote session. This
-	// avoid cases where the parties are blocked, reading from the remote
-	// session.
-	t.wg.Wait()
 
 	t.log.DebugContext(t.ctx.CancelContext(), "Closed remote terminal and underlying SSH session")
 	return nil

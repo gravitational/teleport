@@ -41,7 +41,11 @@ export type IPtyProcess = {
   onOpen(cb: () => void): RemoveListenerFunction;
   onStartError(cb: (message: string) => void): RemoveListenerFunction;
   onExit(
-    cb: (ev: { exitCode: number; signal?: number; lastInput: string }) => void
+    cb: (ev: {
+      exitCode: number;
+      signal?: number;
+      lastInputWasCtrlD: boolean;
+    }) => void
   ): RemoveListenerFunction;
 };
 

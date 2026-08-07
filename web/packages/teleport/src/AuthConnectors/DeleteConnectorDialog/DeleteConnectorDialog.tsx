@@ -66,7 +66,7 @@ export default function DeleteConnectorDialog(props: Props) {
             <Icon />
           </Box>
           <P1>
-            Are you sure you want to delete connector{' '}
+            Are you sure you want to delete the connector{' '}
             <Text as="span" bold color="text.main">
               {name}
             </Text>

@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"io"
@@ -50,7 +49,7 @@ func TestProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	newProxyService(t, lis, authClient)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, err := secretscannerclient.NewSecretsScannerServiceClient(ctx, secretscannerclient.ClientConfig{
 		ProxyServer: lis.Addr().String(),
@@ -102,7 +101,6 @@ func TestProxy(t *testing.T) {
 	// Receive the termination message
 	_, err = stream.Recv()
 	require.ErrorIs(t, err, io.EOF)
-
 }
 
 func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
@@ -110,7 +108,8 @@ func newFakefakeSecretsScannerSvc(t *testing.T) *fakeSecretsClient {
 	require.NoError(t, err)
 
 	server := grpc.NewServer()
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, &fakeSecretsScannerSvc{})
+	service := &fakeSecretsScannerSvc{}
+	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, service)
 	go func() {
 		err := server.Serve(lis)
 		assert.NoError(t, err)

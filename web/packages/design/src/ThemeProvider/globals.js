@@ -17,8 +17,7 @@
  */
 
 import { createGlobalStyle } from 'styled-components';
-
-import './../assets/ubuntu/style.css';
+import '@gravitational/design-system/ubuntu.css';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -46,31 +45,20 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]
-  :not([data-scrollbar="default"])::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  :not([data-scrollbar="default"])::-webkit-scrollbar-thumb {
-    background: #757575;
-  }
-
-  :not([data-scrollbar="default"])::-webkit-scrollbar-corner {
-    background: rgba(0,0,0,0.5);
-  }
-
   :root {
     color-scheme: ${props =>
       props.theme
         .name}; // this ensures Chrome's scrollbars are set to the right color depending on the theme
   }
 
-  // remove dotted Firefox outline
-  button, a {
-    outline: 0;
-    ::-moz-focus-inner {
-      border: 0;
+  @layer reset {
+    // remove dotted Firefox outline
+    button, a {
+      outline: 0;
+
+      ::-moz-focus-inner {
+        border: 0;
+      }
     }
   }
 `;

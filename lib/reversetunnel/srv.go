@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -218,6 +219,9 @@ type Config struct {
 	// DatabaseServerWatcher is a database server watcher.
 	DatabaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 
+	// AppServerWatcher is a app server watcher.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
 
@@ -291,6 +295,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.DatabaseServerWatcher == nil {
 		return trace.BadParameter("missing parameter DatabaseServerWatcher")
+	}
+	if cfg.AppServerWatcher == nil {
+		return trace.BadParameter("missing parameter AppServerWatcher")
 	}
 	return nil
 }
@@ -376,6 +383,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
+		sshutils.SetRequestHandler(srv),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
 		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
@@ -394,6 +402,21 @@ func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster 
 		out[rc[i].GetName()] = rc[i]
 	}
 	return out
+}
+
+// HandleRequest processes global out-of-band requests.
+//
+// Only supports [teleport.KeepAliveReqType] requests, all other requests are discarded.
+func (s *server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) {
+	switch r.Type {
+	case teleport.KeepAliveReqType:
+		r.Reply(false, nil)
+	default:
+		if err := r.Reply(false, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
+		}
+		s.logger.DebugContext(ctx, "Discarding global request", "request_type", r.Type)
+	}
 }
 
 // disconnectClusters disconnects reverse tunnel connections from remote clusters
@@ -688,7 +711,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		//nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
 		s.logger.WarnContext(ctx, msg)
-		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
+		s.rejectRequest(nch, ssh.UnknownChannelType, msg)
 		return
 	}
 }
@@ -750,6 +773,7 @@ func (s *server) handleTransportChannel(sconn *ssh.ServerConn, ch ssh.Channel, r
 			s.logger.ErrorContext(s.ctx, "Failed to create signed PROXY header", "error", err)
 			fmt.Fprint(ch.Stderr(), "internal server error")
 			req.Reply(false, nil)
+			return
 		}
 		proxyHeader = h
 	}
@@ -817,6 +841,8 @@ func (s *server) handleHeartbeat(ctx context.Context, conn net.Conn, sconn *ssh.
 		s.handleNewCluster(ctx, conn, sconn, nch)
 	case types.RoleWindowsDesktop:
 		s.handleNewService(ctx, role, conn, sconn, nch, types.WindowsDesktopTunnel)
+	case types.RoleLinuxDesktop:
+		s.handleNewService(ctx, role, conn, sconn, nch, types.LinuxDesktopTunnel)
 	case types.RoleOkta:
 		s.handleNewService(ctx, role, conn, sconn, nch, types.OktaTunnel)
 	// Unknown role.
@@ -907,7 +933,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		return nil, trace.Wrap(err)
 	}
 
-	var clusterName, certRole, certType string
+	var clusterName, certRole, certType, certScope string
 	var caType types.CertAuthType
 	switch ident.CertType {
 	case ssh.HostCert:
@@ -916,10 +942,21 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		}
 		clusterName = ident.ClusterName
 
-		if ident.SystemRole == "" {
+		if ident.SystemRole != "" {
+			// Legacy format: role and scope in separate extensions.
+			certRole = string(ident.SystemRole)
+			certScope = ident.AgentScope
+		} else if ident.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+			// Agent scope pin certs omit the legacy SystemRole and AgentScope extensions;
+			// role and scope are carried inside the pin itself.
+			certRole = ident.ScopePin.GetSystemRoles().GetPrimary()
+			if certRole == "" {
+				return nil, trace.BadParameter("agent scope pin is missing primary system role")
+			}
+			certScope = ident.ScopePin.GetScope()
+		} else {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
-		certRole = string(ident.SystemRole)
 		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
 	case ssh.UserCert:
@@ -954,7 +991,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
-			extScope:             ident.AgentScope,
+			extScope:             certScope, // TODO(fsparshall/scopes): should agent scoping be propagated pin-encapsulated like we do for users?
 		},
 	}, nil
 }
@@ -1275,6 +1312,18 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.databaseServerWatcher = databaseServerWatcher
+
+	appServerWatcher, err := services.NewAppServersWatcher(closeContext, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Logger:    srv.Logger,
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.appServerWatcher = appServerWatcher
 
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in

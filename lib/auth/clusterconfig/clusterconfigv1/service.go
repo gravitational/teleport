@@ -75,6 +75,7 @@ type ServiceConfig struct {
 	Cache                         Cache
 	Backend                       Backend
 	Authorizer                    authz.Authorizer
+	ScopedAuthorizer              authz.ScopedAuthorizer
 	Emitter                       apievents.Emitter
 	AccessGraph                   AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
@@ -103,6 +104,7 @@ type Service struct {
 	cache                         Cache
 	backend                       Backend
 	authorizer                    authz.Authorizer
+	scopedAuthorizer              authz.ScopedAuthorizer
 	emitter                       apievents.Emitter
 	accessGraph                   AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
@@ -118,6 +120,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	}
@@ -136,6 +140,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cache:                         cfg.Cache,
 		backend:                       cfg.Backend,
 		authorizer:                    cfg.Authorizer,
+		scopedAuthorizer:              cfg.ScopedAuthorizer,
 		emitter:                       cfg.Emitter,
 		accessGraph:                   cfg.AccessGraph,
 		readOnlyCache:                 cfg.ReadOnlyCache,
@@ -145,12 +150,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetAuthPreference returns the locally cached auth preference.
 func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterAuthPreference, types.VerbRead); err != nil {
+	// Use RiskyAuthorizeUnpinnedRead to allow scoped identities (regardless of their
+	// scope pin) to call GetAuthPreference.
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthPreference, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -396,13 +404,18 @@ func GetAdminActionsMFAStatus(oldPref, newPref types.AuthPreference) apievents.A
 
 // GetClusterNetworkingConfig returns the locally cached networking configuration.
 func (s *Service) GetClusterNetworkingConfig(ctx context.Context, _ *clusterconfigpb.GetClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
-		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterNetworkingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := authzCtx.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -702,25 +715,31 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConf
 
 // GetSessionRecordingConfig returns the locally cached networking configuration.
 func (s *Service) GetSessionRecordingConfig(ctx context.Context, _ *clusterconfigpb.GetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSessionRecordingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := authzCtx.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	netConfig, err := s.readOnlyCache.GetReadOnlySessionRecordingConfig(ctx)
+	recConfig, err := s.readOnlyCache.GetReadOnlySessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfgV2, ok := netConfig.Clone().(*types.SessionRecordingConfigV2)
+	cfgV2, ok := recConfig.Clone().(*types.SessionRecordingConfigV2)
 	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", netConfig, cfgV2))
+		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", recConfig, cfgV2))
 	}
 	return cfgV2, nil
 }
@@ -1152,12 +1171,13 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 }
 
 func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterName, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

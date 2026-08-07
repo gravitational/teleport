@@ -27,9 +27,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestWorkloadIdentityIssue(t *testing.T) {
@@ -206,6 +209,84 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	bundleBlock, _ := pem.Decode(bundlePEM)
 	_, err = x509.ParseCertificate(bundleBlock.Bytes)
 	require.NoError(t, err)
+}
+
+func TestWorkloadIdentityIssueJWT(t *testing.T) {
+	ctx := t.Context()
+
+	role, err := types.NewRole("workload-identity-issuer", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WorkloadIdentityLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			Rules: []types.Rule{
+				types.NewRule(types.KindWorkloadIdentity, services.RO()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	s := newTestSuite(t, withRootConfigFunc(func(cfg *servicecfg.Config) {
+		// reconfig the user to use the new role instead of the default ones
+		// User is the second bootstrap resource.
+		user, ok := cfg.Auth.BootstrapResources[1].(types.User)
+		require.True(t, ok)
+		user.AddRole(role.GetName())
+		cfg.Auth.BootstrapResources[1] = user
+		cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
+		cfg.SSH.Enabled = false
+		// JWT issuance needs the proxy's public address to construct the
+		// issuer URI.
+		cfg.Proxy.PublicAddrs = []utils.NetAddr{
+			{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+		}
+	}))
+
+	_, err = s.root.GetAuthServer().Services.UpsertWorkloadIdentity(
+		ctx,
+		&workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:   "my-workload-identity",
+				Labels: map[string]string{},
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: "/test",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, "my-workload-identity")
+		require.NoError(t, err)
+	}, time.Second*5, 100*time.Millisecond)
+
+	homeDir, _ := mustLoginLegacy(t, s)
+	outDir := filepath.Join(t.TempDir(), "out")
+	err = Run(
+		ctx,
+		[]string{
+			"workload-identity",
+			"issue-jwt",
+			"--insecure",
+			"--output", outDir,
+			"--credential-ttl", "10m",
+			"--name-selector", "my-workload-identity",
+			"--audience", "example",
+			"--audience", "foo",
+		},
+		setHomePath(homeDir),
+	)
+	require.NoError(t, err)
+
+	jwtBytes, err := os.ReadFile(filepath.Join(outDir, "jwt_svid"))
+	require.NoError(t, err)
+	jwt, err := jwtsvid.ParseInsecure(string(jwtBytes), []string{"example"})
+	require.NoError(t, err)
+	require.Equal(t, "spiffe://root/test", jwt.ID.String())
+	require.Equal(t, []string{"example", "foo"}, jwt.Audience)
 }
 
 func setWorkloadIdentityX509CAOverride(ctx context.Context, t *testing.T, process *service.TeleportProcess) {

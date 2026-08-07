@@ -91,6 +91,10 @@ message App {
   // Defines a permission set that is available on an IdentityCenter account app.
   // Such apps can be recognized by sub_kind == 'aws_ic_account'.
   repeated IdentityCenterPermissionSet permission_sets = 14;
+  // supported_feature_ids contains component feature IDs supported by this app and all
+  // other involved components (Auth, Proxy). Used to determine if features like resource
+  // constraints are available.
+  repeated int32 supported_feature_ids = 15;
 }
 
 // AwsRole describes AWS IAM role.
@@ -103,6 +107,8 @@ message AWSRole {
   string arn = 3;
   // AccountID is the AWS Account ID this role refers to.
   string account_id = 4;
+  // RequiresRequest indicates whether this role requires an access request to be used.
+  bool requires_request = 5;
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.

@@ -224,6 +224,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 				Labels:     nodeLabels,
 				Expression: matcher.NodeLabelsExpression,
 			},
+			"",  // username
 			nil, // userTraits
 			server,
 			false, // debug

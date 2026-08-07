@@ -61,8 +61,13 @@ const (
 	windowsDesktopDirSuffix = "-windowsdesktop"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
+	// accessGraphSuffix is the suffix of a user's Access Graph TLS certificate
+	// used to authenticate directly to the proxy for Access Graph API queries.
+	accessGraphSuffix = "-access-graph"
 	// fileNameKubeCredLock is file name of lockfile used to prevent excessive login attempts.
 	fileNameKubeCredLock = "kube_credentials.lock"
+	// fileNameProxySSHRetryerLock is the file name of the lockfile used to synchronize relogin attempts for 'tsh proxy ssh'.
+	fileNameProxySSHRetryerLock = "proxy_ssh_retryer.lock"
 	// casDir is the directory name for where clusters certs are stored.
 	casDir = "cas"
 	// fileExtPem is the extension of a file where a public certificate is stored.
@@ -102,10 +107,12 @@ const (
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
 //    │   ├── foo.key                  --> TLS Private Key for user "foo"
 //    │   ├── foo.crt                  --> TLS client certificate for Auth Server
+//    │   ├── foo-access-graph.crt     --> TLS client certificate for Access Graph (direct proxy communication)
 //    │   ├── foo                      --> SSH Private Key for user "foo"
 //    │   ├── foo.pub                  --> SSH Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
+//    │   ├── proxy_ssh_retryer.lock   --> Proxy SSH retryer lockfile, used to synchronize relogin in 'tsh proxy ssh'
 //    │   ├── foo-ssh                  --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
 //    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
@@ -213,6 +220,14 @@ func UserTLSKeyPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>.crt
 func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+FileExtTLSCert)
+}
+
+// AccessGraphTLSCertPath returns the path to the user's Access Graph TLS
+// certificate for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-access-graph.crt
+func AccessGraphTLSCertPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+accessGraphSuffix+FileExtTLSCert)
 }
 
 // TLSCertPathLegacy returns the legacy path used in Teleport 16.x and older to the
@@ -424,6 +439,13 @@ func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
 // <baseDir>/keys/<proxy>/kube_credentials.lock
 func KubeCredLockfilePath(baseDir, proxy string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameKubeCredLock)
+}
+
+// ProxySSHRetryerLockfilePath returns the SSH retryer lock file for the given proxy.
+//
+// <baseDir>/keys/<proxy>/ssh_retryer.lock
+func ProxySSHRetryerLockfilePath(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameProxySSHRetryerLock)
 }
 
 // IsProfileKubeConfigPath makes a best effort attempt to check if the given

@@ -20,3 +20,5 @@ export {
   IdentityContainer as Identity,
   TshHomeMigrationBanner,
 } from './Identity';
+export { useIdentity } from './useIdentity';
+export { IdentityList } from './IdentityList/IdentityList';

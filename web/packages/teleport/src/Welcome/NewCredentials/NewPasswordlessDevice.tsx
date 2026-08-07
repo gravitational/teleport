@@ -81,7 +81,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          Setting up account for: {resetToken.user}
+          Setting up an account for: {resetToken.user}
           <Box mb={3}>
             <PasskeyBlurb />
           </Box>

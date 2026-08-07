@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
@@ -32,8 +34,9 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: TunnelConfig{
-				Listen:  "tcp://0.0.0.0:3621",
-				AppName: "my-app",
+				Listen:              "tcp://0.0.0.0:3621",
+				AppName:             "my-app",
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -47,6 +50,8 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
+	clock := clockwork.NewFakeClock()
+
 	tests := []testCheckAndSetDefaultsCase[*TunnelConfig]{
 		{
 			name: "valid",
@@ -55,7 +60,14 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
+					clock:   clock,
 				}
+			},
+			want: &TunnelConfig{
+				Listen:  "tcp://0.0.0.0:3621",
+				Roles:   []string{"role1", "role2"},
+				AppName: "my-app",
+				clock:   clock,
 			},
 			wantErr: "",
 		},
@@ -89,6 +101,29 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "app_name: should not be empty",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:  "tcp://0.0.0.0:3621",
+					AppName: "my-app",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					Roles:               []string{"role1", "role2"},
+					AppName:             "my-app",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

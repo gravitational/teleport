@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
@@ -250,7 +251,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			)
 			services = append(services, legacyspiffe.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
-			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *example.Config:
 			services = append(services, example.ServiceBuilder(svcCfg))
 		case *ssh.MultiplexerConfig:
@@ -276,10 +277,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *identitysvc.OutputConfig:
 			services = append(services, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
+		case *identitysvc.KeyAgentConfig:
+			services = append(services, identitysvc.KeyAgentServiceBuilder(svcCfg, identitysvc.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
-			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *application.ProxyServiceConfig:
 			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
 		case *workloadidentitysvc.X509OutputConfig:
@@ -290,6 +293,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
+		case *beams.VNetServiceConfig:
+			services = append(services, beams.VNetServiceBuilder(
+				svcCfg,
+				beams.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+			))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -301,11 +309,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
 		CredentialLifetime: b.cfg.CredentialLifetime,
+		Leeway:             b.cfg.Leeway,
 		FIPS:               b.cfg.FIPS,
 		Logger:             b.log,
 		ReloadCh:           b.cfg.ReloadCh,
 		Services:           services,
 		ClientMetrics:      clientMetrics,
+		Scoped:             b.cfg.Scoped,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -41,11 +42,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdateversion "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -57,6 +60,7 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/oidc"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -344,8 +348,8 @@ func regionsForListingDeployedDatabaseService(ctx context.Context, r *http.Reque
 		}
 
 		if len(params) > 0 {
-			a := libutils.NewSet(relevant...)
-			b := libutils.NewSet(params...)
+			a := set.New(relevant...)
+			b := set.New(params...)
 			a.Intersection(b)
 			return a.Elements(), nil
 		}
@@ -760,10 +764,8 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
-// TODO(hugoShaka): change the version getter signature to take group and id
-// so we can get rid of this wrapper.
-
-// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.GetVersion.
+// handlerVersionGetter implements version.Getter by wrapping the Handler's autoupdate resolver
+// and falling back to teleport.Version (the proxy's own version) when no autoupdate target is configured.
 type handlerVersionGetter struct {
 	*Handler
 }
@@ -771,8 +773,15 @@ type handlerVersionGetter struct {
 // GetVersion implements version.Getter.
 func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
 	const group, updaterUUID = "", ""
-	agentVersion, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
-	return agentVersion, trace.Wrap(err)
+	v, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
+	if err == nil {
+		return v, nil
+	}
+	var noNewVersionErr *autoupdateversion.NoNewVersionError
+	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		return nil, trace.Wrap(err)
+	}
+	return autoupdateversion.EnsureSemver(teleport.Version)
 }
 
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
@@ -796,7 +805,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 	}
 
 	versionGetter := &handlerVersionGetter{h}
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1195,7 +1204,11 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.NotFound("app %s is not using integration %s", integrationAppServer.GetName(), integrationName)
 	}
 
-	if err := clt.DeleteApplicationServer(ctx, apidefaults.Namespace, integrationAppServer.GetHostID(), integrationName); err != nil {
+	if err := clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: integrationAppServer.GetHostID(),
+		Name:   integrationName,
+		Scope:  integrationAppServer.GetScope(),
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

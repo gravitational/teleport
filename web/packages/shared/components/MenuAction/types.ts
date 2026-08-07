@@ -31,6 +31,7 @@ export type MenuProps = {
   // CSS supplied to MenuList to be consumed by styled-component
   menuListCss?: (props?: any) => string;
   backdropProps?: Record<string, any>;
+  updatePositionOnChildResize?: boolean;
 };
 
 export type AnchorProps = {

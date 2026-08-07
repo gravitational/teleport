@@ -103,6 +103,7 @@ func TestReflectModern(t *testing.T) {
 					attribute("role_name", stringVal("")),
 				),
 			),
+			attribute("scope", stringVal("")),
 		},
 	}
 

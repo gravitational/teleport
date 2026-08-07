@@ -28,6 +28,9 @@ import { makeRuntimeSettings } from './fixtures/mocks';
 import { WindowsManager } from './windowsManager';
 
 jest.mock('electron', () => ({
+  app: {
+    focus: jest.fn(),
+  },
   Menu: {
     buildFromTemplate: jest.fn(),
   },
@@ -81,6 +84,9 @@ const makeWindowsManager = () => {
   let isFocused = false;
 
   const mockWindow = {
+    show: jest.fn().mockImplementation(() => {
+      isFocused = true;
+    }),
     focus: jest.fn().mockImplementation(() => {
       isFocused = true;
     }),

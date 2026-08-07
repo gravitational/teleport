@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -149,11 +151,13 @@ func (c ec2ClientRunning) DescribeInstances(ctx context.Context, params *ec2.Des
 }
 
 func TestJoinEC2(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -674,7 +678,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteKubernetesServer(t.Context(), hostID, "test-kube-cluster"))
+				require.NoError(t, a.DeleteKubeServer(t.Context(), presencev1.DeleteKubeServerRequest_builder{
+					HostId: hostID,
+					Name:   "test-kube-cluster",
+				}.Build()))
 			},
 		},
 		{
@@ -720,7 +727,11 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-app"))
+				require.NoError(t, a.DeleteAppServer(t.Context(),
+					presencev1.DeleteAppServerRequest_builder{
+						HostId: hostID,
+						Name:   "test-app",
+					}.Build()))
 			},
 		},
 		{
@@ -767,7 +778,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-okta-app"))
+				require.NoError(t, a.DeleteAppServer(t.Context(), presencev1.DeleteAppServerRequest_builder{
+					HostId: hostID,
+					Name:   "test-okta-app",
+				}.Build()))
 			},
 		},
 	}

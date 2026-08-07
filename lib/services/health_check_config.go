@@ -28,6 +28,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services/label"
 )
 
 // HealthCheckConfigReader defines methods for reading health check config
@@ -78,8 +79,8 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 			return trace.BadParameter("invalid spec.db_labels: %v", err)
 		}
 	}
-	if expr := s.Spec.Match.DbLabelsExpression; len(expr) > 0 {
-		if _, err := parseLabelExpression(expr); err != nil {
+	if expr := s.GetSpec().GetMatch().GetDbLabelsExpression(); len(expr) > 0 {
+		if _, err := label.ParseExpression(expr); err != nil {
 			return trace.BadParameter("invalid spec.db_labels_expression: %v", err)
 		}
 	}
@@ -89,8 +90,8 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 			return trace.BadParameter("invalid spec.kubernetes_labels: %v", err)
 		}
 	}
-	if expr := s.Spec.Match.KubernetesLabelsExpression; len(expr) > 0 {
-		if _, err := parseLabelExpression(expr); err != nil {
+	if expr := s.GetSpec().GetMatch().GetKubernetesLabelsExpression(); len(expr) > 0 {
+		if _, err := label.ParseExpression(expr); err != nil {
 			return trace.BadParameter("invalid spec.kubernetes_labels_expression: %v", err)
 		}
 	}

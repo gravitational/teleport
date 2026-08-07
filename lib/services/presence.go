@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ProxyGetter is a service that gets proxies.
@@ -150,7 +152,14 @@ type Presence interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-	// DeleteApplicationServer deletes specified application server.
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
+
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 	// DeleteAllApplicationServers removes all registered application servers.
 	DeleteAllApplicationServers(context.Context, string) error
@@ -170,8 +179,8 @@ type Presence interface {
 	// GetKubernetesServers returns a list of registered kubernetes servers.
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// DeleteKubernetesServer deletes a named kubernetes servers.
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+	// DeleteKubeServer deletes a named kubernetes servers.
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
 	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
 	DeleteAllKubernetesServers(context.Context) error
@@ -212,4 +221,35 @@ type PresenceInternal interface {
 
 	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
+
+	// UnconditionalUpdateApplicationServer writes an app_server if one with the
+	// same host ID and name exists in storage, no matter its contents (i.e., it
+	// doesn't check the revision of the app_server in storage).
+	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
+
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
+	// AppendPutNodeActions adds conditional actions to an atomic write to create
+	// or update a node resource.
+	AppendPutNodeActions(
+		actions []backend.ConditionalAction,
+		server types.Server,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteNodeActions adds conditional actions to an atomic write to
+	// delete a node resource.
+	AppendDeleteNodeActions(
+		actions []backend.ConditionalAction,
+		namespace string,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
+
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }

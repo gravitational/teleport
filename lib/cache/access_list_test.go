@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
@@ -348,6 +350,85 @@ func TestAccessListReviews(t *testing.T) {
 	assert.Empty(t, out)
 }
 
+func TestGetAccessListOwners(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+
+	t.Run("owners directly from access list", func(t *testing.T) {
+		al, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "owners-test-list", clock))
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			owners, err := p.cache.GetAccessListOwners(ctx, al.GetName())
+			assert.NoError(t, err)
+
+			names := make([]string, 0, len(owners))
+			for _, o := range owners {
+				names = append(names, o.Name)
+			}
+
+			assert.ElementsMatch(t, []string{"test-user1", "test-user2"}, names)
+		}, 15*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("owners inherited from nested list", func(t *testing.T) {
+		nestedList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "nested-owner-list"},
+			accesslist.Spec{
+				Title: "nested",
+				Owners: []accesslist.Owner{
+					{Name: "nested-list-owner", MembershipKind: accesslist.MembershipKindUser},
+				},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now()},
+				Grants: accesslist.Grants{Roles: []string{"grant-role"}},
+			},
+		)
+		require.NoError(t, err)
+
+		nestedList, err = p.accessLists.UpsertAccessList(ctx, nestedList)
+		require.NoError(t, err)
+
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, nestedList.GetName(), "nested-member-1"))
+		require.NoError(t, err)
+
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, nestedList.GetName(), "nested-member-2"))
+		require.NoError(t, err)
+
+		parentList, err := accesslist.NewAccessList(
+			header.Metadata{Name: "parent-list"},
+			accesslist.Spec{
+				Title: "parent",
+				Owners: []accesslist.Owner{
+					{Name: nestedList.GetName(), MembershipKind: accesslist.MembershipKindList},
+				},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now()},
+				Grants: accesslist.Grants{Roles: []string{"grant-role"}},
+			},
+		)
+		require.NoError(t, err)
+
+		parentList, err = p.accessLists.UpsertAccessList(ctx, parentList)
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			owners, err := p.cache.GetAccessListOwners(ctx, parentList.GetName())
+			assert.NoError(t, err)
+
+			names := make([]string, 0, len(owners))
+			for _, o := range owners {
+				names = append(names, o.Name)
+			}
+
+			assert.ElementsMatch(t, []string{"nested-member-1", "nested-member-2"}, names)
+		}, 15*time.Second, 100*time.Millisecond)
+	})
+}
+
 func TestListAccessListsV2(t *testing.T) {
 	t.Parallel()
 
@@ -559,4 +640,259 @@ func makeMembers(t *testing.T, alName string, count int) []*accesslist.AccessLis
 		members = append(members, newAccessListMember(t, alName, fmt.Sprintf("member-%d", i)))
 	}
 	return members
+}
+
+func TestScopedAccessListsCache(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		// Create some scoped and unscoped lists in the backend.
+		listNames := []accesslists.NormalizedSQN{
+			{Name: "test1"},
+			{Name: "test2"},
+			{Name: "test3"},
+			{Scope: "/scope1", Name: "test1"},
+			{Scope: "/scope1", Name: "test2"},
+			{Scope: "/scope2", Name: "test3"},
+		}
+		for _, listName := range listNames {
+			list, err := accesslist.NewAccessListWithScope(
+				header.Metadata{
+					Name: listName.Name,
+				},
+				accesslist.Spec{
+					Title:  "test list",
+					Owners: []accesslist.Owner{{Name: "ownername"}},
+				},
+				listName.Scope,
+			)
+			require.NoError(t, err)
+
+			_, err = p.accessLists.UpsertAccessList(t.Context(), list)
+			require.NoError(t, err)
+		}
+
+		collectListNames := func() []accesslists.NormalizedSQN {
+			collectedNames := make([]accesslists.NormalizedSQN, 0, len(listNames))
+			for list, err := range clientutils.Resources(t.Context(), func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+				return p.cache.ListAccessListsV2(t.Context(), accesslistv1.ListAccessListsV2Request_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				}.Build())
+			}) {
+				require.NoError(t, err)
+				collectedNames = append(collectedNames, accesslists.ScopeQualifiedName(list))
+			}
+			return collectedNames
+		}
+
+		// Assert the cache sees all the created lists, after backend events propagate.
+		synctest.Wait()
+		require.Equal(t, listNames, collectListNames())
+
+		// Delete each list one by one, the cache view should agree.
+		for len(listNames) > 0 {
+			err := p.accessLists.DeleteAccessListV2(t.Context(), accesslistv1.DeleteAccessListRequest_builder{
+				Scope: listNames[0].Scope,
+				Name:  listNames[0].Name,
+			}.Build())
+			require.NoError(t, err)
+
+			synctest.Wait()
+			listNames = listNames[1:]
+			require.Equal(t, listNames, collectListNames())
+		}
+	})
+}
+
+func TestScopedAccessListMembersCache(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		// Create user and scoped-list members under scoped and unscoped lists.
+		type memberRef struct {
+			parent accesslists.NormalizedSQN
+			member accesslists.NormalizedSQN
+		}
+		memberRefs := []memberRef{
+			{parent: accesslists.NormalizedSQN{Name: "test1"}, member: accesslists.NormalizedSQN{Name: "member"}},
+			{parent: accesslists.NormalizedSQN{Name: "test2"}, member: accesslists.NormalizedSQN{Name: "member"}},
+			{parent: accesslists.NormalizedSQN{Name: "test3"}, member: accesslists.NormalizedSQN{Name: "member"}},
+			{parent: accesslists.NormalizedSQN{Scope: "/scope1", Name: "test1"}, member: accesslists.NormalizedSQN{Name: "member"}},
+			{parent: accesslists.NormalizedSQN{Scope: "/scope1", Name: "test2"}, member: accesslists.NormalizedSQN{Scope: "/scope1", Name: "nested2"}},
+			{parent: accesslists.NormalizedSQN{Scope: "/scope2", Name: "test3"}, member: accesslists.NormalizedSQN{Scope: "/scope2", Name: "nested3"}},
+		}
+		for _, ref := range memberRefs {
+			list, err := accesslist.NewAccessListWithScope(
+				header.Metadata{Name: ref.parent.Name},
+				accesslist.Spec{
+					Title:  "test list",
+					Owners: []accesslist.Owner{{Name: "ownername"}},
+				},
+				ref.parent.Scope,
+			)
+			require.NoError(t, err)
+			_, err = p.accessLists.UpsertAccessList(t.Context(), list)
+			require.NoError(t, err)
+
+			membershipKind := accesslist.MembershipKindUser
+			if ref.member.Scope != "" {
+				membershipKind = accesslist.MembershipKindScopedList
+				nestedList, err := accesslist.NewAccessListWithScope(
+					header.Metadata{Name: ref.member.Name},
+					accesslist.Spec{
+						Title:  "nested test list",
+						Owners: []accesslist.Owner{{Name: "ownername"}},
+					},
+					ref.member.Scope,
+				)
+				require.NoError(t, err)
+				_, err = p.accessLists.UpsertAccessList(t.Context(), nestedList)
+				require.NoError(t, err)
+			}
+
+			member, err := accesslist.NewAccessListMemberWithScope(
+				header.Metadata{Name: ref.member.String()},
+				accesslist.AccessListMemberSpec{
+					AccessList:     ref.parent.String(),
+					Name:           ref.member.String(),
+					Joined:         time.Now(),
+					Expires:        time.Now().Add(24 * time.Hour),
+					Reason:         "a reason",
+					AddedBy:        "dummy",
+					MembershipKind: membershipKind,
+				},
+				ref.parent.Scope,
+			)
+			require.NoError(t, err)
+			_, err = p.accessLists.UpsertAccessListMember(t.Context(), member)
+			require.NoError(t, err)
+		}
+
+		collectMemberRefs := func() []memberRef {
+			refs := make([]memberRef, 0, len(memberRefs))
+			for member, err := range clientutils.Resources(t.Context(), func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+				return p.cache.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				}.Build())
+			}) {
+				require.NoError(t, err)
+				parentListName, err := accesslists.ParentListOf(member)
+				require.NoError(t, err)
+				memberName, err := accesslists.MemberScopeQualifiedName(member)
+				require.NoError(t, err)
+				refs = append(refs, memberRef{parent: parentListName, member: memberName})
+			}
+			return refs
+		}
+
+		// Assert the cache sees all the created members, after backend events propagate.
+		synctest.Wait()
+		require.Equal(t, memberRefs, collectMemberRefs())
+
+		// Delete each member one by one, the cache view should agree.
+		for len(memberRefs) > 0 {
+			err := p.accessLists.DeleteAccessListMemberV2(t.Context(), accesslistv1.DeleteAccessListMemberRequest_builder{
+				AccessListScope: memberRefs[0].parent.Scope,
+				AccessList:      memberRefs[0].parent.Name,
+				MemberScope:     memberRefs[0].member.Scope,
+				MemberName:      memberRefs[0].member.Name,
+			}.Build())
+			require.NoError(t, err)
+
+			synctest.Wait()
+			memberRefs = memberRefs[1:]
+			require.Equal(t, memberRefs, collectMemberRefs())
+		}
+	})
+}
+
+func TestScopedAccessListReviewsCache(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		type reviewRef struct {
+			parent accesslists.NormalizedSQN
+			review string
+		}
+		reviewRefs := []reviewRef{
+			{parent: accesslists.NormalizedSQN{Name: "test1"}},
+			{parent: accesslists.NormalizedSQN{Name: "test2"}},
+			{parent: accesslists.NormalizedSQN{Name: "test3"}},
+			{parent: accesslists.NormalizedSQN{Scope: "/scope1", Name: "test1"}},
+			{parent: accesslists.NormalizedSQN{Scope: "/scope1", Name: "test2"}},
+			{parent: accesslists.NormalizedSQN{Scope: "/scope2", Name: "test3"}},
+		}
+		for i, ref := range reviewRefs {
+			list, err := accesslist.NewAccessListWithScope(
+				header.Metadata{Name: ref.parent.Name},
+				accesslist.Spec{
+					Title:  "test list",
+					Owners: []accesslist.Owner{{Name: "ownername"}},
+				},
+				ref.parent.Scope,
+			)
+			require.NoError(t, err)
+			_, err = p.accessLists.UpsertAccessList(t.Context(), list)
+			require.NoError(t, err)
+
+			review, err := accesslist.NewReviewWithScope(
+				header.Metadata{Name: "ignored-by-create"},
+				accesslist.ReviewSpec{
+					AccessList: ref.parent.String(),
+					Reviewers:  []string{"reviewer"},
+					ReviewDate: time.Now(),
+				},
+				ref.parent.Scope,
+			)
+			require.NoError(t, err)
+			createdReview, _, err := p.accessLists.CreateAccessListReview(t.Context(), review)
+			require.NoError(t, err)
+			reviewRefs[i].review = createdReview.GetName()
+		}
+
+		collectReviewRefs := func() []reviewRef {
+			refs := make([]reviewRef, 0, len(reviewRefs))
+			for _, ref := range reviewRefs {
+				for review, err := range clientutils.Resources(t.Context(), func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
+					return p.cache.ListAccessListReviewsV2(ctx, accesslistv1.ListAccessListReviewsRequest_builder{
+						AccessListScope: ref.parent.Scope,
+						AccessList:      ref.parent.Name,
+						PageSize:        int32(pageSize),
+						NextToken:       pageToken,
+					}.Build())
+				}) {
+					require.NoError(t, err)
+					parent, err := accesslists.ReviewedList(review)
+					require.NoError(t, err)
+					refs = append(refs, reviewRef{parent: parent, review: review.GetName()})
+				}
+			}
+			return refs
+		}
+
+		// Assert the cache sees all the created reviews, after backend events propagate.
+		synctest.Wait()
+		require.Equal(t, reviewRefs, collectReviewRefs())
+
+		// Delete each review one by one, the cache view should agree.
+		for i, ref := range reviewRefs {
+			err := p.accessLists.DeleteAccessListReviewV2(t.Context(), accesslistv1.DeleteAccessListReviewRequest_builder{
+				AccessListScope: ref.parent.Scope,
+				AccessListName:  ref.parent.Name,
+				ReviewName:      ref.review,
+			}.Build())
+			require.NoError(t, err)
+
+			synctest.Wait()
+			require.Equal(t, reviewRefs[i+1:], collectReviewRefs())
+		}
+	})
 }

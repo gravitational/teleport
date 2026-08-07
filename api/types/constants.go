@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
@@ -183,10 +184,18 @@ const (
 	// SubKindMCP represents an MCP server as a subkind of app.
 	SubKindMCP = KindMCP
 
+	// SubKindLLM represents an LLM inference endpoint as a subkind of app.
+	SubKindLLM = KindLLM
+
 	// KindMCP is an MCP server resource.
 	// Currently, MCP servers are accessed through apps.
 	// In the future, they may become a standalone resource kind.
 	KindMCP = "mcp"
+
+	// KindLLM is an LLM inference endpoint server resource.
+	// Currently, inference endpoints are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindLLM = "llm"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -468,6 +477,9 @@ const (
 	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
 	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
 
+	// KindLinuxDesktop is a Linux desktop host.
+	KindLinuxDesktop = "linux_desktop"
+
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
@@ -671,6 +683,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -687,6 +702,14 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameClientIPRestriction is the exact name of the singleton resource holding
+	// the cluster's client IP restriction allowlist.
+	MetaNameClientIPRestriction = "client-ip-restriction"
+
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
+
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
@@ -695,6 +718,27 @@ const (
 
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
+
+	// KindCertAuthorityOverride is the resource kind for CA overrides.
+	KindCertAuthorityOverride = "cert_authority_override"
+
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
+	// KindDelegationSession is the resource kind for Delegation Sessions.
+	//
+	// Delegation Sessions allow users to temporarily lend (a subset of) their
+	// access to a bot or workload, such as an AI Agent.
+	KindDelegationSession = "delegation_session"
+
+	// KindBeam is an ephemeral AI-optimized compute environment.
+	KindBeam = "beam"
+
+	// KindBeamsConfig is the user-provided configuration for Beams.
+	KindBeamsConfig = "beams_config"
+
+	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
+	MetaNameBeamsConfig = "beams-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -845,14 +889,12 @@ const (
 	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// AWSSSORegionLabel is the AWS Identity Center SSO region label.
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
-	// SubscriptionIDLabel is used to identify virtual machines by Azure
-	// subscription ID found via automatic discovery, to avoid re-running
-	// installation commands on the node.
-	SubscriptionIDLabel = TeleportInternalLabelPrefix + "subscription-id"
-	// VMIDLabel is used to identify virtual machines by ID found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
+	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
+	// to identify Azure VMs by subscription ID during auto-discovery.
+	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
+	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
+	// Azure VMs by VM ID during auto-discovery.
+	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
 	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
@@ -863,14 +905,27 @@ const (
 	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
 	// and can be used in RBAC checks.
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
-	// RegionLabel is used to identify virtual machines by region found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	RegionLabel = TeleportInternalLabelPrefix + "region"
-	// ResourceGroupLabel is used to identify virtual machines by resource-group found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// RegionLabelInternal is a hidden label (teleport.internal/) used to
+	// identify Azure VMs by region during auto-discovery.
+	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
+	// to identify Azure VMs by resource group during auto-discovery.
+	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
+	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
+	// the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityRegionLabel = TeleportNamespace + "/azure-managed-identity-region"
+	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
+	// group for the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
+	// used for tenant-wide discovery scoping.
+	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
+	// AWSOrganizationalUnitsIncludeLabel is the label key for the comma-separated
+	// list of AWS Organizational Unit IDs to include for organization-wide discovery.
+	AWSOrganizationalUnitsIncludeLabel = TeleportNamespace + "/aws-organizational-units-include"
+	// AWSOrganizationalUnitsExcludeLabel is the label key for the comma-separated
+	// list of AWS Organizational Unit IDs to exclude from organization-wide discovery.
+	AWSOrganizationalUnitsExcludeLabel = TeleportNamespace + "/aws-organizational-units-exclude"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -879,6 +934,26 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
+
+	// Azure VM labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// SubscriptionIDLabel identifies Azure VMs by subscription ID.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel identifies Azure VMs by VM ID.
+	VMIDLabel = TeleportNamespace + "/vm-id"
+	// RegionLabel identifies Azure VMs by region.
+	RegionLabel = TeleportNamespace + "/region"
+	// ResourceGroupLabel identifies Azure VMs by resource group.
+	ResourceGroupLabel = TeleportNamespace + "/resource-group"
+
+	// GCP VM visible labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// ZoneLabel is the visible version of ZoneLabelDiscovery.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is the visible version of NameLabelDiscovery.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -897,10 +972,9 @@ const (
 	// cloud-specific labels from eachother.
 	cloudKubeClusterNameOverrideLabel = "TeleportKubernetesName"
 
-	// cloudDatabaseNameOverrideLabel is a cloud agnostic label key for
-	// overriding the database name in discovered cloud databases.
-	// It's used for AWS, GCP, and Azure, but not exported to decouple the
-	// cloud-specific labels from eachother.
+	// cloudDatabaseNameOverrideLabel is a label key for overriding the database
+	// name in discovered cloud databases. It is used for AWS and Azure. GCP uses
+	// GCPDatabaseNameOverrideLabel instead, as GCP label keys must be lowercase.
 	cloudDatabaseNameOverrideLabel = "TeleportDatabaseName"
 
 	// AzureDatabaseNameOverrideLabel is the label key containing the database
@@ -908,6 +982,17 @@ const (
 	// Azure tags cannot contain these characters: "<>%&\?/", so it doesn't
 	// start with the namespace prefix.
 	AzureDatabaseNameOverrideLabel = cloudDatabaseNameOverrideLabel
+
+	// GCPDatabaseNameOverrideLabel is the GCP user-label key that overrides the
+	// database name for discovered GCP databases.
+	//
+	// GCP label keys must be lowercase, which makes the default "TeleportDatabaseName" unusable for GCP.
+	GCPDatabaseNameOverrideLabel = "teleport-database-name"
+
+	// GCPDatabaseEndpointTypeOverrideLabel is the GCP user-label key on a Cloud
+	// SQL instance that overrides the connection endpoint type chosen by
+	// discovery. Valid values are "public", "private", and "psc".
+	GCPDatabaseEndpointTypeOverrideLabel = "teleport-database-endpoint-type"
 
 	// AzureKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered Azure kube clusters.
@@ -952,7 +1037,9 @@ const (
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
 	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
-	DiscoveryIACToolLabel = TeleportNamespace + "/iac-tool"
+	IACToolLabel = TeleportNamespace + "/iac-tool"
+	// IACToolTerraform identifies that a IAC tool is Terraform.
+	IACToolTerraform = "terraform"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -988,6 +1075,13 @@ const (
 	SchemeMCPHTTPS = "mcp+https"
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
+
+	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
+	SchemeLLMEndpoint = "llm"
+
+	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
+	// connections with upstream.
+	SchemeTLS = "tls"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1059,6 +1153,8 @@ const (
 	DiscoveryLabelEngineVersion = "engine-version"
 	// DiscoveryLabelEndpointType is the label key containing the endpoint type.
 	DiscoveryLabelEndpointType = "endpoint-type"
+	// DiscoveryLabelInstanceType is the label key containing the instance type.
+	DiscoveryLabelInstanceType = "instance-type"
 	// DiscoveryLabelVPCID is the label key containing the VPC ID.
 	DiscoveryLabelVPCID = "vpc-id"
 	// DiscoveryLabelNamespace is the label key for namespace name.
@@ -1139,6 +1235,11 @@ const (
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
+
+	// BotScopeLabel is a label used to identify the scope in which a Bot
+	// exists. It is stored on the user resource to allow the Bot to be hydrated
+	// from a user.
+	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
 
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
@@ -1277,6 +1378,24 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
+
+	// BeamsInternalLabelPrefix is the prefix used by internal beams labels.
+	BeamsInternalLabelPrefix = TeleportInternalLabelPrefix + "beams/"
+
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
+	BeamIDLabel = BeamsInternalLabelPrefix + "id"
+
+	// BeamOwnerLabel is the label used to track which user's Beam a resource
+	// belongs to.
+	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
+
+	// BeamAliasLabel is the label used to track the alias of the Beam a
+	// resource belongs to.
+	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
 )
 
 const (
@@ -1412,6 +1531,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// LinuxDesktopTunnel is a tunnel where the Linux desktop service dials back to the proxy.
+	LinuxDesktopTunnel TunnelType = "linux_desktop"
 
 	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
 	OktaTunnel TunnelType = "okta"
@@ -1623,6 +1745,11 @@ const (
 	KubeVerbExec = "exec"
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
+	// KubeVerbProxy is the Kubernetes verb for the pods/proxy,
+	// services/proxy, and nodes/proxy subresources. These endpoints
+	// reach pod ports, service endpoints, or the kubelet API over HTTP
+	// (distinct from portforward, which tunnels raw TCP).
+	KubeVerbProxy = "proxy"
 )
 
 // The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
@@ -1643,6 +1770,7 @@ var KubernetesVerbs = []string{
 	KubeVerbDeleteCollection,
 	KubeVerbExec,
 	KubeVerbPortForward,
+	KubeVerbProxy,
 }
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
@@ -1657,8 +1785,9 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 }
 
-// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
-// that are namespaced.
+// kubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced. This map has been duplicated in lib/scopes/access/access.go.
+// Any changes should also be made there.
 //
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
 // The format is "<plural>.<apigroup>".
@@ -1728,18 +1857,22 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
+// TODO(espadolini): deprecate in v19, delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportDropGroup = "teleport-system"
+	//go:fix inline
+	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	TeleportKeepGroup = "teleport-keep"
+	//go:fix inline
+	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportStaticGroup = "teleport-static"
+	//go:fix inline
+	TeleportStaticGroup = constants.TeleportStaticGroup
 )
 
 const (
@@ -1768,6 +1901,12 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
+	// server applications.
+	ApplicationProtocolMCP = "MCP"
+	// ApplicationProtocolLLM is the protocol for applications that expose an
+	// LLM inference endpoint.
+	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1846,3 +1985,6 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+// BeamsLogin is the login that should be used when SSHing into beams.
+const BeamsLogin = "beams"

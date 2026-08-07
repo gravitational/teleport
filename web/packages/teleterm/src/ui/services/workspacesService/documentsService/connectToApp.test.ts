@@ -214,6 +214,7 @@ test('cloud app triggers alert', async () => {
 
 function setTestCluster(appContext: IAppContext): void {
   const testCluster = makeRootCluster();
+  appContext.workspacesService.addWorkspace(testCluster);
   appContext.workspacesService.setState(d => {
     d.rootClusterUri = testCluster.uri;
   });

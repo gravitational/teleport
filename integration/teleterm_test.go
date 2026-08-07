@@ -555,10 +555,17 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	require.NoError(t, err)
 	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
 
-	// Let's remove the client from the cache.
-	// The call to GetCachedClient will
-	// connect to proxy and return a new client.
-	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
+	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
+	// This makes the cached client stale.
+	accessRequest := &api.AssumeRoleRequest{
+		RootClusterUri: cluster.URI.String(),
+		DropRequestIds: []string{"does-not-matter"},
+	}
+	err = cluster.AssumeRole(ctx, secondCallForClient, accessRequest)
+	require.NoError(t, err)
+
+	// Clearing stale clients should delete the stale client and force a new one.
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
@@ -1382,11 +1389,13 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
 			},
 			createAccessRequest: func(ctx context.Context, t *testing.T) string {
-				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceID{
-					types.ResourceID{
-						ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
-						Kind:        types.KindDatabase,
-						Name:        pack.Leaf.PostgresService.Name,
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+							Kind:        types.KindDatabase,
+							Name:        pack.Leaf.PostgresService.Name,
+						},
 					},
 				})
 				require.NoError(t, err)

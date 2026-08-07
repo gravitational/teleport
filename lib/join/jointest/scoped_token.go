@@ -18,8 +18,11 @@ package jointest
 
 import (
 	"cmp"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -49,10 +52,12 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		Scope:    override.GetScope(),
 		Metadata: override.GetMetadata(),
 		Spec: &joiningv1.ScopedTokenSpec{
-			AssignedScope: override.GetSpec().GetAssignedScope(),
-			JoinMethod:    cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
-			Roles:         roles,
-			UsageMode:     override.GetSpec().GetUsageMode(),
+			AssignedScope:   override.GetSpec().GetAssignedScope(),
+			JoinMethod:      cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
+			Roles:           roles,
+			UsageMode:       override.GetSpec().GetUsageMode(),
+			Bot:             override.GetSpec().GetBot(),
+			ImmutableLabels: override.GetSpec().GetImmutableLabels(),
 		},
 	}
 
@@ -103,6 +108,7 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		allow := make([]*joiningv1.Azure_Rule, len(base.Azure.Allow))
 		for i, rule := range base.Azure.Allow {
 			allow[i] = &joiningv1.Azure_Rule{
+				Tenant:         rule.Tenant,
 				Subscription:   rule.Subscription,
 				ResourceGroups: rule.ResourceGroups,
 			}
@@ -141,9 +147,79 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		scopedToken.Spec.Oracle = &joiningv1.Oracle{
 			Allow: allow,
 		}
+	case types.JoinMethodKubernetes:
+		if base.Kubernetes == nil {
+			return nil, trace.BadParameter("kubernetes configuration must be defined for kubernetes join method")
+		}
+		allow := make([]*joiningv1.Kubernetes_Rule, len(base.Kubernetes.Allow))
+		for i, rule := range base.Kubernetes.Allow {
+			allow[i] = &joiningv1.Kubernetes_Rule{
+				ServiceAccount:          rule.ServiceAccount,
+				ServiceAccountNamespace: rule.ServiceAccountNamespace,
+				ServiceAccountName:      rule.ServiceAccountName,
+			}
+		}
+
+		var staticJWKS *joiningv1.Kubernetes_StaticJWKSConfig
+		if base.Kubernetes.StaticJWKS != nil {
+			staticJWKS = &joiningv1.Kubernetes_StaticJWKSConfig{
+				Jwks: base.Kubernetes.StaticJWKS.JWKS,
+			}
+		}
+
+		var oidc *joiningv1.Kubernetes_OIDCConfig
+		if base.Kubernetes.OIDC != nil {
+			oidc = &joiningv1.Kubernetes_OIDCConfig{
+				Issuer:                  base.Kubernetes.OIDC.Issuer,
+				InsecureAllowHttpIssuer: base.Kubernetes.OIDC.InsecureAllowHTTPIssuer,
+			}
+		}
+
+		scopedToken.Spec.Kubernetes = &joiningv1.Kubernetes{
+			Allow:      allow,
+			Type:       string(base.Kubernetes.Type),
+			StaticJwks: staticJWKS,
+			Oidc:       oidc,
+		}
+	case types.JoinMethodGitHub:
+		if err := setProviderConfig(scopedToken.GetSpec(), "github", base.GitHub); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}
 
 	return scopedToken, nil
+}
+
+// setProviderConfig populates a provider message by protobuf field name. This
+// keeps forward-looking integration tests buildable before the generated scoped
+// provider type exists, while still failing until the production schema defines
+// and can decode the expected field.
+func setProviderConfig(spec *joiningv1.ScopedTokenSpec, fieldName string, config any) error {
+	if config == nil {
+		return trace.BadParameter("missing %s configuration", fieldName)
+	}
+
+	message := spec.ProtoReflect()
+	field := message.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil {
+		return trace.NotImplemented("scoped token proto does not define %q configuration", fieldName)
+	}
+	if field.Kind() != protoreflect.MessageKind {
+		return trace.BadParameter("scoped token field %q must be a message", fieldName)
+	}
+
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return trace.Wrap(err, "marshaling classic %s configuration", fieldName)
+	}
+
+	value := message.NewField(field)
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(encoded, value.Message().Interface()); err != nil {
+		return trace.Wrap(err, "converting classic %s configuration to scoped form", fieldName)
+	}
+	message.Set(field, value)
+
+	return nil
 }

@@ -1,0 +1,19 @@
+{{ resource="your target resource" }}
+
+Apply your configuration. The command to execute depends on how you are running
+`tbot`.
+
+If you are running `tbot` as a background service, execute the following
+command, which instructs `tbot` to reload its configuration:
+
+```code
+$ sudo systemctl reload tbot
+```
+
+If you are running `tbot` in one-shot mode, before you attempt to access 
+{{ resource }} later, you must execute `tbot`, pointing it to the location of its
+configuration file (`/etc/tbot.yaml` in the example below):
+
+```code
+$ tbot start -c /etc/tbot.yaml
+```

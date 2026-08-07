@@ -29,6 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type PluginGetter interface {
+	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
+	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
+	ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error)
+	HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error)
+}
+
 // Plugins is the plugin service
 type Plugins interface {
 	CreatePlugin(ctx context.Context, plugin types.Plugin) error
@@ -51,10 +58,6 @@ func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 	}
 	switch plugin := plugin.(type) {
 	case *types.PluginV1:
-		if err := plugin.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		var buf bytes.Buffer
 		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoRevision(cfg.PreserveRevision, plugin))
 		if err != nil {

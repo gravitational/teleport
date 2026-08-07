@@ -223,7 +223,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 

@@ -1,0 +1,3 @@
+destination:
+  type: directory
+  path: /opt/machine-id

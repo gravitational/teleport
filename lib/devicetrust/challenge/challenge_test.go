@@ -19,6 +19,7 @@ package challenge_test
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -35,27 +36,36 @@ func TestSignAndVerify(t *testing.T) {
 			t.Parallel()
 
 			chal, err := challenge.New()
-			if err != nil {
-				t.Fatalf("New failed: %v", err)
-			}
+			require.NoError(t, err, "Creating new challenge")
 
 			signer, err := cryptosuites.GenerateKeyWithAlgorithm(algo)
 			require.NoError(t, err)
 			sig, err := challenge.Sign(chal, signer)
-			if err != nil {
-				t.Fatalf("Sign failed: %v", err)
-			}
+			require.NoError(t, err, "Signing failed")
 
-			// Verify correct challenge signature.
-			if err := challenge.Verify(chal, sig, signer.Public()); err != nil {
-				t.Errorf("Verify returned err=%v, want nil", err)
-			}
+			t.Run("verify valid signature", func(t *testing.T) {
+				require.NoError(t, challenge.Verify(chal, sig, signer.Public()))
+			})
 
-			// Verify bad challenge signature.
-			sig = []byte("invalid sig")
-			if err := challenge.Verify(chal, sig, signer.Public()); err == nil {
-				t.Error("Verify returned nil err, want non-nil")
-			}
+			t.Run("verifying an invalid signature is an error", func(t *testing.T) {
+				sig = []byte("invalid sig")
+				require.Error(t, challenge.Verify(chal, sig, signer.Public()))
+			})
+
+			t.Run("signing an empty challenge is an error", func(t *testing.T) {
+				_, err = challenge.Sign([]byte{}, signer)
+				require.ErrorAs(t, err, new(*trace.BadParameterError))
+			})
+
+			t.Run("verifying an empty challenge is an error", func(t *testing.T) {
+				err = challenge.Verify([]byte{}, sig, signer.Public())
+				require.ErrorAs(t, err, new(*trace.BadParameterError))
+			})
+
+			t.Run("verifying an empty signature is an error", func(t *testing.T) {
+				err = challenge.Verify(chal, []byte{}, signer.Public())
+				require.ErrorAs(t, err, new(*trace.BadParameterError))
+			})
 		})
 	}
 }

@@ -76,12 +76,26 @@ type KubeServer interface {
 	GetScope() string
 }
 
+type kubeServerOpt func(*KubernetesServerV3)
+
+// KubeServerWithScope is an option that sets the scope when building a [KubernetesServerV3].
+func KubeServerWithScope(scope string) kubeServerOpt {
+	return func(s *KubernetesServerV3) {
+		s.Scope = scope
+	}
+}
+
 // NewKubernetesServerV3 creates a new kube server instance.
-func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3) (*KubernetesServerV3, error) {
+func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3, opts ...kubeServerOpt) (*KubernetesServerV3, error) {
 	s := &KubernetesServerV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,13 +104,16 @@ func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3) (*Kuberne
 
 // NewKubernetesServerV3FromCluster creates a new kubernetes server from the provided clusters.
 func NewKubernetesServerV3FromCluster(cluster *KubernetesClusterV3, hostname, hostID string) (*KubernetesServerV3, error) {
-	return NewKubernetesServerV3(Metadata{
-		Name: cluster.GetName(),
-	}, KubernetesServerSpecV3{
-		Hostname: hostname,
-		HostID:   hostID,
-		Cluster:  cluster,
-	})
+	return NewKubernetesServerV3(
+		Metadata{
+			Name: cluster.GetName(),
+		}, KubernetesServerSpecV3{
+			Hostname: hostname,
+			HostID:   hostID,
+			Cluster:  cluster,
+		},
+		KubeServerWithScope(cluster.GetScope()),
+	)
 }
 
 // GetVersion returns the kubernetes server resource version.

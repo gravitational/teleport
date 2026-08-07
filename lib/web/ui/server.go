@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -69,9 +70,7 @@ type AWSMetadata struct {
 
 // MakeServer creates a server object for the web ui
 func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
-	serverLabels := server.GetStaticLabels()
-	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
@@ -140,9 +139,7 @@ type KubeCluster struct {
 
 // MakeKubeCluster creates a kube cluster object for the web ui
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
-	staticLabels := cluster.GetStaticLabels()
-	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -177,9 +174,7 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.AccessChecker) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
-		staticLabels := cluster.GetStaticLabels()
-		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
@@ -236,7 +231,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
 func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.AccessInfo().Username, accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
@@ -475,10 +470,25 @@ type Desktop struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
-// MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
-	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRdpPort := func(addr string) string {
+func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.GetMetadata().GetLabels())
+
+	return Desktop{
+		Kind:            linuxDesktop.GetKind(),
+		OS:              constants.LinuxOS,
+		Name:            linuxDesktop.GetSpec().GetHostname(),
+		Addr:            linuxDesktop.GetSpec().GetAddr(),
+		Labels:          uiLabels,
+		HostID:          linuxDesktop.GetMetadata().GetName(),
+		Logins:          logins,
+		RequiresRequest: requiresRequest,
+	}
+}
+
+// MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
+func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
+	// stripRDPPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRDPPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
 		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
@@ -492,7 +502,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresR
 		Kind:            windowsDesktop.GetKind(),
 		OS:              constants.WindowsOS,
 		Name:            windowsDesktop.GetName(),
-		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
+		Addr:            stripRDPPort(windowsDesktop.GetAddr()),
 		Labels:          uiLabels,
 		HostID:          windowsDesktop.GetHostID(),
 		Logins:          logins,

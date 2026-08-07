@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
@@ -87,7 +86,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available Kubernetes clusters")
+	kube := app.Command("kube", "Manage available Kubernetes clusters.")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -111,7 +110,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
 	}
 
-	c.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
+	c.Flag("mode", "Mode of joining the session.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
@@ -371,6 +370,21 @@ type ExecOptions struct {
 	reason string
 }
 
+// termSizeQueueAdapter adapts term.TerminalSizeQueue to
+// remotecommand.TerminalSizeQueue.
+type termSizeQueueAdapter struct {
+	q term.TerminalSizeQueue
+}
+
+func (a *termSizeQueueAdapter) Next() *remotecommand.TerminalSize {
+	s := a.q.Next()
+	if s == nil {
+		return nil
+	}
+
+	return &remotecommand.TerminalSize{Width: s.Width, Height: s.Height}
+}
+
 // Run executes a validated remote execution against a pod.
 func (p *ExecOptions) Run(ctx context.Context) error {
 	var err error
@@ -420,7 +434,9 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 	var sizeQueue remotecommand.TerminalSizeQueue
 	if t.Raw {
 		// this call spawns a goroutine to monitor/update the terminal size
-		sizeQueue = t.MonitorSize(t.GetSize())
+		if q := t.MonitorSize(t.GetSize()); q != nil {
+			sizeQueue = &termSizeQueueAdapter{q: q}
+		}
 
 		// unset p.Err if it was previously set because both stdout and stderr go over p.Out when tty is
 		// true
@@ -476,19 +492,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
-	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
+	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen.").Short('c').StringVar(&c.container)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
-	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
-	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
-	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
+	c.Flag("filename", "To use to exec into the resource.").Short('f').StringVar(&c.filename)
+	c.Flag("quiet", "Only print output from the remote session.").Short('q').BoolVar(&c.quiet)
+	c.Flag("stdin", "Pass stdin to the container.").Short('s').BoolVar(&c.stdin)
+	c.Flag("tty", "Stdin is a TTY.").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
-	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
-	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
+	c.Arg("target", "Pod or deployment name.").Required().StringVar(&c.target)
+	c.Arg("command", "Command to execute in the container.").Required().StringsVar(&c.command)
 	return c
 }
 
@@ -562,7 +578,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)"),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
@@ -603,7 +619,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	c := &kubeCredentialsCommand{
 		// This command is always hidden. It's called from the kubeconfig that
 		// tsh generates and never by users directly.
-		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
+		CmdClause: parent.Command("credentials", "Get credentials for kubectl access.").Hidden(),
 	}
 	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
 	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
@@ -801,25 +817,6 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	// This is a safety check in order to print a better message to the user even
-	// before hitting Teleport Kubernetes Proxy.
-	// We only enforce this check for root clusters, since we don't have knowledge
-	// of the RBAC role mappings for remote clusters.
-	rootClusterName, err := tc.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
-		rootClusterName,
-		c.teleportCluster,
-		c.kubeCluster); err != nil {
-		return trace.Wrap(err)
-	}
 	// Cache the new cert on disk for reuse.
 	if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
 		return trace.Wrap(err)
@@ -838,6 +835,15 @@ func isNetworkError(err error) bool {
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
 	if profile.RequireKubeLocalProxy() {
+		// If we're inside an active `tsh proxy kube --exec` shell.
+		// Reaching this exec plugin means a Kubernetes client bypassed the local proxy,
+		// typically because KUBECONFIG was overridden (e.g. by a shell startup file).
+		// Point the user at the fix instead of the generic message.
+		if sessionKubeconfig := os.Getenv(kubeLocalProxyEnvVar); sessionKubeconfig != "" {
+			return trace.BadParameter(`this Kubernetes client invoked "tsh kube credentials" from inside an active "tsh proxy kube" session, bypassing the local proxy.
+Your KUBECONFIG no longer points at the session config, usually because a shell startup file or another tool overrode it.
+Run 'export KUBECONFIG=%s' to use the local proxy, or check your shell configuration.`, sessionKubeconfig)
+		}
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
@@ -996,34 +1002,34 @@ func (c *kubeLSCommand) showKubeClusters(w io.Writer, kubeClusters types.KubeClu
 	return nil
 }
 
-func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose bool) []string {
+func getKubeClusterTextRow(kc types.KubeCluster, selected, verbose bool) []string {
 	var selectedMark string
 	var row []string
-	if selectedCluster != "" && kc.GetName() == selectedCluster {
+	if selected {
 		selectedMark = "*"
 	}
 	displayName := common.FormatResourceName(kc, verbose)
 	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
-	row = append(row, displayName, labels, selectedMark)
+	row = append(row, displayName, labels, kc.GetScope(), selectedMark)
 	return row
 }
 
 func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster string, quiet, verbose bool) string {
 	var (
-		columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+		columns = []string{"Kube Cluster Name", "Labels", "Scope", "Selected"}
 		t       asciitable.Table
 		rows    [][]string
 	)
 
 	for _, cluster := range kubeClusters {
-		r := getKubeClusterTextRow(cluster, selectedCluster, verbose)
+		r := getKubeClusterTextRow(cluster, isClusterSelected(kubeClusters, cluster, selectedCluster), verbose)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
-		// no column headers and only include the cluster name and labels.
-		t = asciitable.MakeHeadlessTable(2)
+		// no column headers and only include the cluster name, scope, and labels.
+		t = asciitable.MakeHeadlessTable(3)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1038,11 +1044,32 @@ func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster s
 	return t.AsBuffer().String()
 }
 
+func isClusterSelected(kubeClusters []types.KubeCluster, cluster types.KubeCluster, selectedCluster string) bool {
+	if cluster.GetName() != selectedCluster {
+		return false
+	}
+
+	// if there are duplicate cluster names present in the list, we can't disambiguate so none of them should be
+	// selected
+	var found bool
+	for _, cl := range kubeClusters {
+		if cl.GetName() == cluster.GetName() {
+			if found {
+				return false
+			}
+			found = true
+		}
+	}
+
+	return true
+}
+
 func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
 	type cluster struct {
 		KubeClusterName string            `json:"kube_cluster_name"`
 		Labels          map[string]string `json:"labels"`
 		Selected        bool              `json:"selected"`
+		Scope           string            `json:"scope"`
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
@@ -1053,7 +1080,8 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
-			Selected:        cl.GetName() == selectedCluster,
+			Selected:        isClusterSelected(kubeClusters, cl, selectedCluster),
+			Scope:           cl.GetScope(),
 		})
 	}
 	var out []byte
@@ -1154,7 +1182,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 
 func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
 	var (
-		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"}
+		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"}
 		t       asciitable.Table
 		rows    [][]string
 	)
@@ -1162,14 +1190,14 @@ func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string
 		r := append([]string{
 			listing.Proxy,
 			listing.Cluster,
-		}, getKubeClusterTextRow(listing.KubeCluster, "", verbose)...)
+		}, getKubeClusterTextRow(listing.KubeCluster, false, verbose)...)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
 		// quiet, so no column headers.
-		t = asciitable.MakeHeadlessTable(4)
+		t = asciitable.MakeHeadlessTable(5)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1223,13 +1251,13 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\".").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
-	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
+	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
+	c.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&c.disableAccessRequest)
 
 	return c
 }
@@ -1392,15 +1420,18 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 		return clusters
 	}
 
-	// look for an exact full name match.
+	// look for exact full name matches.
+	var out types.KubeClusters
 	for _, kc := range clusters {
 		if kc.GetName() == name {
-			return types.KubeClusters{kc}
+			out = append(out, kc)
 		}
+	}
+	if len(out) > 0 {
+		return out
 	}
 
 	// or look for exact "discovered name" matches.
-	var out types.KubeClusters
 	for _, kc := range clusters {
 		discoveredName, ok := kc.GetLabel(types.DiscoveredNameLabel)
 		if ok && discoveredName == name {
@@ -1412,7 +1443,7 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient, names []string) {
 	if tc.Profile().RequireKubeLocalProxy() {
-		c.printLocalProxyUserMessage(cf, names)
+		c.printLocalProxyUserMessage(cf, names, tc.Profile().PrivateKeyPolicy.IsHardwareKeyPolicy())
 		return
 	}
 
@@ -1430,7 +1461,7 @@ Select a context and try 'kubectl version' to test the connection.
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string) {
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string, hardwareKey bool) {
 	switch {
 	case c.kubeCluster != "":
 		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
@@ -1439,6 +1470,22 @@ func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []strin
 %v`, strings.Join(names, "\n"))
 	case c.all:
 		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	if hardwareKey {
+		fmt.Fprintf(cf.Stdout(), `
+
+This cluster requires a hardware-backed private key, which native Kubernetes
+clients cannot use directly, so Kubernetes access must go through a local proxy.
+
+To access the cluster, use "tsh kubectl" to run the Kubernetes client:
+  tsh kubectl version
+
+Or start a local proxy and drop into a shell where native Kubernetes clients are
+ready to use, so you can re-run the same command:
+  tsh proxy kube --exec
+`)
+		return
 	}
 
 	fmt.Fprintf(cf.Stdout(), `
@@ -1718,7 +1765,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	switch cf.RequestMode {
 	case accessRequestModeResource, "":
 		// Roles to request will be automatically determined on the backend.
-		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

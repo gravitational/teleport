@@ -55,6 +55,10 @@ func (process *TeleportProcess) initKubernetes() {
 		k8s := modules.GetProtoEntitlement(&features, entitlements.K8s)
 		if !k8s.Enabled {
 			logger.WarnContext(process.ExitContext(), "Warning: Kubernetes service not initialized because Teleport Auth Server is not licensed for Kubernetes Access. Please contact the cluster administrator to enable it.")
+			// Do not close conn: it is stored in process.connectors
+			// by RegisterWithAuthServer and rotation code reads it.
+			process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
+			process.OnHeartbeat(teleport.ComponentKube)(nil)
 			return nil
 		}
 		if err := process.initKubernetesService(logger, conn); err != nil {
@@ -131,16 +135,17 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:            teleport.ComponentKube,
-				HostUUID:             conn.HostID(),
-				Resolver:             conn.TunnelProxyResolver(),
-				Client:               conn.Client,
-				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              teleportClusterName,
-				Server:               shtl,
-				FIPS:                 process.Config.FIPS,
-				ConnectedProxyGetter: proxyGetter,
+				Component:                teleport.ComponentKube,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 conn.TunnelProxyResolver(),
+				Client:                   conn.Client,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
+				Cluster:                  teleportClusterName,
+				Server:                   shtl,
+				FIPS:                     process.Config.FIPS,
+				ConnectedProxyGetter:     proxyGetter,
+				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -214,11 +219,13 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	}
 
 	// Create the kube server to service listener.
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: teleportClusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      teleportClusterName,
+		AccessPoint:      accessPoint,
+		ScopedRoleReader: accessPoint.ScopedRoleReader(),
+		LockWatcher:      lockWatcher,
+		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		ScopesFeatures:   process.scopesFeatures,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -247,8 +254,13 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := healthCheckManager.Start(process.ExitContext()); err != nil {
-		return trace.Wrap(err)
+
+	// TODO (eriktate): because HealthCheckConfigs do not yet support scopes, the service will never report
+	// healthy when scope pinned. We need to remove this opt-out behavior once HealthCheckConfigs support scopes
+	if conn.Scope() == "" {
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	var publicAddr string
@@ -256,12 +268,18 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
 	}
 
+	// if scope pin is set, we should not pass the bare agent scope along to the kube forwarder
+	agentScope := conn.Scope()
+	scopePin := conn.ScopePin()
+	if scopePin != nil {
+		agentScope = ""
+	}
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:                     apidefaults.Namespace,
 			Keygen:                        cfg.Keygen,
 			ClusterName:                   teleportClusterName,
-			Authz:                         authorizer,
+			ScopedAuthz:                   scopedAuthorizer,
 			AuthClient:                    conn.Client,
 			Emitter:                       asyncEmitter,
 			DataDir:                       cfg.DataDir,
@@ -276,6 +294,8 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 			ClusterFeatures:               process.GetClusterFeatures,
+			ScopePin:                      scopePin,
+			Scope:                         agentScope,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
