@@ -774,14 +774,26 @@ func (a *AuditQueueConfig) Parse() (servicecfg.AuditQueueConfig, error) {
 
 // CachePolicy is used to control  local cache
 type CachePolicy struct {
-	// Type is for cache type `sqlite` or `in-memory`
-	Type string `yaml:"type,omitempty"`
-	// EnabledFlag enables or disables cache
-	EnabledFlag string `yaml:"enabled,omitempty"`
-	// TTL sets maximum TTL for the cached values
-	TTL string `yaml:"ttl,omitempty"`
 	// MaxBackoff sets the maximum backoff on error.
 	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
+
+	// ---- Deprecated Fields ------
+	// Type is for cache type `sqlite` or `in-memory`
+	// Deprecated: No longer supported. All caches are `in-memory`. This
+	// field still exists to prevent breaking any teleport.yaml files which
+	// had specified a type prior to deprecation.
+	Type string `yaml:"type,omitempty"`
+	// EnabledFlag enables or disables cache
+	// Deprecated: No longer supported. Caching is always enabled. This
+	// field still exists to prevent breaking any teleport.yaml files which
+	// had specified a value prior to deprecation.
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// TTL sets maximum TTL for the cached values
+	// Deprecated: No longer supported. Caches no longer evict stale data. This
+	// field still exists to prevent breaking any teleport.yaml files which
+	// had specified a value prior to deprecation.
+	TTL string `yaml:"ttl,omitempty"`
+	// ---- Deprecated Fields ------
 }
 
 // Parse parses cache policy from Teleport config
