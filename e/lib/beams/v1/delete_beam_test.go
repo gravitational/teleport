@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -82,7 +82,7 @@ func TestDeleteBeam(t *testing.T) {
 	_, err = pack.delegationSession.GetDelegationSession(t.Context(), beam.GetStatus().GetDelegationSessionId())
 	require.True(t, trace.IsNotFound(err))
 
-	_, err = pack.presence.GetNode(t.Context(), apidefaults.Namespace, beam.GetStatus().GetNodeId())
+	_, err = pack.presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: beam.GetStatus().GetNodeId()}.Build())
 	require.True(t, trace.IsNotFound(err))
 
 	_, err = pack.app.GetApp(t.Context(), beam.GetStatus().GetAppName())

@@ -11,10 +11,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
@@ -207,7 +207,7 @@ func TestCreateBeam(t *testing.T) {
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 	))
 
-	node, err := pack.presence.GetNode(t.Context(), apidefaults.Namespace, beam.GetStatus().GetNodeId())
+	node, err := pack.presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: beam.GetStatus().GetNodeId()}.Build())
 	require.NoError(t, err)
 	require.Equal(t, beam.GetStatus().GetNodeId(), node.GetName())
 	require.Equal(t, beam.GetStatus().GetSshAddr(), node.GetAddr())
@@ -326,7 +326,7 @@ func TestCreateBeamRegions(t *testing.T) {
 			require.Equal(t, tt.wantStatusRegion, storedBeam.GetStatus().GetRegion())
 			require.Equal(t, tt.wantRegionLabel, storedBeam.GetMetadata().GetLabels()[types.BeamRegionLabel])
 
-			node, err := pack.presence.GetNode(t.Context(), apidefaults.Namespace, beam.GetStatus().GetNodeId())
+			node, err := pack.presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: beam.GetStatus().GetNodeId()}.Build())
 			require.NoError(t, err)
 			require.Equal(t, tt.wantRegionLabel, node.GetStaticLabels()[types.BeamRegionLabel])
 		})
