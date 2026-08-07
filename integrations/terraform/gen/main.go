@@ -278,22 +278,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	clusterNetworking = payload{
-		Name:                   "ClusterNetworkingConfig",
-		TypeName:               "ClusterNetworkingConfigV2",
-		VarName:                "clusterNetworkingConfig",
-		GetMethod:              "GetClusterNetworkingConfig",
-		CreateMethod:           "UpsertClusterNetworkingConfig",
-		UpdateMethod:           "UpsertClusterNetworkingConfig",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "ResetClusterNetworkingConfig",
-		ID:                     `"cluster_networking_config"`,
-		Kind:                   "cluster_networking_config",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_cluster_networking_config",
-		HasCheckAndSetDefaults: true,
-	}
-
 	dynamicWindowsDesktop = payload{
 		Name:                   "DynamicWindowsDesktop",
 		TypeName:               "DynamicWindowsDesktopV1",
@@ -1003,8 +987,6 @@ func main() {
 func genTFSchema() {
 	generateResource(clusterMaintenance, singularResource)
 	generateDataSource(clusterMaintenance, singularDataSource)
-	generateResource(clusterNetworking, singularResource)
-	generateDataSource(clusterNetworking, singularDataSource)
 	generateResource(dynamicWindowsDesktop, pluralResource)
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
