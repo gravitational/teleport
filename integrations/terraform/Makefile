@@ -205,6 +205,13 @@ gen-tfschema:
 		--terraform_out=config=protoc-gen-terraform-clientiprestriction.yaml:./tfschema \
 		teleport/clientiprestriction/v1/clientiprestriction.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-beamsconfig.yaml:./tfschema \
+		teleport/beams/v1/beams_config.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
@@ -222,6 +229,7 @@ gen-tfschema:
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/assignment_terraform.go ./tfschema/scopes/access/assignment/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule_terraform.go ./tfschema/dbobjectimportrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1/clientiprestriction_terraform.go ./tfschema/clientiprestriction/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1/beams_config_terraform.go ./tfschema/beams/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 

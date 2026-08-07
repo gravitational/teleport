@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/beams/v1/beams_config.proto
 
-//go:build teleport_protohybrid
+//go:build !teleport_protoopaque
 
 package beamsv1
 

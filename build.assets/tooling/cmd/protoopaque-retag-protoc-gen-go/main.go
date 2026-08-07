@@ -143,6 +143,8 @@ func defaultHybridFromPrefix(prefix string) bool {
 		"api/gen/proto/go/teleport/backendinfo/v1/backendinfo",
 		"api/gen/proto/go/teleport/beams/v1/beam_service",
 		"api/gen/proto/go/teleport/beams/v1/beam",
+		"api/gen/proto/go/teleport/beams/v1/beams_config_service",
+		"api/gen/proto/go/teleport/beams/v1/beams_config",
 		"api/gen/proto/go/teleport/clientiprestriction/v1/clientiprestriction_service",
 		"api/gen/proto/go/teleport/clientiprestriction/v1/clientiprestriction",
 		"api/gen/proto/go/teleport/clusterconfig/v1/access_graph_settings",
