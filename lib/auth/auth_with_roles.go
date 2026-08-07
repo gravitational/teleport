@@ -2287,7 +2287,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	}
 
 	switch req.ResourceType {
-	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer:
+	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer, types.KindNode:
 	default:
 		return nil, trace.AccessDenied("resource kind %q not supported for scoped identities", req.ResourceType)
 	}
