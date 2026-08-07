@@ -309,6 +309,13 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 		return trace.Wrap(err)
 	}
 
+	// Drop the client's Accept-Encoding so the outgoing transport owns content
+	// negotiation. net/http only decompresses a response transparently when it
+	// added Accept-Encoding itself; forwarding the client's header instead
+	// leaves the body compressed, and Teleport parses MCP message bodies rather
+	// than passing them through, so a gzipped response fails to parse.
+	r.Header.Del("Accept-Encoding")
+
 	// Add in JWT headers. By default, JWT is not put into "Authorization"
 	// headers since the auth token can also come from the client and Teleport
 	// just pass it through. If the remote MCP server does verify the auth token
