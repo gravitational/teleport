@@ -577,6 +577,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_scoped_role_assignment": resources.NewScopedRoleAssignmentResourceType(),
 		"teleport_scoped_token":           resources.NewScopedTokenResourceType(),
 		"teleport_user":                   resources.NewUserResourceType(),
+		"teleport_workload_identity":      resources.NewWorkloadIdentityResourceType(),
 	}
 
 	maps.Insert(resourceTypes, maps.All(genericResourceTypes))
@@ -602,6 +603,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_scoped_role_assignment": resources.NewScopedRoleAssignmentDataSourceType(),
 		"teleport_scoped_token":           resources.NewScopedTokenDataSourceType(),
 		"teleport_user":                   resources.NewUserDataSourceType(),
+		"teleport_workload_identity":      resources.NewWorkloadIdentityDataSourceType(),
 	}
 
 	maps.Insert(dataSourceTypes, maps.All(genericDataSourceTypes))
