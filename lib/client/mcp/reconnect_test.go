@@ -19,6 +19,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -27,6 +28,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,6 +158,68 @@ func TestProxyStdioConn_http(t *testing.T) {
 		// Make sure the transport has sent out "session end" message before
 		// ProxyStdioConn returns.
 		assert.True(t, receivedSessionEnd.Load())
+	})
+}
+
+func TestProxyStdioConn_httpRetriesTransientWriteFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		app := newAppFromURI(t, "some-mcp", "mcp+http://127.0.0.1:8888/mcp")
+
+		// Remote MCP server that fails the first tools/list with an HTTP 500,
+		// like a flaky upstream.
+		mcpServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
+		listener := listenerutils.NewInMemoryListener()
+		var failedToolsList atomic.Bool
+		httpServer := http.Server{
+			Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				body, err := io.ReadAll(req.Body)
+				if !assert.NoError(t, err) {
+					rw.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				req.Body = io.NopCloser(bytes.NewReader(body))
+				if bytes.Contains(body, []byte(`"tools/list"`)) && failedToolsList.CompareAndSwap(false, true) {
+					rw.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				mcpServer.ServeHTTP(rw, req)
+			}),
+		}
+		t.Cleanup(func() { httpServer.Close() })
+		go httpServer.Serve(listener)
+
+		// Start proxy.
+		clientStdioSource, clientStdioDest := mustMakeConnPair(t)
+		proxyError := make(chan error, 1)
+		go func() {
+			proxyError <- ProxyStdioConn(ctx, ProxyStdioConnConfig{
+				ClientStdio: clientStdioDest,
+				GetApp: func(ctx context.Context) (types.Application, error) {
+					return app, nil
+				},
+				DialServer: func(ctx context.Context) (net.Conn, error) {
+					return listener.DialContext(ctx, "tcp", "")
+				},
+				AutoReconnect: true,
+			})
+		}()
+
+		// Local stdio client.
+		stdioClient := mcptest.NewStdioClientFromConn(t, clientStdioSource)
+		mcptest.MustInitializeClient(t, stdioClient)
+
+		// The transient 500 must be absorbed by the proxy's retry, not
+		// surfaced to the client as a JSON-RPC error.
+		result, err := stdioClient.ListTools(ctx, mcp.ListToolsRequest{})
+		require.NoError(t, err)
+		require.NotEmpty(t, result.Tools)
+		require.True(t, failedToolsList.Load())
+
+		// Shut down.
+		stdioClient.Close()
+		synctest.Wait()
+		require.NoError(t, <-proxyError)
 	})
 }
 
