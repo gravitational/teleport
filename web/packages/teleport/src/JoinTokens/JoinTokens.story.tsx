@@ -34,17 +34,15 @@ export const Loaded = () => (
   </TeleportProviderBasic>
 );
 
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.joinToken.list, () => {
-        return HttpResponse.json({ items: tokens });
-      }),
-      http.put(cfg.api.joinTokenYamlPath, () => {
-        return HttpResponse.json(editedToken);
-      }),
-    ],
-  },
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.joinToken.list, () => {
+      return HttpResponse.json({ items: tokens });
+    }),
+    http.put(cfg.api.joinTokenYamlPath, () => {
+      return HttpResponse.json(editedToken);
+    })
+  );
 };
 
 const tokens: JoinToken[] = [

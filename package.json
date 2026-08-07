@@ -57,7 +57,7 @@
     "jest": "^30.4.2",
     "jsdom-testing-mocks": "^1.16.0",
     "msw": "2.14.6",
-    "msw-storybook-addon": "^2.0.7",
+    "msw-storybook-addon": "^3.0.0",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",
     "playwright": "^1.61.1",

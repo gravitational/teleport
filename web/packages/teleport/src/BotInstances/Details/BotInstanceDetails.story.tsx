@@ -47,45 +47,37 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceSuccess());
   },
 };
 
 export const ZeroServices: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotInstanceSuccess({
-          ...mockGetBotInstanceResponse,
-          bot_instance: {
-            ...mockGetBotInstanceResponse.bot_instance,
-            status: {
-              ...mockGetBotInstanceResponse.bot_instance.status,
-              service_health: [],
-            },
+  beforeEach({ msw }) {
+    msw.use(
+      getBotInstanceSuccess({
+        ...mockGetBotInstanceResponse,
+        bot_instance: {
+          ...mockGetBotInstanceResponse.bot_instance,
+          status: {
+            ...mockGetBotInstanceResponse.bot_instance.status,
+            service_health: [],
           },
-        }),
-      ],
-    },
+        },
+      })
+    );
   },
 };
 
 export const ErrorLoadingList: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceError(500, 'something went wrong')],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceError(500, 'something went wrong'));
   },
 };
 
 export const StillLoadingList: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceForever()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceForever());
   },
 };
 
@@ -93,10 +85,9 @@ export const NoReadPermission: Story = {
   args: {
     hasBotInstanceReadPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceError(500, 'this call should never be made')],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceError(500, 'this call should never be made'));
   },
 };
 

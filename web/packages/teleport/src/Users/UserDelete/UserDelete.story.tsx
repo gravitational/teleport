@@ -29,11 +29,10 @@ export default {
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleDeleteUser(() => delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(handleDeleteUser(() => delay('infinite')));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -44,11 +43,10 @@ export const Processing: StoryObj = {
 };
 
 export const Confirm: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleDeleteUser(() => delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(handleDeleteUser(() => delay('infinite')));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -59,11 +57,10 @@ export const Confirm: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [errorDeleteUser('server error')],
-    },
+  beforeEach({ msw }) {
+    msw.use(errorDeleteUser('server error'));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
