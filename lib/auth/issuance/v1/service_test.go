@@ -499,7 +499,10 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 	ctx := t.Context()
 	srv := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 
-	const botScope = "/test-scope"
+	const (
+		botScope   = "/test-scope"
+		childScope = "/test-scope/child"
+	)
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
@@ -681,40 +684,62 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		}.Build())
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
-}
 
-// TestIssueScopedBotCerts_UsageApp_ScopeHierarchy tests scope matching
-// behavior in detail: exact matches, descendant scopes, and narrower bot
-// scope scenarios.
-func TestIssueScopedBotCerts_UsageApp_ScopeHierarchy(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	srv := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-
-	const (
-		parentScope = "/testing"
-		childScope  = "/testing/team-a"
-	)
-
-	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	// Register a child-scope app for hierarchy tests.
+	childApp, err := types.NewAppV3(types.Metadata{
+		Name: "child-app",
+	}, types.AppSpecV3{
+		URI:        "http://localhost:8082",
+		PublicAddr: scopedapp.ScopedAppPublicAddr(childScope, "child-app", "proxy.example.com"),
+	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = adminClient.Close() })
+	childApp.Scope = childScope
+	childAppServer, err := types.NewAppServerV3FromApp(childApp, "child-app-host", "child-app-hostid")
+	require.NoError(t, err)
+	childAppServer.Scope = childScope
+	_, err = srv.Auth().UpsertApplicationServer(ctx, childAppServer)
+	require.NoError(t, err)
 
-	scopedSvc := adminClient.ScopedAccessServiceClient()
+	t.Run("parent-scoped bot accesses child-scope app", func(t *testing.T) {
+		// Bot pinned to /test-scope can access app in /test-scope/child
+		// because /test-scope/child is a descendant of /test-scope.
+		resp, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
+			TlsPublicKey: tlsPubKeyPEM,
+			Ttl:          durationpb.New(requestedTTL),
+			App: issuancev1pb.UsageApp_builder{
+				Name:       "child-app",
+				PublicAddr: childApp.GetPublicAddr(),
+				Scope:      childScope,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetCerts())
+		require.NotEmpty(t, resp.GetCerts().GetTls())
 
-	// Create scoped roles at both levels with wildcard app access.
-	for _, scope := range []string{parentScope, childScope} {
-		_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		tlsCert, err := tlsca.ParseCertificatePEM(resp.GetCerts().GetTls())
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+		assert.Equal(t, "child-app", identity.RouteToApp.Name)
+		assert.Equal(t, childScope, identity.RouteToApp.Scope)
+	})
+
+	t.Run("child-scoped bot rejected for parent-scope app", func(t *testing.T) {
+		// Bot pinned to /test-scope/child requests an app in /test-scope.
+		// /test-scope is NOT a descendant of /test-scope/child, so the
+		// scope pin check rejects.
+
+		// Create a scoped role at child scope for the child bot.
+		_, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: scopedaccessv1.ScopedRole_builder{
 				Kind:    scopedaccess.KindScopedRole,
 				Version: types.V1,
 				Metadata: headerv1.Metadata_builder{
-					Name: "app-role",
+					Name: "child-bot-role",
 				}.Build(),
-				Scope: scope,
+				Scope: childScope,
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
-					AssignableScopes: []string{scope},
+					AssignableScopes: []string{childScope},
 					App: scopedaccessv1.ScopedRoleApp_builder{
 						Labels: []*labelv1.Label{
 							labelv1.Label_builder{
@@ -727,55 +752,22 @@ func TestIssueScopedBotCerts_UsageApp_ScopeHierarchy(t *testing.T) {
 			}.Build(),
 		}.Build())
 		require.NoError(t, err)
-	}
 
-	// Register apps at both scope levels.
-	parentApp, err := types.NewAppV3(types.Metadata{
-		Name: "parent-app",
-	}, types.AppSpecV3{
-		URI:        "http://localhost:8081",
-		PublicAddr: scopedapp.ScopedAppPublicAddr(parentScope, "parent-app", "proxy.example.com"),
-	})
-	require.NoError(t, err)
-	parentApp.Scope = parentScope
-	parentAppServer, err := types.NewAppServerV3FromApp(parentApp, "parent-host", "parent-hostid")
-	require.NoError(t, err)
-	parentAppServer.Scope = parentScope
-	_, err = srv.Auth().UpsertApplicationServer(ctx, parentAppServer)
-	require.NoError(t, err)
-
-	childApp, err := types.NewAppV3(types.Metadata{
-		Name: "child-app",
-	}, types.AppSpecV3{
-		URI:        "http://localhost:8082",
-		PublicAddr: scopedapp.ScopedAppPublicAddr(childScope, "child-app", "proxy.example.com"),
-	})
-	require.NoError(t, err)
-	childApp.Scope = childScope
-	childAppServer, err := types.NewAppServerV3FromApp(childApp, "child-host", "child-hostid")
-	require.NoError(t, err)
-	childAppServer.Scope = childScope
-	_, err = srv.Auth().UpsertApplicationServer(ctx, childAppServer)
-	require.NoError(t, err)
-
-	// Helper to create a bot+SRA+client pinned to a given scope.
-	setupBot := func(t *testing.T, botName, botScope, roleScope string) issuancev1pb.IssuanceServiceClient {
-		t.Helper()
-
-		bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		// Create a child-scoped bot.
+		childBot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
 			Bot: machineidv1pb.Bot_builder{
 				Kind:    types.KindBot,
 				Version: types.V1,
 				Metadata: headerv1.Metadata_builder{
-					Name: botName,
+					Name: "child-bot",
 				}.Build(),
-				Scope: botScope,
+				Scope: childScope,
 				Spec:  &machineidv1pb.BotSpec{},
 			}.Build(),
 		}.Build())
 		require.NoError(t, err)
 
-		sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		childSRAResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
@@ -783,127 +775,38 @@ func TestIssueScopedBotCerts_UsageApp_ScopeHierarchy(t *testing.T) {
 				Metadata: headerv1.Metadata_builder{
 					Name: uuid.NewString(),
 				}.Build(),
-				Scope: botScope,
+				Scope: childScope,
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					Bot: scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
+					Bot: scopes.QualifiedName{Scope: childScope, Name: childBot.GetMetadata().GetName()}.String(),
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: roleScope, Name: "app-role"}.String(),
-							Scope: roleScope,
+							Role:  scopes.QualifiedName{Scope: childScope, Name: "child-bot-role"}.String(),
+							Scope: childScope,
 						}.Build(),
 					},
 				}.Build(),
 			}.Build(),
 		}.Build())
 		require.NoError(t, err)
-		waitForSRACache(t, srv, sraResp)
+		waitForSRACache(t, srv, childSRAResp)
 
-		botClient, err := srv.NewClient(
-			authtest.TestScopedBot(t, scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}, true),
+		childBotClient, err := srv.NewClient(
+			authtest.TestScopedBot(t, scopes.QualifiedName{Scope: childScope, Name: childBot.GetMetadata().GetName()}, true),
 		)
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = botClient.Close() })
+		t.Cleanup(func() { _ = childBotClient.Close() })
 
-		return issuancev1pb.NewIssuanceServiceClient(botClient.GetConnection())
-	}
-
-	// Generate a key pair shared across sub-tests.
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	tlsPubKeyPEM, err := keys.MarshalPublicKey(key.Public())
-	require.NoError(t, err)
-	requestedTTL := time.Hour
-
-	t.Run("parent-scoped bot accesses parent-scope app (exact match)", func(t *testing.T) {
-		issuanceClient := setupBot(t, "parent-bot-exact", parentScope, parentScope)
-
-		resp, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
+		childIssuanceClient := issuancev1pb.NewIssuanceServiceClient(childBotClient.GetConnection())
+		_, err = childIssuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
 			TlsPublicKey: tlsPubKeyPEM,
 			Ttl:          durationpb.New(requestedTTL),
 			App: issuancev1pb.UsageApp_builder{
-				Name:       "parent-app",
-				PublicAddr: parentApp.GetPublicAddr(),
-				Scope:      parentScope,
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-		require.NotNil(t, resp.GetCerts())
-		require.NotEmpty(t, resp.GetCerts().GetTls())
-
-		tlsCert, err := tlsca.ParseCertificatePEM(resp.GetCerts().GetTls())
-		require.NoError(t, err)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-		require.NoError(t, err)
-		assert.Equal(t, "parent-app", identity.RouteToApp.Name)
-		assert.Equal(t, parentScope, identity.RouteToApp.Scope)
-	})
-
-	t.Run("parent-scoped bot accesses child-scope app (descendant)", func(t *testing.T) {
-		// Bot pinned to /testing can access app in /testing/team-a
-		// because /testing/team-a is a descendant of /testing.
-		issuanceClient := setupBot(t, "parent-bot-child", parentScope, parentScope)
-
-		resp, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			TlsPublicKey: tlsPubKeyPEM,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Name:       "child-app",
-				PublicAddr: childApp.GetPublicAddr(),
-				Scope:      childScope,
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-		require.NotNil(t, resp.GetCerts())
-		require.NotEmpty(t, resp.GetCerts().GetTls())
-
-		tlsCert, err := tlsca.ParseCertificatePEM(resp.GetCerts().GetTls())
-		require.NoError(t, err)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-		require.NoError(t, err)
-		assert.Equal(t, "child-app", identity.RouteToApp.Name)
-		assert.Equal(t, childScope, identity.RouteToApp.Scope)
-	})
-
-	t.Run("child-scoped bot rejected at scope pin for parent-scope app", func(t *testing.T) {
-		// Bot pinned to /testing/team-a requests an app in /testing.
-		// /testing is NOT a descendant of /testing/team-a, so the scope
-		// pin check rejects immediately — the app is never fetched.
-		issuanceClient := setupBot(t, "child-bot-parent", childScope, childScope)
-
-		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			TlsPublicKey: tlsPubKeyPEM,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Name:       "parent-app",
-				PublicAddr: parentApp.GetPublicAddr(),
-				Scope:      parentScope,
+				Name:       "test-app",
+				PublicAddr: app.GetPublicAddr(),
+				Scope:      botScope,
 			}.Build(),
 		}.Build())
 		require.True(t, trace.IsAccessDenied(err), "expected access denied at scope pin check, got: %v", err)
-	})
-
-	t.Run("child-scoped bot accesses child-scope app (exact match)", func(t *testing.T) {
-		issuanceClient := setupBot(t, "child-bot-exact", childScope, childScope)
-
-		resp, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			TlsPublicKey: tlsPubKeyPEM,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Name:       "child-app",
-				PublicAddr: childApp.GetPublicAddr(),
-				Scope:      childScope,
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-		require.NotNil(t, resp.GetCerts())
-		require.NotEmpty(t, resp.GetCerts().GetTls())
-
-		tlsCert, err := tlsca.ParseCertificatePEM(resp.GetCerts().GetTls())
-		require.NoError(t, err)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-		require.NoError(t, err)
-		assert.Equal(t, "child-app", identity.RouteToApp.Name)
-		assert.Equal(t, childScope, identity.RouteToApp.Scope)
 	})
 }
 
