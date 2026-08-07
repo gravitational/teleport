@@ -3294,6 +3294,132 @@ func TestReasonRequiredWithNonLiteralRoles(t *testing.T) {
 	}
 }
 
+// TestReasonRequiredWithClaimsToRoles asserts that spec.allow.request.reason.mode
+// is honored for roles a user may request by way of
+// spec.allow.request.claims_to_roles.
+func TestReasonRequiredWithClaimsToRoles(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	const (
+		claimName     = "aws_requestable_roles"
+		requestedRole = "aws-prod-admin"
+	)
+
+	requireReason := &types.AccessRequestConditionsReason{
+		Mode: types.RequestReasonModeRequired,
+	}
+
+	testCases := []struct {
+		name       string
+		conditions *types.AccessRequestConditions
+	}{
+		{
+			// The reported configuration: the requestable roles come from a
+			// claim, and spec.allow.request.roles names an unrelated role.
+			name: "claims_to_roles with a regex capture",
+			conditions: &types.AccessRequestConditions{
+				Roles: []string{"AWS_REQUESTABLE"},
+				ClaimsToRoles: []types.ClaimMapping{{
+					Claim: claimName,
+					Value: "^(.*)$",
+					Roles: []string{"$1"},
+				}},
+				Reason: requireReason,
+			},
+		},
+		{
+			// The mapping does not have to involve a regex or a wildcard:
+			// claims_to_roles is not consulted at all.
+			name: "claims_to_roles with a literal claim value and role",
+			conditions: &types.AccessRequestConditions{
+				ClaimsToRoles: []types.ClaimMapping{{
+					Claim: claimName,
+					Value: requestedRole,
+					Roles: []string{requestedRole},
+				}},
+				Reason: requireReason,
+			},
+		},
+		{
+			// Listing the role in search_as_roles is the reported workaround.
+			// It works because search_as_roles are recorded literally, and it
+			// must keep working.
+			name: "claims_to_roles with the role also in search_as_roles",
+			conditions: &types.AccessRequestConditions{
+				SearchAsRoles: []string{requestedRole},
+				ClaimsToRoles: []types.ClaimMapping{{
+					Claim: claimName,
+					Value: "^(.*)$",
+					Roles: []string{"$1"},
+				}},
+				Reason: requireReason,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &mockGetter{
+				roles:       make(map[string]types.Role),
+				userStates:  make(map[string]*userloginstate.UserLoginState),
+				users:       make(map[string]types.User),
+				nodes:       make(map[string]types.Server),
+				kubeServers: make(map[string]types.KubeServer),
+				dbServers:   make(map[string]types.DatabaseServer),
+				appServers:  make(map[string]types.AppServer),
+				desktops:    make(map[string]types.WindowsDesktop),
+				clusterName: "my-test-cluster",
+			}
+			for _, name := range []string{requestedRole, "AWS_REQUESTABLE"} {
+				role, err := types.NewRole(name, types.RoleSpecV6{})
+				require.NoError(t, err)
+				g.roles[name] = role
+			}
+			requesterRole, err := types.NewRole("requester", types.RoleSpecV6{
+				Allow: types.RoleConditions{Request: tc.conditions},
+			})
+			require.NoError(t, err)
+			g.roles[requesterRole.GetName()] = requesterRole
+
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: []string{requesterRole.GetName()},
+				Traits: trait.Traits{
+					"logins":  []string{"abcd"},
+					claimName: []string{requestedRole},
+				},
+			})
+			require.NoError(t, err)
+			g.userStates[uls.GetName()] = uls
+
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
+			require.NoError(t, err)
+
+			// Sanity check: the claim mapping is what makes the role
+			// requestable in the first place.
+			require.True(t, validator.CanRequestRole(requestedRole))
+
+			req, err := types.NewAccessRequest("some-id", uls.GetName(), requestedRole)
+			require.NoError(t, err)
+			require.ErrorIs(t,
+				validator.validate(ctx, req.Copy(), identity),
+				trace.BadParameter(`request reason must be specified (required for role %q)`, requestedRole))
+
+			// When a non-empty reason is provided then validation should pass.
+			req.SetRequestReason("good reason")
+			require.NoError(t, validator.validate(ctx, req.Copy(), identity))
+		})
+	}
+}
+
 type mockClusterGetter struct {
 	localCluster   types.ClusterName
 	remoteClusters map[string]types.RemoteCluster

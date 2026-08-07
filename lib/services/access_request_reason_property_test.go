@@ -36,6 +36,17 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+const (
+	// reasonPropertyClaim is the trait the generated claims_to_roles mappings
+	// read from.
+	reasonPropertyClaim = "requestable_roles"
+	// reasonPropertyRequester is the name of the single requester role the
+	// generated user holds.
+	reasonPropertyRequester = "test-requester"
+	// reasonPropertyUser is the name of the generated user.
+	reasonPropertyUser = "test-user"
+)
+
 // requestableRoleNames are the concrete roles a generated access request may ask
 // for. They share prefixes and suffixes so that the generated patterns below
 // match non-trivial subsets of them.
@@ -46,21 +57,84 @@ var requestableRoleNames = []string{
 	"admin",
 }
 
-// drawRolePattern draws a value for spec.allow.request.roles: either a literal
-// role name or a pattern matching some subset of requestableRoleNames.
-func drawRolePattern(t *rapid.T) string {
-	prefixes := rapid.SampledFrom([]string{"db", "k8s", "app"})
-	suffixes := rapid.SampledFrom([]string{"admin", "reader", "writer"})
+// rolesSpelling is one way of expressing a set of requestable roles in
+// spec.allow.request, together with the user traits it needs to resolve.
+type rolesSpelling struct {
+	roles         []string
+	claimsToRoles []types.ClaimMapping
+	traits        trait.Traits
+}
 
-	switch rapid.IntRange(0, 3).Draw(t, "pattern_kind") {
+func (s rolesSpelling) String() string {
+	var parts []string
+	if len(s.roles) > 0 {
+		parts = append(parts, "roles: ["+strings.Join(s.roles, " ")+"]")
+	}
+	for _, cm := range s.claimsToRoles {
+		parts = append(parts, "claims_to_roles: {claim: "+cm.Claim+", value: "+cm.Value+
+			", roles: ["+strings.Join(cm.Roles, " ")+"]}")
+	}
+	return strings.Join(parts, ", ")
+}
+
+// conditions renders the spelling as access request conditions carrying the
+// given reason configuration.
+func (s rolesSpelling) conditions(reason *types.AccessRequestConditionsReason) *types.AccessRequestConditions {
+	return &types.AccessRequestConditions{
+		Roles:         s.roles,
+		ClaimsToRoles: s.claimsToRoles,
+		Reason:        reason,
+	}
+}
+
+// drawRolesSpelling draws a way of naming some subset of requestableRoleNames:
+// literally, with a glob or wildcard, or indirectly through claims_to_roles.
+func drawRolesSpelling(t *rapid.T) rolesSpelling {
+	claimValues := rapid.SliceOfNDistinct(rapid.SampledFrom(requestableRoleNames), 1, 3, func(s string) string { return s }).
+		Draw(t, "claim_values")
+	traits := trait.Traits{
+		"logins":            []string{"abcd"},
+		reasonPropertyClaim: claimValues,
+	}
+
+	switch rapid.IntRange(0, 5).Draw(t, "spelling_kind") {
 	case 0:
-		return rapid.SampledFrom(requestableRoleNames).Draw(t, "literal")
+		return rolesSpelling{
+			roles:  []string{rapid.SampledFrom(requestableRoleNames).Draw(t, "literal")},
+			traits: traits,
+		}
 	case 1:
-		return prefixes.Draw(t, "prefix") + "-*"
+		return rolesSpelling{
+			roles:  []string{rapid.SampledFrom([]string{"db", "k8s", "app"}).Draw(t, "prefix") + "-*"},
+			traits: traits,
+		}
 	case 2:
-		return "*-" + suffixes.Draw(t, "suffix")
+		return rolesSpelling{
+			roles:  []string{"*-" + rapid.SampledFrom([]string{"admin", "reader", "writer"}).Draw(t, "suffix")},
+			traits: traits,
+		}
+	case 3:
+		return rolesSpelling{roles: []string{types.Wildcard}, traits: traits}
+	case 4:
+		// The reported shape: every value of the claim names a requestable role.
+		return rolesSpelling{
+			claimsToRoles: []types.ClaimMapping{{
+				Claim: reasonPropertyClaim,
+				Value: "^(.*)$",
+				Roles: []string{"$1"},
+			}},
+			traits: traits,
+		}
 	default:
-		return types.Wildcard
+		// A claim mapping with no regex and no wildcard anywhere.
+		return rolesSpelling{
+			claimsToRoles: []types.ClaimMapping{{
+				Claim: reasonPropertyClaim,
+				Value: claimValues[0],
+				Roles: []string{claimValues[0]},
+			}},
+			traits: traits,
+		}
 	}
 }
 
@@ -79,15 +153,9 @@ type reasonOutcome struct {
 
 const reasonRequiredMessage = "request reason must be specified"
 
-// observeReason builds a user holding a single requester role with the given
-// allow.request conditions, and records what happens when that user requests
-// requestedRole without a reason.
-func observeReason(ctx context.Context, t require.TestingT, conditions *types.AccessRequestConditions, requestedRole string) reasonOutcome {
-	const (
-		requesterRoleName = "test-requester"
-		userName          = "test-user"
-	)
-
+// newReasonPropertyGetter builds a getter holding requestableRoleNames, a single
+// requester role carrying the given conditions, and a user holding that role.
+func newReasonPropertyGetter(t require.TestingT, conditions *types.AccessRequestConditions, traits trait.Traits) *mockGetter {
 	g := &mockGetter{
 		roles:       make(map[string]types.Role),
 		userStates:  make(map[string]*userloginstate.UserLoginState),
@@ -104,26 +172,39 @@ func observeReason(ctx context.Context, t require.TestingT, conditions *types.Ac
 		require.NoError(t, err)
 		g.roles[name] = role
 	}
-	requesterRole, err := types.NewRole(requesterRoleName, types.RoleSpecV6{
+	requesterRole, err := types.NewRole(reasonPropertyRequester, types.RoleSpecV6{
 		Allow: types.RoleConditions{Request: conditions},
 	})
 	require.NoError(t, err)
-	g.roles[requesterRoleName] = requesterRole
+	g.roles[reasonPropertyRequester] = requesterRole
 
-	uls, err := userloginstate.New(header.Metadata{Name: userName}, userloginstate.Spec{
-		Roles: []string{requesterRoleName},
-		Traits: trait.Traits{
-			"logins": []string{"abcd"},
-		},
+	uls, err := userloginstate.New(header.Metadata{Name: reasonPropertyUser}, userloginstate.Spec{
+		Roles:  []string{reasonPropertyRequester},
+		Traits: traits,
 	})
 	require.NoError(t, err)
-	g.userStates[userName] = uls
+	g.userStates[reasonPropertyUser] = uls
+
+	return g
+}
+
+// observeReason records what happens when a user whose requester role carries
+// the given spelling and reason configuration requests requestedRole without
+// supplying a reason.
+func observeReason(
+	ctx context.Context,
+	t require.TestingT,
+	spelling rolesSpelling,
+	reason *types.AccessRequestConditionsReason,
+	requestedRole string,
+) reasonOutcome {
+	g := newReasonPropertyGetter(t, spelling.conditions(reason), spelling.traits)
 
 	clock := clockwork.NewFakeClock()
 	identity := tlsca.Identity{Expires: clock.Now().UTC().Add(8 * time.Hour)}
 
 	newRequest := func() types.AccessRequest {
-		req, err := types.NewAccessRequest("some-id", userName, requestedRole)
+		req, err := types.NewAccessRequest("some-id", reasonPropertyUser, requestedRole)
 		require.NoError(t, err)
 		return req
 	}
@@ -131,7 +212,7 @@ func observeReason(ctx context.Context, t require.TestingT, conditions *types.Ac
 	outcome := reasonOutcome{validateResult: "ok"}
 
 	// The request path: submitting without a reason.
-	validator, err := NewRequestValidator(ctx, clock, g, userName, WithExpandVars(true))
+	validator, err := NewRequestValidator(ctx, clock, g, reasonPropertyUser, WithExpandVars(true))
 	require.NoError(t, err)
 	switch err := validator.validate(ctx, newRequest(), identity); {
 	case err == nil:
@@ -142,7 +223,7 @@ func observeReason(ctx context.Context, t require.TestingT, conditions *types.Ac
 	}
 
 	// The dry run path: what clients are told to prompt for.
-	dryRunValidator, err := NewRequestValidator(ctx, clock, g, userName, WithExpandVars(true))
+	dryRunValidator, err := NewRequestValidator(ctx, clock, g, reasonPropertyUser, WithExpandVars(true))
 	require.NoError(t, err)
 	dryRun := newRequest()
 	dryRun.SetDryRun(true)
@@ -158,9 +239,10 @@ func observeReason(ctx context.Context, t require.TestingT, conditions *types.Ac
 }
 
 // TestReasonConfigIsSpellingIndependent asserts that the request reason
-// configuration does not depend on how spec.allow.request.roles is spelled:
-// naming a set of roles with a pattern must behave exactly like listing those
-// same roles literally.
+// configuration does not depend on how the roles it applies to are named: any
+// way of naming a set of roles in spec.allow.request -- a glob, a wildcard, or a
+// claims_to_roles mapping -- must behave exactly like listing those same roles
+// literally in spec.allow.request.roles.
 //
 // Listing the matching roles literally is the documented workaround for
 // https://github.com/gravitational/teleport/issues/54397, so this property
@@ -171,7 +253,7 @@ func TestReasonConfigIsSpellingIndependent(t *testing.T) {
 	ctx := context.Background()
 
 	rapid.Check(t, func(rt *rapid.T) {
-		pattern := drawRolePattern(rt)
+		spelling := drawRolesSpelling(rt)
 		mode := rapid.SampledFrom([]string{"required", "optional", ""}).Draw(rt, "mode")
 		prompt := rapid.SampledFrom([]string{"", "why do you need this?"}).Draw(rt, "prompt")
 		requestedRole := rapid.SampledFrom(requestableRoleNames).Draw(rt, "requested_role")
@@ -181,14 +263,12 @@ func TestReasonConfigIsSpellingIndependent(t *testing.T) {
 			Prompt: prompt,
 		}
 
-		// Ask the validator itself which roles the pattern covers, rather than
+		// Ask the validator itself which roles the spelling covers, rather than
 		// reimplementing match semantics here. This is the same matcher that
 		// decides whether the request is allowed at all.
-		patternConditions := &types.AccessRequestConditions{
-			Roles:  []string{pattern},
-			Reason: reason,
-		}
-		validator, err := NewRequestValidator(ctx, clockwork.NewFakeClock(), newReasonPropertyGetter(rt, patternConditions), "test-user", WithExpandVars(true))
+		validator, err := NewRequestValidator(ctx, clockwork.NewFakeClock(),
+			newReasonPropertyGetter(rt, spelling.conditions(reason), spelling.traits),
+			reasonPropertyUser, WithExpandVars(true))
 		require.NoError(rt, err)
 
 		matched := make([]string, 0, len(requestableRoleNames))
@@ -202,54 +282,15 @@ func TestReasonConfigIsSpellingIndependent(t *testing.T) {
 			return
 		}
 
-		// The equivalent config, with the pattern expanded to the roles it
-		// matches.
-		literalConditions := &types.AccessRequestConditions{
-			Roles:  matched,
-			Reason: reason,
-		}
+		// The equivalent config, naming the same roles literally. The traits are
+		// carried over so that the two users differ only in the requester role.
+		literal := rolesSpelling{roles: matched, traits: spelling.traits}
 
 		require.Equal(rt,
-			observeReason(ctx, rt, literalConditions, requestedRole),
-			observeReason(ctx, rt, patternConditions, requestedRole),
-			"reason handling for role %q differs between roles: [%s] and roles: [%s]",
-			requestedRole, pattern, strings.Join(matched, " "),
+			observeReason(ctx, rt, literal, reason, requestedRole),
+			observeReason(ctx, rt, spelling, reason, requestedRole),
+			"reason handling for role %q differs between %s and %s",
+			requestedRole, spelling, literal,
 		)
 	})
-}
-
-// newReasonPropertyGetter builds a getter holding requestableRoleNames plus a
-// single requester role with the given conditions, for constructing a validator
-// whose matchers can be queried.
-func newReasonPropertyGetter(t require.TestingT, conditions *types.AccessRequestConditions) *mockGetter {
-	g := &mockGetter{
-		roles:       make(map[string]types.Role),
-		userStates:  make(map[string]*userloginstate.UserLoginState),
-		users:       make(map[string]types.User),
-		nodes:       make(map[string]types.Server),
-		kubeServers: make(map[string]types.KubeServer),
-		dbServers:   make(map[string]types.DatabaseServer),
-		appServers:  make(map[string]types.AppServer),
-		desktops:    make(map[string]types.WindowsDesktop),
-		clusterName: "my-test-cluster",
-	}
-	for _, name := range requestableRoleNames {
-		role, err := types.NewRole(name, types.RoleSpecV6{})
-		require.NoError(t, err)
-		g.roles[name] = role
-	}
-	requesterRole, err := types.NewRole("test-requester", types.RoleSpecV6{
-		Allow: types.RoleConditions{Request: conditions},
-	})
-	require.NoError(t, err)
-	g.roles["test-requester"] = requesterRole
-
-	uls, err := userloginstate.New(header.Metadata{Name: "test-user"}, userloginstate.Spec{
-		Roles:  []string{"test-requester"},
-		Traits: trait.Traits{"logins": []string{"abcd"}},
-	})
-	require.NoError(t, err)
-	g.userStates["test-user"] = uls
-
-	return g
 }
