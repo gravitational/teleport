@@ -783,3 +783,335 @@ func TestPlugin_withCloudClusterCache(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
+
+func TestPlugin_getStripeConfigHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/stripe/config", nil)
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.GetStripeConfigResponse{
+		PublicKey:        "pk_test_123",
+		StripeCustomerId: "cus_123",
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockGetStripeConfig: func(ctx context.Context, in *cloudapi.GetStripeConfigRequest, opts ...grpc.CallOption) (*cloudapi.GetStripeConfigResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.getStripeConfigHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_stripeListCardsHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/stripe/cards", nil)
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeListCardsResponse{
+		StripeCards: []*cloudapi.StripeCard{
+			{Id: "card_1", Last4: "4242", Brand: "visa"},
+		},
+		StripeDefaultSourceId:      "card_1",
+		StripeMissingPaymentMethod: false,
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeListCards: func(ctx context.Context, in *cloudapi.StripeListCardsRequest, opts ...grpc.CallOption) (*cloudapi.StripeListCardsResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeListCardsHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_stripeCreateSetupIntentHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/stripe/setup-intent", strings.NewReader(`{}`))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeCreateSetupIntentResponse{ClientSecret: "seti_secret_abc"}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeCreateSetupIntent: func(ctx context.Context, in *cloudapi.StripeCreateSetupIntentRequest, opts ...grpc.CallOption) (*cloudapi.StripeCreateSetupIntentResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeCreateSetupIntentHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_stripeCreateCardHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"cardId":"pm_123","isDefault":true}`
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/stripe/cards", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeCreateCardResponse{}
+
+	var got *cloudapi.StripeCreateCardRequest
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeCreateCard: func(ctx context.Context, in *cloudapi.StripeCreateCardRequest, opts ...grpc.CallOption) (*cloudapi.StripeCreateCardResponse, error) {
+				got = in
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeCreateCardHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, "pm_123", got.CardId)
+	require.True(t, got.IsDefault)
+}
+
+func TestPlugin_stripeUpdateCardHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"prevCardId":"pm_a","nextCardId":"pm_b","isDefault":true}`
+	r := httptest.NewRequest(http.MethodPut, "/enterprise/cloud/stripe/cards", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeUpdateCardResponse{}
+
+	var got *cloudapi.StripeUpdateCardRequest
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeUpdateCard: func(ctx context.Context, in *cloudapi.StripeUpdateCardRequest, opts ...grpc.CallOption) (*cloudapi.StripeUpdateCardResponse, error) {
+				got = in
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeUpdateCardHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, "pm_a", got.PrevCardId)
+	require.Equal(t, "pm_b", got.NextCardId)
+	require.True(t, got.IsDefault)
+}
+
+func TestPlugin_stripeDeleteCardHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"cardId":"pm_123"}`
+	r := httptest.NewRequest(http.MethodDelete, "/enterprise/cloud/stripe/cards", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeDeleteCardResponse{}
+
+	var got *cloudapi.StripeDeleteCardRequest
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeDeleteCard: func(ctx context.Context, in *cloudapi.StripeDeleteCardRequest, opts ...grpc.CallOption) (*cloudapi.StripeDeleteCardResponse, error) {
+				got = in
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeDeleteCardHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, "pm_123", got.CardId)
+}
+
+func TestPlugin_stripeListInvoicesHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/stripe/invoices", nil)
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeListInvoicesResponse{
+		StripeInvoices: []*cloudapi.StripeInvoice{
+			{InvoiceId: "IN-001", Status: "paid", AmountDue: 1000, AmountPaid: 1000},
+		},
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeListInvoices: func(ctx context.Context, in *cloudapi.StripeListInvoicesRequest, opts ...grpc.CallOption) (*cloudapi.StripeListInvoicesResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeListInvoicesHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_stripeGetSettingsHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/stripe/invoice-settings", nil)
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeGetSettingsResponse{
+		StripeInvoiceEmail:       "billing@example.com",
+		StripeInvoicePrefix:      "ACME",
+		StripeCustomerName:       "Acme Corp",
+		StripeSubscriptionStatus: "active",
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeGetSettings: func(ctx context.Context, in *cloudapi.StripeGetSettingsRequest, opts ...grpc.CallOption) (*cloudapi.StripeGetSettingsResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeGetSettingsHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestPlugin_stripeUpdateEmailHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"email":"billing@example.com"}`
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/stripe/invoice-settings/email", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeUpdateEmailResponse{}
+
+	var got *cloudapi.StripeUpdateEmailRequest
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeUpdateEmail: func(ctx context.Context, in *cloudapi.StripeUpdateEmailRequest, opts ...grpc.CallOption) (*cloudapi.StripeUpdateEmailResponse, error) {
+				got = in
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeUpdateEmailHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, "billing@example.com", got.Email)
+}
+
+func TestPlugin_stripeUpdatePOPrefixHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"po":"ACME"}`
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/stripe/invoice-settings/po-prefix", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeUpdatePOPrefixResponse{}
+
+	var got *cloudapi.StripeUpdatePOPrefixRequest
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeUpdatePOPrefix: func(ctx context.Context, in *cloudapi.StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*cloudapi.StripeUpdatePOPrefixResponse, error) {
+				got = in
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeUpdatePOPrefixHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, "ACME", got.Po)
+}
+
+func TestPlugin_stripeUpdateStripeAddressHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"name":"Acme Corp","address":{"addressLine1":"1 Main","addressCity":"Oakland","addressCountry":"US"}}`
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/stripe/invoice-settings/address", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeUpdateStripeAddressResponse{}
+
+	var got *cloudapi.StripeUpdateStripeAddressRequest
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeUpdateStripeAddress: func(ctx context.Context, in *cloudapi.StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*cloudapi.StripeUpdateStripeAddressResponse, error) {
+				got = in
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeUpdateStripeAddressHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, "Acme Corp", got.Name)
+	require.Equal(t, "1 Main", got.Address.AddressLine1)
+	require.Equal(t, "Oakland", got.Address.AddressCity)
+	require.Equal(t, "US", got.Address.AddressCountry)
+}
+
+func TestPlugin_stripeCancelHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/stripe/cancel", strings.NewReader(`{}`))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	expected := &cloudapi.StripeCancelResponse{}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockStripeCancel: func(ctx context.Context, in *cloudapi.StripeCancelRequest, opts ...grpc.CallOption) (*cloudapi.StripeCancelResponse, error) {
+				return expected, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.stripeCancelHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}

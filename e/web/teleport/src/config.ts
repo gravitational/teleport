@@ -191,6 +191,19 @@ const cfg = {
 
     environmentProfileUrl: '/v1/enterprise/cloud/environmentprofile',
 
+    stripeConfigPath: '/v1/enterprise/cloud/stripe/config',
+    stripeCardsPath: '/v1/enterprise/cloud/stripe/cards',
+    stripeSetupIntentPath: '/v1/enterprise/cloud/stripe/setup-intent',
+    stripeInvoicesPath: '/v1/enterprise/cloud/stripe/invoices',
+    stripeInvoiceSettingsPath: '/v1/enterprise/cloud/stripe/invoice-settings',
+    stripeInvoiceEmailPath:
+      '/v1/enterprise/cloud/stripe/invoice-settings/email',
+    stripeInvoicePOPrefixPath:
+      '/v1/enterprise/cloud/stripe/invoice-settings/po-prefix',
+    stripeInvoiceAddressPath:
+      '/v1/enterprise/cloud/stripe/invoice-settings/address',
+    stripeCancelPath: '/v1/enterprise/cloud/stripe/cancel',
+
     releases: '/v1/enterprise/releases',
     license: '/v1/enterprise/license',
 

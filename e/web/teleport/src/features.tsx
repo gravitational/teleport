@@ -189,9 +189,7 @@ class FeatureLegacyUsageSummary implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return (
-      flags.billing && cfg.oss.isUsageBasedBilling && !cfg.oss.isStripeManaged
-    );
+    return flags.billing && cfg.oss.isUsageBasedBilling;
   }
 }
 
@@ -206,9 +204,7 @@ export class FeatureUsageSummary implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return (
-      flags.billing && cfg.oss.isUsageBasedBilling && !cfg.oss.isStripeManaged
-    );
+    return flags.billing && cfg.oss.isUsageBasedBilling;
   }
 
   topMenuItem = {

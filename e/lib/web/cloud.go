@@ -49,7 +49,7 @@ func (p *Plugin) registerCloudHandlers() {
 	features := p.h.GetClusterFeatures()
 
 	// the billing summary API is available for cloud users and usage-based self-hosted (dashboard) customers
-	if features.GetCloud() || (services.IsDashboard(features) && features.IsUsageBased && !features.IsStripeManaged) {
+	if features.GetCloud() || (services.IsDashboard(features) && features.IsUsageBased) {
 		p.h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.withCloudCache(p.getBillingSummaryInformationHandle)))
 		p.h.POST("/enterprise/cloud/billing-summary", p.withCloudAuth(p.withCloudCache(p.getUsageHandle)))
 		p.h.GET("/enterprise/cloud/billing/breakdown/mau", p.withCloudAuth(p.getMAUBreakdownHandle))
@@ -60,6 +60,22 @@ func (p *Plugin) registerCloudHandlers() {
 	if features.GetCloud() {
 		p.h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.withCloudCache(p.getBillingInformationHandle)))
 		p.h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.withCloudCache(p.getNonBillableUsageSummaryHandle)))
+	}
+
+	// Stripe self-serve endpoints; only registered for Stripe-managed cloud tenants.
+	if features.GetCloud() && features.GetIsStripeManaged() {
+		p.h.GET("/enterprise/cloud/stripe/config", p.withCloudAuth(p.withCloudCache(p.getStripeConfigHandle)))
+		p.h.GET("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.withCloudCache(p.stripeListCardsHandle)))
+		p.h.POST("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeCreateCardHandle))
+		p.h.PUT("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeUpdateCardHandle))
+		p.h.DELETE("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeDeleteCardHandle))
+		p.h.POST("/enterprise/cloud/stripe/setup-intent", p.withCloudAuth(p.stripeCreateSetupIntentHandle))
+		p.h.GET("/enterprise/cloud/stripe/invoices", p.withCloudAuth(p.withCloudCache(p.stripeListInvoicesHandle)))
+		p.h.GET("/enterprise/cloud/stripe/invoice-settings", p.withCloudAuth(p.withCloudCache(p.stripeGetSettingsHandle)))
+		p.h.POST("/enterprise/cloud/stripe/invoice-settings/email", p.withCloudAuth(p.stripeUpdateEmailHandle))
+		p.h.POST("/enterprise/cloud/stripe/invoice-settings/po-prefix", p.withCloudAuth(p.stripeUpdatePOPrefixHandle))
+		p.h.POST("/enterprise/cloud/stripe/invoice-settings/address", p.withCloudAuth(p.stripeUpdateStripeAddressHandle))
+		p.h.POST("/enterprise/cloud/stripe/cancel", p.withCloudAuth(p.stripeCancelHandle))
 	}
 
 	// upgrade window endpoints with cluster param
@@ -263,6 +279,142 @@ func (p *Plugin) updateEnvironmentProfileHandle(w http.ResponseWriter, r *http.R
 	}
 
 	return updated, nil
+}
+
+func (p *Plugin) getStripeConfigHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	res, err := client.GetStripeConfig(r.Context(), &cloudapi.GetStripeConfigRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeListCardsHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	res, err := client.StripeListCards(r.Context(), &cloudapi.StripeListCardsRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeCreateSetupIntentHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeCreateSetupIntentRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeCreateSetupIntent(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeCreateCardHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeCreateCardRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeCreateCard(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeUpdateCardHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeUpdateCardRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeUpdateCard(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeDeleteCardHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeDeleteCardRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeDeleteCard(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeListInvoicesHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	res, err := client.StripeListInvoices(r.Context(), &cloudapi.StripeListInvoicesRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeGetSettingsHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	res, err := client.StripeGetSettings(r.Context(), &cloudapi.StripeGetSettingsRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeUpdateEmailHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeUpdateEmailRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeUpdateEmail(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeUpdatePOPrefixHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeUpdatePOPrefixRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeUpdatePOPrefix(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeUpdateStripeAddressHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeUpdateStripeAddressRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeUpdateStripeAddress(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
+}
+
+func (p *Plugin) stripeCancelHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.StripeCancelRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.StripeCancel(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res, nil
 }
 
 func (p *Plugin) getClientIPRestrictions(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {

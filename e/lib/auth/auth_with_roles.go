@@ -332,6 +332,102 @@ func (ac *cloudWithRoles) GetTPRDailyBreakdown(ctx context.Context, in *v1.GetTP
 	return ac.plugin.cloudClient.GetTPRDailyBreakdown(ctx, in)
 }
 
+// GetStripeConfig returns the Stripe publishable key and customer ID for the caller's account.
+func (ac *cloudWithRoles) GetStripeConfig(ctx context.Context, req *v1.GetStripeConfigRequest) (*v1.GetStripeConfigResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.GetStripeConfig(ctx, req)
+}
+
+// StripeListCards returns the payment methods attached to the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeListCards(ctx context.Context, req *v1.StripeListCardsRequest) (*v1.StripeListCardsResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeListCards(ctx, req)
+}
+
+// StripeListInvoices returns invoices for the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeListInvoices(ctx context.Context, req *v1.StripeListInvoicesRequest) (*v1.StripeListInvoicesResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeListInvoices(ctx, req)
+}
+
+// StripeGetSettings returns invoice communication settings for the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeGetSettings(ctx context.Context, req *v1.StripeGetSettingsRequest) (*v1.StripeGetSettingsResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeGetSettings(ctx, req)
+}
+
+// StripeCreateSetupIntent creates a Stripe SetupIntent for card collection.
+func (ac *cloudWithRoles) StripeCreateSetupIntent(ctx context.Context, req *v1.StripeCreateSetupIntentRequest) (*v1.StripeCreateSetupIntentResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeCreateSetupIntent(ctx, req)
+}
+
+// StripeCreateCard attaches a payment method to the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeCreateCard(ctx context.Context, req *v1.StripeCreateCardRequest) (*v1.StripeCreateCardResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeCreateCard(ctx, req)
+}
+
+// StripeUpdateCard updates a payment method on the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeUpdateCard(ctx context.Context, req *v1.StripeUpdateCardRequest) (*v1.StripeUpdateCardResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeUpdateCard(ctx, req)
+}
+
+// StripeDeleteCard detaches a payment method from the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeDeleteCard(ctx context.Context, req *v1.StripeDeleteCardRequest) (*v1.StripeDeleteCardResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeDeleteCard(ctx, req)
+}
+
+// StripeUpdateEmail updates the invoice email on the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeUpdateEmail(ctx context.Context, req *v1.StripeUpdateEmailRequest) (*v1.StripeUpdateEmailResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeUpdateEmail(ctx, req)
+}
+
+// StripeUpdatePOPrefix updates the invoice PO prefix on the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeUpdatePOPrefix(ctx context.Context, req *v1.StripeUpdatePOPrefixRequest) (*v1.StripeUpdatePOPrefixResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeUpdatePOPrefix(ctx, req)
+}
+
+// StripeUpdateStripeAddress updates the billing address on the caller's Stripe customer.
+func (ac *cloudWithRoles) StripeUpdateStripeAddress(ctx context.Context, req *v1.StripeUpdateStripeAddressRequest) (*v1.StripeUpdateStripeAddressResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeUpdateStripeAddress(ctx, req)
+}
+
+// StripeCancel cancels the caller's Stripe subscription.
+func (ac *cloudWithRoles) StripeCancel(ctx context.Context, req *v1.StripeCancelRequest) (*v1.StripeCancelResponse, error) {
+	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ac.plugin.cloudClient.StripeCancel(ctx, req)
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, resource string, actions ...string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")

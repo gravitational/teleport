@@ -41,6 +41,7 @@ export type CloudUIProps = {
   cloudService: CloudService;
   setInfoGuideConfig?: (cfg: InfoGuideConfig | null) => void;
   userEventService?: typeof userEventService;
+  stripeManaged?: boolean;
 };
 
 function CloudLoading() {
@@ -113,6 +114,7 @@ export function Cloud() {
           cloudService={ctx.cloudService}
           setInfoGuideConfig={setInfoGuideConfig}
           userEventService={userEventService}
+          stripeManaged={cfg.oss.isStripeManaged}
         />
       </Flex>
     </ErrorSuspenseWrapper>

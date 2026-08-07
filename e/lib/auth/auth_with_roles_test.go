@@ -646,6 +646,245 @@ func TestGetTPRDailyBreakdown(t *testing.T) {
 	}
 }
 
+// TestCloudWithRoles_StripeRPCs verifies that every Stripe RPC wrapper on
+// cloudWithRoles gates on KindBilling with the expected verb (Read for GETs,
+// Update for mutations) and forwards to the cloud client on success.
+func TestCloudWithRoles_StripeRPCs(t *testing.T) {
+	ctx := t.Context()
+	suite := newCloudSuite(t)
+
+	tt := []struct {
+		name    string
+		verb    string
+		setMock func(c *cloud.MockedClient)
+		call    func(ac *cloudWithRoles) error
+	}{
+		{
+			name: "GetStripeConfig",
+			verb: types.VerbRead,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockGetStripeConfig = func(ctx context.Context, in *cloudv1.GetStripeConfigRequest, opts ...grpc.CallOption) (*cloudv1.GetStripeConfigResponse, error) {
+					return &cloudv1.GetStripeConfigResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.GetStripeConfig(ctx, &cloudv1.GetStripeConfigRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeListCards",
+			verb: types.VerbRead,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeListCards = func(ctx context.Context, in *cloudv1.StripeListCardsRequest, opts ...grpc.CallOption) (*cloudv1.StripeListCardsResponse, error) {
+					return &cloudv1.StripeListCardsResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeListCards(ctx, &cloudv1.StripeListCardsRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeListInvoices",
+			verb: types.VerbRead,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeListInvoices = func(ctx context.Context, in *cloudv1.StripeListInvoicesRequest, opts ...grpc.CallOption) (*cloudv1.StripeListInvoicesResponse, error) {
+					return &cloudv1.StripeListInvoicesResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeListInvoices(ctx, &cloudv1.StripeListInvoicesRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeGetSettings",
+			verb: types.VerbRead,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeGetSettings = func(ctx context.Context, in *cloudv1.StripeGetSettingsRequest, opts ...grpc.CallOption) (*cloudv1.StripeGetSettingsResponse, error) {
+					return &cloudv1.StripeGetSettingsResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeGetSettings(ctx, &cloudv1.StripeGetSettingsRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeCreateSetupIntent",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeCreateSetupIntent = func(ctx context.Context, in *cloudv1.StripeCreateSetupIntentRequest, opts ...grpc.CallOption) (*cloudv1.StripeCreateSetupIntentResponse, error) {
+					return &cloudv1.StripeCreateSetupIntentResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeCreateSetupIntent(ctx, &cloudv1.StripeCreateSetupIntentRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeCreateCard",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeCreateCard = func(ctx context.Context, in *cloudv1.StripeCreateCardRequest, opts ...grpc.CallOption) (*cloudv1.StripeCreateCardResponse, error) {
+					return &cloudv1.StripeCreateCardResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeCreateCard(ctx, &cloudv1.StripeCreateCardRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeUpdateCard",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdateCard = func(ctx context.Context, in *cloudv1.StripeUpdateCardRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdateCardResponse, error) {
+					return &cloudv1.StripeUpdateCardResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdateCard(ctx, &cloudv1.StripeUpdateCardRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeDeleteCard",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeDeleteCard = func(ctx context.Context, in *cloudv1.StripeDeleteCardRequest, opts ...grpc.CallOption) (*cloudv1.StripeDeleteCardResponse, error) {
+					return &cloudv1.StripeDeleteCardResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeDeleteCard(ctx, &cloudv1.StripeDeleteCardRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeUpdateEmail",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdateEmail = func(ctx context.Context, in *cloudv1.StripeUpdateEmailRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdateEmailResponse, error) {
+					return &cloudv1.StripeUpdateEmailResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdateEmail(ctx, &cloudv1.StripeUpdateEmailRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeUpdatePOPrefix",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdatePOPrefix = func(ctx context.Context, in *cloudv1.StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdatePOPrefixResponse, error) {
+					return &cloudv1.StripeUpdatePOPrefixResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdatePOPrefix(ctx, &cloudv1.StripeUpdatePOPrefixRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeUpdateStripeAddress",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdateStripeAddress = func(ctx context.Context, in *cloudv1.StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdateStripeAddressResponse, error) {
+					return &cloudv1.StripeUpdateStripeAddressResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdateStripeAddress(ctx, &cloudv1.StripeUpdateStripeAddressRequest{})
+				return err
+			},
+		},
+		{
+			name: "StripeCancel",
+			verb: types.VerbUpdate,
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeCancel = func(ctx context.Context, in *cloudv1.StripeCancelRequest, opts ...grpc.CallOption) (*cloudv1.StripeCancelResponse, error) {
+					return &cloudv1.StripeCancelResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeCancel(ctx, &cloudv1.StripeCancelRequest{})
+				return err
+			},
+		},
+	}
+
+	// Verbs other than the one the RPC gates on should be rejected. Using
+	// KindBilling but with the wrong verb ensures the check inspects the verb,
+	// not just the kind.
+	wrongVerb := func(rpcVerb string) string {
+		if rpcVerb == types.VerbRead {
+			return types.VerbUpdate
+		}
+		return types.VerbRead
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			cases := []struct {
+				name       string
+				allowRules []types.Rule
+				assert     require.ErrorAssertionFunc
+			}{
+				{
+					name:       "no billing permission",
+					allowRules: nil,
+					assert: func(tt require.TestingT, err error, i ...interface{}) {
+						require.True(tt, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+					},
+				},
+				{
+					name:       "wrong verb rejected",
+					allowRules: []types.Rule{{Resources: []string{types.KindBilling}, Verbs: []string{wrongVerb(tc.verb)}}},
+					assert: func(tt require.TestingT, err error, i ...interface{}) {
+						require.Error(tt, err)
+					},
+				},
+				{
+					name:       "wrong kind rejected",
+					allowRules: []types.Rule{{Resources: []string{types.KindContact}, Verbs: []string{tc.verb}}},
+					assert: func(tt require.TestingT, err error, i ...interface{}) {
+						require.Error(tt, err)
+					},
+				},
+				{
+					name:       "billing " + tc.verb + " allowed",
+					allowRules: []types.Rule{{Resources: []string{types.KindBilling}, Verbs: []string{tc.verb}}},
+					assert:     require.NoError,
+				},
+			}
+
+			tc.setMock(suite.cloudClient)
+
+			for _, ac := range cases {
+				t.Run(ac.name, func(t *testing.T) {
+					role, err := types.NewRole("test-role", types.RoleSpecV6{
+						Allow: types.RoleConditions{Rules: ac.allowRules},
+					})
+					require.NoError(t, err)
+					suite.authorizer.authorize = func(ctx context.Context) (*authz.Context, error) {
+						return &authz.Context{
+							User:     newUser(t, "testuser", types.UserTypeLocal, role.GetName()),
+							Checker:  services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.RoleSet{role}),
+							Identity: suite.authIdentity,
+						}, nil
+					}
+
+					ac.assert(t, tc.call(suite.cloudWithRoles))
+				})
+			}
+		})
+	}
+}
+
 func newAccessListMember(t *testing.T, accessList, name string) *accesslist.AccessListMember {
 	t.Helper()
 

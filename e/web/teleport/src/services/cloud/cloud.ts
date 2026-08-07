@@ -2,6 +2,7 @@ import cfg from 'e-teleport/config';
 import {
   GetMAUDailyBreakdownRequest,
   GetMAUDailyBreakdownResponse,
+  GetStripeConfigResponse,
   GetTPRDailyBreakdownRequest,
   GetTPRDailyBreakdownResponse,
   GetAccountUpgradeWindowStartHourResponse,
@@ -9,6 +10,25 @@ import {
   GetUsageRequest,
   GetUsageResponse,
   MAUDailyPoint,
+  StripeCancelResponse,
+  StripeCard,
+  StripeCreateCardRequest,
+  StripeCreateCardResponse,
+  StripeCreateSetupIntentResponse,
+  StripeDeleteCardRequest,
+  StripeDeleteCardResponse,
+  StripeGetSettingsResponse,
+  StripeInvoice,
+  StripeListCardsResponse,
+  StripeListInvoicesResponse,
+  StripeUpdateCardRequest,
+  StripeUpdateCardResponse,
+  StripeUpdateEmailRequest,
+  StripeUpdateEmailResponse,
+  StripeUpdatePOPrefixRequest,
+  StripeUpdatePOPrefixResponse,
+  StripeUpdateStripeAddressRequest,
+  StripeUpdateStripeAddressResponse,
   TPRDailyPoint,
   UpdateAccountUpgradeWindowStartHourRequest,
   UpdateEnvironmentProfileRequest,
@@ -116,6 +136,71 @@ class CloudService {
       .get(`${cfg.api.tprBreakdownPath}?${params}`)
       .then(makeTPRDailyBreakdownResponse);
   }
+
+  fetchStripeConfig(): Promise<GetStripeConfigResponse> {
+    return api.get(cfg.api.stripeConfigPath).then(makeStripeConfigResponse);
+  }
+
+  fetchCards(): Promise<StripeListCardsResponse> {
+    return api.get(cfg.api.stripeCardsPath).then(makeStripeListCardsResponse);
+  }
+
+  createSetupIntent(): Promise<StripeCreateSetupIntentResponse> {
+    return api
+      .post(cfg.api.stripeSetupIntentPath, {})
+      .then(makeStripeCreateSetupIntentResponse);
+  }
+
+  createCard(req: StripeCreateCardRequest): Promise<StripeCreateCardResponse> {
+    return api.post(cfg.api.stripeCardsPath, req).then(() => ({}));
+  }
+
+  updateCard(req: StripeUpdateCardRequest): Promise<StripeUpdateCardResponse> {
+    return api.put(cfg.api.stripeCardsPath, req).then(() => ({}));
+  }
+
+  deleteCard(req: StripeDeleteCardRequest): Promise<StripeDeleteCardResponse> {
+    return api
+      .deleteWithOptions(cfg.api.stripeCardsPath, {
+        data: req,
+        headers: { 'Content-Type': 'application/json' },
+      })
+      .then(() => ({}));
+  }
+
+  fetchInvoices(): Promise<StripeListInvoicesResponse> {
+    return api
+      .get(cfg.api.stripeInvoicesPath)
+      .then(makeStripeListInvoicesResponse);
+  }
+
+  fetchStripeSettings(): Promise<StripeGetSettingsResponse> {
+    return api
+      .get(cfg.api.stripeInvoiceSettingsPath)
+      .then(makeStripeGetSettingsResponse);
+  }
+
+  updateInvoiceEmail(
+    req: StripeUpdateEmailRequest
+  ): Promise<StripeUpdateEmailResponse> {
+    return api.post(cfg.api.stripeInvoiceEmailPath, req).then(() => ({}));
+  }
+
+  updatePurchaseOrderPrefix(
+    req: StripeUpdatePOPrefixRequest
+  ): Promise<StripeUpdatePOPrefixResponse> {
+    return api.post(cfg.api.stripeInvoicePOPrefixPath, req).then(() => ({}));
+  }
+
+  updateStripeAddress(
+    req: StripeUpdateStripeAddressRequest
+  ): Promise<StripeUpdateStripeAddressResponse> {
+    return api.post(cfg.api.stripeInvoiceAddressPath, req).then(() => ({}));
+  }
+
+  cancelSubscription(): Promise<StripeCancelResponse> {
+    return api.post(cfg.api.stripeCancelPath, {}).then(() => ({}));
+  }
 }
 
 export default CloudService;
@@ -214,6 +299,87 @@ function makeTPRDailyPoint(json: any): TPRDailyPoint {
     metrics: Object.fromEntries(
       Object.entries(json?.metrics || {}).map(([k, v]) => [k, Number(v)])
     ),
+  };
+}
+
+function makeStripeConfigResponse(json: any): GetStripeConfigResponse {
+  return {
+    publicKey: json?.publicKey || '',
+    stripeCustomerId: json?.stripeCustomerId || '',
+  };
+}
+
+function makeStripeCard(json: any): StripeCard {
+  return {
+    id: json?.id || '',
+    last4: json?.last4 || '',
+    addressLine1: json?.addressLine1 || '',
+    addressLine2: json?.addressLine2 || '',
+    city: json?.city || '',
+    country: json?.country || '',
+    state: json?.state || '',
+    name: json?.name || '',
+    zip: json?.zip || '',
+    brand: json?.brand || '',
+    expirationMonth: Number(json?.expirationMonth) || 0,
+    expirationYear: Number(json?.expirationYear) || 0,
+    createdAt: Number(json?.createdAt) || 0,
+  };
+}
+
+function makeStripeListCardsResponse(json: any): StripeListCardsResponse {
+  return {
+    stripeCards: (json?.stripeCards || []).map(makeStripeCard),
+    stripeDefaultSourceId: json?.stripeDefaultSourceId || '',
+    stripeMissingPaymentMethod: !!json?.stripeMissingPaymentMethod,
+  };
+}
+
+function makeStripeCreateSetupIntentResponse(
+  json: any
+): StripeCreateSetupIntentResponse {
+  return {
+    clientSecret: json?.clientSecret || '',
+  };
+}
+
+function makeStripeInvoice(json: any): StripeInvoice {
+  return {
+    invoiceId: json?.invoiceId || '',
+    status: json?.status || '',
+    amountDue: Number(json?.amountDue) || 0,
+    amountPaid: Number(json?.amountPaid) || 0,
+    periodEnd: Number(json?.periodEnd) || 0,
+    periodStart: Number(json?.periodStart) || 0,
+    invoicePdf: json?.invoicePdf || '',
+  };
+}
+
+function makeStripeListInvoicesResponse(json: any): StripeListInvoicesResponse {
+  return {
+    stripeInvoices: (json?.stripeInvoices || []).map(makeStripeInvoice),
+  };
+}
+
+function makeStripeGetSettingsResponse(json: any): StripeGetSettingsResponse {
+  return {
+    stripeInvoiceBillingAddress: json?.stripeInvoiceBillingAddress
+      ? {
+          addressCity: json.stripeInvoiceBillingAddress.addressCity || '',
+          addressCountry: json.stripeInvoiceBillingAddress.addressCountry || '',
+          addressLine1: json.stripeInvoiceBillingAddress.addressLine1 || '',
+          addressLine2: json.stripeInvoiceBillingAddress.addressLine2 || '',
+          addressPostalCode:
+            json.stripeInvoiceBillingAddress.addressPostalCode || '',
+          addressState: json.stripeInvoiceBillingAddress.addressState || '',
+        }
+      : undefined,
+    stripeInvoiceEmail: json?.stripeInvoiceEmail || '',
+    stripeInvoicePrefix: json?.stripeInvoicePrefix || '',
+    stripeCustomerName: json?.stripeCustomerName || '',
+    stripeSubscriptionStatus: json?.stripeSubscriptionStatus || '',
+    planName: json?.planName || '',
+    stripeTrialEnd: json?.stripeTrialEnd || 0,
   };
 }
 

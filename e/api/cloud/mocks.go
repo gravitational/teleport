@@ -63,6 +63,30 @@ type MockedClient struct {
 	MockGetEnvironmentProfile func() (*v1.GetEnvironmentProfileResponse, error)
 	// MockUpdateEnvironmentProfile updates the tenant environment profile
 	MockUpdateEnvironmentProfile func(in *v1.UpdateEnvironmentProfileRequest) (*v1.GetEnvironmentProfileResponse, error)
+	// MockGetStripeConfig returns the Stripe publishable key and customer id.
+	MockGetStripeConfig func(ctx context.Context, in *v1.GetStripeConfigRequest, opts ...grpc.CallOption) (*v1.GetStripeConfigResponse, error)
+	// MockStripeListCards lists the customer's saved Stripe cards.
+	MockStripeListCards func(ctx context.Context, in *v1.StripeListCardsRequest, opts ...grpc.CallOption) (*v1.StripeListCardsResponse, error)
+	// MockStripeCreateSetupIntent creates a Stripe SetupIntent for attaching a new card.
+	MockStripeCreateSetupIntent func(ctx context.Context, in *v1.StripeCreateSetupIntentRequest, opts ...grpc.CallOption) (*v1.StripeCreateSetupIntentResponse, error)
+	// MockStripeCreateCard attaches a new card to the customer.
+	MockStripeCreateCard func(ctx context.Context, in *v1.StripeCreateCardRequest, opts ...grpc.CallOption) (*v1.StripeCreateCardResponse, error)
+	// MockStripeUpdateCard swaps the customer's card, and can set the default source.
+	MockStripeUpdateCard func(ctx context.Context, in *v1.StripeUpdateCardRequest, opts ...grpc.CallOption) (*v1.StripeUpdateCardResponse, error)
+	// MockStripeDeleteCard removes a Stripe card from the customer.
+	MockStripeDeleteCard func(ctx context.Context, in *v1.StripeDeleteCardRequest, opts ...grpc.CallOption) (*v1.StripeDeleteCardResponse, error)
+	// MockStripeListInvoices lists the customer's Stripe invoices.
+	MockStripeListInvoices func(ctx context.Context, in *v1.StripeListInvoicesRequest, opts ...grpc.CallOption) (*v1.StripeListInvoicesResponse, error)
+	// MockStripeGetSettings returns the customer's invoice settings.
+	MockStripeGetSettings func(ctx context.Context, in *v1.StripeGetSettingsRequest, opts ...grpc.CallOption) (*v1.StripeGetSettingsResponse, error)
+	// MockStripeUpdateEmail updates the invoice email.
+	MockStripeUpdateEmail func(ctx context.Context, in *v1.StripeUpdateEmailRequest, opts ...grpc.CallOption) (*v1.StripeUpdateEmailResponse, error)
+	// MockStripeUpdatePOPrefix updates the invoice purchase-order prefix.
+	MockStripeUpdatePOPrefix func(ctx context.Context, in *v1.StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*v1.StripeUpdatePOPrefixResponse, error)
+	// MockStripeUpdateStripeAddress updates the customer name and billing address.
+	MockStripeUpdateStripeAddress func(ctx context.Context, in *v1.StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*v1.StripeUpdateStripeAddressResponse, error)
+	// MockStripeCancel cancels the Stripe subscription.
+	MockStripeCancel func(ctx context.Context, in *v1.StripeCancelRequest, opts ...grpc.CallOption) (*v1.StripeCancelResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -253,4 +277,88 @@ func (m *MockedClient) UpdateEnvironmentProfile(ctx context.Context, in *v1.Upda
 	}
 
 	return nil, trace.NotImplemented("UpdateEnvironmentProfile is not implemented")
+}
+
+func (m *MockedClient) GetStripeConfig(ctx context.Context, in *v1.GetStripeConfigRequest, opts ...grpc.CallOption) (*v1.GetStripeConfigResponse, error) {
+	if m.MockGetStripeConfig != nil {
+		return m.MockGetStripeConfig(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("GetStripeConfig is not implemented")
+}
+
+func (m *MockedClient) StripeListCards(ctx context.Context, in *v1.StripeListCardsRequest, opts ...grpc.CallOption) (*v1.StripeListCardsResponse, error) {
+	if m.MockStripeListCards != nil {
+		return m.MockStripeListCards(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeListCards is not implemented")
+}
+
+func (m *MockedClient) StripeCreateSetupIntent(ctx context.Context, in *v1.StripeCreateSetupIntentRequest, opts ...grpc.CallOption) (*v1.StripeCreateSetupIntentResponse, error) {
+	if m.MockStripeCreateSetupIntent != nil {
+		return m.MockStripeCreateSetupIntent(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeCreateSetupIntent is not implemented")
+}
+
+func (m *MockedClient) StripeCreateCard(ctx context.Context, in *v1.StripeCreateCardRequest, opts ...grpc.CallOption) (*v1.StripeCreateCardResponse, error) {
+	if m.MockStripeCreateCard != nil {
+		return m.MockStripeCreateCard(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeCreateCard is not implemented")
+}
+
+func (m *MockedClient) StripeUpdateCard(ctx context.Context, in *v1.StripeUpdateCardRequest, opts ...grpc.CallOption) (*v1.StripeUpdateCardResponse, error) {
+	if m.MockStripeUpdateCard != nil {
+		return m.MockStripeUpdateCard(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeUpdateCard is not implemented")
+}
+
+func (m *MockedClient) StripeDeleteCard(ctx context.Context, in *v1.StripeDeleteCardRequest, opts ...grpc.CallOption) (*v1.StripeDeleteCardResponse, error) {
+	if m.MockStripeDeleteCard != nil {
+		return m.MockStripeDeleteCard(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeDeleteCard is not implemented")
+}
+
+func (m *MockedClient) StripeListInvoices(ctx context.Context, in *v1.StripeListInvoicesRequest, opts ...grpc.CallOption) (*v1.StripeListInvoicesResponse, error) {
+	if m.MockStripeListInvoices != nil {
+		return m.MockStripeListInvoices(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeListInvoices is not implemented")
+}
+
+func (m *MockedClient) StripeGetSettings(ctx context.Context, in *v1.StripeGetSettingsRequest, opts ...grpc.CallOption) (*v1.StripeGetSettingsResponse, error) {
+	if m.MockStripeGetSettings != nil {
+		return m.MockStripeGetSettings(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeGetSettings is not implemented")
+}
+
+func (m *MockedClient) StripeUpdateEmail(ctx context.Context, in *v1.StripeUpdateEmailRequest, opts ...grpc.CallOption) (*v1.StripeUpdateEmailResponse, error) {
+	if m.MockStripeUpdateEmail != nil {
+		return m.MockStripeUpdateEmail(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeUpdateEmail is not implemented")
+}
+
+func (m *MockedClient) StripeUpdatePOPrefix(ctx context.Context, in *v1.StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*v1.StripeUpdatePOPrefixResponse, error) {
+	if m.MockStripeUpdatePOPrefix != nil {
+		return m.MockStripeUpdatePOPrefix(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeUpdatePOPrefix is not implemented")
+}
+
+func (m *MockedClient) StripeUpdateStripeAddress(ctx context.Context, in *v1.StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*v1.StripeUpdateStripeAddressResponse, error) {
+	if m.MockStripeUpdateStripeAddress != nil {
+		return m.MockStripeUpdateStripeAddress(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeUpdateStripeAddress is not implemented")
+}
+
+func (m *MockedClient) StripeCancel(ctx context.Context, in *v1.StripeCancelRequest, opts ...grpc.CallOption) (*v1.StripeCancelResponse, error) {
+	if m.MockStripeCancel != nil {
+		return m.MockStripeCancel(ctx, in, opts...)
+	}
+	return nil, trace.NotImplemented("StripeCancel is not implemented")
 }
