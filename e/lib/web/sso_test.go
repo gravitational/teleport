@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -50,18 +53,46 @@ func TestSAML(t *testing.T) {
 		rawConnector        string
 		validSession        bool
 		expectedRedirectURL string
+		hasAccessListRoles  bool
 	}{
 		{
-			name:                "success",
+			name:                "mapped claims to roles without access list roles",
 			rawConnector:        fixtures.SAMLOktaConnectorV2,
 			validSession:        true,
 			expectedRedirectURL: "/after",
 		},
 		{
-			name:                "fail to map claims to roles",
+			name:                "mapped claims to roles with access list roles",
+			rawConnector:        fixtures.SAMLOktaConnectorV2,
+			validSession:        true,
+			hasAccessListRoles:  true,
+			expectedRedirectURL: "/after",
+		},
+		{
+			name:                "fail to map claims to roles without access list roles",
 			rawConnector:        strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
 			validSession:        false,
 			expectedRedirectURL: sso.LoginFailedUnauthorizedRedirectURL,
+		},
+		{
+			name:                "fail to map claims to roles with access list roles",
+			rawConnector:        strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
+			validSession:        true,
+			hasAccessListRoles:  true,
+			expectedRedirectURL: "/after",
+		},
+		{
+			name:                "no claims to roles without access list roles",
+			rawConnector:        fixtures.SAMLOktaConnectorV2WithoutRoleMapping,
+			validSession:        false,
+			expectedRedirectURL: sso.LoginFailedUnauthorizedRedirectURL,
+		},
+		{
+			name:                "no claims to roles with access list roles",
+			rawConnector:        fixtures.SAMLOktaConnectorV2WithoutRoleMapping,
+			validSession:        true,
+			hasAccessListRoles:  true,
+			expectedRedirectURL: "/after",
 		},
 	}
 
@@ -79,6 +110,11 @@ func TestSAML(t *testing.T) {
 				}),
 			)
 			input := tc.rawConnector
+
+			if tc.hasAccessListRoles {
+				mustCreateRole(t, ctx, s, "access")
+				mustSetupAccessList(t, ctx, s, "ops@gravitational.io", "access")
+			}
 
 			connector := prepareSSOConnectorSetup(t, input, ctx, s)
 
@@ -102,44 +138,111 @@ func TestSAML(t *testing.T) {
 func TestSAMLNoEphemeralUser(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	s := newWebSuite(t,
-		withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))),
-		withModules(&modulestest.Modules{
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.SAML: {Enabled: true},
-				},
-			},
-		}),
-	)
-	input := fixtures.SAMLOktaConnectorV2
 
-	oktaUserTraits := map[string][]string{"okta/org": {"dev"}}
-	mustCreateOktaPermanentUser(t, ctx, s, oktaUserTraits, "ops@gravitational.io")
+	tests := []struct {
+		name                    string
+		rawConnector            string
+		hasAccessListRoles      bool
+		hasConnectorMappedRoles bool
+	}{
+		{
+			name:                    "mapped claims to roles without access list roles",
+			rawConnector:            fixtures.SAMLOktaConnectorV2,
+			hasConnectorMappedRoles: true,
+		},
+		{
+			name:                    "mapped claims to roles with access list roles",
+			rawConnector:            fixtures.SAMLOktaConnectorV2,
+			hasAccessListRoles:      true,
+			hasConnectorMappedRoles: true,
+		},
+		{
+			name:         "fail to map claims to roles without access list roles",
+			rawConnector: strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
+		},
+		{
+			name:               "fail to map claims to roles with access list roles",
+			rawConnector:       strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
+			hasAccessListRoles: true,
+		},
+		{
+			name:         "no claims to roles without access list roles",
+			rawConnector: fixtures.SAMLOktaConnectorV2WithoutRoleMapping,
+		},
+		{
+			name:               "no claims to roles with access list roles",
+			rawConnector:       fixtures.SAMLOktaConnectorV2WithoutRoleMapping,
+			hasAccessListRoles: true,
+		},
+	}
 
-	connector := prepareSSOConnectorSetup(t, input, ctx, s)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newWebSuite(t,
+				withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))),
+				withModules(&modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.SAML: {Enabled: true},
+						},
+					},
+				}),
+			)
 
-	clt := s.clientNoRedirects()
-	resp := initSSOLogin(t, clt, connector, csrfCookie)
-	id := mustExtractSAMLRequestID(t, resp)
-	getAuthRequestAndSwapID(t, ctx, s, id, csrfToken)
-	mustSendSAMLResponse(t, clt, csrfCookie)
+			const username = "ops@gravitational.io"
+			const connectorMappedRole = "admin"
+			const accessListRole = "access"
 
-	t.Run("web sessions should contains role evaluated based on attribute mappings ", func(t *testing.T) {
-		webSessions, err := s.testAuthServer.AuthServer.AuthServer.WebSessions().List(ctx)
-		require.NoError(t, err)
-		require.Len(t, webSessions, 1)
+			oktaUserTraits := map[string][]string{"okta/org": {"dev"}}
+			mustCreateOktaPermanentUser(t, ctx, s, oktaUserTraits, username)
 
-		userIdentity := mustGetUserIdentityFromWebSession(t, webSessions[0])
-		require.Equal(t, []string{"admin"}, userIdentity.Groups)
+			if tc.hasAccessListRoles {
+				mustCreateRole(t, ctx, s, accessListRole)
+				mustSetupAccessList(t, ctx, s, username, accessListRole)
+			}
 
-		// Check that the user has the correct traits
-		// propagated from permanent SAML user created by Okta service during user sync
-		// and traits from the SAML assertion.
-		want := wrappers.Traits(oktaUserTraits)
-		want["groups"] = []string{"Everyone"}
-		require.Equal(t, want, userIdentity.Traits)
-	})
+			connector := prepareSSOConnectorSetup(t, tc.rawConnector, ctx, s)
+
+			clt := s.clientNoRedirects()
+			resp := initSSOLogin(t, clt, connector, csrfCookie)
+			id := mustExtractSAMLRequestID(t, resp)
+			getAuthRequestAndSwapID(t, ctx, s, id, csrfToken)
+			mustSendSAMLResponse(t, clt, csrfCookie)
+
+			webSessions, err := s.testAuthServer.AuthServer.AuthServer.WebSessions().List(ctx)
+			require.NoError(t, err)
+
+			// If user has no roles from any source, assert no web session created
+			// and return from test with no further assertions.
+			if !tc.hasAccessListRoles && !tc.hasConnectorMappedRoles {
+				require.Empty(t, webSessions)
+				return
+			}
+
+			require.Len(t, webSessions, 1)
+
+			userIdentity := mustGetUserIdentityFromWebSession(t, webSessions[0])
+
+			if tc.hasConnectorMappedRoles {
+				require.Contains(t, userIdentity.Groups, connectorMappedRole)
+			} else {
+				require.NotContains(t, userIdentity.Groups, connectorMappedRole)
+			}
+
+			if tc.hasAccessListRoles {
+				require.Contains(t, userIdentity.Groups, accessListRole)
+			} else {
+				require.NotContains(t, userIdentity.Groups, accessListRole)
+			}
+
+			// Check that the user has the correct traits
+			// propagated from permanent SAML user created by Okta service during user sync
+			// and traits from the SAML assertion.
+			want := wrappers.Traits(oktaUserTraits)
+			want["groups"] = []string{"Everyone"}
+			require.Equal(t, want, userIdentity.Traits)
+		})
+	}
 }
 
 func mustCreateOktaPermanentUser(t *testing.T, ctx context.Context, s *webSuite, traits map[string][]string, userName string) {
@@ -173,9 +276,25 @@ func mustGetUserIdentityFromWebSession(t *testing.T, webSess types.WebSession) *
 
 func prepareSSOConnectorSetup(t *testing.T, input string, ctx context.Context, s *webSuite) types.SAMLConnector {
 	connector := mustUnmarshalSAMLConnector(t, input)
-	mustCreateRole(t, ctx, s, connector.GetAttributesToRoles()[0].Roles[0])
-	_, err := s.testAuthServer.Auth().CreateSAMLConnector(ctx, connector)
-	require.NoError(t, err)
+	attributesToRoles := connector.GetAttributesToRoles()
+
+	// If attributes_to_roles is present, then it's fine to go through the normal write path.
+	// In the case there's no attributes_to_roles, go straight through the backend.
+	// This is to satisfy current constraint that a connector without attributes_to_roles
+	// is valid to be stored and read (phase 1), but not to write (phase 2).
+	// See RFD: https://github.com/gravitational/rfd/blob/main/rfd/0248-sso-connector-without-role-mapping.md
+	// TODO(nixpig): Post phase 2 (v19.0.x) remove this condition and go through the normal
+	// write path for both.
+	if len(attributesToRoles) > 0 {
+		for _, attribute := range connector.GetAttributesToRoles() {
+			mustCreateRole(t, ctx, s, attribute.Roles[0])
+		}
+		_, err := s.testAuthServer.Auth().CreateSAMLConnector(ctx, connector)
+		require.NoError(t, err)
+	} else {
+		mustCreateBackendConnector(t, ctx, connector, s)
+	}
+
 	return connector
 }
 
@@ -278,4 +397,54 @@ func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector 
 	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 	require.NoError(t, err)
 	return connector
+}
+
+// mustSetupAccessList an Access List that grants the role and adds the username as an Access List Member.
+func mustSetupAccessList(t *testing.T, ctx context.Context, s *webSuite, username, role string) {
+	clock := s.testAuthServer.Auth().GetClock()
+
+	mustCreateRole(t, ctx, s, role)
+
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{Name: "accesslist"},
+		accesslist.Spec{
+			Title:  "simple",
+			Audit:  accesslist.Audit{NextAuditDate: clock.Now().AddDate(1, 0, 0)},
+			Grants: accesslist.Grants{Roles: []string{role}},
+			Owners: []accesslist.Owner{{Name: role}},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = s.testAuthServer.Auth().UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	accessListMember, err := accesslist.NewAccessListMember(
+		header.Metadata{Name: username},
+		accesslist.AccessListMemberSpec{
+			AccessList: accessList.GetName(),
+			Name:       username,
+			Joined:     clock.Now(),
+			AddedBy:    role,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = s.testAuthServer.Auth().UpsertAccessListMember(ctx, accessListMember)
+	require.NoError(t, err)
+}
+
+// mustCreateBackendConnector creates a SAML connector directly in the backend.
+// This avoids going through the write path validations and is needed to create
+// a connector without role-mapping fields, which is valid for read paths and SSO.
+func mustCreateBackendConnector(t *testing.T, ctx context.Context, connector types.SAMLConnector, s *webSuite) {
+	value, err := utils.FastMarshal(connector)
+	require.NoError(t, err)
+
+	samlConnectorBackendKey := backend.NewKey("web", "connectors", "saml", "connectors", connector.GetName())
+	_, err = s.testAuthServer.AuthServer.Backend.Put(ctx, backend.Item{
+		Key:   samlConnectorBackendKey,
+		Value: value,
+	})
+	require.NoError(t, err)
 }
