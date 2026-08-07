@@ -50,6 +50,8 @@ const (
 	DeviceTrustService_SyncInventory_FullMethodName                  = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
 	DeviceTrustService_CreateEnrollPairing_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/CreateEnrollPairing"
 	DeviceTrustService_GetCurrentEnrollPairing_FullMethodName        = "/teleport.devicetrust.v1.DeviceTrustService/GetCurrentEnrollPairing"
+	DeviceTrustService_ApproveEnrollPairing_FullMethodName           = "/teleport.devicetrust.v1.DeviceTrustService/ApproveEnrollPairing"
+	DeviceTrustService_DenyEnrollPairing_FullMethodName              = "/teleport.devicetrust.v1.DeviceTrustService/DenyEnrollPairing"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -191,6 +193,26 @@ type DeviceTrustServiceClient interface {
 	//
 	// Returns NotFound if the caller has no EnrollPairing.
 	GetCurrentEnrollPairing(ctx context.Context, in *GetCurrentEnrollPairingRequest, opts ...grpc.CallOption) (*GetCurrentEnrollPairingResponse, error)
+	// ApproveEnrollPairing moves the EnrollPairing for the calling user from
+	// ENROLL_PAIRING_STATE_AWAITING_APPROVAL to ENROLL_PAIRING_STATE_APPROVED,
+	// unblocking CreatePairedDeviceEnrollToken on the public Device Trust
+	// service.
+	//
+	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+	// pairing_token, and CompareFailed if the pairing is not awaiting approval.
+	//
+	// Requires the "mobile_device.create_enroll_token" permission. It is an
+	// administrative action for which reusable challenges are not accepted.
+	ApproveEnrollPairing(ctx context.Context, in *ApproveEnrollPairingRequest, opts ...grpc.CallOption) (*ApproveEnrollPairingResponse, error)
+	// DenyEnrollPairing deletes the EnrollPairing for the calling user.
+	//
+	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+	// pairing_token.
+	//
+	// Requires the "mobile_device.create_enroll_token" permission. Unlike
+	// ApproveEnrollPairing, it is not an administrative action and thus doesn't
+	// require going through an MFA ceremony.
+	DenyEnrollPairing(ctx context.Context, in *DenyEnrollPairingRequest, opts ...grpc.CallOption) (*DenyEnrollPairingResponse, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -370,6 +392,26 @@ func (c *deviceTrustServiceClient) GetCurrentEnrollPairing(ctx context.Context, 
 	return out, nil
 }
 
+func (c *deviceTrustServiceClient) ApproveEnrollPairing(ctx context.Context, in *ApproveEnrollPairingRequest, opts ...grpc.CallOption) (*ApproveEnrollPairingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveEnrollPairingResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_ApproveEnrollPairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *deviceTrustServiceClient) DenyEnrollPairing(ctx context.Context, in *DenyEnrollPairingRequest, opts ...grpc.CallOption) (*DenyEnrollPairingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DenyEnrollPairingResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_DenyEnrollPairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility.
@@ -509,6 +551,26 @@ type DeviceTrustServiceServer interface {
 	//
 	// Returns NotFound if the caller has no EnrollPairing.
 	GetCurrentEnrollPairing(context.Context, *GetCurrentEnrollPairingRequest) (*GetCurrentEnrollPairingResponse, error)
+	// ApproveEnrollPairing moves the EnrollPairing for the calling user from
+	// ENROLL_PAIRING_STATE_AWAITING_APPROVAL to ENROLL_PAIRING_STATE_APPROVED,
+	// unblocking CreatePairedDeviceEnrollToken on the public Device Trust
+	// service.
+	//
+	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+	// pairing_token, and CompareFailed if the pairing is not awaiting approval.
+	//
+	// Requires the "mobile_device.create_enroll_token" permission. It is an
+	// administrative action for which reusable challenges are not accepted.
+	ApproveEnrollPairing(context.Context, *ApproveEnrollPairingRequest) (*ApproveEnrollPairingResponse, error)
+	// DenyEnrollPairing deletes the EnrollPairing for the calling user.
+	//
+	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+	// pairing_token.
+	//
+	// Requires the "mobile_device.create_enroll_token" permission. Unlike
+	// ApproveEnrollPairing, it is not an administrative action and thus doesn't
+	// require going through an MFA ceremony.
+	DenyEnrollPairing(context.Context, *DenyEnrollPairingRequest) (*DenyEnrollPairingResponse, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -566,6 +628,12 @@ func (UnimplementedDeviceTrustServiceServer) CreateEnrollPairing(context.Context
 }
 func (UnimplementedDeviceTrustServiceServer) GetCurrentEnrollPairing(context.Context, *GetCurrentEnrollPairingRequest) (*GetCurrentEnrollPairingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCurrentEnrollPairing not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) ApproveEnrollPairing(context.Context, *ApproveEnrollPairingRequest) (*ApproveEnrollPairingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveEnrollPairing not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) DenyEnrollPairing(context.Context, *DenyEnrollPairingRequest) (*DenyEnrollPairingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DenyEnrollPairing not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -843,6 +911,42 @@ func _DeviceTrustService_GetCurrentEnrollPairing_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DeviceTrustService_ApproveEnrollPairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveEnrollPairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).ApproveEnrollPairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_ApproveEnrollPairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).ApproveEnrollPairing(ctx, req.(*ApproveEnrollPairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DeviceTrustService_DenyEnrollPairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DenyEnrollPairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).DenyEnrollPairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_DenyEnrollPairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).DenyEnrollPairing(ctx, req.(*DenyEnrollPairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -901,6 +1005,14 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCurrentEnrollPairing",
 			Handler:    _DeviceTrustService_GetCurrentEnrollPairing_Handler,
+		},
+		{
+			MethodName: "ApproveEnrollPairing",
+			Handler:    _DeviceTrustService_ApproveEnrollPairing_Handler,
+		},
+		{
+			MethodName: "DenyEnrollPairing",
+			Handler:    _DeviceTrustService_DenyEnrollPairing_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
