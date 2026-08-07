@@ -450,6 +450,55 @@ func TestIsMFAReuseRejected(t *testing.T) {
 	}
 }
 
+// TestKubeCertIssuer_CanceledContextFailsIssuance verifies that
+// an MFA-gated issuance whose context is canceled while it takes the ceremony lock
+// returns the cancellation error instead of retrying the lock forever.
+// A canceled context is how a concurrent peer's failure reaches the other issuances.
+func TestKubeCertIssuer_CanceledContextFailsIssuance(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ceremonyStarted := make(chan struct{})
+		finishCeremony := make(chan struct{})
+		cc := &fakeKubeCertClient{mfaRequired: true}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			close(ceremonyStarted)
+			<-finishCeremony
+			return nil, trace.ConnectionProblem(nil, "the ceremony fails once released")
+		}
+		issuer := newTestKubeCertIssuer(cc)
+		mfaCheck := &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}
+
+		// The first issuance takes the ceremony lock and blocks mid-ceremony.
+		firstDone := make(chan struct{})
+		var firstErr error
+		go func() {
+			defer close(firstDone)
+			_, firstErr = issuer.IssueCert(t.Context(), "root", "kube-a", mfaCheck)
+		}()
+		<-ceremonyStarted
+
+		// The second issuance waits for the lock.
+		// Canceling its context, as a concurrent peer's failure does, must fail it while the holder still runs.
+		ctx, cancel := context.WithCancel(t.Context())
+		secondDone := make(chan struct{})
+		var secondErr error
+		go func() {
+			defer close(secondDone)
+			_, secondErr = issuer.IssueCert(ctx, "root", "kube-b", mfaCheck)
+		}()
+		synctest.Wait() // the second issuance is parked on the ceremony lock
+		cancel()
+		<-secondDone
+		require.ErrorIs(t, secondErr, context.Canceled)
+
+		// The ceremony holder is unaffected by the canceled waiter.
+		close(finishCeremony)
+		<-firstDone
+		require.ErrorContains(t, firstErr, "the ceremony fails once released")
+	})
+}
+
 func newTestKubeClusters(n int) kubeconfig.LocalProxyClusters {
 	clusters := make(kubeconfig.LocalProxyClusters, 0, n)
 	for i := range n {

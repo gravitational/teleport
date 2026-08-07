@@ -249,11 +249,14 @@ func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, cc kubeCert
 
 		if reusable == nil {
 			cert, done, err := issuer.issueWithCeremony(ctx, cc, params)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			if !done {
 				// A peer's ceremony captured a fresh response. Replay it.
 				continue
 			}
-			return cert, trace.Wrap(err)
+			return cert, nil
 		}
 
 		params.RequesterName = requester
