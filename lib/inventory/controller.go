@@ -547,6 +547,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				return
 			case *proto.UpstreamInventoryAgentMetadata:
 				c.handleAgentMetadata(handle, m)
+			case *proto.InstanceStatus:
+				if m.HasAuditQueue() {
+					handle.setAuditQueueStatus(m.GetAuditQueue())
+				}
 			case *proto.InventoryHeartbeat:
 				// XXX: when adding new services to the heartbeat logic, make
 				// sure to also update the 'icsServiceToMetricName' mapping in
@@ -622,10 +626,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 						handle.CloseWithError(err)
 						return
 					}
-				}
-
-				if m.HasAuditQueue() {
-					handle.setAuditQueueStatus(m.GetAuditQueue())
 				}
 
 			case *proto.UpstreamInventoryPong:

@@ -1826,6 +1826,122 @@ func testAgentMetadata(t *testing.T) {
 	}, 10*time.Second, 200*time.Millisecond)
 }
 
+func TestInstanceStatus(t *testing.T) {
+	tests := []struct {
+		name                   string
+		supportsInstanceStatus bool
+		expectStatus           bool
+	}{
+		{
+			name:                   "reported when auth advertises support",
+			supportsInstanceStatus: true,
+			expectStatus:           true,
+		},
+		{
+			name:                   "withheld when auth does not advertise support",
+			supportsInstanceStatus: false,
+			expectStatus:           false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				testInstanceStatus(t, test.supportsInstanceStatus, test.expectStatus)
+			})
+		})
+	}
+}
+
+func testInstanceStatus(t *testing.T, supportsInstanceStatus, expectStatus bool) {
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build()
+	downstreamHello := proto.DownstreamInventoryHello_builder{
+		Version:  teleport.Version,
+		ServerID: "auth",
+		Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
+			InstanceStatus: supportsInstanceStatus,
+		}.Build(),
+	}.Build()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	inventoryHandle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return &metadata.Metadata{}, nil
+		}),
+		WithAuditQueueStatusGetter(func(ctx context.Context) *types.AuditQueueStatus {
+			return &types.AuditQueueStatus{
+				PendingCount:            7,
+				DeadLetterCount:         3,
+				CorruptCount:            1,
+				OldestPendingAgeSeconds: 42,
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+	upstreamHandle, ok := handle.(*upstreamHandle)
+	require.True(t, ok)
+
+	if !expectStatus {
+		require.Never(t, func() bool {
+			return upstreamHandle.AuditQueueStatus() != nil
+		}, 5*time.Second, 200*time.Millisecond)
+		return
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		status := upstreamHandle.AuditQueueStatus()
+		if !assert.NotNil(t, status) {
+			return
+		}
+		assert.Equal(t, int64(7), status.PendingCount)
+		assert.Equal(t, int64(3), status.DeadLetterCount)
+		assert.Equal(t, int64(1), status.CorruptCount)
+		assert.Equal(t, int64(42), status.OldestPendingAgeSeconds)
+	}, 10*time.Second, 200*time.Millisecond)
+}
+
 func TestGoodbye(t *testing.T) {
 	tests := []struct {
 		name            string

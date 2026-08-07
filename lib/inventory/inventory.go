@@ -179,7 +179,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	go handle.run(fn)
 	go handle.autoEmitMetadata()
 	go handle.autoEmitGoodbye()
-	go handle.autoEmitAuditQueueStatus()
+	go handle.autoEmitInstanceStatus()
 	return handle, nil
 }
 
@@ -275,9 +275,9 @@ func (h *downstreamHandle) autoEmitMetadata() {
 	}
 }
 
-const auditQueueStatusInterval = 30 * time.Second
+const instanceStatusInterval = 30 * time.Second
 
-func (h *downstreamHandle) autoEmitAuditQueueStatus() {
+func (h *downstreamHandle) autoEmitInstanceStatus() {
 	if h.auditQueueStatusGetter == nil {
 		return
 	}
@@ -287,12 +287,12 @@ func (h *downstreamHandle) autoEmitAuditQueueStatus() {
 		if status == nil {
 			return
 		}
-		if err := sender.Send(h.CloseContext(), proto.InventoryHeartbeat_builder{AuditQueue: status}.Build()); err != nil && !errors.Is(err, context.Canceled) {
-			slog.WarnContext(h.CloseContext(), "Failed to send audit queue status", "error", err)
+		if err := sender.Send(h.CloseContext(), proto.InstanceStatus_builder{AuditQueue: status}.Build()); err != nil && !errors.Is(err, context.Canceled) {
+			slog.WarnContext(h.CloseContext(), "Failed to send instance status", "error", err)
 		}
 	}
 
-	ticker := h.clock.NewTicker(auditQueueStatusInterval)
+	ticker := h.clock.NewTicker(instanceStatusInterval)
 	defer ticker.Stop()
 	for {
 		var sender DownstreamSender
@@ -300,6 +300,15 @@ func (h *downstreamHandle) autoEmitAuditQueueStatus() {
 		case sender = <-h.Sender():
 		case <-h.CloseContext().Done():
 			return
+		}
+
+		if !sender.Hello().GetCapabilities().GetInstanceStatus() {
+			select {
+			case <-sender.Done():
+				continue
+			case <-h.CloseContext().Done():
+				return
+			}
 		}
 
 	streamLoop:
