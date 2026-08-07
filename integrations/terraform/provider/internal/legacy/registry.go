@@ -43,7 +43,6 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
 		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
-		"teleport_classifier":                 dataSourceTeleportClassifierType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -85,7 +84,6 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_classifier":                 resourceTeleportClassifierType{},
 		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
 		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
