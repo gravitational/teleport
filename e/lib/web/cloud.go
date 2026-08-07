@@ -347,6 +347,7 @@ func (p *Plugin) getCloudAssetHandle(w http.ResponseWriter, r *http.Request, par
 		Filepath: filePath,
 	})
 	if err != nil {
+		p.Logger.WarnContext(r.Context(), "Failed to fetch cloud panel asset", "error", err, "path", filePath)
 		return nil, trail.FromGRPC(err)
 	}
 
@@ -357,6 +358,7 @@ func (p *Plugin) getCloudAssetHandle(w http.ResponseWriter, r *http.Request, par
 			break
 		}
 		if err != nil {
+			p.Logger.WarnContext(r.Context(), "Failed to fetch cloud panel asset", "error", err, "path", filePath)
 			return nil, trail.FromGRPC(err)
 		}
 
