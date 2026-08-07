@@ -383,22 +383,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	role = payload{
-		Name:                   "Role",
-		TypeName:               "RoleV6",
-		VarName:                "role",
-		GetMethod:              "GetRole",
-		CreateMethod:           "CreateRole",
-		UpdateMethod:           "UpsertRole",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteRole",
-		ID:                     "role.Metadata.Name",
-		Kind:                   "role",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_role",
-		HasCheckAndSetDefaults: true,
-	}
-
 	sessionRecording = payload{
 		Name:                   "SessionRecordingConfig",
 		TypeName:               "SessionRecordingConfigV2",
@@ -1031,8 +1015,6 @@ func genTFSchema() {
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
-	generateResource(role, pluralResource)
-	generateDataSource(role, pluralDataSource)
 	generateResource(trustedCluster, pluralResource)
 	generateDataSource(trustedCluster, pluralDataSource)
 	generateResource(sessionRecording, singularResource)
