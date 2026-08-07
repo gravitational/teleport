@@ -2672,6 +2672,10 @@ func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) err
 	return trace.Wrap(a.emitter.EmitAuditEvent(context.WithoutCancel(ctx), e))
 }
 
+func (a *Server) EmitAuditEvents(ctx context.Context, batch []apievents.AuditEvent) error {
+	return trace.Wrap(events.EmitAuditEvents(context.WithoutCancel(ctx), a.emitter, batch))
+}
+
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
 func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {

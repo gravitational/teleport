@@ -33,6 +33,15 @@ var batchSize = prometheus.NewHistogram(
 	},
 )
 
+var batchBytes = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_batch_bytes",
+		Help:      "Encoded payload bytes committed in each batch.",
+		Buckets:   []float64{1024, 4096, 16384, 65536, 262144, 524288, 1048576},
+	},
+)
+
 var orphansAdopted = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
@@ -150,6 +159,7 @@ var queueCorrupt = prometheus.NewGaugeVec(
 
 var prometheusCollectors = []prometheus.Collector{
 	batchSize,
+	batchBytes,
 	orphansAdopted,
 	orphanScanErrors,
 	softLimitWarnings,

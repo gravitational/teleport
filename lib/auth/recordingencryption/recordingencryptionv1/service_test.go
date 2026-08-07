@@ -70,6 +70,8 @@ func newFakeService(t *testing.T, rotater *fakeKeyRotater) *recordingencryptionv
 		RecordingMetadataProvider: recordingmetadata.NewProvider(),
 		SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
 		OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
+		KeyUnwrapper:              rsaKeyUnwrapper{},
+		Emitter:                   &eventstest.MockRecorderEmitter{},
 	})
 	require.NoError(t, err)
 	return service
@@ -329,6 +331,8 @@ func TestSessionCompleter(t *testing.T) {
 				EndTime:         now,
 			}, nil
 		},
+		KeyUnwrapper: rsaKeyUnwrapper{},
+		Emitter:      &eventstest.MockRecorderEmitter{},
 	}
 
 	service, err := recordingencryptionv1.NewService(cfg)
@@ -426,6 +430,8 @@ func TestCompleteUploadRecoversMissingSessionEnd(t *testing.T) {
 				Clock:       clockwork.NewRealClock(),
 			})
 		},
+		KeyUnwrapper: rsaKeyUnwrapper{},
+		Emitter:      &eventstest.MockRecorderEmitter{},
 	}
 
 	service, err := recordingencryptionv1.NewService(cfg)
@@ -470,6 +476,8 @@ func TestUploadValidation(t *testing.T) {
 			RecordingMetadataProvider: recordingmetadata.NewProvider(),
 			SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
 			OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
+			KeyUnwrapper:              rsaKeyUnwrapper{},
+			Emitter:                   &eventstest.MockRecorderEmitter{},
 		})
 		require.NoError(t, err)
 		return svc
