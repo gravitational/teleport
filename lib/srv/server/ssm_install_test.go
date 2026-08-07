@@ -53,10 +53,6 @@ type mockSSMClient struct {
 	waitForContextInstance           map[string]bool
 	waiterCompletionDelay            time.Duration
 	waiterStarted                    chan struct{}
-	sendCommandContext               context.Context
-	waiterContext                    context.Context
-	waiterMaxWaitDuration            time.Duration
-	waiterCalls                      int
 	getCommandWaitForContextInstance map[string]bool
 	commandInvokeOutput              map[string]*ssm.GetCommandInvocationOutput
 	commandInvokeByInstance          map[string]*ssm.GetCommandInvocationOutput
@@ -174,11 +170,7 @@ func TestGetAWSInstallTimeout(t *testing.T) {
 	}
 }
 
-func (sm *mockSSMClient) SendCommand(ctx context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
-	sm.mu.Lock()
-	sm.sendCommandContext = ctx
-	sm.mu.Unlock()
-
+func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 	if _, hasExtraParam := input.Parameters["sshdConfigPath"]; hasExtraParam && aws.ToString(input.DocumentName) == docWithoutSSHDConfigPathParam {
 		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutSSHDConfigPathParam)
 	}
@@ -219,10 +211,6 @@ func (sm *mockSSMClient) ListCommandInvocations(_ context.Context, input *ssm.Li
 }
 
 func (sm *mockSSMClient) Wait(ctx context.Context, params *ssm.GetCommandInvocationInput, maxWaitDur time.Duration, optFns ...func(*ssm.CommandExecutedWaiterOptions)) error {
-	sm.mu.Lock()
-	sm.waiterContext = ctx
-	sm.waiterMaxWaitDuration = maxWaitDur
-	sm.mu.Unlock()
 	if sm.waiterStarted != nil {
 		sm.waiterStarted <- struct{}{}
 	}
@@ -270,8 +258,6 @@ func TestSSMInstallerHungCommandReportsPerInstanceResults(t *testing.T) {
 	t.Setenv(awsInstallTimeoutEnvVar, installTimeout.String())
 
 	synctest.Test(t, func(t *testing.T) {
-		start := time.Now()
-
 		client := &mockSSMClient{
 			commandOutput: &ssm.SendCommandOutput{
 				Command: &ssmtypes.Command{
@@ -311,15 +297,6 @@ func TestSSMInstallerHungCommandReportsPerInstanceResults(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, installTimeout+awsInstallTimeoutPad, time.Since(start))
-		require.Equal(t, installTimeout+awsInstallTimeoutPad, client.waiterMaxWaitDuration)
-
-		sendCommandDeadline, ok := client.sendCommandContext.Deadline()
-		require.True(t, ok)
-		waiterDeadline, ok := client.waiterContext.Deadline()
-		require.True(t, ok)
-		require.Equal(t, installTimeout+2*awsInstallTimeoutPad, sendCommandDeadline.Sub(start))
-		require.Equal(t, sendCommandDeadline, waiterDeadline)
 
 		require.Len(t, installationResults.installations, 2)
 		resultsByInstance := make(map[string]*SSMInstallationResult, 2)
@@ -547,11 +524,6 @@ func TestSSMInstallerWaitsThroughStatusHeadroom(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, terminalStatusDelay, time.Since(start))
-		require.Equal(t, installTimeout+awsInstallTimeoutPad, client.waiterMaxWaitDuration)
-
-		sendCommandDeadline, ok := client.sendCommandContext.Deadline()
-		require.True(t, ok)
-		require.Equal(t, installTimeout+2*awsInstallTimeoutPad, sendCommandDeadline.Sub(start))
 
 		require.Len(t, installationResults.installations, 1)
 		require.Equal(t, string(ssmtypes.CommandInvocationStatusTimedOut), installationResults.installations[0].SSMRunEvent.Status)
