@@ -100,6 +100,7 @@ type DownstreamSender interface {
 type downstreamHandleOptions struct {
 	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
 	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
 	clock                  clockwork.Clock
 }
 
@@ -130,6 +131,12 @@ func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
 func WithAuditQueueStatusGetter(getter func(ctx context.Context) *types.AuditQueueStatus) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.auditQueueStatusGetter = getter
+	}
+}
+
+func WithAuditQueueStatusSignal(signal <-chan struct{}) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.auditQueueStatusSignal = signal
 	}
 }
 
@@ -173,6 +180,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 		cancel:                 cancel,
 		metadataGetter:         options.metadataGetter,
 		auditQueueStatusGetter: options.auditQueueStatusGetter,
+		auditQueueStatusSignal: options.auditQueueStatusSignal,
 		clock:                  options.clock,
 		helloGetter:            cachedHelloGetter,
 	}
@@ -194,6 +202,7 @@ type downstreamHandle struct {
 	upstreamSSHLabels      map[string]string
 	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
 	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
 	clock                  clockwork.Clock
 	helloGetter            HelloGetter
 	goodbye                atomic.Pointer[proto.UpstreamInventoryGoodbye]
@@ -275,10 +284,8 @@ func (h *downstreamHandle) autoEmitMetadata() {
 	}
 }
 
-const instanceStatusInterval = 30 * time.Second
-
 func (h *downstreamHandle) autoEmitInstanceStatus() {
-	if h.auditQueueStatusGetter == nil {
+	if h.auditQueueStatusGetter == nil || h.auditQueueStatusSignal == nil {
 		return
 	}
 
@@ -292,8 +299,6 @@ func (h *downstreamHandle) autoEmitInstanceStatus() {
 		}
 	}
 
-	ticker := h.clock.NewTicker(instanceStatusInterval)
-	defer ticker.Stop()
 	for {
 		var sender DownstreamSender
 		select {
@@ -315,7 +320,7 @@ func (h *downstreamHandle) autoEmitInstanceStatus() {
 		for {
 			send(sender)
 			select {
-			case <-ticker.Chan():
+			case <-h.auditQueueStatusSignal:
 			case <-sender.Done():
 				break streamLoop
 			case <-h.CloseContext().Done():

@@ -1859,6 +1859,7 @@ func testInstanceStatus(t *testing.T, supportsInstanceStatus, expectStatus bool)
 	const peerAddr = "1.2.3.4:456"
 
 	events := make(chan testEvent, 1024)
+	statusSignal := make(chan struct{}, 1)
 
 	auth := &fakeAuth{}
 
@@ -1905,6 +1906,7 @@ func testInstanceStatus(t *testing.T, supportsInstanceStatus, expectStatus bool)
 				OldestPendingAgeSeconds: 42,
 			}
 		}),
+		WithAuditQueueStatusSignal(statusSignal),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -1917,6 +1919,7 @@ func testInstanceStatus(t *testing.T, supportsInstanceStatus, expectStatus bool)
 	}
 	require.NoError(t, upstream.Send(ctx, downstreamHello))
 	controller.RegisterControlStream(upstream, upstreamHello)
+	statusSignal <- struct{}{}
 
 	handle, ok := controller.GetControlStream(serverID)
 	require.True(t, ok)

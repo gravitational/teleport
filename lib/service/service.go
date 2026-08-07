@@ -744,7 +744,8 @@ type TeleportProcess struct {
 	// emitters holds the audit emitters the process has created, keyed by the
 	// emitter pointer. AuditQueueStatus sums their queue depths so the instance
 	// heartbeat reports the process total.
-	emitters map[processEmitter]struct{}
+	emitters                map[processEmitter]struct{}
+	auditQueueStatusSignalC chan struct{}
 
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
@@ -1365,23 +1366,24 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	scopesFeatures := cfg.ScopesFeatures
 
 	process := &TeleportProcess{
-		PluginRegistry:         cfg.PluginRegistry,
-		Clock:                  cfg.Clock,
-		Supervisor:             supervisor,
-		Config:                 cfg,
-		instanceConnectorReady: make(chan struct{}),
-		instanceRoles:          make(map[types.SystemRole]string),
-		hostedPluginRoles:      make(map[types.SystemRole]string),
-		connectors:             make(map[types.SystemRole]*Connector),
-		importedDescriptors:    cfg.FileDescriptors,
-		storage:                store,
-		rotationCache:          rotationCache,
-		id:                     processID,
-		logger:                 cfg.Logger,
-		cloudLabels:            cloudLabels,
-		scopesFeatures:         scopesFeatures,
-		TracingProvider:        tracing.NoopProvider(),
-		metricsRegistry:        metricsRegistry,
+		PluginRegistry:          cfg.PluginRegistry,
+		Clock:                   cfg.Clock,
+		Supervisor:              supervisor,
+		Config:                  cfg,
+		instanceConnectorReady:  make(chan struct{}),
+		instanceRoles:           make(map[types.SystemRole]string),
+		auditQueueStatusSignalC: make(chan struct{}, 1),
+		hostedPluginRoles:       make(map[types.SystemRole]string),
+		connectors:              make(map[types.SystemRole]*Connector),
+		importedDescriptors:     cfg.FileDescriptors,
+		storage:                 store,
+		rotationCache:           rotationCache,
+		id:                      processID,
+		logger:                  cfg.Logger,
+		cloudLabels:             cloudLabels,
+		scopesFeatures:          scopesFeatures,
+		TracingProvider:         tracing.NoopProvider(),
+		metricsRegistry:         metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
 			rootMetricRegistry,
 			prometheus.DefaultGatherer,
@@ -1472,6 +1474,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		getHello,
 		inventory.WithDownstreamClock(process.Clock),
 		inventory.WithAuditQueueStatusGetter(process.AuditQueueStatus),
+		inventory.WithAuditQueueStatusSignal(process.auditQueueStatusSignalC),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building inventory handle")
@@ -3617,6 +3620,14 @@ func (process *TeleportProcess) auditQueueConfig() auditqueue.Config {
 		DeadLetterSweepInterval: process.Config.AuditQueue.DeadLetterSweepInterval,
 		OrphanScanInterval:      process.Config.AuditQueue.OrphanScanInterval,
 		Synchronous:             process.Config.AuditQueue.Synchronous,
+		OnStatsUpdated:          process.signalAuditQueueStatus,
+	}
+}
+
+func (process *TeleportProcess) signalAuditQueueStatus() {
+	select {
+	case process.auditQueueStatusSignalC <- struct{}{}:
+	default:
 	}
 }
 
