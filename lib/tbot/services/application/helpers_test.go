@@ -20,6 +20,7 @@ package application
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net"
 	"os"
@@ -31,10 +32,13 @@ import (
 	"gopkg.in/yaml.v3"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -173,4 +177,32 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 
 		return nil
 	}
+}
+
+// makeScopedRole creates a scoped role that grants app access with wildcard labels.
+func makeScopedRole(t *testing.T, ctx context.Context, rootClient *authclient.Client, roleName, scopeName string) {
+	t.Helper()
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: roleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				App: scopedaccessv1.ScopedRoleApp_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   "*",
+							Values: []string{"*"},
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
 }
