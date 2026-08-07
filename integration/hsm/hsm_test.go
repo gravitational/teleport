@@ -20,7 +20,6 @@ package hsm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -28,7 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -72,13 +70,22 @@ func TestMain(m *testing.M) {
 		},
 	})
 
-	os.Exit(m.Run())
+	// Create tokens ahead of time before any test runs.
+	if err := setupSoftHSM(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to set up SoftHSM: %v\n", err)
+		cleanupSoftHSM()
+		os.Exit(1)
+	}
+
+	code := m.Run()
+	cleanupSoftHSM()
+	os.Exit(code)
 }
 
-func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
+func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log *slog.Logger, clock clockwork.Clock, authName string) *servicecfg.Config {
 	config := newAuthConfig(t, log, clock)
 	config.Auth.StorageConfig = *storageConfig
-	config.Auth.KeyStore = HSMTestConfig(t)
+	config.Auth.KeyStore = HSMTestConfig(t, authName)
 	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 	})
@@ -103,7 +110,7 @@ func TestHSMRotation(t *testing.T) {
 	log := logtest.With(teleport.ComponentKey, "TestHSMRotation")
 
 	log.DebugContext(ctx, "starting auth server")
-	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clockwork.NewRealClock())
+	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clockwork.NewRealClock(), "auth1")
 	auth1, err := newTeleportService(ctx, authConfig, "auth1")
 	require.NoError(t, err)
 	allServices := teleportServices{auth1}
@@ -218,7 +225,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// start a cluster with 1 auth server
 	log.DebugContext(ctx, "Starting auth server 1")
-	auth1Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
+	auth1Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock(), "auth1")
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -241,11 +248,11 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// add a new auth server
 	log.DebugContext(ctx, "Starting auth server 2")
-	auth2Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
+	auth2Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock(), "auth2")
 	auth2, err := newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+		assert.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
 		assert.NoError(t, auth2.cleanup())
 	})
@@ -402,9 +409,9 @@ func TestHSMMigrate(t *testing.T) {
 
 	// start a dual auth non-hsm cluster
 	log.DebugContext(ctx, "Starting auth server 1")
-	auth1Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
+	auth1Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock(), "auth1")
 	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
-	auth2Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
+	auth2Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock(), "auth2")
 	auth2Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
@@ -441,7 +448,7 @@ func TestHSMMigrate(t *testing.T) {
 	// Phase 1: migrate auth1 to HSM
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.Auth.KeyStore = HSMTestConfig(t)
+	auth1Config.Auth.KeyStore = HSMTestConfig(t, "auth1")
 	auth1, err = newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
 
@@ -517,7 +524,7 @@ func TestHSMMigrate(t *testing.T) {
 	// Phase 2: migrate auth2 to HSM
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
-	auth2Config.Auth.KeyStore = HSMTestConfig(t)
+	auth2Config.Auth.KeyStore = HSMTestConfig(t, "auth2")
 	auth2, err = newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 	authServices = teleportServices{auth1, auth2}
@@ -552,7 +559,7 @@ func TestHSMRevert(t *testing.T) {
 
 	// Start auth with an HSM attached and generate HSM keys.
 	log.DebugContext(ctx, "starting auth server")
-	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clock)
+	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clock, "auth1")
 	hsmAuth, err := newTeleportService(ctx, authConfig, "auth1")
 	require.NoError(t, err)
 	require.NoError(t, hsmAuth.process.Close())
@@ -624,7 +631,8 @@ func TestHSMRevert(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-func HSMTestConfig(t *testing.T) servicecfg.KeystoreConfig {
+// HSMTestConfig returns the keystore config for the specified auth server.
+func HSMTestConfig(t *testing.T, authName string) servicecfg.KeystoreConfig {
 	if cfg, ok := yubiHSMTestConfig(t); ok {
 		t.Log("Running test with YubiHSM")
 		return cfg
@@ -641,7 +649,7 @@ func HSMTestConfig(t *testing.T) servicecfg.KeystoreConfig {
 		t.Log("Running test with GCP KMS")
 		return cfg
 	}
-	if cfg, ok := softHSMTestConfig(t); ok {
+	if cfg, ok := softHSMTestConfig(t, authName); ok {
 		t.Log("Running test with SoftHSM")
 		return cfg
 	}
@@ -707,73 +715,103 @@ func gcpKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 }
 
 var (
-	cachedSoftHSMConfig      *servicecfg.KeystoreConfig
-	cachedSoftHSMConfigMutex sync.Mutex
+	// softHSMAuthNames are the auth server names that tests in this package may pass
+	// to [HSMTestConfig]. SoftHSM tokens have to be created before any test runs
+	// (see [setupSoftHSM]), so a new name has to be added here before it can be used.
+	//
+	// Each auth server gets a token of its own so that no two auth servers ever
+	// race against the same SoftHSM object store.
+	softHSMAuthNames = []string{"auth1", "auth2"}
+
+	// softHSMTokens maps each auth name to the label of its SoftHSM token.
+	softHSMTokens map[string]string
+
+	// softHSMTempPaths are the token directory and config file that [setupSoftHSM]
+	// created, for [cleanupSoftHSM] to remove once every test has finished. It stays
+	// empty when SOFTHSM2_CONF is already set, because then the token directory
+	// belongs to whoever set it and is not ours to delete.
+	softHSMTempPaths []string
 )
 
-// softHSMTestConfig is for use in tests only and creates a test SOFTHSM2 token.
-// This should be used for all tests which need to use SoftHSM because the
-// library can only be initialized once and SOFTHSM2_PATH and SOFTHSM2_CONF
-// cannot be changed. New tokens added after the library has been initialized
-// will not be found by the library.
+// setupSoftHSM creates one token per entry in [softHSMAuthNames].
+// It has to be called before any test runs because tokens created after the PKCS#11
+// library has been initialized will not be found by it.
 //
-// A new token will be used for each `go test` invocation, but it's difficult
-// to create a separate token for each test because because new tokens
-// added after the library has been initialized will not be found by the
-// library. It's also difficult to clean up the token because tests for all
-// packages are run in parallel there is not a good time to safely
-// delete the token or the entire token directory. Each test should clean up
-// all keys that it creates because SoftHSM2 gets really slow when there are
-// many keys for a given token.
-func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
+// Tokens are reused across tests, which is safe because these tests do not
+// run in parallel  and each auth server labels its keys with its own host UUID.
+//
+// Each test still deletes the keys it creates, because SoftHSM2 gets really slow
+// when there are many keys for a given token.
+func setupSoftHSM() error {
+	path := os.Getenv("SOFTHSM2_PATH")
+	if path == "" {
+		return nil
+	}
+
+	if os.Getenv("SOFTHSM2_CONF") == "" {
+		tokenDir, err := os.MkdirTemp("", "tokens")
+		if err != nil {
+			return trace.Wrap(err, "creating SoftHSM token directory")
+		}
+		softHSMTempPaths = append(softHSMTempPaths, tokenDir)
+		configFile, err := os.CreateTemp("", "softhsm2.conf")
+		if err != nil {
+			return trace.Wrap(err, "creating SoftHSM config file")
+		}
+		softHSMTempPaths = append(softHSMTempPaths, configFile.Name())
+		if _, err := fmt.Fprintf(configFile, "directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n", tokenDir); err != nil {
+			return trace.Wrap(err, "writing SoftHSM config file")
+		}
+		if err := configFile.Close(); err != nil {
+			return trace.Wrap(err, "closing SoftHSM config file")
+		}
+		os.Setenv("SOFTHSM2_CONF", configFile.Name())
+	}
+
+	softHSMTokens = make(map[string]string, len(softHSMAuthNames))
+	for _, authName := range softHSMAuthNames {
+		// max token label length is 32 chars
+		tokenLabel := strings.ReplaceAll(uuid.NewString(), "-", "")
+		cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return trace.Wrap(err, "creating SoftHSM token for %s: %s", authName, string(out))
+		}
+		softHSMTokens[authName] = tokenLabel
+	}
+	return nil
+}
+
+func cleanupSoftHSM() {
+	for _, path := range softHSMTempPaths {
+		if err := os.RemoveAll(path); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to clean up SoftHSM path %s: %v\n", path, err)
+		}
+	}
+}
+
+// softHSMTestConfig returns the config for the SoftHSM token
+// created for the specified auth server.
+func softHSMTestConfig(t *testing.T, authName string) (servicecfg.KeystoreConfig, bool) {
+	t.Helper()
 	path := os.Getenv("SOFTHSM2_PATH")
 	if path == "" {
 		return servicecfg.KeystoreConfig{}, false
 	}
 
-	cachedSoftHSMConfigMutex.Lock()
-	defer cachedSoftHSMConfigMutex.Unlock()
+	tokenLabel, ok := softHSMTokens[authName]
+	require.True(t, ok, "no SoftHSM token was created for auth server %q, add it to softHSMAuthNames", authName)
 
-	if cachedSoftHSMConfig != nil {
-		return *cachedSoftHSMConfig, true
-	}
-
-	if os.Getenv("SOFTHSM2_CONF") == "" {
-		// create tokendir
-		tokenDir, err := os.MkdirTemp("", "tokens")
-		require.NoError(t, err)
-
-		// create config file
-		configFile, err := os.CreateTemp("", "softhsm2.conf")
-		require.NoError(t, err)
-
-		// write config file
-		_, err = fmt.Fprintf(configFile, "directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n", tokenDir)
-		require.NoError(t, err)
-		require.NoError(t, configFile.Close())
-
-		// set env
-		os.Setenv("SOFTHSM2_CONF", configFile.Name())
-	}
-
-	// create test token (max length is 32 chars)
-	tokenLabel := strings.ReplaceAll(uuid.NewString(), "-", "")
-	cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
-	t.Logf("Running command: %q", cmd)
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			require.NoError(t, exitErr, "error creating test softhsm token: %s", string(exitErr.Stderr))
-		}
-		require.NoError(t, err, "error attempting to run softhsm2-util")
-	}
-
-	cachedSoftHSMConfig = &servicecfg.KeystoreConfig{
+	return servicecfg.KeystoreConfig{
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       path,
 			TokenLabel: tokenLabel,
 			PIN:        "password",
+
+			// The PKCS#11 library sizes the session pool at MaxSessions-1,
+			// so this results in a pool size of 1, ensuring that all PKCS#11
+			// calls are serialized and do not race against each other.
+			MaxSessions: 2,
 		},
-	}
-	return *cachedSoftHSMConfig, true
+	}, true
 }
