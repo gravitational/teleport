@@ -124,10 +124,6 @@ teleport:
   # Used in Teleport v18.3.0 and later for the SSH service.
   relay_server: teleport-relay.example.com:3042
 
-  # cache:
-  #  # The cache is enabled by default, it can be disabled with this flag
-  #  enabled: true
-
   # The duration (in string form) of the delay between receiving a termination
   # signal and the beginning of the shutdown procedures. It can be used to
   # give time to load balancers to stop routing connections to the Teleport

@@ -87,7 +87,6 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 	}()
 
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.CachePolicy.Enabled = false
 	// Disables cloud auto-imported labels when running tests in cloud envs
 	// such as Github Actions.
 	//

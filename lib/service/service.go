@@ -2542,10 +2542,6 @@ func (process *TeleportProcess) initAuthService() error {
 			RecordingMetadataProvider:   recordingMetadataProvider,
 			InsecureMode:                cfg.InsecureMode,
 		}, func(as *auth.Server) error {
-			if !process.Config.CachePolicy.Enabled {
-				return nil
-			}
-
 			cache, err := process.newAccessCacheForServices(accesspoint.Config{
 				Setup:        cache.ForAuth,
 				CacheName:    []string{teleport.ComponentAuth},
@@ -3290,11 +3286,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 
 // newLocalCacheForNode returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cacheName []string) (authclient.NodeAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForNode, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3305,11 +3296,6 @@ func (process *TeleportProcess) newLocalCacheForNode(clt authclient.ClientI, cac
 
 // newLocalCacheForKubernetes returns new instance of access point configured for a kubernetes service.
 func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.ClientI, cacheName []string) (authclient.KubernetesAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForKubernetes, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3320,11 +3306,6 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.Client
 
 // newLocalCacheForDatabase returns new instance of access point configured for a database service.
 func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName []string) (authclient.DatabaseAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForDatabases, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3359,10 +3340,6 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI
 		UserTasks:             clt.UserTasksServiceClient(),
 	}
 
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return client, nil
-	}
 	cache, err := process.NewLocalCache(clt, cache.ForDiscovery, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3372,11 +3349,6 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, cacheName []string) (authclient.ProxyAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForProxy, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3386,11 +3358,6 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 }
 
 func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.RelayAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForRelay, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3401,11 +3368,6 @@ func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, ca
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForRemoteProxy, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3416,11 +3378,6 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.Clien
 
 // newLocalCacheForApps returns new instance of access point configured for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName []string) (authclient.AppsAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForApps, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3431,11 +3388,6 @@ func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cac
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
 func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.ClientI, cacheName []string) (authclient.WindowsDesktopAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForWindowsDesktop, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3446,11 +3398,6 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt authclient.Cl
 
 // newLocalCacheForLinuxDesktop returns new instance of access point configured for a Linux desktop service.
 func (process *TeleportProcess) newLocalCacheForLinuxDesktop(clt authclient.ClientI, cacheName []string) (authclient.LinuxDesktopAccessPoint, error) {
-	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
-	}
-
 	cache, err := process.NewLocalCache(clt, cache.ForLinuxDesktop, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3826,7 +3773,7 @@ func (process *TeleportProcess) initSSH() error {
 			// clean up unused descriptors passed for proxy, but not used by it
 			warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentNode), logger)
 
-			logger.InfoContext(process.ExitContext(), "SSH Service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.SSH.Addr.Addr, "cache_policy", process.Config.CachePolicy)
+			logger.InfoContext(process.ExitContext(), "SSH Service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.SSH.Addr.Addr)
 
 			preDetect := resumption.PreDetectFixedSSHVersion(sshutils.SSHVersionPrefix)
 			if resumableServer != nil {
@@ -5561,7 +5508,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		process.tsrv = tsrv
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
-			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
+			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err := tsrv.Start(); err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed starting reverse tunnel server", "error", err)
 				return trace.Wrap(err)
@@ -5685,7 +5632,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ScopedRoleReader: accessPoint.ScopedRoleReader(),
 			LockWatcher:      lockWatcher,
 			Logger:           process.logger,
-			PermitCaching:    process.Config.CachePolicy.Enabled,
 			ScopesFeatures:   process.scopesFeatures,
 		})
 		if err != nil {
@@ -6006,7 +5952,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ScopedRoleReader: accessPoint.ScopedRoleReader(),
 		LockWatcher:      lockWatcher,
 		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-		PermitCaching:    process.Config.CachePolicy.Enabled,
 		ScopesFeatures:   process.scopesFeatures,
 	}
 
@@ -6197,7 +6142,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LockWatcher:      lockWatcher,
 			Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 			ScopesFeatures:   process.scopesFeatures,
-			PermitCaching:    process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6317,7 +6261,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:    accessPoint,
 			LockWatcher:    lockWatcher,
 			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			PermitCaching:  process.Config.CachePolicy.Enabled,
 			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
@@ -7121,7 +7064,6 @@ func (process *TeleportProcess) initApps() {
 				// settings to be applied.
 				DisableGlobalMode: true,
 			},
-			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -7769,7 +7711,6 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		AccessPoint:    cfg.accessPoint,
 		LockWatcher:    cfg.lockWatcher,
 		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
-		PermitCaching:  process.Config.CachePolicy.Enabled,
 		ScopesFeatures: process.scopesFeatures,
 	})
 	if err != nil {

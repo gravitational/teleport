@@ -567,19 +567,6 @@ type CachePolicy struct {
 	MaxRetryPeriod time.Duration
 }
 
-// CheckAndSetDefaults checks and sets default values
-func (c *CachePolicy) CheckAndSetDefaults() error {
-	return nil
-}
-
-// String returns human-friendly representation of the policy
-func (c CachePolicy) String() string {
-	if !c.Enabled {
-		return "no cache"
-	}
-	return "in-memory cache"
-}
-
 // CheckServicesForSELinux returns false if any services that don't
 // support SELinux enforcement are enabled.
 func (cfg *Config) CheckServicesForSELinux() bool {

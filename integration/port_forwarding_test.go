@@ -232,7 +232,6 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			nodeCfg := servicecfg.MakeDefaultConfig()
 			nodeCfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 			nodeCfg.SetToken("token")
-			nodeCfg.CachePolicy.Enabled = true
 			nodeCfg.DataDir = t.TempDir()
 			nodeCfg.Auth.Enabled = false
 			nodeCfg.Proxy.Enabled = false

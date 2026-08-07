@@ -111,7 +111,6 @@ func (process *TeleportProcess) runRelayService() error {
 		ScopedRoleReader: accessPoint.ScopedRoleReader(),
 		LockWatcher:      lockWatcher,
 		Logger:           sublogger("authorizer"),
-		PermitCaching:    process.Config.CachePolicy.Enabled,
 		ScopesFeatures:   process.scopesFeatures,
 	}
 

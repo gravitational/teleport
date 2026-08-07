@@ -1476,7 +1476,6 @@ func TestScopedBotSSH(t *testing.T) {
 	nodeCfg.SSH.Enabled = true
 	nodeCfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	nodeCfg.SSH.DisableCreateHostUser = true
-	nodeCfg.CachePolicy.Enabled = false
 	nodeCfg.InstanceMetadataClient = nil
 	nodeCfg.DebugService.Enabled = false
 	nodeCfg.Logger = log
@@ -1748,7 +1747,6 @@ func TestScopedBotKubernetes(t *testing.T) {
 	kubeNodeCfg.Kube.Enabled = true
 	kubeNodeCfg.Kube.KubeconfigPath = kubeConfigPath
 	kubeNodeCfg.Kube.ListenAddr = &utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	kubeNodeCfg.CachePolicy.Enabled = false
 	kubeNodeCfg.InstanceMetadataClient = nil
 	kubeNodeCfg.DebugService.Enabled = false
 	kubeNodeCfg.Logger = log

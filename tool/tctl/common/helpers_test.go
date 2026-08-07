@@ -271,7 +271,6 @@ type testServerOptions struct {
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
 	scopesFeatures  scopes.Features
-	enableCache     bool
 	enableProxy     bool
 }
 
@@ -301,12 +300,6 @@ func withScopesFeatures(features scopes.Features) testServerOptionFunc {
 	}
 }
 
-func withEnableCache(enableCache bool) testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.enableCache = enableCache
-	}
-}
-
 func withEnableProxy() testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.enableProxy = true
@@ -329,7 +322,6 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 		require.NoError(t, err)
 	}
 
-	cfg.CachePolicy.Enabled = options.enableCache
 	if options.enableProxy {
 		cfg.Proxy.Enabled = true
 	}
