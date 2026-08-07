@@ -67,3 +67,22 @@ tests:
           value:
             keyA: valA'
             keyC: valC
+
+  - it: should contain app token secret volume if review.enabled is true
+    values:
+      - ../.lint/review-enabled.yaml
+    asserts:
+      - matchSnapshot: {}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: password-file-app-token
+            secret:
+              secretName: RELEASE-NAME-teleport-plugin-slack-app-token-secret
+              defaultMode: 0600
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: password-file-app-token
+            mountPath: /var/lib/teleport/plugins/slack/slack-app-token
+            subPath: slackAppToken
