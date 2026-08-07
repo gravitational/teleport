@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -894,7 +895,6 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, classicNode)
 	require.NoError(t, err)
 
-	// scopedNode has scope "/" so SQN lookups with "/::scoped-node" succeed.
 	scopedNode, err := types.NewServer("scoped-node", types.KindNode, types.ServerSpecV2{
 		Hostname: "scoped-host",
 		Addr:     "127.0.0.1:23",
@@ -968,7 +968,7 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 
 		timeout := time.After(30 * time.Second)
 		for {
-			node, err := clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			node, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "unscoped-node"}.Build())
 			if err == nil && node.GetHostname() == "unscoped-host-edited" {
 				break
 			}
@@ -995,7 +995,10 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 
 		timeout := time.After(30 * time.Second)
 		for {
-			node, err := clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			node, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+				Scope: "/staging",
+				Name:  "scoped-node",
+			}.Build())
 			if err == nil && node.GetHostname() == "scoped-host-edited" {
 				break
 			}
@@ -1009,12 +1012,21 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 	})
 
 	t.Run("scope-qualified delete", func(t *testing.T) {
-		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/staging::scoped-node"})
+		scopedNodeReq := presencev1.GetSSHServerRequest_builder{
+			Scope: "/staging",
+			Name:  "scoped-node",
+		}.Build()
+
+		// make sure the node exists
+		_, err := clt.GetSSHServer(ctx, scopedNodeReq)
+		require.NoError(t, err, "scoped-node should exist before deletion")
+
+		_, err = runResourceCommand(t, clt, []string{"rm", "node", "/staging::scoped-node"})
 		require.NoError(t, err)
 
 		timeout := time.After(30 * time.Second)
 		for {
-			_, err = clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			_, err = clt.GetSSHServer(ctx, scopedNodeReq)
 			if trace.IsNotFound(err) {
 				break
 			}
@@ -1033,7 +1045,7 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 
 		timeout := time.After(30 * time.Second)
 		for {
-			_, err = clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			_, err = clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "unscoped-node"}.Build())
 			if trace.IsNotFound(err) {
 				break
 			}
