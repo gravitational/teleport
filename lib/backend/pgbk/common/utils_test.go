@@ -21,11 +21,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type fakeSafeError struct {
