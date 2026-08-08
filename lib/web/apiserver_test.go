@@ -9964,6 +9964,17 @@ func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *Test
 	return &TestWebClient{clt, t}
 }
 
+func (r *testProxy) newClientNoRedirects(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
+	nrClient := client.NewInsecureWebClient()
+	nrClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	opts = append(opts, roundtrip.HTTPClient(nrClient))
+	clt, err := client.NewWebClient(r.webURL.String(), opts...)
+	require.NoError(t, err)
+	return &TestWebClient{clt, t}
+}
+
 func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 	authReq, err := json.Marshal(struct {
 		Token string `json:"token"`
