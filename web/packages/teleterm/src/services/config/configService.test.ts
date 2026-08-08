@@ -44,6 +44,10 @@ test('stored and default values are combined', () => {
   const terminalFontSize = configService.get('terminal.fontSize');
   expect(terminalFontSize.value).toBe(15);
   expect(terminalFontSize.metadata.isStored).toBe(false);
+
+  const terminalMiddleClick = configService.get('terminal.middleClick');
+  expect(terminalMiddleClick.value).toBe('none');
+  expect(terminalMiddleClick.metadata.isStored).toBe(false);
 });
 
 test('in case of invalid value a default one is returned', () => {

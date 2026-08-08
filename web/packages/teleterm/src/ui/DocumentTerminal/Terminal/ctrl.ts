@@ -52,7 +52,7 @@ export default class TtyTerminal implements TerminalSearcher {
   private removePtyProcessOnDataListener: () => void;
   private config: Pick<
     AppConfig,
-    'terminal.rightClick' | 'terminal.copyOnSelect'
+    'terminal.rightClick' | 'terminal.middleClick' | 'terminal.copyOnSelect'
   >;
   private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
@@ -66,6 +66,7 @@ export default class TtyTerminal implements TerminalSearcher {
     this.term = null;
     this.config = {
       'terminal.rightClick': configService.get('terminal.rightClick').value,
+      'terminal.middleClick': configService.get('terminal.middleClick').value,
       'terminal.copyOnSelect': configService.get('terminal.copyOnSelect').value,
     };
 
@@ -206,14 +207,23 @@ export default class TtyTerminal implements TerminalSearcher {
     });
 
     this.term.element.addEventListener('mousedown', e => {
+      const shouldPasteOnMiddleClick =
+        e.button === 1 && this.config['terminal.middleClick'] === 'paste';
       // Secondary button, usually the right button.
-      if (e.button !== 2) {
+      const isRightClick = e.button === 2;
+
+      if (!shouldPasteOnMiddleClick && !isRightClick) {
         return;
       }
 
       e.stopImmediatePropagation();
       e.stopPropagation();
       e.preventDefault();
+
+      if (shouldPasteOnMiddleClick) {
+        void this.paste();
+        return;
+      }
 
       const terminalRightClick = this.config['terminal.rightClick'];
 
