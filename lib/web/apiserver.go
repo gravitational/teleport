@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
@@ -1542,7 +1543,35 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 		var assignedScopes []string
 		for _, assignment := range assignments {
-			for _, subAssignment := range assignment.GetSpec().GetAssignments() {
+			for subAssignment := range scopedaccess.WeakValidatedSubAssignments(assignment) {
+				roleRef, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+				if err != nil {
+					continue
+				}
+
+				// This is currently inefficient if there are multiple references to
+				// the same scoped role in the assignments, but this will be alleviated
+				// later when caching is implemented for the scoped role reader.
+				res, err := c.cfg.UnsafeScopedRoleReader.GetScopedRole(
+					r.Context(),
+					scopedaccessv1.GetScopedRoleRequest_builder{
+						Name:  roleRef.Name,
+						Scope: roleRef.Scope,
+					}.Build())
+				if trace.IsNotFound(err) {
+					continue
+				}
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				if !scopedaccess.RoleIsEnforceableAt(res.GetRole(), scopes.EnforcementPoint{
+					ScopeOfOrigin: assignment.GetScope(),
+					ScopeOfEffect: subAssignment.GetScope(),
+				}) {
+					continue
+				}
+
 				assignedScopes = append(assignedScopes, subAssignment.GetScope())
 			}
 		}
