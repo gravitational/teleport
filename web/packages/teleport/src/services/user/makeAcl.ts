@@ -105,6 +105,7 @@ export function makeAcl(json): Acl {
   const classifier = json.classifier || defaultAccess;
 
   const beam = json.beam || defaultAccess;
+  const beamsConfig = json.beamsConfig || defaultAccess;
 
   const mobileDevice = json.mobileDevice || defaultMobileDeviceAccess;
 
@@ -163,6 +164,7 @@ export function makeAcl(json): Acl {
     inferenceSecret,
     classifier,
     beam,
+    beamsConfig,
     mobileDevice,
   };
 }

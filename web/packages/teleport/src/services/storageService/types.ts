@@ -72,6 +72,7 @@ export const KeysEnum = {
   // TODO(bl-nero): Remove this once the login scope picker is operational.
   USE_LOGIN_SCOPE_PICKER: 'grv_teleport_use_login_scope_picker',
   SCOPE_SELECTED: 'grv_teleport_scope_selected',
+  BEAMS_BYOI_BANNER_DISMISSED: 'grv_teleport_beams_byoi_banner_dismissed',
 };
 
 // SurveyRequest is the request for sending data to the back end

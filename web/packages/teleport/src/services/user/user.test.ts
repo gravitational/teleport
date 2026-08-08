@@ -396,6 +396,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    beamsConfig: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     classifier: {
       list: false,
       read: false,

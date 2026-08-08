@@ -397,4 +397,21 @@ export const storageService = {
   setScopeSelected(s: boolean) {
     window.localStorage.setItem(KeysEnum.SCOPE_SELECTED, JSON.stringify(s));
   },
+
+  /**
+   * Returns true if the user has dismissed the BYOI banner.
+   */
+  getBeamsByoiBannerDismissed(): boolean {
+    return this.getParsedJSONValue(KeysEnum.BEAMS_BYOI_BANNER_DISMISSED, false);
+  },
+
+  /**
+   * Sets whether the user has dismissed the BYOI banner.
+   */
+  setBeamsByoiBannerDismissed(dismissed: boolean) {
+    window.localStorage.setItem(
+      KeysEnum.BEAMS_BYOI_BANNER_DISMISSED,
+      JSON.stringify(dismissed)
+    );
+  },
 };

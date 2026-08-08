@@ -75,7 +75,7 @@ func updateBeamsConfig(ctx context.Context, client *authclient.Client, raw servi
 		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println("beams_config has been created")
+		fmt.Println("beams_config has been updated")
 		return nil
 	}
 
