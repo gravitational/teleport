@@ -186,7 +186,7 @@ $ tsh login --proxy=teleport.example.com --user=alice
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 
-# > Profile URL:        https://mytenant.teleport.sh:443
+# > Profile URL:        https://example.teleport.sh:443
 #  Logged in as:       alice
 #  Cluster:            mytenant.teleport.sh
 #  Roles:              devs*
@@ -298,7 +298,7 @@ $ tsh login --proxy=teleport.example.com --auth=github
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --auth=github
 
-#> Profile URL:        https://mytenant.teleport.sh:443
+#> Profile URL:        https://example.teleport.sh:443
 #  Logged in as:       bob
 #  Cluster:            mytenant.teleport.sh
 #  Roles:              sso-users*
@@ -494,4 +494,3 @@ In this case, Alice would be allowed to request access to the RBAC roles `access
 role list) and `alpha-admin` and `beta-admin` (from the `claims_to_roles` mapping).
 
 The same syntax applies for Review Requests.
-

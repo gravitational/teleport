@@ -89,7 +89,7 @@ Before you get started, you'll need:
    **Reply URL**  fields, for example:
 
    ```code
-   https://mytenant.teleport.sh:443/v1/webapi/saml/acs/ad
+   https://example.teleport.sh:443/v1/webapi/saml/acs/ad
    ```
 
    If you have a self-hosted cluster with multiple public addresses for the
@@ -205,7 +205,7 @@ kind: saml
 metadata:
   name: ad
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/ad
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -215,13 +215,13 @@ spec:
     roles:
     - access
     value: 8adac502...
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/ad
   cert: ""
   display: Microsoft
   entity_descriptor: ""
   entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: ""
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/ad
   sso: ""
 version: v2
 
@@ -368,7 +368,7 @@ kind: saml
 metadata:
   name: ad
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -376,13 +376,13 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
   entity_descriptor:
   entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -403,7 +403,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -411,13 +411,13 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
   entity_descriptor:
   entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -446,7 +446,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -454,13 +454,13 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
   entity_descriptor:
   entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/azure-saml
   assertion_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----

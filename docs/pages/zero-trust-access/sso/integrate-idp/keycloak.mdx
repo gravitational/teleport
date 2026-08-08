@@ -128,8 +128,8 @@ $ tctl sso configure saml --name keycloak \
 --entity-descriptor https://<root>/realms/{realm-name}/protocol/saml/descriptor \
 --attributes-to-roles <Var name="mapping_1" /> \
 --attributes-to-roles <Var name="mapping_2" /> \
---audience https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak \
---acs https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak > keycloak-connector.yaml
+--audience https://example.teleport.sh/v1/webapi/saml/acs/keycloak \
+--acs https://example.teleport.sh/v1/webapi/saml/acs/keycloak > keycloak-connector.yaml
 ```
 
 In the example above:
@@ -145,7 +145,7 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   attributes_to_roles:
   - name: groups
     roles:
@@ -156,13 +156,13 @@ spec:
     roles:
     - access
     value: /devs
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: ""
   entity_descriptor: ""
   entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
   issuer: ""
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   sso: ""
 version: v2
 ```
@@ -237,14 +237,14 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: Keycloak
   entity_descriptor:
   entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
   issuer: https://<root>/realms/{realm-name}
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -275,7 +275,7 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  acs: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   attributes_to_roles:
   - name: groups
     roles:
@@ -286,13 +286,13 @@ spec:
     roles:
     - access
     value: /devs
-  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  audience: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: Keycloak
   entity_descriptor:
   entity_descriptor_url: https://<root>/realms/{realm-name}/protocol/saml/descriptor
   issuer: https://<root>/realms/{realm-name}
-  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  service_provider_issuer: https://example.teleport.sh/v1/webapi/saml/acs/keycloak
   assertion_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
