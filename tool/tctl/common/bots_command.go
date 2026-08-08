@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -133,10 +135,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
 	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance.").Alias("get").Alias("describe")
-	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
+	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]. For an instance of a scoped bot, prefix the ID with the bot's scope: [scope]::[bot name]/[uuid].").Required().StringVar(&c.instanceID)
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
-	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form [scope]::[name]. If unset, lists instances from all bots.").StringVar(&c.botName)
 	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
@@ -577,6 +579,28 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandClient) error {
+	// The bot may be given as a scope-qualified name (<scope>::<bot name>) to
+	// list instances of a scoped bot; a bare name lists instances of an
+	// unscoped bot.
+	botName := c.botName
+	var botScope string
+	if scopes.MaybeSQN(botName) {
+		qn, err := scopes.ParseQualifiedName(botName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := qn.StrongValidate(); err != nil {
+			return trace.Wrap(err)
+		}
+		botScope, botName = qn.Scope, qn.Name
+	}
+
+	// Exhaustive view, per the scope_filter field docs.
+	var scopeFilter *scopesv1.Filter
+	if botName == "" {
+		scopeFilter = &scopesv1.Filter{Mode: scopesv1.Mode_MODE_ALL}
+	}
+
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
 			PageSize:  int32(pageSize),
@@ -584,9 +608,11 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
 			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
-				BotName:    c.botName,
-				SearchTerm: c.search,
-				Query:      c.query,
+				BotName:     botName,
+				BotScope:    botScope,
+				SearchTerm:  c.search,
+				Query:       c.query,
+				ScopeFilter: scopeFilter,
 			},
 		})
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -596,11 +622,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		if c.query != "" {
 			return nil, trace.NotImplemented("fallback not supported for requests with a query")
 		}
+		if botScope != "" {
+			return nil, trace.NotImplemented("fallback not supported for requests with a bot scope")
+		}
 		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 			// Needed for backwards compatibility
 			//nolint:staticcheck // SA1019
 			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
-				FilterBotName:    c.botName,
+				FilterBotName:    botName,
 				PageSize:         int32(pageSize),
 				PageToken:        pageToken,
 				FilterSearchTerm: c.search,
@@ -654,42 +683,42 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		)
 
 		initialJoinMethod := cmp.Or(
-			i.Status.InitialAuthentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
-			i.Status.InitialAuthentication.JoinMethod,
+			i.GetStatus().GetInitialAuthentication().GetJoinAttrs().GetMeta().GetJoinMethod(),
+			i.GetStatus().GetInitialAuthentication().GetJoinMethod(),
 		)
 
-		lastSeen := i.Status.InitialAuthentication.AuthenticatedAt.AsTime()
+		lastSeen := i.GetStatus().GetInitialAuthentication().GetAuthenticatedAt().AsTime()
 
-		if len(i.Status.LatestAuthentications) > 0 {
-			auth := i.Status.LatestAuthentications[len(i.Status.LatestAuthentications)-1]
+		if len(i.GetStatus().GetLatestAuthentications()) > 0 {
+			auth := i.GetStatus().GetLatestAuthentications()[len(i.GetStatus().GetLatestAuthentications())-1]
 
 			authJM := cmp.Or(
 				auth.GetJoinAttrs().GetMeta().GetJoinMethod(),
-				auth.JoinMethod,
+				auth.GetJoinMethod(),
 			)
 			if authJM == initialJoinMethod {
 				joinMethod = authJM
 			} else {
 				// If the join method changed, show the original method and latest
-				joinMethod = fmt.Sprintf("%s (%s)", auth.JoinMethod, initialJoinMethod)
+				joinMethod = fmt.Sprintf("%s (%s)", auth.GetJoinMethod(), initialJoinMethod)
 			}
 
-			if auth.AuthenticatedAt.AsTime().After(lastSeen) {
-				lastSeen = auth.AuthenticatedAt.AsTime()
+			if auth.GetAuthenticatedAt().AsTime().After(lastSeen) {
+				lastSeen = auth.GetAuthenticatedAt().AsTime()
 			}
 		}
 
-		if len(i.Status.LatestHeartbeats) == 0 {
+		if len(i.GetStatus().GetLatestHeartbeats()) == 0 {
 			hostname = "-"
 			version = "-"
 		} else {
-			hb := i.Status.LatestHeartbeats[len(i.Status.LatestHeartbeats)-1]
+			hb := i.GetStatus().GetLatestHeartbeats()[len(i.GetStatus().GetLatestHeartbeats())-1]
 
-			hostname = hb.Hostname
-			version = hb.Version
+			hostname = hb.GetHostname()
+			version = hb.GetVersion()
 
-			if hb.RecordedAt.AsTime().After(lastSeen) {
-				lastSeen = hb.RecordedAt.AsTime()
+			if hb.GetRecordedAt().AsTime().After(lastSeen) {
+				lastSeen = hb.GetRecordedAt().AsTime()
 			}
 		}
 
@@ -698,8 +727,15 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			healthStatus = formatStatus(status, false) // Disable color, it messes with the table layout
 		}
 
+		// Instances of scoped bots are identified by the bot's scope-qualified
+		// name; instances of unscoped bots by the bot's bare name.
+		id := scopes.QualifiedName{
+			Scope: i.GetScope(),
+			Name:  i.GetSpec().GetBotName() + "/" + i.GetSpec().GetInstanceId(),
+		}.String()
+
 		t.AddRow([]string{
-			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
+			id, joinMethod,
 			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
@@ -708,7 +744,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
 
-	if c.botName != "" {
+	// 'bots instances add' does not support scoped bots yet.
+	if c.botName != "" && botScope == "" {
 		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, c.botName)
 	}
 
@@ -783,7 +820,8 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
 	"bold": bold,
 }).Parse(`Bot:    {{.instance.Spec.BotName}}
-ID:     {{.instance.Spec.InstanceId}}
+{{if .scope}}Scope:  {{.scope}}
+{{end}}ID:     {{.instance.Spec.InstanceId}}
 Status: {{.health_status}}
 
 Initial Authentication: {{.initial_authentication_table}}
@@ -798,15 +836,15 @@ Services:
 To view a full, machine-readable record including past heartbeats and
 authentication records, run:
 
-> {{.executable}} get bot_instance/{{.instance.Spec.BotName}}/{{.instance.Spec.InstanceId}}
-
+> {{.executable}} get {{.get_ref}}
+{{if .can_add_instance}}
 To onboard a new instance for this bot, run:
 
 > {{.executable}} bots instances add {{.instance.Spec.BotName}}
-`))
+{{end}}`))
 
 func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandClient) error {
-	botName, instanceID, err := parseInstanceID(c.instanceID)
+	botScope, botName, instanceID, err := parseInstanceID(c.instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -814,24 +852,25 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
 		BotName:    botName,
 		InstanceId: instanceID,
+		BotScope:   botScope,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	initialAuthenticationTable := formatBotInstanceAuthentication(instance.Status.InitialAuthentication)
+	initialAuthenticationTable := formatBotInstanceAuthentication(instance.GetStatus().GetInitialAuthentication())
 
 	var latestAuthenticationTable string
-	if len(instance.Status.LatestAuthentications) > 0 {
-		latest := instance.Status.LatestAuthentications[len(instance.Status.LatestAuthentications)-1]
+	if latestAuthentications := instance.GetStatus().GetLatestAuthentications(); len(latestAuthentications) > 0 {
+		latest := latestAuthentications[len(latestAuthentications)-1]
 		latestAuthenticationTable = formatBotInstanceAuthentication(latest)
 	} else {
 		latestAuthenticationTable = "No authentication records."
 	}
 
 	var heartbeatTable string
-	if len(instance.Status.LatestHeartbeats) > 0 {
-		latest := instance.Status.LatestHeartbeats[len(instance.Status.LatestHeartbeats)-1]
+	if latestHeartbeats := instance.GetStatus().GetLatestHeartbeats(); len(latestHeartbeats) > 0 {
+		latest := latestHeartbeats[len(latestHeartbeats)-1]
 		heartbeatTable = formatBotInstanceHeartbeat(latest)
 	} else {
 		heartbeatTable = "No heartbeat records."
@@ -847,9 +886,22 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
 	}
 
-	templateData := map[string]interface{}{
-		"executable":                   os.Args[0],
-		"instance":                     instance,
+	// Only the two-argument form of 'tctl get' can carry a scope, so use it for
+	// scoped and unscoped alike rather than changing shape between them.
+	instanceRef := instance.GetSpec().GetBotName() + "/" + instance.GetSpec().GetInstanceId()
+	if scope := instance.GetScope(); scope != "" {
+		instanceRef = scopes.QualifiedName{Scope: scope, Name: instanceRef}.String()
+	}
+	getRef := types.KindBotInstance + " " + instanceRef
+
+	templateData := map[string]any{
+		"executable": os.Args[0],
+		"instance":   instance,
+		"scope":      instance.GetScope(),
+		"get_ref":    getRef,
+		// A bare name in the 'instances add' hint would target the same-named
+		// unscoped bot, and that command can't onboard a scoped bot anyway.
+		"can_add_instance":             instance.GetScope() == "",
 		"initial_authentication_table": initialAuthenticationTable,
 		"latest_authentication_table":  latestAuthenticationTable,
 		"heartbeat_table":              heartbeatTable,
@@ -857,7 +909,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		"services_table":               servicesTable,
 	}
 
-	return trace.Wrap(showMessageTemplate.Execute(os.Stdout, templateData))
+	return trace.Wrap(showMessageTemplate.Execute(c.stdout, templateData))
 }
 
 // botJSONResponse is a response generated by the `tctl bots add` family of
@@ -940,16 +992,16 @@ func splitEntries(flag string) []string {
 // a textual representation of a bot authentication record.
 func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuthentication) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Authenticated At:", record.AuthenticatedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.JoinMethod)})
-	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.JoinToken)})
-	var meta fmt.Stringer = record.Metadata
+	table.AddRow([]string{"Authenticated At:", record.GetAuthenticatedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.GetJoinMethod())})
+	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.GetJoinToken())})
+	var meta fmt.Stringer = record.GetMetadata()
 	if attrs := record.GetJoinAttrs(); attrs != nil {
 		meta = attrs
 	}
 	table.AddRow([]string{"Join Metadata:", meta.String()})
-	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
-	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
+	table.AddRow([]string{"Generation:", fmt.Sprint(record.GetGeneration())})
+	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.GetPublicKey()))})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
@@ -958,15 +1010,15 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 // a textual representation of a bot heartbeat.
 func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Recorded At:", record.RecordedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.IsStartup)})
-	table.AddRow([]string{"Version:", record.Version})
-	table.AddRow([]string{"Hostname:", record.Hostname})
-	table.AddRow([]string{"Uptime:", record.Uptime.AsDuration().String()})
-	table.AddRow([]string{"Join Method:", record.JoinMethod})
-	table.AddRow([]string{"One Shot:", fmt.Sprint(record.OneShot)})
-	table.AddRow([]string{"Architecture:", record.Architecture})
-	table.AddRow([]string{"OS:", record.Os})
+	table.AddRow([]string{"Recorded At:", record.GetRecordedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.GetIsStartup())})
+	table.AddRow([]string{"Version:", record.GetVersion()})
+	table.AddRow([]string{"Hostname:", record.GetHostname()})
+	table.AddRow([]string{"Uptime:", record.GetUptime().AsDuration().String()})
+	table.AddRow([]string{"Join Method:", record.GetJoinMethod()})
+	table.AddRow([]string{"One Shot:", fmt.Sprint(record.GetOneShot())})
+	table.AddRow([]string{"Architecture:", record.GetArchitecture()})
+	table.AddRow([]string{"OS:", record.GetOs()})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
@@ -1034,14 +1086,25 @@ func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) s
 }
 
 // parseInstanceID converts an instance ID string in the form of
-// '[bot name]/[uuid]' to separate bot name and UUID strings.
-func parseInstanceID(s string) (name string, uuid string, err error) {
-	name, uuid, ok := strings.Cut(s, "/")
-	if !ok {
-		return "", "", trace.BadParameter("invalid bot instance syntax, must be: [bot name]/[uuid]")
+// [scope::][bot name]/[uuid] into its component parts. The scope prefix
+// addresses an instance of a scoped bot; scope is empty when the prefix is
+// absent.
+func parseInstanceID(s string) (scope string, name string, uuid string, err error) {
+	if before, after, ok := strings.Cut(s, scopes.QualifiedNameSeparator); ok {
+		if err := scopes.StrongValidate(before); err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+		scope, s = before, after
+	} else if scopes.MaybeSQN(s) {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
 	}
 
-	return
+	name, uuid, ok := strings.Cut(s, "/")
+	if !ok {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
+	}
+
+	return scope, name, uuid, nil
 }
 
 // indentString prefixes each line (ending with \n) with the provided prefix.
