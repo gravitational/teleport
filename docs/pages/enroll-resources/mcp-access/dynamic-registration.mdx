@@ -44,7 +44,9 @@ dynamically.
 ## Creating a MCP server
 
 The following example configures Teleport to proxy the "Everything" MCP server
-by launching it through docker:
+by launching it through Docker. This example requires Docker to be installed
+on the Application Service host.
+
 ```yaml
 kind: app
 version: v3
@@ -61,8 +63,38 @@ spec:
     args: ["run", "-i", "--rm", "mcp/everything"]
     # Name of the host user account under which the command will be
     # executed. Required for stdio-based MCP servers.
-    run_as_host_user: "docker"
+    run_as_host_user: "teleport-mcp"
 ```
+
+This field is required for stdio-based MCP servers. The specified user must
+exist on the Application Service host before you create the resource. Create
+a dedicated system user for running MCP servers:
+
+```code
+$ sudo useradd -r -s /bin/bash teleport-mcp
+```
+
+<Admonition
+  type="warning"
+  title="Security warning: Docker group privileges"
+>
+In dynamic registration, any user with permission to create or update `app`
+resources can specify arbitrary command arguments. Adding the
+`run_as_host_user` account to the host's `docker` group grants that account —
+and therefore anyone who can manage dynamic app resources — effective root
+access to the host, since Docker group membership allows mounting the host
+filesystem into a container.
+
+Run Docker in [Rootless mode](https://docs.docker.com/engine/security/rootless/)
+for the `run_as_host_user` account, or use a pre-approved wrapper script
+instead of exposing raw Docker execution. Do not add this account to the
+`docker` group.
+</Admonition>
+
+Configure [Rootless Docker](https://docs.docker.com/engine/security/rootless/)
+for the `teleport-mcp` user, or grant the user non-root execution rights
+appropriate to your container engine. If the host user does not exist, the
+Application Service logs an error and the MCP server fails to start.
 
 See the full resource spec [reference](reference.mdx).
 
