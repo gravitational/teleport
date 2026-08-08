@@ -4046,11 +4046,16 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
 		requiredExt := &mfav1.ChallengeExtensions{
-			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}
 		if req.AllowsMFAReuse() {
 			requiredExt.AllowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+		}
+		switch req.RequesterName {
+		case proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI:
+			requiredExt.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI
+		default:
+			requiredExt.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 		}
 		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
