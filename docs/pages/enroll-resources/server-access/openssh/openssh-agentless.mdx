@@ -92,6 +92,25 @@ $ sudo teleport join openssh \
   --labels env=dev
 ```
 
+If the command fails with a "connection refused" error on the first attempt, verify the Teleport Proxy Service is reachable with `curl https://<proxy-address>/webapi/ping` and retry. Transient DNS or TLS handshake delays can cause the initial connection to fail.
+
+The command exits silently on success. To confirm the node registered, run `tctl nodes ls` on the Auth Service host or `tsh ls` from your workstation and verify the new node appears in the output.
+
+<Admonition
+  type="warning"
+  title="Avoid duplicate registrations"
+>
+Running `teleport join openssh` multiple times for the same host creates
+duplicate node entries in the cluster. Before re-running the command (for
+example, to update labels), remove the existing node first:
+
+```code
+$ tctl rm nodes/<hostname>
+```
+
+You can find the node's hostname or UUID with `tctl nodes ls`.
+</Admonition>
+
 Change the command-line options to assign the following values:
 - <Var name="server1.example.com:22" /> Set to the address and port of the node that will join your Teleport cluster.
 - <Var name="teleport.example.com:443" /> Set to the address and port of your Teleport Proxy Service.
