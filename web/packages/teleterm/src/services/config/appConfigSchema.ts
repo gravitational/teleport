@@ -124,6 +124,10 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe(
         '`paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.'
       ),
+    'terminal.middleClick': z
+      .enum(['none', 'paste'])
+      .default('none')
+      .describe('`none` does nothing, `paste` pastes clipboard content.'),
     'terminal.copyOnSelect': z
       .boolean()
       .default(false)
