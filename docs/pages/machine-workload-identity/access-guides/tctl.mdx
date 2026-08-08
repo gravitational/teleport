@@ -149,6 +149,13 @@ configuration:
 $ TELEPORT_CONFIG_FILE="" tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
 ```
 
+Alternatively, pass `--config=/dev/null` to prevent `tctl` from reading the
+local Teleport configuration file:
+
+```code
+$ tctl --config=/dev/null --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
+```
+
 Check your Teleport cluster, ensuring the role has been created.
 
 ```code
