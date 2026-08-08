@@ -9,6 +9,18 @@ tags:
 page_type: how-to
 ---
 
+<Admonition
+  type="warning"
+  title="SSE transport is deprecated"
+>
+The SSE (Server-Sent Events) transport was deprecated in the MCP specification
+on 2025-03-26 in favor of the Streamable HTTP transport. For new deployments,
+use the [Streamable HTTP guide](streamable-http.mdx) instead.
+
+Existing SSE deployments continue to work, but consider migrating to Streamable
+HTTP for long-term support.
+</Admonition>
+
 Teleport can provide secure access to MCP servers with SSE transport.
 
 This guide shows you how to:
@@ -47,6 +59,12 @@ streamable-HTTP transport instead.
 ## Step 1/3. Configure the Teleport Application Service
 
 (!docs/pages/includes/mcp-access/configure-app-service.mdx extraAppScheme="sse+" !)
+
+Use a URI such as `mcp+sse+https://mcp-server.internal:8080/sse` to point at your
+SSE MCP server. The URI format is `mcp+sse+<scheme>://<host>:<port><path>` where
+the path points to the SSE endpoint exposed by your MCP server.
+
+For path handling behavior when using streamable-HTTP transport instead of SSE, see the [Streamable HTTP](./streamable-http.mdx) guide.
 
 ## Step 2/3. Configure your Teleport user
 
