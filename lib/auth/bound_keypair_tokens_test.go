@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 )
 
 func TestUpsertBoundKeypairToken(t *testing.T) {
