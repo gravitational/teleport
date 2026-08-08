@@ -27,16 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// validateBoundKeypairTokenSpec performs some basic validation checks on a
-// bound_keypair-type join token.
-func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair) error {
-	if spec.Recovery == nil {
-		return trace.BadParameter("spec.bound_keypair.recovery: field is required")
-	}
-
-	return nil
-}
-
 // populateRegistrationSecret populates the
 // `status.BoundKeypair.RegistrationSecret` field of a bound keypair token. It
 // should be called as part of any token creation or update to ensure the
@@ -104,10 +94,6 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
 	}
 
-	if err := validateBoundKeypairTokenSpec(spec); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Not as much to do here - ideally we'd like to prevent users from
 	// tampering with the status field, but we don't have a good mechanism to
 	// stop that that wouldn't also break backup and restore. For now, it's
@@ -133,10 +119,6 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 	spec := tokenV2.Spec.BoundKeypair
 	if spec == nil {
 		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
-	}
-
-	if err := validateBoundKeypairTokenSpec(spec); err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err := populateRegistrationSecret(tokenV2); err != nil {
@@ -175,9 +157,6 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 
 	if tokenV2.Spec.BoundKeypair == nil {
 		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
-	}
-	if err := validateBoundKeypairTokenSpec(tokenV2.Spec.BoundKeypair); err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Patch an existing token to keep its status; create it if absent. This
