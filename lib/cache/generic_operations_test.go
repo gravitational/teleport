@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -281,6 +282,68 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 			want:            expected[:2], // Collect yields first 2 items
 			wantErr:         "not implemented",
 		},
+		{
+			name: "explicit defaultPageSize is not overridden by auto adjustment",
+			upstreamList: func(ctx context.Context, pageSize int, token string) ([]types.Application, string, error) {
+				if pageSize != 3 {
+					return nil, "", trace.BadParameter(
+						"expected page size 3, got %d", pageSize,
+					)
+				}
+				return p.apps.ListApps(ctx, pageSize, token)
+			},
+			fallbackGetter:  p.apps.GetApps,
+			defaultPageSize: 3,
+			cacheOk:         false,
+			want:            expected,
+		},
+		{
+			name: "auto page size adjustment halves on limit exceeded then succeeds",
+			upstreamList: func() func(context.Context, int, string) ([]types.Application, string, error) {
+				callCount := 0 // cheeky trick to capture the callcount here.
+				return func(ctx context.Context, pageSize int, token string) ([]types.Application, string, error) {
+					callCount++
+					if callCount <= 2 {
+						return nil, "", trace.LimitExceeded("page too large")
+					}
+					if pageSize != 2 {
+						return nil, "", trace.BadParameter(
+							"expected halved page size 2, got %d after %d retries", pageSize, callCount-1,
+						)
+					}
+					return p.apps.ListApps(ctx, pageSize, token)
+				}
+			}(),
+			fallbackGetter:  p.apps.GetApps,
+			defaultPageSize: 8,
+			cacheOk:         false,
+			want:            expected,
+		},
+		{
+			name: "auto page size adjustment fails when halving reaches zero",
+			upstreamList: func(ctx context.Context, pageSize int, token string) ([]types.Application, string, error) {
+				return nil, "", trace.LimitExceeded("page too large")
+			},
+			fallbackGetter:  p.apps.GetApps,
+			defaultPageSize: 1,
+			cacheOk:         false,
+			wantErr:         "resource is too large to retrieve",
+		},
+		{
+			name: "zero defaultPageSize falls back to DefaultChunkSize",
+			upstreamList: func(ctx context.Context, pageSize int, token string) ([]types.Application, string, error) {
+				if pageSize != defaults.DefaultChunkSize {
+					return nil, "", trace.BadParameter(
+						"expected default chunk size %d, got %d", defaults.DefaultChunkSize, pageSize,
+					)
+				}
+				return p.apps.ListApps(ctx, pageSize, token)
+			},
+			fallbackGetter:  p.apps.GetApps,
+			defaultPageSize: 0,
+			cacheOk:         false,
+			want:            expected,
+		},
 	}
 
 	for _, tt := range tests {
@@ -297,7 +360,7 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 			}
 
 			p.cache.ok = tt.cacheOk
-			got, err := stream.Collect(l.RangeWithFallback(context.Background(), tt.start, tt.end))
+			got, err := stream.Collect(l.RangeWithFallback(t.Context(), tt.start, tt.end))
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
