@@ -27,16 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// validateBoundKeypairTokenSpec performs some basic validation checks on a
-// bound_keypair-type join token.
-func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair) error {
-	if spec.Recovery == nil {
-		return trace.BadParameter("spec.bound_keypair.recovery: field is required")
-	}
-
-	return nil
-}
-
 // populateRegistrationSecret populates the
 // `status.BoundKeypair.RegistrationSecret` field of a bound keypair token. It
 // should be called as part of any token creation or update to ensure the
@@ -104,10 +94,6 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
 	}
 
-	if err := validateBoundKeypairTokenSpec(spec); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Not as much to do here - ideally we'd like to prevent users from
 	// tampering with the status field, but we don't have a good mechanism to
 	// stop that that wouldn't also break backup and restore. For now, it's
@@ -135,30 +121,34 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
 	}
 
-	if err := validateBoundKeypairTokenSpec(spec); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := populateRegistrationSecret(tokenV2); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Implementation note: checkAndSetDefaults() impl for this token type is
-	// called at insertion time as part of `tokenToItem()`
-	return trace.Wrap(a.UpsertToken(ctx, token))
+	// called at insertion time as part of `itemFromProvisionToken()`
+	return trace.Wrap(applyBoundKeypairToken(ctx, a.Services, token))
 }
 
-// applyBoundKeypairToken applies a bound_keypair provision token supplied via
-// --apply-on-startup.
+// applyBoundKeypairToken applies a bound_keypair provision token while ensuring
+// the `.status` field is protected for existing tokens. It is appropriate for
+// all cases where end users are upserting or applying bound keypair tokens,
+// including `tctl create ...` and `teleport start --apply-on-startup`.
 //
-// The join path rejects tokens without an initialized status.bound_keypair, so
-// we initialize it here (the normal admin path does this too, but
+// Since `.status` is unconditionally overwritten with the existing token's
+// status, if `.status` must be modified, the token should be deleted and
+// recreated: the incoming `.status` field is only honored when no matching
+// token exists in the backend.
+//
+// The join path rejects tokens without an initialized `.status.bound_keypair`,
+// so we initialize it here (the normal admin path does this too, but
 // apply-on-startup writes spec-only YAML straight to storage and leaves status
 // nil).
 //
-// apply-on-startup re-runs on every auth restart. If the token already exists,
-// we preserve its status so a restart never resets a bot's join state
-// (recovery counters, bound public key).
+// This preserves `.status` to ensure token updates do not overwrite important
+// status fields, including `.status.bound_keypair.bound_public_key` and the
+// recovery count, making it suitable for upsert RPCs (including for IaC
+// purposes) and repeated use with `--apply-on-startup`.
 func applyBoundKeypairToken(ctx context.Context, service *Services, token types.ProvisionToken) error {
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
@@ -167,9 +157,6 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 
 	if tokenV2.Spec.BoundKeypair == nil {
 		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
-	}
-	if err := validateBoundKeypairTokenSpec(tokenV2.Spec.BoundKeypair); err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Patch an existing token to keep its status; create it if absent. This
@@ -200,9 +187,6 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 			return trace.Wrap(err)
 		}
 		created := cloned.(*types.ProvisionTokenV2)
-		// Never trust status from config: drop it so a config-supplied
-		// bound_public_key can't bind a key without the join ceremony.
-		created.Status = nil
 		if err := populateRegistrationSecret(created); err != nil {
 			return trace.Wrap(err)
 		}
