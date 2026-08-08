@@ -931,14 +931,26 @@ func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener
 		"remote_addr", remoteAddr,
 	)
 	log.InfoContext(ctx, "Starting remote port forwarding")
+	defer log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
 
-	for ctx.Err() == nil {
+	for {
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
-			if ctx.Err() == nil {
+			switch {
+			// Caller closed context to stop forwarding. For example the user
+			// ran "tsh ssh -N -R" then hit Ctrl-C.
+			case ctx.Err() != nil:
+				return
+			// The remote server closed the connection. For example, client_idle_timeout
+			// was hit.
+			case errors.Is(err, io.EOF):
+				return
+			// Accepting forwarded connection failed, but listener may still
+			// accept. For example, a transient network issue.
+			default:
 				log.ErrorContext(ctx, "Remote port forwarding failed", "error", err)
+				continue
 			}
-			continue
 		}
 
 		go func() {
@@ -947,7 +959,6 @@ func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener
 			}
 		}()
 	}
-	log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.
