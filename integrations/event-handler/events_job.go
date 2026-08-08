@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/sethvargo/go-limiter/memorystore"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -94,13 +97,21 @@ func (j *EventsJob) run(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		j.app.log.ErrorContext(
-			ctx, "Unexpected error in watch loop. Reconnecting in 5s...",
-			"error", err,
-		)
-
+		retryDelay := time.Second * 5
+		if errors.Is(err, breaker.ErrStateTripped) {
+			retryDelay = defaults.TrippedPeriod + 15*time.Second
+			j.app.log.ErrorContext(
+				ctx, "Unexpected error in watch loop, circuit breaker is tripped. Reconnecting after breaker recovery...",
+				"error", err,
+			)
+		} else {
+			j.app.log.ErrorContext(
+				ctx, "Unexpected error in watch loop. Reconnecting in 5s...",
+				"error", err,
+			)
+		}
 		select {
-		case <-time.After(time.Second * 5):
+		case <-time.After(retryDelay):
 		case <-ctx.Done():
 			return nil
 		}
