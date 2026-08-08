@@ -329,7 +329,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
 				require.NotNil(t, result.KeyRing)
-				cred := keyRing.KubeTLSCredentials["test"]
+				cred := result.KeyRing.KubeTLSCredentials["test"]
 				require.NotEmpty(t, cred)
 				_, err = cred.TLSCertificate()
 				require.NoError(t, err)
@@ -381,7 +381,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
 				require.Nil(t, result.ReusableMFAResponse)
 				require.NotNil(t, result.KeyRing)
-				cred := keyRing.DBTLSCredentials["test"]
+				cred := result.KeyRing.DBTLSCredentials["test"]
 				require.NotEmpty(t, cred)
 				_, err = cred.TLSCertificate()
 				require.NoError(t, err)
