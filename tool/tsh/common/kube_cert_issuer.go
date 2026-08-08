@@ -121,6 +121,15 @@ func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, ku
 	}
 	defer release()
 
+	cert, err := issuer.issueCertOverConn(ctx, cc, teleportCluster, kubeCluster, mfaCheck)
+	if err != nil && client.IsErrorResolvableWithRelogin(err) {
+		issuer.conn.invalidate(ctx)
+	}
+	return cert, trace.Wrap(err)
+}
+
+// issueCertOverConn issues one cert for the given cluster over the given connection.
+func (issuer *kubeCertIssuer) issueCertOverConn(ctx context.Context, cc kubeCertClient, teleportCluster, kubeCluster string, mfaCheck *proto.IsMFARequiredResponse) (*tls.Certificate, error) {
 	params := client.ReissueParams{
 		RouteToCluster:    teleportCluster,
 		KubernetesCluster: kubeCluster,

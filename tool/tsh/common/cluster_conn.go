@@ -112,6 +112,10 @@ func (c *clusterConn) Acquire(ctx context.Context) (kubeCertClient, func(), erro
 // unless an acquire takes the conn over first.
 // The caller must hold c.mu.
 func (c *clusterConn) scheduleClose(ctx context.Context) {
+	if c.conn == nil {
+		// The conn might be invalidated before.
+		return
+	}
 	conn := c.conn
 	c.closeTimer = time.AfterFunc(clusterConnLinger, func() {
 		c.mu.Lock()
@@ -125,4 +129,20 @@ func (c *clusterConn) scheduleClose(ctx context.Context) {
 			c.closeTimer = nil
 		}
 	})
+}
+
+func (c *clusterConn) invalidate(ctx context.Context) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn == nil {
+		return
+	}
+	if c.closeTimer != nil {
+		c.closeTimer.Stop()
+		c.closeTimer = nil
+	}
+	if err := c.conn.Close(); err != nil {
+		logger.WarnContext(ctx, "Failed to close cluster connection", "error", err)
+	}
+	c.conn = nil
 }
