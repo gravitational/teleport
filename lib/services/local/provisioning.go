@@ -111,8 +111,8 @@ func (s *ProvisioningService) AppendDeleteProvisionTokenActions(
 // a revision comparison failure.
 //
 // Unlike CreateToken/UpsertToken, this skips validateProvisionToken admission
-// checks. Safe only while no user-facing RPC reaches it; if one is added,
-// validate here too.
+// checks, it is the caller's responsibility to ensure any necessary checks are
+// still performed.
 func (s *ProvisioningService) PatchToken(
 	ctx context.Context,
 	tokenName string,
