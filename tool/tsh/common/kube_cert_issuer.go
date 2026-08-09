@@ -41,7 +41,8 @@ import (
 )
 
 // kubeCertIssuer issues per-cluster Kubernetes certificates.
-// Under per-session MFA it runs one reusable USER_SESSION ceremony and replays the response across issuances.
+// Under per-session MFA it runs one ceremony with the reusable KUBE_LOCAL_PROXY_MULTI challenge scope
+// and replays the response across issuances.
 // Any issuance that may prompt the user runs under a single-flight lock,
 // so at most one prompt is active at any time, however the issuances are scheduled.
 type kubeCertIssuer struct {
