@@ -86,13 +86,6 @@ func (m *reusableMFA) FallbackToLegacy(ctx context.Context, err error) {
 	m.response = nil
 }
 
-// FallbackActive reports whether the fallback to the legacy requester happened.
-func (m *reusableMFA) FallbackActive() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-}
-
 // AcquireCeremonyLock takes the single-flight ceremony lock, waiting for the current holder to release it first.
 func (m *reusableMFA) AcquireCeremonyLock(ctx context.Context) (release func(), err error) {
 	if err := m.ceremonyLock.Acquire(ctx, 1); err != nil {

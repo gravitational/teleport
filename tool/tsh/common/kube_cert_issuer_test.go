@@ -123,7 +123,7 @@ func TestKubeCertIssuer_UnknownScopeFallback(t *testing.T) {
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
 		require.Len(t, certs, numClusters)
-		require.True(t, issuer.mfa.FallbackActive(), "a typed scope rejection is unambiguous, so the fallback must be permanent")
+		require.True(t, fallbackActive(issuer.mfa), "a typed scope rejection is unambiguous, so the fallback must be permanent")
 		require.Equal(t, int32(1), multiAttempts.Load(), "only the first ceremony should try the MULTI requester")
 		require.Equal(t, int32(numClusters), legacyCeremonies.Load())
 		// One rejected MULTI attempt plus three serial legacy ceremonies.
@@ -165,7 +165,7 @@ func TestKubeCertIssuer_MaskedRejectionFallback(t *testing.T) {
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
 		require.Len(t, certs, numClusters)
-		require.False(t, issuer.mfa.FallbackActive(), "a masked rejection is ambiguous, so the fallback must not be permanent")
+		require.False(t, fallbackActive(issuer.mfa), "a masked rejection is ambiguous, so the fallback must not be permanent")
 		require.Equal(t, int32(numClusters), multiAttempts.Load(), "every fresh ceremony should probe the MULTI requester")
 		require.Equal(t, int32(numClusters), legacyCeremonies.Load())
 		// Every issuance pays one rejected MULTI attempt and one serial legacy ceremony.
@@ -221,7 +221,7 @@ func TestKubeCertIssuer_TransientCeremonyFailureRecovers(t *testing.T) {
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
 		require.Len(t, certs, numClusters)
-		require.False(t, issuer.mfa.FallbackActive())
+		require.False(t, fallbackActive(issuer.mfa))
 		require.Equal(t, int32(2), multiAttempts.Load(), "the ceremony after the transient failure should probe the MULTI requester again")
 		require.Equal(t, int32(1), legacyCeremonies.Load(), "only the issuance hit by the transient failure should pay a legacy ceremony")
 		require.Equal(t, int32(numClusters-2), replays.Load())
@@ -270,7 +270,7 @@ func TestKubeCertIssuer_ReplayRejectedFallback(t *testing.T) {
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
 		require.Len(t, certs, numClusters)
-		require.True(t, issuer.mfa.FallbackActive())
+		require.True(t, fallbackActive(issuer.mfa))
 		require.Equal(t, int32(1), multiCeremonies.Load())
 		require.Equal(t, int32(numClusters-1), rejectedReplays.Load())
 		require.Equal(t, int32(numClusters-1), legacyCeremonies.Load())
@@ -308,7 +308,7 @@ func TestKubeCertIssuer_NoReusableResponse(t *testing.T) {
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
 		require.Len(t, certs, numClusters)
-		require.False(t, issuer.mfa.FallbackActive())
+		require.False(t, fallbackActive(issuer.mfa))
 		require.Equal(t, int32(numClusters), ceremonies.Load())
 		// Every ceremony prompts, so they must run one at a time.
 		require.Equal(t, 3*time.Second, time.Since(start))
@@ -658,6 +658,12 @@ func newTestKubeKeyRing(t *testing.T, clusters kubeconfig.LocalProxyClusters) *c
 		keyRing.KubeTLSCredentials[cluster.KubeCluster] = client.TLSCredential{PrivateKey: priv, Cert: creds.Cert}
 	}
 	return keyRing
+}
+
+// fallbackActive reports whether the issuer permanently dropped to the legacy per-cluster requester.
+func fallbackActive(m *reusableMFA) bool {
+	requester, _ := m.State()
+	return requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
 }
 
 func newTestKubeCertIssuer(cc *fakeKubeCertClient) *kubeCertIssuer {
