@@ -173,6 +173,8 @@ type KubeCluster struct {
 	Kind string `json:"kind"`
 	// Name is the name of the kube cluster.
 	Name string `json:"name"`
+	// Description is the kube cluster description.
+	Description string `json:"description"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
 	Labels []ui.Label `json:"labels"`
 	// KubeUsers is the list of allowed Kubernetes RBAC users that the user can impersonate.
@@ -199,6 +201,7 @@ func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChe
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
 		Name:            cluster.GetName(),
+		Description:     cluster.GetDescription(),
 		Labels:          uiLabels,
 		KubeUsers:       kubeUsers,
 		RequiresRequest: requiresRequest,
@@ -234,10 +237,11 @@ func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.Acces
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
-			Name:       cluster.GetName(),
-			Labels:     uiLabels,
-			KubeUsers:  kubeUsers,
-			KubeGroups: kubeGroups,
+			Name:        cluster.GetName(),
+			Description: cluster.GetDescription(),
+			Labels:      uiLabels,
+			KubeUsers:   kubeUsers,
+			KubeGroups:  kubeGroups,
 		})
 	}
 
