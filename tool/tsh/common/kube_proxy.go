@@ -333,6 +333,9 @@ type kubeLocalProxy struct {
 	// It is shared between the initial cert load and the middleware cert reissuer
 	// so the reusable MFA response and the old-auth-server fallback state carry over.
 	certIssuer *kubeCertIssuer
+	// reissueMu serializes the middleware cert reissues, which are not safe for
+	// concurrent use, and the ephemeral kubeconfig load and rewrite.
+	reissueMu sync.Mutex
 }
 
 func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, originalKubeConfig *clientcmdapi.Config, port, overrideContext string) (*kubeLocalProxy, error) {
@@ -525,12 +528,9 @@ func (k *kubeLocalProxy) WriteKubeConfig() error {
 // used by the local proxy middleware when a cert it serves expires.
 // The issuer performs a relogin if required.
 func (k *kubeLocalProxy) getCertReissuer() func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-	// mu serializes the reissues, which are not safe for concurrent use, and the ephemeral kubeconfig load and rewrite.
-	var mu sync.Mutex
-
 	return func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		mu.Lock()
-		defer mu.Unlock()
+		k.reissueMu.Lock()
+		defer k.reissueMu.Unlock()
 
 		// We save user's current context in case there is a relogin, which
 		// will delete our ephemeral kubeconfig and we'll need to recreate it.
