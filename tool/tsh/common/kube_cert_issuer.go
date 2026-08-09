@@ -309,11 +309,23 @@ func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, cc kubeCert
 	params.ReusableMFAResponse = nil
 	params.FailOnExpiredReusableMFAResponse = false
 	cert, err = issuer.requestCert(ctx, cc, params)
-	if requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI && isMFAReuseRejected(err) {
-		// An auth server that predates the requester rejected the ceremony.
-		issuer.mfa.FallbackToLegacy(ctx, err)
-		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-		cert, err = issuer.requestCert(ctx, cc, params)
+	if requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+		switch {
+		case isMFAReuseRejected(err):
+			// An auth server that predates the multi-requester rejected the ceremony.
+			issuer.mfa.FallbackToLegacy(ctx, err)
+			params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
+			cert, err = issuer.requestCert(ctx, cc, params)
+		case isMFAReuseRejectionSuspected(err):
+			// A masked rejection from an old auth server and
+			// a transient challenge-creation failure are indistinguishable, so fall back for this issuance only.
+			// Every fresh ceremony probes the reusable requester again.
+			// A transient failure cannot degrade the proxy permanently,
+			// and an old auth server costs one failed request per ceremony.
+			logger.DebugContext(ctx, "MFA challenge creation failed, retrying this issuance with a per-cluster ceremony", "error", err)
+			params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
+			cert, err = issuer.requestCert(ctx, cc, params)
+		}
 	}
 	return cert, true, trace.Wrap(err)
 }
@@ -421,19 +433,24 @@ func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {
 	return cluster.TeleportCluster + "/" + cluster.KubeCluster
 }
 
-// isMFAReuseRejected reports whether an auth server rejected the reusable MFA flow.
+// isMFAReuseRejected reports whether an auth server unambiguously rejected the reusable MFA flow.
 func isMFAReuseRejected(err error) bool {
 	// Auth servers that validate challenge scopes reject the unknown kube scope with a typed error at challenge creation.
 	if errors.Is(err, &mfa.ErrUnknownChallengeScope) {
 		return true
 	}
-	// Servers that predate scope validation reject the flow without a typed error, recognized by message below.
+	// Servers that predate scope validation reject the response at validation without a typed error, recognized by message below.
 	if trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
 		msg := err.Error()
-		return strings.Contains(msg, "cannot allow reuse") || // challenge scope unknown to the server, rejected at challenge creation
-			strings.Contains(msg, "is not satisfied by the given") || // response scope unknown to the server, rejected at validation
-			strings.Contains(msg, "reuse is not permitted") || // server knows the scope but does not allow reuse for the requester
-			strings.Contains(msg, "unable to create MFA challenges") // the challenge-creation rejection above, masked by the server's generic challenge failure message
+		return strings.Contains(msg, "is not satisfied by the given") || // response scope unknown to the server, rejected at validation
+			strings.Contains(msg, "reuse is not permitted") // server knows the scope but does not allow reuse for the requester
 	}
 	return false
+}
+
+// isMFAReuseRejectionSuspected reports whether the error may be a masked reuse rejection.
+// Auth servers that predate challenge scope validation reject the unknown kube scope
+// at challenge creation, masked behind their generic challenge-creation failure message.
+func isMFAReuseRejectionSuspected(err error) bool {
+	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), "unable to create MFA challenges")
 }

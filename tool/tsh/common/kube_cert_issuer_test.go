@@ -92,10 +92,10 @@ func TestKubeCertIssuer_SingleCeremony(t *testing.T) {
 	})
 }
 
-// TestKubeCertIssuer_OldServerFallback verifies that
-// when the auth server rejects the MULTI requester's ceremony,
-// the issuer falls back to serial legacy per-cluster ceremonies.
-func TestKubeCertIssuer_OldServerFallback(t *testing.T) {
+// TestKubeCertIssuer_UnknownScopeFallback verifies the permanent fallback
+// when the auth server rejects the ceremony's challenge scope with the typed error,
+// as servers that validate challenge scopes but predate this scope do.
+func TestKubeCertIssuer_UnknownScopeFallback(t *testing.T) {
 	t.Parallel()
 
 	const numClusters = 3
@@ -108,8 +108,8 @@ func TestKubeCertIssuer_OldServerFallback(t *testing.T) {
 		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
 			if params.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
 				multiAttempts.Add(1)
-				// An old auth server rejects the unknown reusable scope at challenge creation.
-				return nil, trace.BadParameter("mfa challenges with scope CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI cannot allow reuse")
+				// The auth server does not know the reusable kube scope and rejects it with the typed error.
+				return nil, trace.Wrap(&mfa.ErrUnknownChallengeScope)
 			}
 			legacyCeremonies.Add(1)
 			return &client.IssueUserCertsWithMFAResult{
@@ -123,10 +123,109 @@ func TestKubeCertIssuer_OldServerFallback(t *testing.T) {
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
 		require.Len(t, certs, numClusters)
-		require.True(t, issuer.mfa.FallbackActive())
+		require.True(t, issuer.mfa.FallbackActive(), "a typed scope rejection is unambiguous, so the fallback must be permanent")
 		require.Equal(t, int32(1), multiAttempts.Load(), "only the first ceremony should try the MULTI requester")
 		require.Equal(t, int32(numClusters), legacyCeremonies.Load())
 		// One rejected MULTI attempt plus three serial legacy ceremonies.
+		require.Equal(t, 4*time.Second, time.Since(start))
+	})
+}
+
+// TestKubeCertIssuer_MaskedRejectionFallback verifies the per-issuance fallback
+// when the auth server masks its reuse rejection behind the generic challenge-creation failure message,
+// as servers that predate challenge scope validation do.
+// The masked message could equally be a transient failure of a current server,
+// so every fresh ceremony probes the MULTI requester again instead of falling back for good.
+func TestKubeCertIssuer_MaskedRejectionFallback(t *testing.T) {
+	t.Parallel()
+
+	const numClusters = 3
+	clusters := newTestKubeClusters(numClusters)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var multiAttempts, legacyCeremonies atomic.Int32
+		cc := &fakeKubeCertClient{mfaRequired: true}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+				multiAttempts.Add(1)
+				// An old auth server rejects the unknown reusable scope at challenge creation,
+				// masked behind its generic challenge failure message.
+				return nil, trace.AccessDenied("unable to create MFA challenges")
+			}
+			legacyCeremonies.Add(1)
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		}
+
+		start := time.Now()
+		issuer := newTestKubeCertIssuer(cc)
+		certs, err := issuer.issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+		require.Len(t, certs, numClusters)
+		require.False(t, issuer.mfa.FallbackActive(), "a masked rejection is ambiguous, so the fallback must not be permanent")
+		require.Equal(t, int32(numClusters), multiAttempts.Load(), "every fresh ceremony should probe the MULTI requester")
+		require.Equal(t, int32(numClusters), legacyCeremonies.Load())
+		// Every issuance pays one rejected MULTI attempt and one serial legacy ceremony.
+		require.Equal(t, 6*time.Second, time.Since(start))
+	})
+}
+
+// TestKubeCertIssuer_TransientCeremonyFailureRecovers verifies that
+// a transient challenge-creation failure of a current auth server,
+// which arrives as the same masked message as an old server's reuse rejection, cannot degrade the issuer.
+// The affected issuance falls back to one legacy ceremony,
+// and the next fresh ceremony takes the MULTI requester again and restores the single-ceremony flow.
+func TestKubeCertIssuer_TransientCeremonyFailureRecovers(t *testing.T) {
+	t.Parallel()
+
+	const numClusters = 3
+	clusters := newTestKubeClusters(numClusters)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var multiAttempts, legacyCeremonies, replays atomic.Int32
+		var ceremonyResp proto.MFAAuthenticateResponse
+		cc := &fakeKubeCertClient{mfaRequired: true}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.RequesterName != proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+				legacyCeremonies.Add(1)
+				return &client.IssueUserCertsWithMFAResult{
+					KeyRing:     keyRing,
+					MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+				}, nil
+			}
+			if params.ReusableMFAResponse != nil {
+				replays.Add(1)
+				return &client.IssueUserCertsWithMFAResult{
+					KeyRing:     keyRing,
+					MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+				}, nil
+			}
+			if multiAttempts.Add(1) == 1 {
+				// The auth server hiccups exactly once,
+				// with the same masked message an old server uses for its reuse rejection.
+				return nil, trace.AccessDenied("unable to create MFA challenges")
+			}
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:             keyRing,
+				MFARequired:         proto.MFARequired_MFA_REQUIRED_YES,
+				ReusableMFAResponse: &ceremonyResp,
+			}, nil
+		}
+
+		start := time.Now()
+		issuer := newTestKubeCertIssuer(cc)
+		certs, err := issuer.issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+		require.Len(t, certs, numClusters)
+		require.False(t, issuer.mfa.FallbackActive())
+		require.Equal(t, int32(2), multiAttempts.Load(), "the ceremony after the transient failure should probe the MULTI requester again")
+		require.Equal(t, int32(1), legacyCeremonies.Load(), "only the issuance hit by the transient failure should pay a legacy ceremony")
+		require.Equal(t, int32(numClusters-2), replays.Load())
+		// One failed MULTI attempt, one legacy ceremony, one fresh MULTI ceremony, one replay wave.
 		require.Equal(t, 4*time.Second, time.Since(start))
 	})
 }
@@ -418,16 +517,6 @@ func TestIsMFAReuseRejected(t *testing.T) {
 			rejected: true,
 		},
 		{
-			name:     "challenge scope unknown to the server, rejection masked by the generic challenge failure message",
-			err:      trace.AccessDenied("unable to create MFA challenges"),
-			rejected: true,
-		},
-		{
-			name:     "challenge scope unknown to the server, rejected at challenge creation unmasked",
-			err:      trace.BadParameter("mfa challenges with scope CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI cannot allow reuse"),
-			rejected: true,
-		},
-		{
 			name:     "response scope unknown to the server, rejected at validation",
 			err:      trace.AccessDenied(`required scope "CHALLENGE_SCOPE_USER_SESSION" is not satisfied by the given webauthn session with scope "CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI"`),
 			rejected: true,
@@ -436,6 +525,18 @@ func TestIsMFAReuseRejected(t *testing.T) {
 			name:     "server knows the scope but forbids reuse for the requester",
 			err:      trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context"),
 			rejected: true,
+		},
+		{
+			name: "creation-time rejection message, which the server masks before it ever crosses the wire",
+			err:  trace.BadParameter("mfa challenges with scope CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI cannot allow reuse"),
+			// Not matched: the server's generic challenge-creation mask replaces it,
+			// and the masked message is ambiguous, handled by isMFAReuseRejectionSuspected.
+			rejected: false,
+		},
+		{
+			name:     "masked challenge-creation failure is ambiguous, not an unambiguous rejection",
+			err:      trace.AccessDenied("unable to create MFA challenges"),
+			rejected: false,
 		},
 		{
 			name:     "unrelated access denied",
@@ -451,6 +552,37 @@ func TestIsMFAReuseRejected(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.rejected, isMFAReuseRejected(tt.err))
+		})
+	}
+}
+
+func TestIsMFAReuseRejectionSuspected(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		err       error
+		suspected bool
+	}{
+		{
+			name:      "masked challenge-creation failure",
+			err:       trace.AccessDenied("unable to create MFA challenges"),
+			suspected: true,
+		},
+		{
+			name:      "unrelated access denied",
+			err:       trace.AccessDenied("access to kube cluster denied"),
+			suspected: false,
+		},
+		{
+			name:      "matching message but wrong error type",
+			err:       trace.ConnectionProblem(nil, "unable to create MFA challenges"),
+			suspected: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.suspected, isMFAReuseRejectionSuspected(tt.err))
 		})
 	}
 }
