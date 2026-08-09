@@ -219,6 +219,7 @@ RUN cargo install --locked wasm-opt@${WASM_OPT_VERSION} wasm-bindgen-cli@${WASM_
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
+RUN chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
 # Install Node.js.
 ARG NODE_VERSION

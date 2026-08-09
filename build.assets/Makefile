@@ -7,7 +7,14 @@ endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER) -e MAKEFLAGS -e CI=true -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64
+TELEPORT_UPDATE_DEV_BUILD ?=
+TELEPORT_UPDATE_DEV_BUILD_VALUE = $(if $(or $(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64),$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64)),$(TELEPORT_UPDATE_DEV_BUILD),1)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e HOME=/tmp -e GOCACHE=/tmp/gocache -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER) -e MAKEFLAGS -e CI=true -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64 -e TELEPORT_UPDATE_DEV_BUILD=$(TELEPORT_UPDATE_DEV_BUILD_VALUE)
+ifneq ("$(CI)","true")
+# Keep local Docker Desktop builds within its default memory limit.
+DOCKER_GOMAXPROCS ?= 4
+DOCKERFLAGS := $(DOCKERFLAGS) -e GOMAXPROCS=$(DOCKER_GOMAXPROCS)
+endif
 # Teleport version - some targets require this to be set
 VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
@@ -72,15 +79,15 @@ RELEASE_TARGET ?= release
 # Build 'teleport' release inside a docker container
 #
 .PHONY: build
-build: buildbox-centos7 webassets
+build: webassets buildbox-centos7
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
+		/usr/bin/scl enable $(DEVTOOLSET) 'make -C $(SRCDIR) ADDFLAGS="$(ADDFLAGS)" PIV=$(PIV) release-unix-preserving-webassets'
 
 #
 # Build 'teleport' binaries inside a docker container
 #
 .PHONY: build-binaries
-build-binaries: buildbox-centos7 webassets
+build-binaries: webassets buildbox-centos7
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
@@ -91,7 +98,7 @@ build-binaries: buildbox-centos7 webassets
 # Build 'teleport' Enterprise binaries inside a docker container
 #
 .PHONY: build-enterprise-binaries
-build-enterprise-binaries: buildbox-centos7 webassets
+build-enterprise-binaries: webassets buildbox-centos7
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
@@ -103,7 +110,7 @@ build-enterprise-binaries: buildbox-centos7 webassets
 # This builds Enterprise binaries only.
 #
 .PHONY: build-binaries-fips
-build-binaries-fips: buildbox-centos7 webassets
+build-binaries-fips: webassets buildbox-centos7
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) FIPS=yes clean-ent full-ent
 
@@ -326,8 +333,8 @@ teleterm: buildbox-node
 # Builds webassets inside Docker.
 .PHONY: ui
 ui: buildbox
-	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
-		bash -c "cd ../teleport && pnpm install --frozen-lockfile && pnpm build-ui"
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+		bash -c "pnpm install --frozen-lockfile && pnpm build-ui"
 
 # Builds webassets inside the buildbox-node container via the
 # Makefile (instead of calling pnpm directly as the ui target above does)
@@ -667,7 +674,7 @@ release-ng: webassets buildbox-ng
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY: release-fips
-release-fips: buildbox-centos7 webassets
+release-fips: webassets buildbox-centos7
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/make release-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes REPRODUCIBLE=yes
 
@@ -682,7 +689,7 @@ release-fips: buildbox-centos7 webassets
 # for a foreign architecture cannot be done.
 #
 .PHONY: release-centos7
-release-centos7: buildbox-centos7 webassets
+release-centos7: webassets buildbox-centos7
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
@@ -698,7 +705,7 @@ release-centos7: buildbox-centos7 webassets
 # to call release-unix-preserving-webassets like we do for the non-fips release.
 #
 .PHONY: release-centos7-fips
-release-centos7-fips: buildbox-centos7 webassets
+release-centos7-fips: webassets buildbox-centos7
 	$(call LOG_GROUP_START)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make release-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes REPRODUCIBLE=no'

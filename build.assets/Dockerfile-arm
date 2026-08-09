@@ -98,4 +98,8 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version
 
+USER root
+RUN chmod -R a+w $RUSTUP_HOME $CARGO_HOME
+USER ci
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]

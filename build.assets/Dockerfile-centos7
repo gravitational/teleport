@@ -259,7 +259,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
 USER root
-RUN chmod -R a+w $CARGO_HOME
+RUN chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
 COPY --from=libfido2 /usr/local/ssl/ /usr/local/ssl/
 COPY --from=libfido2 /usr/local/lib64/engines-3/ /usr/local/lib64/engines-3/
