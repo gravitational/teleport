@@ -699,12 +699,23 @@ func (f *fakeMFAAuthClient) Close() error { return nil }
 type fakeKubeCertClient struct {
 	mfaRequired bool
 	issueFn     func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error)
+	keyRings    map[string]*client.KeyRing
 
 	mu       sync.Mutex
 	connects []string
 	dials    int
 	closes   int
 	saves    int
+}
+
+// GetKeyRing implements [kubeKeyStore] to serve the injected key rings.
+func (f *fakeKubeCertClient) GetKeyRing(clusterName string, opts ...client.CertOption) (*client.KeyRing, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if keyRing, ok := f.keyRings[clusterName]; ok {
+		return keyRing, nil
+	}
+	return nil, trace.NotFound("no key ring for cluster %q", clusterName)
 }
 
 // AddKubeKeyRing implements [kubeKeyStore] to count the saves.

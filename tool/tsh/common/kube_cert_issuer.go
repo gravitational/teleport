@@ -55,8 +55,9 @@ type kubeCertIssuer struct {
 	mfa *reusableMFA
 }
 
-// kubeKeyStore is the subset of [client.LocalKeyAgent] the issuer saves certs through.
+// kubeKeyStore is the subset of [client.LocalKeyAgent] the issuer loads and saves certs through.
 type kubeKeyStore interface {
+	GetKeyRing(clusterName string, opts ...client.CertOption) (*client.KeyRing, error)
 	AddKubeKeyRing(keyRing *client.KeyRing) error
 }
 
@@ -172,7 +173,7 @@ func (issuer *kubeCertIssuer) AcquireConn(ctx context.Context) (func(), error) {
 func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[string]*client.KeyRing, error) {
 	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
-		keyRing, err := issuer.tc.LocalAgent().GetKeyRing(teleportCluster, client.WithKubeCerts{})
+		keyRing, err := issuer.keyStore.GetKeyRing(teleportCluster, client.WithKubeCerts{})
 		if trace.IsNotFound(err) {
 			// No keys stored for this cluster: its certs are issued fresh.
 			continue
