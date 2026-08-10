@@ -41,8 +41,6 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
-		"teleport_access_list":                dataSourceTeleportAccessListType{},
-		"teleport_access_list_member":         dataSourceTeleportMemberType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
@@ -52,8 +50,6 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
-		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
@@ -91,8 +87,6 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
-		"teleport_access_list":                resourceTeleportAccessListType{},
-		"teleport_access_list_member":         resourceTeleportMemberType{},
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
@@ -108,8 +102,6 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
 		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
 		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
 	}

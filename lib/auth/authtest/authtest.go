@@ -343,7 +343,9 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: srv.Backend,
 		// TODO(tross): replace with cfg.Modules
-		Modules: modules.GetModules(),
+		Modules:                     modules.GetModules(),
+		ScopesFeatures:              cfg.ScopesFeatures,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
