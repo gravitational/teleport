@@ -216,7 +216,7 @@ require (
 	github.com/sigstore/cosign/v3 v3.0.6
 	github.com/sigstore/protobuf-specs v0.5.1
 	github.com/sigstore/sigstore v1.10.8
-	github.com/sigstore/sigstore-go v1.2.0
+	github.com/sigstore/sigstore-go v1.2.1
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/snowflakedb/gosnowflake v1.14.0
 	github.com/spf13/cobra v1.10.2
