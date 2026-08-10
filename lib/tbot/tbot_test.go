@@ -1764,7 +1764,15 @@ func TestScopedBotKubernetes(t *testing.T) {
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
 	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(kubeTokenResp.GetToken().GetMetadata().GetName(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
+	kubeNodeCfg.SetToken(
+		jointoken.EncodeScopedToken(
+			scopes.QualifiedName{
+				Name:  kubeTokenResp.GetToken().GetMetadata().GetName(),
+				Scope: kubeTokenResp.GetToken().GetScope(),
+			}.String(),
+			kubeTokenResp.GetToken().GetStatus().GetSecret(),
+		),
+	)
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
