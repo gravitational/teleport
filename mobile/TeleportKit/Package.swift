@@ -27,6 +27,8 @@ let package = Package(
 			name: "LogBackends",
 			dependencies: [
 				.logging,
+				.dependencies,
+				"SystemClients",
 			],
 		),
 	],

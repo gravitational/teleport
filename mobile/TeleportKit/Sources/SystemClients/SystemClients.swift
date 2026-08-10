@@ -20,4 +20,7 @@ import DependenciesMacros
 extension DependencyValues {
 	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
 	public nonisolated var serialNumberClient = SerialNumberClient()
+
+	@DependencyEntry(liveValue: FileSystemClient.liveValue)
+	public nonisolated var fileSystemClient: FileSystemClient
 }
