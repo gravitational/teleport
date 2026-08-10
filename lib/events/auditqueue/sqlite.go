@@ -1010,53 +1010,31 @@ func (q *sqliteQueue) expireDeadLetter() {
 }
 
 func (q *sqliteQueue) evictOldestDeadLetter(targetBytes int) (int64, error) {
-	rows, err := q.db.QueryContext(q.ctx,
-		"SELECT id, LENGTH(payload) FROM audit_dead_letter ORDER BY failed_at ASC, id ASC LIMIT ?",
-		evictMaxRows)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	defer rows.Close()
-
-	var ids []any
-	var freedBytes int64
-	for rows.Next() {
-		var id, payloadLen int64
-		if err := rows.Scan(&id, &payloadLen); err != nil {
-			return 0, trace.Wrap(err)
-		}
-		ids = append(ids, id)
-		freedBytes += payloadLen
-		if freedBytes >= int64(targetBytes) {
-			break
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if err := rows.Close(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if len(ids) == 0 {
-		return 0, nil
-	}
-
-	deleted, err := q.db.QueryContext(q.ctx,
-		"DELETE FROM audit_dead_letter WHERE id IN ("+placeholders(len(ids))+") RETURNING event_count",
-		ids...)
+	deleted, err := q.db.QueryContext(q.ctx, `
+		DELETE FROM audit_dead_letter WHERE id IN (
+			SELECT id FROM (
+				SELECT id,
+					SUM(LENGTH(payload)) OVER (ORDER BY failed_at ASC, id ASC) - LENGTH(payload) AS prev
+				FROM audit_dead_letter
+				ORDER BY failed_at ASC, id ASC
+				LIMIT ?
+			) WHERE prev < ?
+		) RETURNING event_count, LENGTH(payload)`,
+		evictMaxRows, targetBytes)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 	defer deleted.Close()
 
-	var evictedEvents, evictedRows int64
+	var evictedEvents, evictedRows, freedBytes int64
 	for deleted.Next() {
-		var eventCount int64
-		if err := deleted.Scan(&eventCount); err != nil {
+		var eventCount, payloadLen int64
+		if err := deleted.Scan(&eventCount, &payloadLen); err != nil {
 			return 0, trace.Wrap(err)
 		}
 		evictedEvents += eventCount
 		evictedRows++
+		freedBytes += payloadLen
 	}
 	if err := deleted.Err(); err != nil {
 		return 0, trace.Wrap(err)
