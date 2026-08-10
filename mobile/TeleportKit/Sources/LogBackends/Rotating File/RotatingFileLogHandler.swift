@@ -25,12 +25,12 @@ public struct RotatingFileLogHandler: LogHandler {
 	@Dependency(\.date.now)
 	private var now
 
-//	private let writer: RotatingFileWriter
-//
-//	public init(label: String, writer: RotatingFileWriter) {
-//		self.label = label
-//		self.writer = writer
-//	}
+	private let writer: RotatingFileWriter
+
+	public init(label: String, writer: RotatingFileWriter) {
+		self.label = label
+		self.writer = writer
+	}
 
 	// MARK: LogHandler Conformance
 
@@ -45,7 +45,6 @@ public struct RotatingFileLogHandler: LogHandler {
 
 	public func log(event: LogEvent) {
 		let logMessage = LogFormatter.format(label: label, event: event, handlerMetadata: metadata, timestamp: now)
-		// TODO: Write to file using the file writer
-		// writer.enqueue(record: Data("\(output)\n".utf8))
+		writer.enqueue(record: Data("\(logMessage)\n".utf8))
 	}
 }
