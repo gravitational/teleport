@@ -54,18 +54,17 @@ export default {
 };
 
 export const Polling: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(nodesPathWithoutQuery, () => {
-          return delay('infinite');
-        }),
-        http.post(cfg.api.discoveryJoinToken.createV2, () => {
-          return HttpResponse.json(joinToken);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(nodesPathWithoutQuery, () => {
+        return delay('infinite');
+      }),
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
+        return HttpResponse.json(joinToken);
+      })
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -76,19 +75,18 @@ export const Polling: StoryObj = {
 };
 
 export const PollingSuccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        // Use default fetch token handler defined in mocks/handlers
-        http.get(nodesPathWithoutQuery, () => {
-          return HttpResponse.json({ items: [{}] });
-        }),
-        http.post(cfg.api.discoveryJoinToken.createV2, () => {
-          return HttpResponse.json(joinToken);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      // Use default fetch token handler defined in mocks/handlers
+      http.get(nodesPathWithoutQuery, () => {
+        return HttpResponse.json({ items: [{}] });
+      }),
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
+        return HttpResponse.json(joinToken);
+      })
+    );
   },
+
   render() {
     return (
       <Provider interval={5}>
@@ -102,18 +100,17 @@ export const PollingSuccess: StoryObj = {
 // to reduce this time, requires rewriting component in a way
 // that can mock the SHOW_HINT_TIMEOUT for window.setTimeout
 export const PollingError: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(nodesPathWithoutQuery, () => {
-          return delay('infinite');
-        }),
-        http.post(cfg.api.discoveryJoinToken.createV2, () => {
-          return HttpResponse.json(joinToken);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(nodesPathWithoutQuery, () => {
+        return delay('infinite');
+      }),
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
+        return HttpResponse.json(joinToken);
+      })
+    );
   },
+
   render() {
     return (
       <Provider interval={50}>
@@ -124,15 +121,14 @@ export const PollingError: StoryObj = {
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.post(cfg.api.discoveryJoinToken.createV2, () => {
-          return delay('infinite');
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
+        return delay('infinite');
+      })
+    );
   },
+
   render() {
     return (
       <Provider interval={5}>
@@ -143,20 +139,19 @@ export const Processing: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.post(cfg.api.discoveryJoinToken.createV2, () => {
-          return HttpResponse.json(
-            {
-              error: { message: 'Whoops, something went wrong.' },
-            },
-            { status: 500 }
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.post(cfg.api.discoveryJoinToken.createV2, () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 500 }
+        );
+      })
+    );
   },
+
   render() {
     return (
       <Provider>
