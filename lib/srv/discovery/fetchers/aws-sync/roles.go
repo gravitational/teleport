@@ -20,6 +20,8 @@ package aws_sync
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -43,8 +45,8 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch roles"))
 			result.Roles = existing.Roles
-			result.GroupAttachedPolicies = existing.GroupAttachedPolicies
-			result.GroupInlinePolicies = existing.GroupInlinePolicies
+			result.RoleAttachedPolicies = existing.RoleAttachedPolicies
+			result.RoleInlinePolicies = existing.RoleInlinePolicies
 			return nil
 		}
 
@@ -55,16 +57,31 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		// and roles.
 		eG.SetLimit(5)
 		roleMu := sync.Mutex{}
-		for _, role := range result.Roles {
-			role := role
+		for i, role := range result.Roles {
 			eG.Go(func() error {
 				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
 				if err != nil {
+					var noSuchEntityErr *iamtypes.NoSuchEntityException
+					if errors.As(err, &noSuchEntityErr) {
+						result.Roles[i] = nil
+						return nil
+					}
+					roleInlinePolicies = sliceFilter(existing.RoleInlinePolicies, func(inline *accessgraphv1alpha.AWSRoleInlinePolicyV1) bool {
+						return inline.AwsRole.GetName() == role.GetName() && inline.AwsRole.GetAccountId() == role.GetAccountId()
+					})
 					collectErr(trace.Wrap(err, "failed to fetch role %q inline policies", role.Name))
 				}
 
 				roleAttachedPolicies, err := a.fetchRoleAttachedPolicies(ctx, role)
 				if err != nil {
+					var noSuchEntityErr *iamtypes.NoSuchEntityException
+					if errors.As(err, &noSuchEntityErr) {
+						result.Roles[i] = nil
+						return nil
+					}
+					roleAttachedPolicies = sliceFilterPickFirst(existing.RoleAttachedPolicies, func(attached *accessgraphv1alpha.AWSRoleAttachedPolicies) bool {
+						return attached.AwsRole.GetName() == role.GetName() && attached.AwsRole.GetAccountId() == role.GetAccountId()
+					})
 					collectErr(trace.Wrap(err, "failed to fetch role %q attached policies", role.Name))
 				}
 
@@ -79,6 +96,8 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		}
 		// always discard the error
 		_ = eG.Wait()
+		// Remove any nils from roles being deleted in AWS while iterating
+		result.Roles = slices.DeleteFunc(result.Roles, isNilPtr)
 		return nil
 	}
 }
@@ -157,6 +176,16 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 				RoleName:   aws.String(role.Name),
 				PolicyName: aws.String(policyName),
 			})
+			// A NoSuchEntityException error means either the role or the policy no longer
+			// exists. In both cases, just continue. If it was the policy that was deleted
+			// concurrently, continuing is correct. If it was the role that was deleted
+			// concurrently, the caller will find out when they fetch attached policies
+			// next. The alternative is a fragile error string comparison, which if
+			// changed could cause the role to flap.
+			var noSuchEntityErr *iamtypes.NoSuchEntityException
+			if errors.As(err, &noSuchEntityErr) {
+				continue
+			}
 			if err != nil {
 				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.Name, policyName))
 				continue
