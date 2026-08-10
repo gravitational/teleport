@@ -155,7 +155,7 @@ func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, 
 	}
 
 	if !runDefault && !anyConfigFiles {
-		inst.log.Info("no selected specs run against this browser, skipping")
+		inst.log.InfoContext(ctx, "no selected specs run against this browser, skipping")
 		return nil
 	}
 
