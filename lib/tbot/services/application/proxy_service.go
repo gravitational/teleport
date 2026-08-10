@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log/slog"
@@ -318,20 +319,19 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// TODO(noah): We could cache the httpClient itself for each upstream, this
 	// would potentially allow performance improvements by caching connections.
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			Certificates:       []tls.Certificate{*appCert},
-			InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
-		},
-	}
-	// Inject the ALPN upgrade dialer if required.
-	if s.alpnUpgradeRequired {
-		transport.DialContext = apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
-			ALPNConnUpgradeRequired: true,
+		// The ALPN dialer's conn has already completed its TLS handshake, so
+		// it is wired in as DialTLSContext rather than DialContext.
+		DialTLSContext: apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
+			ALPNConnUpgradeRequired: s.alpnUpgradeRequired,
 			TLSConfig: &tls.Config{
+				Certificates:       []tls.Certificate{*appCert},
 				InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
 				NextProtos:         []string{string(common.ProtocolHTTP)},
 			},
-		}).DialContext
+			GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
+				return s.getBotIdentity().TLSCAPool, nil
+			},
+		}).DialContext,
 	}
 	httpClient := &http.Client{
 		Transport: transport,
