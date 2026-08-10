@@ -27,10 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
@@ -54,151 +52,6 @@ type ResourceTestingPrimitives[T reconcilers.Resource, K reconcilers.KubernetesC
 	CompareTeleportAndKubernetesResource(T, K) (bool, string)
 }
 
-func ResourceCreationTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
-	ctx := context.Background()
-	setup := SetupTestEnv(t, opts...)
-	test.Init(setup)
-	resourceName := ValidRandomResourceName("resource-")
-
-	err := test.SetupTeleportFixtures(ctx)
-	require.NoError(t, err)
-
-	err = test.CreateKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	var tResource T
-	FastEventually(t, func() bool {
-		tResource, err = test.GetTeleportResource(ctx, resourceName)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-
-	// We get the kube resource to get the resourceName as it might have been changed if this is a singleton resource
-	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
-	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
-
-	err = test.DeleteKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	FastEventually(t, func() bool {
-		_, err = test.GetTeleportResource(ctx, resourceName)
-		return trace.IsNotFound(err)
-	})
-}
-
-func ResourceDeletionDriftTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
-	ctx := context.Background()
-	setup := SetupTestEnv(t, opts...)
-	test.Init(setup)
-	resourceName := ValidRandomResourceName("resource-")
-
-	err := test.SetupTeleportFixtures(ctx)
-	require.NoError(t, err)
-
-	err = test.CreateKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	var tResource T
-	FastEventually(t, func() bool {
-		tResource, err = test.GetTeleportResource(ctx, resourceName)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-
-	// We get the kube resource to get the resourceName as it might have been changed if this is a singleton resource
-	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
-	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
-
-	// We cause a drift by altering the Teleport resource.
-	// To make sure the operator does not reconcile while we're finished we suspend the operator
-	setup.StopKubernetesOperator()
-
-	err = test.DeleteTeleportResource(ctx, resourceName)
-	require.NoError(t, err)
-	FastEventually(t, func() bool {
-		_, err = test.GetTeleportResource(ctx, resourceName)
-		return trace.IsNotFound(err)
-	})
-
-	// We flag the resource for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
-	err = test.DeleteKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	// Test section: We resume the operator, it should reconcile and recover from the drift
-	setup.StartKubernetesOperator(t)
-
-	// The operator should handle the failed Teleport deletion gracefully and unlock the Kubernetes resource deletion
-	FastEventually(t, func() bool {
-		_, err = test.GetKubernetesResource(ctx, resourceName)
-		return apimachineryerrors.IsNotFound(err)
-	})
-}
-
-func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
-	ctx := context.Background()
-	setup := SetupTestEnv(t, opts...)
-	test.Init(setup)
-	resourceName := ValidRandomResourceName("resource-")
-
-	err := test.SetupTeleportFixtures(ctx)
-	require.NoError(t, err)
-
-	// The resource is created in Teleport
-	err = test.CreateTeleportResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	// The resource is created in Kubernetes, with at least a field altered
-	err = test.CreateKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	// Check the resource was updated in Teleport
-	FastEventuallyWithT(t, func(c *assert.CollectT) {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(c, err)
-
-		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(c, err)
-
-		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(c, equal)
-	})
-
-	// Updating the resource in Kubernetes
-	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		return test.ModifyKubernetesResource(ctx, resourceName)
-	})
-	require.NoError(t, err)
-
-	// Check the resource was updated in Teleport
-	FastEventuallyWithT(t, func(c *assert.CollectT) {
-		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(c, err)
-
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(c, err)
-
-		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(c, equal)
-	})
-
-	// Delete the resource to avoid leftover state.
-	err = test.DeleteTeleportResource(ctx, resourceName)
-	require.NoError(t, err)
-}
-
 func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t *testing.T, newReconciler resources.ReconcilerFactory, test ResourceTestingPrimitives[T, K], opts ...TestOption) {
 	// Test setup
 	ctx := t.Context()
@@ -207,7 +60,7 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)
@@ -307,7 +160,7 @@ func ResourceCreationSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)
@@ -364,7 +217,8 @@ func ResourceCreationSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
-	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
+	owned, _ := test.CheckOwnership(tResource, setup.OperatorMetadata())
+	require.True(t, owned)
 
 	// Test cleanup: Delete the resource to avoid leftover state if we were running on a real instance.
 	require.NoError(t, test.DeleteKubernetesResource(ctx, resourceName))
@@ -384,7 +238,7 @@ func ResourceDeletionSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)
@@ -481,7 +335,7 @@ func ResourceDeletionDriftSynchronousTest[T reconcilers.Resource, K reconcilers.
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)

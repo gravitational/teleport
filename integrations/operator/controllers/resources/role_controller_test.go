@@ -125,7 +125,7 @@ allow:
 		},
 	}
 
-	reconciler, err := resources.NewRoleReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := resources.NewRoleReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	for _, tc := range tests {
@@ -301,20 +301,20 @@ func (g *roleTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestTeleportRoleCreation(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewRoleReconciler, test)
+	testlib.ResourceCreationSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
 }
 
 func TestTeleportRoleDeletion(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewRoleReconciler, test)
+	testlib.ResourceDeletionSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
 }
 
 func TestTeleportRoleDeletionDrift(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewRoleReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
 }
 
 func TestTeleportRoleUpdate(t *testing.T) {
 	test := &roleTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewRoleReconciler, test)
+	testlib.ResourceUpdateTestSynchronous[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
 }

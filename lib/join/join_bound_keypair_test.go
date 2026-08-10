@@ -1917,7 +1917,8 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	// Perform the first join.
 	joinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token: scopedToken.GetMetadata().GetName(),
+		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
@@ -2014,7 +2015,10 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	}, 5*time.Second, 5*time.Millisecond, "expected bound keypair recovery event not found")
 
 	// Status should be updated.
-	token, err := adminClient.GetScopedToken(ctx, "example-token", false)
+	token, err := adminClient.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:  "example-token",
+		Scope: "/test",
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, firstInstance, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
 	require.Equal(t, correctPublicKey, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
@@ -2027,7 +2031,8 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token: scopedToken.GetMetadata().GetName(),
+		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
@@ -2041,7 +2046,10 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.EqualValues(t, 2, generation, "new certs should be issued with an incremented generation counter")
 
 	// Status should be updated (or not)
-	token, err = adminClient.GetScopedToken(ctx, "example-token", false)
+	token, err = adminClient.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:  "example-token",
+		Scope: "/test",
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, firstInstance, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
 	require.Equal(t, correctPublicKey, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
@@ -2050,7 +2058,8 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	// Now, discard those certs and attempt a recovery.
 	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token: scopedToken.GetMetadata().GetName(),
+		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
@@ -2064,7 +2073,10 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.EqualValues(t, 1, generation, "generation counter should be reset for the new bot instance")
 
 	// Status should indicate a recovery
-	thirdToken, err := adminClient.GetScopedToken(ctx, "example-token", false)
+	thirdToken, err := adminClient.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:  "example-token",
+		Scope: "/test",
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, thirdInstance, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
 	require.Equal(t, correctPublicKey, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
@@ -2077,7 +2089,8 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	// Try once more - should hit a limit.
 	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token: scopedToken.GetMetadata().GetName(),
+		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
