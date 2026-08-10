@@ -115,6 +115,9 @@ func validateUsageApp(req *issuancev1pb.IssueScopedBotCertsRequest) error {
 	if len(req.GetTlsPublicKey()) == 0 {
 		return trace.BadParameter("tls_public_key: is required for app usage")
 	}
+	if app.GetPublicAddr() == "" {
+		return trace.BadParameter("app.public_addr: is required")
+	}
 
 	return nil
 }

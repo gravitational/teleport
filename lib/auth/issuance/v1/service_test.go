@@ -672,6 +672,21 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		require.ErrorContains(t, err, "tls_public_key: is required for app usage")
 	})
 
+	t.Run("public_addr required for app usage", func(t *testing.T) {
+		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
+			SshPublicKey: sshPubKeyBytes,
+			Ttl:          durationpb.New(requestedTTL),
+			TlsPublicKey: tlsPubKeyPEM,
+			App: issuancev1pb.UsageApp_builder{
+				Name:       "test-app",
+				PublicAddr: "",
+				Scope:      botScope,
+			}.Build(),
+		}.Build())
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
+		require.ErrorContains(t, err, "app.public_addr: is required")
+	})
+
 	t.Run("app scope outside pinned scope rejected", func(t *testing.T) {
 		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
 			TlsPublicKey: tlsPubKeyPEM,
