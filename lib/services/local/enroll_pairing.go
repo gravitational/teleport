@@ -225,6 +225,58 @@ func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context,
 	return updated, trace.Wrap(err)
 }
 
+// ApproveEnrollPairing transitions pairing from AWAITING_APPROVAL to APPROVED
+// and returns the updated pairing.
+func (s *EnrollPairingService) ApproveEnrollPairing(ctx context.Context, pairing *devicepb.EnrollPairing) (*devicepb.EnrollPairing, error) {
+	if pairing == nil {
+		return nil, trace.BadParameter("pairing required")
+	}
+
+	const errNotAwaitingApproval = "enroll pairing is not awaiting approval"
+	if pairing.GetStatus().GetState() != devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL {
+		return nil, trace.CompareFailed(errNotAwaitingApproval)
+	}
+
+	pairing.GetStatus().SetState(devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_APPROVED)
+
+	updated, err := s.service.ConditionalUpdateResource(ctx, pairing)
+	if trace.IsCompareFailed(err) {
+		// Lost the CAS to a concurrent approval — same outcome as the state check above.
+		return nil, trace.CompareFailed(errNotAwaitingApproval)
+	}
+	return updated, trace.Wrap(err)
+}
+
+// DeleteEnrollPairing removes pairing along with the token index written by
+// [EnrollPairingService.CreateEnrollPairing].
+func (s *EnrollPairingService) DeleteEnrollPairing(ctx context.Context, pairing *devicepb.EnrollPairing) error {
+	if pairing == nil {
+		return trace.BadParameter("pairing required")
+	}
+
+	name := pairing.GetMetadata().GetName()
+	token := pairing.GetStatus().GetToken()
+
+	// The pairing's revision gates the whole write and AtomicWrite is
+	// all-or-nothing, so the index needs no condition of its own.
+	_, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			Key:       s.service.BackendKey(name),
+			Condition: backend.Revision(pairing.GetMetadata().GetRevision()),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       enrollPairingByTokenKey(token),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+	})
+	if errors.Is(err, backend.ErrConditionFailed) {
+		return trace.CompareFailed("enroll pairing has changed")
+	}
+	return trace.Wrap(err)
+}
+
 func enrollPairingByTokenKey(token string) backend.Key {
 	hash := sha256.Sum256([]byte(token))
 	return backend.NewKey("devices", "enroll_pairing_by_token", hex.EncodeToString(hash[:]))
