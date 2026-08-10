@@ -48,9 +48,13 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
+	// The interruptible context is scoped to run(). The report and summary paths
+	// are short-lived and rely on the default SIGINT behavior.
+	ctx := context.Background()
+
 	e2eDir, err := resolveE2EDir()
 	if err != nil {
-		slog.Error("failed to resolve e2e directory", "error", err)
+		slog.ErrorContext(ctx, "failed to resolve e2e directory", "error", err)
 		os.Exit(1)
 	}
 
@@ -58,13 +62,13 @@ func main() {
 
 	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
 	if err != nil {
-		slog.Error("failed to parse flags", "error", err)
+		slog.ErrorContext(ctx, "failed to parse flags", "error", err)
 		os.Exit(1)
 	}
 
 	if mode == modeGitHubReport {
 		if err := writeGitHubReport(resultsPath); err != nil {
-			slog.Error("failed to write GitHub report", "error", err)
+			slog.ErrorContext(ctx, "failed to write GitHub report", "error", err)
 			os.Exit(1)
 		}
 		return
@@ -86,13 +90,13 @@ func main() {
 
 		var runErr error
 		if mode == modeReport {
-			runErr = runReport(cfg)
+			runErr = runReport(ctx, cfg)
 		} else {
-			runErr = runTestResults(cfg)
+			runErr = runTestResults(ctx, cfg)
 		}
 
 		if runErr != nil {
-			slog.Error("runner exited with error", "error", runErr)
+			slog.ErrorContext(ctx, "runner exited with error", "error", runErr)
 			os.Exit(1)
 		}
 		return
@@ -118,7 +122,7 @@ func main() {
 	}
 
 	if runErr != nil {
-		slog.Error("runner exited with error", "error", runErr)
+		slog.ErrorContext(ctx, "runner exited with error", "error", runErr)
 		os.Exit(1)
 	}
 }
@@ -199,13 +203,13 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		return fmt.Errorf("--%s only supports a single browser, got: %v", mode, config.browsers)
 	}
 
-	slog.Info("running playwright in mode", "mode", mode, "browsers", config.browsers)
+	slog.InfoContext(ctx, "running playwright in mode", "mode", mode, "browsers", config.browsers)
 
-	slog.Debug("using teleport binary", "path", flags.teleportBin)
-	slog.Debug("using tctl binary", "path", flags.tctlBin)
+	slog.DebugContext(ctx, "using teleport binary", "path", flags.teleportBin)
+	slog.DebugContext(ctx, "using tctl binary", "path", flags.tctlBin)
 
 	if config.isCI {
-		slog.Debug("CI environment detected")
+		slog.DebugContext(ctx, "CI environment detected")
 	}
 
 	for _, browser := range config.browsers {
@@ -248,10 +252,10 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	for _, inst := range config.instances {
-		inst.log.Debug("allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort)
+		inst.log.DebugContext(ctx, "allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort)
 	}
 	if ci := config.connectInstance; ci != nil {
-		ci.log.Debug("allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort)
+		ci.log.DebugContext(ctx, "allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort)
 	}
 
 	if err := build(ctx, config); err != nil {
@@ -263,7 +267,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	case statErr != nil && !os.IsNotExist(statErr):
 		return fmt.Errorf("failed to check certs directory: %w", statErr)
 	case os.IsNotExist(statErr) || config.replaceCerts:
-		slog.Info("generating self-signed TLS certificates", "dir", config.certsDir)
+		slog.InfoContext(ctx, "generating self-signed TLS certificates", "dir", config.certsDir)
 
 		if err := generateSelfSignedCert(config.certsDir); err != nil {
 			return fmt.Errorf("failed to generate TLS certificates: %w", err)
@@ -277,7 +281,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 
 		for _, inst := range allInstances {
-			inst.log.Debug("cleaning data directory", "path", inst.dataDir)
+			inst.log.DebugContext(ctx, "cleaning data directory", "path", inst.dataDir)
 			if err := os.RemoveAll(inst.dataDir); err != nil {
 				return fmt.Errorf("failed to clean data directory for %s: %w", inst.browser, err)
 			}
@@ -296,7 +300,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		if err != nil {
 			return fmt.Errorf("failed to scan users: %w", err)
 		}
-		slog.Debug("discovered bootstrap users", "count", len(scannedUsers))
+		slog.DebugContext(ctx, "discovered bootstrap users", "count", len(scannedUsers))
 
 		config.teleportConfigs, config.defaultTestFiles, err = scanTeleportConfigs(targets)
 		if err != nil {
@@ -313,26 +317,26 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		if err := writeUserMapping(userMappingPath, bootstrap.userMapping); err != nil {
 			return fmt.Errorf("failed to write user mapping: %w", err)
 		}
-		slog.Debug("wrote user mapping", "path", userMappingPath, "users", len(bootstrap.userMapping))
+		slog.DebugContext(ctx, "wrote user mapping", "path", userMappingPath, "users", len(bootstrap.userMapping))
 
 		credsPath := filepath.Join(e2eDir, ".auth", "user-credentials.json")
 		if err := writeCredentialsFile(credsPath, bootstrap.creds); err != nil {
 			return fmt.Errorf("failed to write user credentials: %w", err)
 		}
-		slog.Debug("wrote user credentials", "path", credsPath, "users", len(bootstrap.creds))
+		slog.DebugContext(ctx, "wrote user credentials", "path", credsPath, "users", len(bootstrap.creds))
 
 		recMappingPath := filepath.Join(e2eDir, ".auth", "recording-mapping.json")
 		if err := writeRecordingMapping(recMappingPath, bootstrap.recordingMapping); err != nil {
 			return fmt.Errorf("failed to write recording mapping: %w", err)
 		}
-		slog.Debug("wrote recording mapping", "path", recMappingPath, "users", len(bootstrap.recordingMapping))
+		slog.DebugContext(ctx, "wrote recording mapping", "path", recMappingPath, "users", len(bootstrap.recordingMapping))
 
 		// One shared state file used by all instances.
 		stateFile, err := generateStateFile(config.stateTemplate, bootstrap.state)
 		if err != nil {
 			return fmt.Errorf("failed to generate state file: %w", err)
 		}
-		slog.Debug("generated bootstrap state", "path", stateFile)
+		slog.DebugContext(ctx, "generated bootstrap state", "path", stateFile)
 
 		for _, inst := range allInstances {
 			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
@@ -350,7 +354,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				return fmt.Errorf("failed to generate Teleport config for %s: %w", inst.browser, err)
 			}
 			inst.teleportConfigPath = tcfg
-			inst.log.Debug("generated Teleport config", "path", tcfg)
+			inst.log.DebugContext(ctx, "generated Teleport config", "path", tcfg)
 		}
 
 		// Create teleport instances (started lazily by the playwright runner so that at most 2 run concurrently).
@@ -366,14 +370,14 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 			if config.isCI || config.quiet {
 				teleport.logFile = filepath.Join(config.e2eDir, "teleport-"+inst.browser+".log")
-				inst.log.Debug("redirecting Teleport logs to file", "path", teleport.logFile)
+				inst.log.DebugContext(ctx, "redirecting Teleport logs to file", "path", teleport.logFile)
 			}
 
 			inst.teleport = teleport
 		}
 
 		if fixtures.SSHNode.Enabled {
-			slog.Info("running with SSH node fixture enabled")
+			slog.InfoContext(ctx, "running with SSH node fixture enabled")
 
 			nodeBin := config.teleportBin
 			if runtime.GOOS != "linux" {
@@ -399,7 +403,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				if err != nil {
 					return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
 				}
-				inst.log.Debug("generated Teleport node config", "path", nodeConfigPath)
+				inst.log.DebugContext(ctx, "generated Teleport node config", "path", nodeConfigPath)
 
 				inst.node = &dockerNode{
 					log:                inst.log,
@@ -443,7 +447,7 @@ func applyResources(ctx context.Context, e2eDir, tctlBin, teleportConfig string)
 	sort.Strings(files)
 
 	for _, f := range files {
-		slog.Info("applying resource", "file", filepath.Base(f))
+		slog.InfoContext(ctx, "applying resource", "file", filepath.Base(f))
 		cmd := exec.CommandContext(ctx, tctlBin, "create", "-c", teleportConfig, "-f", f)
 
 		var stderr bytes.Buffer

@@ -55,7 +55,7 @@
     "jest": "^30.4.2",
     "jsdom-testing-mocks": "^1.16.0",
     "msw": "2.14.6",
-    "msw-storybook-addon": "^2.0.7",
+    "msw-storybook-addon": "^3.0.0",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",
     "playwright": "^1.61.1",
@@ -109,7 +109,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
+  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
   "engines": {
     "node": "^24"
   }
