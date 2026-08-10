@@ -20,6 +20,7 @@ package common
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -73,11 +74,11 @@ func TestWrapMCPClientRegistrationErrorRejected(t *testing.T) {
 	}{
 		{
 			name: "OAuth error body",
-			// How mcp-go reports a registration response carrying an OAuth
-			// error body, whatever the status code.
+			// How registration reports an OAuth error body, whatever the
+			// status code.
 			err: fmt.Errorf("registration request failed: %w", mcpclienttransport.OAuthError{
-				ErrorCode:        "invalid_client_metadata",
-				ErrorDescription: "client_name is not allowed",
+				ErrorCode:        "unapproved_software_statement",
+				ErrorDescription: "client is not approved",
 			}),
 			rejected: true,
 		},
@@ -117,6 +118,110 @@ func TestWrapMCPClientRegistrationErrorRejected(t *testing.T) {
 			require.ErrorContains(t, err, "rejected the client registration")
 			require.ErrorContains(t, err, "tsh mcp login figma --client-id")
 			require.ErrorContains(t, err, "--callback-port")
+		})
+	}
+}
+
+func TestWrapMCPClientRegistrationErrorInvalidMetadata(t *testing.T) {
+	t.Parallel()
+
+	registrationErr := fmt.Errorf("registration request failed: %w", mcpclienttransport.OAuthError{
+		ErrorCode:        "invalid_client_metadata",
+		ErrorDescription: "scope must not be empty",
+	})
+	err := wrapMCPClientRegistrationError(registrationErr, "stripe")
+	require.ErrorIs(t, err, registrationErr)
+	require.ErrorContains(t, err, "client metadata sent by tsh is invalid")
+	require.NotContains(t, err.Error(), "approved set of MCP clients")
+}
+
+func TestRegisterMCPOAuthClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		scopes             []string
+		registrationStatus int
+		registrationBody   string
+		wantScope          string
+		wantScopeField     bool
+		wantErrorCode      string
+	}{
+		{
+			name:               "empty scopes omitted",
+			registrationStatus: http.StatusCreated,
+			registrationBody:   `{"client_id":"registered-client","client_secret":"registered-secret"}`,
+		},
+		{
+			name:               "scopes included",
+			scopes:             []string{"mcp:tools", "mcp:resources"},
+			registrationStatus: http.StatusCreated,
+			registrationBody:   `{"client_id":"registered-client","client_secret":"registered-secret"}`,
+			wantScope:          "mcp:tools mcp:resources",
+			wantScopeField:     true,
+		},
+		{
+			name:               "OAuth error response",
+			registrationStatus: http.StatusBadRequest,
+			registrationBody:   `{"error":"invalid_client_metadata","error_description":"scope must not be empty"}`,
+			wantErrorCode:      "invalid_client_metadata",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var registrationRequest map[string]any
+			httpClient := &http.Client{Transport: mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				var statusCode int
+				var body string
+				switch req.URL.String() {
+				case "https://mcp.example.com/.well-known/oauth-protected-resource/mcp":
+					statusCode = http.StatusOK
+					body = `{"resource":"https://mcp.example.com/mcp","authorization_servers":["https://auth.example.com"]}`
+				case "https://auth.example.com/.well-known/oauth-authorization-server":
+					statusCode = http.StatusOK
+					body = `{"issuer":"https://auth.example.com","authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token","registration_endpoint":"https://auth.example.com/register"}`
+				case "https://auth.example.com/register":
+					require.Equal(t, http.MethodPost, req.Method)
+					require.NoError(t, json.NewDecoder(req.Body).Decode(&registrationRequest))
+					statusCode = test.registrationStatus
+					body = test.registrationBody
+				default:
+					require.FailNow(t, "unexpected OAuth request", req.URL.String())
+				}
+				return &http.Response{
+					StatusCode: statusCode,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    req,
+				}, nil
+			})}
+
+			discoveryHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{HTTPClient: httpClient})
+			discoveryHandler.SetBaseURL("https://mcp.example.com/mcp")
+			clientID, clientSecret, err := registerMCPOAuthClient(
+				t.Context(), discoveryHandler, httpClient, "http://127.0.0.1:12345/callback", test.scopes,
+			)
+
+			require.Equal(t, defaultMCPOAuthClientName, registrationRequest["client_name"])
+			require.Equal(t, mcpOAuthClientURI, registrationRequest["client_uri"])
+			if test.wantScopeField {
+				require.Equal(t, test.wantScope, registrationRequest["scope"])
+			} else {
+				require.NotContains(t, registrationRequest, "scope")
+			}
+			if test.wantErrorCode != "" {
+				require.Error(t, err)
+				oauthErr, ok := errors.AsType[mcpclienttransport.OAuthError](err)
+				require.True(t, ok)
+				require.Equal(t, test.wantErrorCode, oauthErr.ErrorCode)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "registered-client", clientID)
+			require.Equal(t, "registered-secret", clientSecret)
 		})
 	}
 }
