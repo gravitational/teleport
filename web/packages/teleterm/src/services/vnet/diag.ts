@@ -79,7 +79,7 @@ function networkStackAttemptToText(
 ${networkStackAttempt.error}`
     : `Network interface: ${networkStack.interfaceName}
 IPv4 CIDR ranges: ${networkStack.ipv4CidrRanges.join(', ')}
-IPv6 prefix: ${networkStack.ipv6Prefix}
+${networkStack.ipv6Prefix ? `IPv6 prefix: ${networkStack.ipv6Prefix}` : 'IPv6: Disabled on this host'}
 DNS zones: ${networkStack.dnsZones.join(', ')}`;
 }
 

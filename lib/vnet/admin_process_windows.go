@@ -103,7 +103,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	if !ok {
 		return trace.BadParameter("unexpected Windows TUN device type %T", device)
 	}
-	ipv6Disabled, err := hostIPv6Disabled(tunInterfaceName)
+	ipv6Disabled, err := platformHostIPv6Disabled(tunInterfaceName)
 	if err != nil {
 		// Could not determine, assume IPv6 is enabled. If it is actually
 		// disabled, setting the IPv6 interface MTU will surface the error.
@@ -130,15 +130,15 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 
 	if err := clt.ReportNetworkStackInfo(ctx, &vnetv1.NetworkStackInfo{
 		InterfaceName: tunName,
-		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		Ipv6Prefix:    networkStackConfig.getIPv6Prefix(),
 	}); err != nil {
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
-		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		ipv6Prefix:    networkStackConfig.getIPv6Prefix(),
 		dnsIPv6:       networkStackConfig.dnsIPv6.String(),
 		addDNSAddress: networkStack.addDNSAddress,
 	})
