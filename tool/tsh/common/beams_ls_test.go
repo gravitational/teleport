@@ -143,12 +143,12 @@ func makeTestBeam(alias, name, owner, appName, region string, expires time.Time,
 	return beamsv1.Beam_builder{
 		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &beamsv1.BeamSpec{
+		}.Build(),
+		Spec: beamsv1.BeamSpec_builder{
 			Expires: timestamppb.New(expires),
 			Publish: publish,
-		},
-		Status: &beamsv1.BeamStatus{
+		}.Build(),
+		Status: beamsv1.BeamStatus_builder{
 			Alias:   alias,
 			User:    owner,
 			AppName: appName,
