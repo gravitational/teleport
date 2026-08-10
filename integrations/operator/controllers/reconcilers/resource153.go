@@ -19,6 +19,8 @@
 package reconcilers
 
 import (
+	"fmt"
+
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,19 +42,22 @@ func (a Resource153Adapter[T]) GetResourceRevision(res T) string {
 	return res.GetMetadata().GetRevision()
 }
 
-// GetResourceOrigin implements the Adapter interface.
-func (a Resource153Adapter[T]) GetResourceOrigin(res T) string {
+// CheckOwnership implements the Adapter interface.
+func (a Resource153Adapter[T]) CheckOwnership(res T, _ OperatorMetadata) (bool, string) {
 	labels := res.GetMetadata().GetLabels()
 	// catches nil and empty maps
 	if len(labels) == 0 {
-		return ""
+		return false, ownershipIssueMissingOriginLabel
 	}
 
 	if origin, ok := labels[types.OriginLabel]; ok {
-		return origin
+		if origin == types.OriginKubernetes {
+			return true, ""
+		}
+		return false, fmt.Sprintf(ownershipIssueMismatchOriginLabel, origin)
 	}
 	// Origin label is not set
-	return ""
+	return false, ownershipIssueMissingOriginLabel
 }
 
 // SetResourceRevision implements the Adapter interface.
@@ -61,7 +66,8 @@ func (a Resource153Adapter[T]) SetResourceRevision(res T, revision string) {
 }
 
 // SetResourceLabels implements the Adapter interface.
-func (a Resource153Adapter[T]) SetResourceLabels(res T, labels map[string]string) {
+func (a Resource153Adapter[T]) SetResourceLabels(res T, labels map[string]string, _ OperatorMetadata, _ customResourceMetadata) {
+	labels[types.OriginLabel] = types.OriginKubernetes
 	res.GetMetadata().Labels = labels
 }
 
@@ -98,12 +104,58 @@ func NewTeleportResource153Reconciler[T types.Resource153, K KubernetesCR[T]](
 	return reconciler, nil
 }
 
+// ScopedResource153 extends [types.Resource153] for Teleport
+// resources that are scoped.
+type ScopedResource153 interface {
+	types.Resource153
+	GetScope() string
+}
+
+type ScopedResource153Adapter[T ScopedResource153] struct {
+	Resource153Adapter[T]
+}
+
+func (a ScopedResource153Adapter[T]) GetResourceScope(res T) string {
+	return res.GetScope()
+}
+
+func (a ScopedResource153Adapter[T]) CheckOwnership(res T, metadata OperatorMetadata) (bool, string) {
+	// Do the base tests.
+	if ok, reason := a.Resource153Adapter.CheckOwnership(res, metadata); !ok {
+		return ok, reason
+	}
+
+	// For scoped resources, also check the operator ID.
+	if res.GetScope() == "" {
+		return true, ""
+	}
+	if id, ok := res.GetMetadata().GetLabels()[OperatorIDLabel]; ok {
+		if id != metadata.ID {
+			return false, fmt.Sprintf(ownershipIssueMismatchOperatorID, id, metadata.ID)
+		}
+		return true, ""
+	}
+
+	return false, ownershipIssueMissingOperatorID
+}
+
+func (a ScopedResource153Adapter[T]) SetResourceLabels(res T, labels map[string]string, metadata OperatorMetadata, customResourceMetadata customResourceMetadata) {
+	// No need to copy the label map here, the caller already does it.
+	if res.GetScope() == "" {
+		a.Resource153Adapter.SetResourceLabels(res, labels, metadata, customResourceMetadata)
+		return
+	}
+	updateScopedLabels(labels, metadata, customResourceMetadata)
+	res.GetMetadata().SetLabels(labels)
+}
+
 // NewTeleportScopedResource153Reconciler instantiates a resourceReconciler for a
 // ScopedResource153 resource.
 func NewTeleportScopedResource153Reconciler[T ScopedResource153, K KubernetesCR[T]](
 	client kclient.Client,
 	resourceClient resourceClient[T],
 	config Config,
+	operatorMetadata OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	checkFeatures := controllers.AlwaysEnabled
 	if config.CheckFeatures != nil {
@@ -121,13 +173,14 @@ func NewTeleportScopedResource153Reconciler[T ScopedResource153, K KubernetesCR[
 	}
 
 	reconciler := &resourceReconciler[T, K]{
-		kubeClient:     client,
-		resourceClient: resourceClient,
-		gvk:            gvk,
-		adapter:        ScopedResource153Adapter[T]{},
-		scoped:         true,
-		teleportKind:   teleportKind,
-		checkFeatures:  checkFeatures,
+		kubeClient:       client,
+		resourceClient:   resourceClient,
+		gvk:              gvk,
+		adapter:          ScopedResource153Adapter[T]{},
+		scoped:           true,
+		teleportKind:     teleportKind,
+		checkFeatures:    checkFeatures,
+		operatorMetadata: operatorMetadata,
 	}
 	return reconciler, nil
 }

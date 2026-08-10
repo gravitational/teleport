@@ -68,7 +68,7 @@ func (r userClient) Mutate(_ context.Context, newUser, existingUser types.User, 
 }
 
 // NewUserReconciler instantiates a new Kubernetes controller reconciling user resources
-func NewUserReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewUserReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	userClient := &userClient{
 		teleportClient: tClient,
 	}

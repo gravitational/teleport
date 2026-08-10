@@ -38,7 +38,7 @@ import (
 )
 
 var scopedTokenSpec = &tokenv1.ScopedTokenSpec{
-	AssignedScope: "/staging/foo",
+	AssignedScope: testNestedScope,
 	Roles:         []string{types.RoleNode.String()},
 	JoinMethod:    string(types.JoinMethodToken),
 	UsageMode:     "unlimited",
@@ -69,10 +69,11 @@ func (g *scopedTokenTestingPrimitives) CreateTeleportResource(ctx context.Contex
 		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
-				types.OriginLabel: types.OriginKubernetes,
+				types.OriginLabel:           types.OriginKubernetes,
+				reconcilers.OperatorIDLabel: g.setup.OperatorMetadata().ID,
 			},
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  scopedTokenSpec,
 	}
 	_, err := g.setup.TeleportClient.CreateScopedToken(ctx, token)
@@ -82,7 +83,7 @@ func (g *scopedTokenTestingPrimitives) CreateTeleportResource(ctx context.Contex
 func (g *scopedTokenTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*tokenv1.ScopedToken, error) {
 	return g.setup.TeleportClient.GetScopedToken(ctx, tokenv1.GetScopedTokenRequest_builder{
 		Name:       name,
-		Scope:      "/staging",
+		Scope:      testScope,
 		WithSecret: true,
 	}.Build())
 }
@@ -90,7 +91,7 @@ func (g *scopedTokenTestingPrimitives) GetTeleportResource(ctx context.Context, 
 func (g *scopedTokenTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	return trace.Wrap(g.setup.TeleportClient.DeleteScopedToken(ctx, tokenv1.DeleteScopedTokenRequest_builder{
 		Name:  name,
-		Scope: "/staging",
+		Scope: testScope,
 	}.Build()))
 }
 
@@ -100,7 +101,7 @@ func (g *scopedTokenTestingPrimitives) CreateKubernetesResource(ctx context.Cont
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  (*resourcesv1.TeleportScopedTokenV1Spec)(scopedTokenSpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, token))
@@ -151,15 +152,15 @@ func (g *scopedTokenTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestScopedTokenCreation(t *testing.T) {
 	test := &scopedTokenTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedTokenV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](t, resources.NewScopedTokenV1Reconciler, test, testlib.WithScope(testScope))
 }
 
 func TestScopedTokenDeletionDrift(t *testing.T) {
 	test := &scopedTokenTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedTokenV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](t, resources.NewScopedTokenV1Reconciler, test, testlib.WithScope(testScope))
 }
 
 func TestScopedTokenUpdate(t *testing.T) {
 	test := &scopedTokenTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedTokenV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](t, resources.NewScopedTokenV1Reconciler, test, testlib.WithScope(testScope))
 }

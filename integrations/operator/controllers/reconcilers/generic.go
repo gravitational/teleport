@@ -35,7 +35,7 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/lib/scopes"
 )
@@ -53,6 +53,21 @@ const (
 	AnnotationFlagKeep = "teleport.dev/keep"
 )
 
+const (
+	OperatorIDLabel              = "resources.teleport.dev/operator-id"
+	operatorOwnerLabel           = "resources.teleport.dev/owner-email"
+	operatorTokenNameLabel       = "resources.teleport.dev/token-name"
+	operatorNamespaceLabel       = "resources.teleport.dev/namespace"
+	customResourceNameLabel      = "resources.teleport.dev/custom-resource-name"
+	customResourceNamespaceLabel = "resources.teleport.dev/custom-resource-namespace"
+	customResourceGVKLabel       = "resources.teleport.dev/custom-resource-gvk"
+
+	ownershipIssueMissingOriginLabel  = "teleport resource doesn't have the " + common.OriginLabel + "label"
+	ownershipIssueMismatchOriginLabel = "teleport resource has the " + common.OriginLabel + "label set to %q instead of \"" + common.OriginKubernetes + "\""
+	ownershipIssueMissingOperatorID   = "teleport resource doesn't have the " + OperatorIDLabel + "label"
+	ownershipIssueMismatchOperatorID  = "teleport resource has the " + OperatorIDLabel + "label set to %q instead of %q. Resource is owned by another operator. The resource label contain more info on the original operator."
+)
+
 // Resource is any Teleport Resource the controller manages.
 type Resource any
 
@@ -63,24 +78,9 @@ type Resource any
 type Adapter[T Resource] interface {
 	GetResourceName(T) string
 	GetResourceRevision(T) string
-	GetResourceOrigin(T) string
 	SetResourceRevision(T, string)
-	SetResourceLabels(T, map[string]string)
-}
-
-// ScopedResource153 extends [types.Resource153] for Teleport
-// resources that are scoped.
-type ScopedResource153 interface {
-	types.Resource153
-	GetScope() string
-}
-
-type ScopedResource153Adapter[T ScopedResource153] struct {
-	Resource153Adapter[T]
-}
-
-func (a ScopedResource153Adapter[T]) GetResourceScope(res T) string {
-	return res.GetScope()
+	SetResourceLabels(T, map[string]string, OperatorMetadata, customResourceMetadata)
+	CheckOwnership(T, OperatorMetadata) (bool, string)
 }
 
 // KubernetesCR is a Kubernetes CustomResource representing a Teleport Resource.
@@ -138,15 +138,37 @@ type Config struct {
 	CheckFeatures controllers.CheckFeaturesFunc
 }
 
+// OperatorMetadata contains the metadata about the operator runtime and configuration.
+// This is used to label resources and validate them (check their scope and provenance)
+type OperatorMetadata struct {
+	// Namespace is the operator namespace.
+	Namespace string
+	// ID is the operator ID.
+	ID string
+	// TokenName is the name of the token used by the operator to join.
+	TokenName string
+	// Scope is the operator scope. Set to `/` if the operator is unscoped.
+	Scope string
+	// Owner is the email of the operator owner. Specified by the user when deploying.
+	Owner string
+}
+
+type customResourceMetadata struct {
+	name      string
+	namespace string
+	gvk       string
+}
+
 // resourceReconciler is a Teleport generic reconciler.
 type resourceReconciler[T any, K KubernetesCR[T]] struct {
-	kubeClient     kclient.Client
-	resourceClient resourceClient[T]
-	gvk            schema.GroupVersionKind
-	adapter        Adapter[T]
-	scoped         bool
-	teleportKind   string
-	checkFeatures  controllers.CheckFeaturesFunc
+	kubeClient       kclient.Client
+	resourceClient   resourceClient[T]
+	gvk              schema.GroupVersionKind
+	adapter          Adapter[T]
+	scoped           bool
+	teleportKind     string
+	operatorMetadata OperatorMetadata
+	checkFeatures    controllers.CheckFeaturesFunc
 }
 
 func (r resourceReconciler[T, K]) GVK() schema.GroupVersionKind {
@@ -183,6 +205,8 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 		k8sResource,
 		true, /* returnUnknownFields */
 	)
+
+	// TODO(hugoShaka): optimize the updateStatus logic so we batch status updates
 	updateErr := updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.kubeClient,
@@ -197,6 +221,21 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 	debugLog.Info("Converting resource to teleport")
 	key := r.resourceKey(teleportResource)
+
+	scopeCondition, scopeOK := r.checkScope(key, r.operatorMetadata)
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.kubeClient,
+		k8sResource: k8sResource,
+		condition:   scopeCondition,
+	})
+	if updateErr != nil {
+		return trace.Wrap(updateErr, "updating status scope condition")
+	}
+	if !scopeOK {
+		return trace.CompareFailed("%s", scopeCondition.Message)
+	}
+
 	existingResource, err := r.resourceClient.Get(ctx, key)
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
@@ -213,7 +252,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 	if exists {
 		debugLog.Info("Resource already exists")
-		newOwnershipCondition, isOwned := r.checkOwnership(existingResource)
+		newOwnershipCondition, isOwned := r.checkOwnership(existingResource, r.operatorMetadata)
 		debugLog.Info("Resource is owned")
 		if updateErr = updateStatus(updateStatusConfig{
 			ctx:         ctx,
@@ -239,12 +278,16 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	}
 
 	kubeLabels := obj.GetLabels()
-	teleportLabels := make(map[string]string, len(kubeLabels)+1) // +1 because we'll add the origin label
+	teleportLabels := make(map[string]string)
 	for k, v := range kubeLabels {
 		teleportLabels[k] = v
 	}
-	teleportLabels[types.OriginLabel] = types.OriginKubernetes
-	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
+	r.adapter.SetResourceLabels(
+		teleportResource,
+		teleportLabels,
+		r.operatorMetadata,
+		customResourceMetadata{name: obj.GetName(), namespace: obj.GetNamespace(), gvk: r.gvk.String()},
+	)
 	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
 
 	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
@@ -317,6 +360,20 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 		key.Scope = scope
 	}
 
+	if condition, ok := r.checkScope(key, r.operatorMetadata); !ok {
+		// If the scope doesn't match, we must not delete the resource on the Teleport side.
+		// Then we have 2 choices:
+		// - error continually until the user manually adds the "keep" label.
+		// - silently skp the deletion to let the CR be removed.
+		// As it's unlikely that the operator was managing the resource to begin with, the second option seems saner.
+		// There's a small risk of an operator changing scope, then leaving leftovers. Today we cannot detect this edge
+		// case, a potential workaround would be to introduce something in the CR status to track if it was reconciled
+		// once, and keep the last known SQN.
+		log := ctrllog.FromContext(ctx).V(0)
+		log.Info("Scope mismatch, skipping deletion", "reason", condition.Reason, "operatorScope", r.operatorMetadata.Scope, "resourceScope", key.Scope, "resourceName", key.Name, "resourceNamespace", obj.GetNamespace())
+		return nil
+	}
+
 	// This call catches non-existing resources or subkind mismatch (e.g. openssh nodes)
 	// We can then check that we own the Resource before deleting it.
 	resource, err := r.resourceClient.Get(ctx, key)
@@ -324,7 +381,7 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 		return trace.Wrap(err)
 	}
 
-	_, isOwned := r.checkOwnership(resource)
+	_, isOwned := r.checkOwnership(resource, r.operatorMetadata)
 	if !isOwned {
 		// The Resource doesn't belong to us, we bail out but unblock the CR deletion
 		return nil
@@ -451,25 +508,18 @@ func isKept(obj kclient.Object) bool {
 	return checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */)
 }
 
-// isResourceOriginKubernetes reads a teleport Resource metadata, searches for the origin label and checks its
-// value is kubernetes.
-func (r resourceReconciler[T, K]) isResourceOriginKubernetes(resource T) bool {
-	origin := r.adapter.GetResourceOrigin(resource)
-	return origin == types.OriginKubernetes
-}
-
 // checkOwnership takes an existing Resource and validates the operator owns it.
 // It returns an ownership condition and a boolean representing if the Resource is
 // owned by the operator. The ownedResource must be non-nil.
-func (r resourceReconciler[T, K]) checkOwnership(existingResource T) (metav1.Condition, bool) {
-	if !r.isResourceOriginKubernetes(existingResource) {
+func (r resourceReconciler[T, K]) checkOwnership(existingResource T, metadata OperatorMetadata) (metav1.Condition, bool) {
+	if ok, reason := r.adapter.CheckOwnership(existingResource, metadata); !ok {
 		// Existing Teleport Resource does not belong to us, bailing out
 
 		condition := metav1.Condition{
 			Type:    ConditionTypeTeleportResourceOwned,
 			Status:  metav1.ConditionFalse,
 			Reason:  ConditionReasonOriginLabelNotMatching,
-			Message: "A Resource with the same name already exists in Teleport and does not have the Kubernetes origin label. Refusing to reconcile.",
+			Message: fmt.Sprintf("A resource with the same name already exists in Teleport and is not owned by the operator (%s). Refusing to reconcile.", reason),
 		}
 		return condition, false
 	}
@@ -478,9 +528,52 @@ func (r resourceReconciler[T, K]) checkOwnership(existingResource T) (metav1.Con
 		Type:    ConditionTypeTeleportResourceOwned,
 		Status:  metav1.ConditionTrue,
 		Reason:  ConditionReasonOriginLabelMatching,
-		Message: "Teleport Resource has the Kubernetes origin label.",
+		Message: "Teleport resource is owned by the operator.",
 	}
 	return condition, true
+}
+
+// checkOwnership takes an existing Resource and validates the operator owns it.
+// It returns an ownership condition and a boolean representing if the Resource is
+// owned by the operator. The ownedResource must be non-nil.
+func (r resourceReconciler[T, K]) checkScope(key ResourceKey, metadata OperatorMetadata) (metav1.Condition, bool) {
+	switch {
+	case key.Scope == "" && metadata.Scope == "":
+		return metav1.Condition{
+			Type:    ConditionTypeValidScope,
+			Status:  metav1.ConditionTrue,
+			Reason:  ConditionTypeUnscoped,
+			Message: "Neither resource or operator are scoped",
+		}, true
+	case key.Scope != "" && metadata.Scope == "":
+		return metav1.Condition{
+			Type:    ConditionTypeValidScope,
+			Status:  metav1.ConditionFalse,
+			Reason:  ConditionReasonNonMatchingScope,
+			Message: "Resource is scoped but operator is not. Refusing to reconcile.",
+		}, false
+	case key.Scope == "" && metadata.Scope != "":
+		return metav1.Condition{
+			Type:    ConditionTypeValidScope,
+			Status:  metav1.ConditionFalse,
+			Reason:  ConditionReasonNonMatchingScope,
+			Message: "Operator is scoped but resource is not. Refusing to reconcile.",
+		}, false
+	case metadata.Scope == key.Scope:
+		return metav1.Condition{
+			Type:    ConditionTypeValidScope,
+			Status:  metav1.ConditionTrue,
+			Reason:  ConditionReasonMatchingScope,
+			Message: "Resource scope matches the operator scope.",
+		}, true
+	default:
+		return metav1.Condition{
+			Type:    ConditionTypeValidScope,
+			Status:  metav1.ConditionFalse,
+			Reason:  ConditionReasonNonMatchingScope,
+			Message: fmt.Sprintf("Resource scope %q does not match the operator scope %q.", key.Scope, metadata.Scope),
+		}, false
+	}
 }
 
 var newResourceCondition = metav1.Condition{

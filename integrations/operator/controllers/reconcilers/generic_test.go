@@ -107,7 +107,7 @@ func (f *fakeTeleportResourceClient) Delete(_ context.Context, id ResourceKey) e
 }
 
 // resourceExists checks if a Resource is in the store.
-// This is use fr testing purposes.
+// This is use for testing purposes.
 func (f *fakeTeleportResourceClient) resourceExists(name string) bool {
 	_, ok := f.store[name]
 	return ok
@@ -152,15 +152,18 @@ func (f fakeResourceAdapter[T]) GetResourceRevision(res T) string {
 	return res.GetMetadata().Revision
 }
 
-func (f fakeResourceAdapter[T]) GetResourceOrigin(res T) string {
+func (f fakeResourceAdapter[T]) CheckOwnership(res T, _ OperatorMetadata) (bool, string) {
 	labels := res.GetMetadata().Labels
 	if len(labels) == 0 {
-		return ""
+		return false, ownershipIssueMissingOriginLabel
 	}
 	if origin, ok := labels[types.OriginLabel]; ok {
-		return origin
+		if origin == types.OriginKubernetes {
+			return true, ""
+		}
+		return false, ownershipIssueMismatchOriginLabel
 	}
-	return ""
+	return false, ownershipIssueMissingOriginLabel
 }
 
 func (f fakeResourceAdapter[T]) SetResourceRevision(res T, rev string) {
@@ -169,7 +172,8 @@ func (f fakeResourceAdapter[T]) SetResourceRevision(res T, rev string) {
 	res.SetMetadata(metadata)
 }
 
-func (f fakeResourceAdapter[T]) SetResourceLabels(res T, labels map[string]string) {
+func (f fakeResourceAdapter[T]) SetResourceLabels(res T, labels map[string]string, _ OperatorMetadata, _ customResourceMetadata) {
+	labels[types.OriginLabel] = types.OriginKubernetes
 	metadata := res.GetMetadata()
 	metadata.Labels = labels
 	res.SetMetadata(metadata)
@@ -296,7 +300,7 @@ func TestCheckOwnership(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 
-			condition, isOwned := reconciler.checkOwnership(tc.existingResource)
+			condition, isOwned := reconciler.checkOwnership(tc.existingResource, OperatorMetadata{})
 
 			require.Equal(t, tc.isOwned, isOwned)
 			require.Equal(t, ConditionTypeTeleportResourceOwned, condition.Type)
