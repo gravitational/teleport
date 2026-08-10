@@ -31,7 +31,6 @@ export const eventGroupTypes = {
   'user.login': 'User Logins',
   'spiffe.svid.issued': 'SPIFFE SVID Issuance',
   'device.enroll_pairing.request': 'Device Enroll Pairing Request',
-  'device.enroll_pairing.approve': 'Device Enroll Pairing Approval',
 };
 
 /**
