@@ -18,6 +18,8 @@ package utils
 
 import (
 	"bytes"
+	"math/rand/v2"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -99,6 +101,12 @@ func TestContainSameUniqueElements(t *testing.T) {
 			s2:    []string{"a", "b", "c"},
 			check: require.False,
 		},
+		{
+			name:  "different (s2 subset of s1)",
+			s1:    []string{"a", "b", "c"},
+			s2:    []string{"b", "a", "a"},
+			check: require.False,
+		},
 	}
 
 	for _, test := range tests {
@@ -106,6 +114,55 @@ func TestContainSameUniqueElements(t *testing.T) {
 			test.check(t, ContainSameUniqueElements(test.s1, test.s2))
 		})
 	}
+}
+
+// TestContainSameUniqueElements_SameUniqueSet builds two slices over the same
+// unique element set (every element at least once, plus random duplicates,
+// shuffled) and asserts the result is true in both orders.
+func TestContainSameUniqueElements_SameUniqueSet(t *testing.T) {
+	for range 1000 {
+		uniq := randDistinct()
+		s1 := randMultisetOver(uniq)
+		s2 := randMultisetOver(uniq)
+
+		require.True(t, ContainSameUniqueElements(s1, s2), "s1=%v s2=%v", s1, s2)
+		require.True(t, ContainSameUniqueElements(s2, s1), "s1=%v s2=%v", s1, s2)
+	}
+}
+
+// TestContainSameUniqueElements_MissingElement removes one element from one
+// side, so the unique sets differ by construction, and asserts the result is
+// false.
+func TestContainSameUniqueElements_MissingElement(t *testing.T) {
+	for range 1000 {
+		uniq := randDistinct()
+		removed := rand.IntN(len(uniq))
+		smaller := slices.Delete(slices.Clone(uniq), removed, removed+1)
+
+		s1 := randMultisetOver(uniq)
+		s2 := randMultisetOver(smaller)
+
+		require.False(t, ContainSameUniqueElements(s1, s2), "s1=%v s2=%v", s1, s2)
+		require.False(t, ContainSameUniqueElements(s2, s1), "s1=%v s2=%v", s1, s2)
+	}
+}
+
+// randDistinct returns 1-8 distinct ints.
+func randDistinct() []int {
+	return rand.Perm(32)[:1+rand.IntN(8)]
+}
+
+// randMultisetOver returns a slice whose set of unique elements is exactly
+// uniq: one copy of each element, plus random extra copies, shuffled.
+func randMultisetOver(uniq []int) []int {
+	out := slices.Clone(uniq)
+	if len(uniq) > 0 {
+		for range rand.IntN(6) {
+			out = append(out, uniq[rand.IntN(len(uniq))])
+		}
+	}
+	rand.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })
+	return out
 }
 
 func TestAll(t *testing.T) {
