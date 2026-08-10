@@ -90,9 +90,7 @@ class EnrollDeviceViewModel {
 
 			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
 		} catch {
-			logger.error("Failed to request enrollment token", metadata: [
-				"error": .string(String(describing: error)),
-			])
+			logger.error("Failed to request enrollment token", error: error)
 			loadingState = .failure(error)
 		}
 	}

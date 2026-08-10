@@ -42,10 +42,7 @@ extension VerifyAppModel {
 					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
 			}
 		} catch {
-			logger.warning("Failed to parse deep link", metadata: [
-				"scannedURL": "\(url)",
-				"error": .string(String(describing: error)),
-			])
+			logger.warning("Failed to parse deep link", error: error, metadata: ["scannedURL": "\(url)"])
 			landingViewModel.showParserError(errorMessage: error.localizedDescription)
 		}
 	}

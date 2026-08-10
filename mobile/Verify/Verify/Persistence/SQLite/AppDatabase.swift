@@ -87,9 +87,7 @@ extension AppDatabase {
 			#if DEBUG
 				fatalError("Database initialization failed: \(error)")
 			#else
-				logger.critical("Database initialization failed; falling back to in-memory database", metadata: [
-					"error": .string(String(describing: error)),
-				])
+				logger.critical("Database initialization failed; falling back to in-memory database", error: error)
 				database = makeInMemoryDatabase()
 			#endif
 		}
