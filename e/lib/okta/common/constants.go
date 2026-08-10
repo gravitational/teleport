@@ -9,6 +9,9 @@ const (
 	// OktaSSOConnectorName is the name of the Okta SSO connector.
 	OktaSSOConnectorName = "okta"
 
+	// OktaSSOConnectorDisplay is the display name of the Okta SSO connector.
+	OktaSSOConnectorDisplay = "Okta"
+
 	// OktaSCIMTokenName is the name of the Okta SCIM token.
 	OktaSCIMTokenName = types.PluginTypeOkta + "-scim-token"
 )

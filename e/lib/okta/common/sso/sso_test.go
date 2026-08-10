@@ -2,6 +2,9 @@ package sso
 
 import (
 	"context"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -265,6 +268,87 @@ func TestExtractMetadataUrl(t *testing.T) {
 			testCase.expectedError(t, err)
 			require.Equal(t, testCase.expectedUrl, url)
 			require.Equal(t, testCase.expectedType, mimeType)
+		})
+	}
+}
+
+// fakeSAMLConnectorService is a minimal in-memory implementation of SAMLConnectorService for tests.
+type fakeSAMLConnectorService struct {
+	created types.SAMLConnector
+}
+
+func (f *fakeSAMLConnectorService) CreateSAMLConnector(_ context.Context, c types.SAMLConnector) (types.SAMLConnector, error) {
+	f.created = c
+	return c, nil
+}
+
+func (f *fakeSAMLConnectorService) GetSAMLConnector(_ context.Context, _ string, _ bool) (types.SAMLConnector, error) {
+	return nil, trace.NotFound("not found")
+}
+
+// minimalSAMLMetadata is a bare-minimum SAML IdP metadata XML that satisfies
+// the Teleport SAML connector entity-descriptor parser.
+const minimalSAMLMetadata = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    entityID="https://idp.example.okta.com">
+  <md:IDPSSODescriptor WantAuthnRequestsSigned="false"
+      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://idp.example.okta.com/app/myapp/sso/saml"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+func TestCreateSAMLConnectorFromMetadataURL_DisplayName(t *testing.T) {
+	t.Parallel()
+
+	// Serve minimal SAML metadata over HTTP so the function can fetch it.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		_, _ = w.Write([]byte(minimalSAMLMetadata))
+	}))
+	t.Cleanup(srv.Close)
+
+	publicURL := must(url.Parse("https://teleport.example.com"))
+
+	tests := []struct {
+		name          string
+		connectorName string
+		displayName   string
+		wantDisplay   string
+	}{
+		{
+			name:          "DisplayName set to Okta uses that as display",
+			connectorName: "okta",
+			displayName:   "Okta",
+			wantDisplay:   "Okta",
+		},
+		{
+			name:          "DisplayName empty falls back to ConnectorName",
+			connectorName: "okta",
+			displayName:   "",
+			wantDisplay:   "okta",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &fakeSAMLConnectorService{}
+			args := ConnectorArgs{
+				ConnectorName:        tc.connectorName,
+				DisplayName:          tc.displayName,
+				SAMLConnectorService: svc,
+				ClusterName:          "test-cluster",
+				PublicURL:            publicURL,
+				Logger:               slog.New(slog.DiscardHandler),
+				MetadataURL:          srv.URL,
+				HTTPClient:           http.DefaultTransport,
+			}
+			info, err := CreateSAMLConnectorFromMetadataURL(t.Context(), args)
+			require.NoError(t, err)
+			require.NotNil(t, info)
+			require.Equal(t, tc.connectorName, info.Connector.GetName())
+			require.Equal(t, tc.wantDisplay, info.Connector.GetDisplay())
 		})
 	}
 }

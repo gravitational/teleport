@@ -1,6 +1,7 @@
 package sso
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"log/slog"
@@ -44,6 +45,10 @@ type ConnectorArgs struct {
 
 	// Name to give the SAML SSO connector we create
 	ConnectorName string
+
+	// DisplayName is the human-readable display name for the SAML SSO connector.
+	// Falls back to ConnectorName if not set.
+	DisplayName string
 
 	// The public URL of the cluster proxy. Used to generate URLs to give the
 	// Okta app (e.g. login redirection, etc).
@@ -109,7 +114,7 @@ func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs)
 
 	connector, err := types.NewSAMLConnector(args.ConnectorName, types.SAMLConnectorSpecV2{
 		AssertionConsumerService: args.PublicURL.JoinPath("/v1/webapi/saml/acs", args.ConnectorName).String(),
-		Display:                  args.ConnectorName,
+		Display:                  cmp.Or(args.DisplayName, args.ConnectorName),
 		EntityDescriptor:         string(idpMetadata),
 		AttributesToRoles: []types.AttributeMapping{
 			{

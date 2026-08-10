@@ -64,6 +64,7 @@ func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *okt
 	// metadata.
 	connInfo, err := sso.CreateSAMLConnectorFromMetadataURL(ctx, sso.ConnectorArgs{
 		ConnectorName:        connectorName,
+		DisplayName:          common.OktaSSOConnectorDisplay,
 		SAMLConnectorService: s.authService,
 		ClusterName:          pingInfo.ClusterName,
 		PublicURL:            publicURL,
