@@ -124,7 +124,7 @@ func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client, _ reconc
 }
 
 // NewRoleV9Reconciler instantiates a new Kubernetes controller reconciling role v9 resources
-func NewRoleV9Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV9Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
