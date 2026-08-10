@@ -460,31 +460,6 @@ var (
 		ForceSetKind:           "apitypes.KindNode",
 	}
 
-	workloadIdentity = payload{
-		Name:                  "WorkloadIdentity",
-		TypeName:              "WorkloadIdentity",
-		VarName:               "workloadIdentity",
-		GetMethod:             "GetWorkloadIdentity",
-		CreateMethod:          "CreateWorkloadIdentity",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertWorkloadIdentity",
-		DeleteMethod:          "DeleteWorkloadIdentity",
-		ID:                    "workloadIdentity.Metadata.Name",
-		Kind:                  "workload_identity",
-		HasStaticID:           false,
-		ProtoPackage:          "workloadidentityv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadidentity/v1",
-		TerraformResourceType: "teleport_workload_identity",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ForceSetKind: `"workload_identity"`,
-	}
-
 	autoUpdateVersion = payload{
 		Name:                  "AutoUpdateVersion",
 		TypeName:              "AutoUpdateVersion",
@@ -891,8 +866,6 @@ func genTFSchema() {
 	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
-	generateResource(workloadIdentity, pluralResource)
-	generateDataSource(workloadIdentity, pluralDataSource)
 	generateResource(autoUpdateVersion, singularResource)
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
