@@ -90,6 +90,14 @@ var deadLetterExpired = prometheus.NewCounter(
 	},
 )
 
+var deadLetterEvicted = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_dead_letter_evicted_total",
+		Help:      "Total number of audit events permanently dropped from the dead-letter queue to make room for new events.",
+	},
+)
+
 var eventsEnqueued = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
@@ -166,6 +174,7 @@ var prometheusCollectors = []prometheus.Collector{
 	retryTotal,
 	deadLetterPromotions,
 	deadLetterExpired,
+	deadLetterEvicted,
 	eventsEnqueued,
 	eventsDelivered,
 	corruptEvents,
