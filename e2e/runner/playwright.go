@@ -48,26 +48,6 @@ func (p *playwrightRunner) startURL(inst *testInstance) string {
 	return fmt.Sprintf("https://localhost:%d/web", inst.proxyPort)
 }
 
-// callerRelativePaths returns paths relative to the caller's working directory
-// so that logged paths are cmd+clickable in terminals.
-func (p *playwrightRunner) callerRelativePaths(paths []string) []string {
-	callerDir := os.Getenv("E2E_CALLER_DIR")
-	if callerDir == "" {
-		return paths
-	}
-
-	out := make([]string, len(paths))
-	for i, path := range paths {
-		abs := filepath.Join(p.config.e2eDir, path)
-		if rel, err := filepath.Rel(callerDir, abs); err == nil {
-			out[i] = rel
-		} else {
-			out[i] = path
-		}
-	}
-	return out
-}
-
 func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 	switch mode {
 	case modeTest:
@@ -121,12 +101,12 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 	testErr := g.Wait()
 
-	slog.Info("merging blob reports")
+	slog.InfoContext(ctx, "merging blob reports")
 	mergeArgs := []string{"exec", "playwright", "merge-reports", p.configFlag(), blobBaseDir}
 	mergeEnv := os.Environ()
 	mergeEnv = append(mergeEnv, "FORCE_COLOR=1")
 	if err := p.pnpmQuiet(ctx, mergeArgs, mergeEnv); err != nil {
-		slog.Warn("failed to merge reports", "error", err)
+		slog.WarnContext(ctx, "failed to merge reports", "error", err)
 		if testErr == nil {
 			return err
 		}
@@ -219,9 +199,9 @@ func (p *playwrightRunner) runInstanceTests(ctx context.Context, inst *testInsta
 	args = append(args, files...)
 
 	if len(files) > 0 {
-		inst.log.Info("running e2e tests", "files", files)
+		inst.log.InfoContext(ctx, "running e2e tests", "files", files)
 	} else {
-		inst.log.Info("running e2e tests", "projects", baseProjects)
+		inst.log.InfoContext(ctx, "running e2e tests", "projects", baseProjects)
 	}
 
 	if err := p.pnpm(ctx, args, env); err != nil {
@@ -232,7 +212,7 @@ func (p *playwrightRunner) runInstanceTests(ctx context.Context, inst *testInsta
 
 // runTeleportConfig re-inits the instance's Teleport with a test-declared config.
 func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInstance, baseConfigPath string, cfg uniqueTeleportConfig, files []string, idx int, blobBaseDir string, debug bool, extraArgs []string) error {
-	inst.log.Info("re-initializing teleport with a test-declared config", "files", files)
+	inst.log.InfoContext(ctx, "re-initializing teleport with a test-declared config", "files", files)
 
 	inst.teleport.stop()
 
@@ -261,7 +241,7 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 }
 
 func (p *playwrightRunner) ui(ctx context.Context) error {
-	slog.Info("starting playwright in UI mode")
+	slog.InfoContext(ctx, "starting playwright in UI mode")
 
 	if len(p.config.instances) == 0 {
 		return fmt.Errorf("no test instances configured")
@@ -309,12 +289,12 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 		return err
 	}
 
-	slog.Debug("running global setup to generate auth state")
+	slog.DebugContext(ctx, "running global setup to generate auth state")
 	if err := p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "global-setup.ts")}, env); err != nil {
 		return err
 	}
 
-	slog.Info("opening playwright " + playwrightCmd + " (with auth and WebAuthn)")
+	slog.InfoContext(ctx, "opening playwright with auth and WebAuthn", "command", playwrightCmd)
 
 	return p.pnpm(ctx, []string{
 		"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-with-webauthn.ts"),
@@ -339,7 +319,7 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 		return err
 	}
 
-	slog.Info("opening Teleport Connect (with auth)")
+	slog.InfoContext(ctx, "opening Teleport Connect (with auth)")
 
 	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-connect.ts")}, env)
 }

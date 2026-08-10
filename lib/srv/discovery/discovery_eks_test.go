@@ -442,6 +442,14 @@ func (m *mockAuthServer) GetNodes(ctx context.Context, namespace string) ([]type
 	return nil, nil
 }
 
+func (m *mockAuthServer) ListSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) ([]types.Server, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockAuthServer) RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error] {
+	return stream.Empty[types.Server]()
+}
+
 func (m *mockAuthServer) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opts ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
 	return m.enrollEKSClusters(ctx, req, opts...)
 }

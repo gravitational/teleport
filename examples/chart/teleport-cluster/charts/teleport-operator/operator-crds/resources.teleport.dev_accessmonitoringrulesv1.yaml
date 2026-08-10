@@ -55,6 +55,11 @@ spec:
                       responsible for monitoring the rule. Set this value to `builtin`
                       to monitor the rule with Teleport.
                     type: string
+                  reason:
+                    description: reason specifies a reason for the review decision.
+                      This field is optional and if it is not supplied, a generic
+                      reason will be applied to reviews.
+                    type: string
                 type: object
               condition:
                 description: condition is a predicate expression that operates on

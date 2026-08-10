@@ -66,6 +66,7 @@ COPY integrations/operator/controllers/ integrations/operator/controllers/
 COPY integrations/operator/main.go integrations/operator/main.go
 COPY integrations/operator/namespace.go integrations/operator/namespace.go
 COPY integrations/operator/config.go integrations/operator/config.go
+COPY integrations/operator/state/ integrations/operator/state/
 
 # Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
 #  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
