@@ -46,11 +46,7 @@ public struct ConsoleLogHandler: LogHandler {
 	}
 
 	public func log(event: LogEvent) {
-		let timestamp = timestampFormmater.format(.now)
-		let metadataToLog = metadata.merging(event.metadata ?? [:]) { _, new in new }
-
-		let output = "\(timestamp) \(event.level.formatted) \(event.file):\(event.line) | \(event.message) \(metadataToLog.formatted)"
-
-		print(output)
+		let logMessage = LogFormatter.format(label: label, event: event, handlerMetadata: metadata, timestamp: .now)
+		print(logMessage)
 	}
 }
