@@ -28,6 +28,8 @@ import {
   UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
+import { ensureError } from 'shared/utils/error';
+
 import {
   serializeError,
   type SerializedError,
@@ -312,7 +314,7 @@ export function isRpcErrorReloginResolvable(error: unknown): boolean {
 }
 
 function cloneError(error: unknown): SerializedError {
-  return serializeError(error);
+  return serializeError(ensureError(error));
 }
 
 function cloneRequests<O extends object>(

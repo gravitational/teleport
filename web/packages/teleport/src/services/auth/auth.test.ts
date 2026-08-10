@@ -30,36 +30,26 @@ describe('services/auth', () => {
   const email = 'user@example.com';
 
   test('login()', async () => {
-    jest.spyOn(api, 'postWithOptions').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
 
-    await auth.login(email, password, '' /*otp*/, '' /*scope*/);
-    expect(api.postWithOptions).toHaveBeenCalledWith(
-      cfg.api.webSessionPath,
-      expect.objectContaining({
-        data: {
-          user: email,
-          pass: password,
-          second_factor_token: '',
-          scope: '',
-        },
-      })
-    );
+    await auth.login(email, password, '');
+    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, {
+      user: email,
+      pass: password,
+      second_factor_token: '',
+    });
   });
 
-  test('login() OTP and scope', async () => {
-    jest.spyOn(api, 'postWithOptions').mockResolvedValue({});
+  test('login() OTP', async () => {
+    jest.spyOn(api, 'post').mockResolvedValue({});
     const data = {
       user: email,
       pass: password,
       second_factor_token: 'xxx',
-      scope: '/prod/europe',
     };
 
-    await auth.login(email, password, 'xxx', '/prod/europe');
-    expect(api.postWithOptions).toHaveBeenCalledWith(
-      cfg.api.webSessionPath,
-      expect.objectContaining({ data })
-    );
+    await auth.login(email, password, 'xxx');
+    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, data);
   });
 
   describe('getMfaChallengeResponseForAdminAction', () => {

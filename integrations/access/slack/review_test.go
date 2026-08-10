@@ -22,6 +22,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 type mockReviewBot struct {
@@ -43,14 +44,13 @@ func (m *mockReviewBot) LookupEmailByUserID(ctx context.Context, userID string) 
 	return args.String(0), args.Error(1)
 }
 
-func newTestAuth(t *testing.T, m *modulestest.Modules) *auth.Server {
+func newTestAuth(t *testing.T) *auth.Server {
 	t.Helper()
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Clock:   clockwork.NewFakeClock(),
-			Modules: m,
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
@@ -95,7 +95,7 @@ func createUserInSlackAndTeleport(t *testing.T, mockBot *mockReviewBot, authServ
 }
 
 func TestResolveTeleportUser(t *testing.T) {
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	aliceUser := user{
 		slackUserId:      "U_alice",
@@ -219,19 +219,40 @@ func TestResolveTeleportUser(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		app := &ReviewApp{
-			apiClient: authServer,
-			bot:       mockBot,
-			conf:      tt.reviewConfig,
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			app := &ReviewApp{
+				apiClient: authServer,
+				bot:       mockBot,
+				conf:      tt.reviewConfig,
+			}
 
-		got, err := app.resolveTeleportUser(t.Context(), tt.slackUID)
-		if tt.wantErr {
-			require.Error(t, err)
-			continue
-		}
-		require.NoError(t, err)
+			got, err := app.resolveTeleportUser(t.Context(), tt.slackUID)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-		require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, got)
+		})
 	}
+}
+
+func TestResolveReview_LongTerm(t *testing.T) {
+	authServer := newTestAuth(t)
+
+	app := &ReviewApp{
+		apiClient: authServer,
+		bot:       &mockReviewBot{},
+	}
+
+	reqLongTerm, err := types.NewAccessRequest(uuid.NewString(), "test-user", "test-role")
+	require.NoError(t, err)
+	reqLongTerm.SetRequestKind(types.AccessRequestKind_LONG_TERM)
+
+	err = authServer.CreateAccessRequest(t.Context(), reqLongTerm)
+	require.NoError(t, err)
+
+	err = app.resolveReview(t.Context(), reqLongTerm.GetName(), "test-slack-uid", types.RequestState_APPROVED)
+	require.True(t, trace.IsAccessDenied(err))
 }

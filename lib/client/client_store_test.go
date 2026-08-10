@@ -39,7 +39,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -238,6 +237,7 @@ func TestClientStore(t *testing.T) {
 		"software key": softKeyRing,
 		"hardware key": hardKeyRing,
 	} {
+		keyRing := keyRing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -469,7 +469,7 @@ func TestPartialProfileStatusScope(t *testing.T) {
 			status, err := clientStore.ReadProfileStatus(p.Name())
 			require.NoError(t, err)
 			require.NotNil(t, status.ScopePin)
-			require.Equal(t, "/production", status.ScopePin.GetScope())
+			require.Equal(t, "/production", status.ScopePin.Scope)
 		})
 	})
 }
@@ -552,13 +552,13 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, srv.Start())
 		defer srv.Close()
 
-		clt, err := apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
+		clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.NoError(t, err)
 		defer clt.Close()
 
 		// Call new session to initiate opening new channel. This should get
 		// rejected and fail.
-		_, err = clt.NewSession(t.Context())
+		_, err = clt.NewSession()
 		require.Error(t, err)
 		require.Equal(t, 1, int(called.Load()))
 
@@ -577,7 +577,7 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
-		_, err = apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
+		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
 	})
 }
@@ -631,7 +631,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	}
 
 	kubeClusterNames := make([]string, 0, 10)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
 		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
 		kubeClusterNames = append(kubeClusterNames, kubeClusterName)

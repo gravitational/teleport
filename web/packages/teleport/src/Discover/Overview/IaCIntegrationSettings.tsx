@@ -17,7 +17,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { Link as RouterLink, useParams } from 'react-router';
+import { useParams } from 'react-router';
+import { Link as RouterLink } from 'react-router-dom';
 
 import { Flex, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';

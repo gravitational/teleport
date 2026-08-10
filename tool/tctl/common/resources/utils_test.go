@@ -20,120 +20,15 @@ package resources
 
 import (
 	"maps"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/services"
 )
-
-func TestGetOneResourceNameToDelete(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	tests := []struct {
-		desc            string
-		refName         string
-		wantErrContains string
-		resources       []types.KubeServer
-		wantName        string
-	}{
-		{
-			desc:      "one resource is ok",
-			refName:   "foo-bar-eks-us-west-1",
-			resources: []types.KubeServer{fooBar1},
-			wantName:  "foo-bar-eks-us-west-1",
-		},
-		{
-			desc:      "multiple resources with same name is ok",
-			refName:   "foo",
-			resources: []types.KubeServer{foo1, foo2},
-			wantName:  "foo-eks",
-		},
-		{
-			desc:            "zero resources is an error",
-			refName:         "xxx",
-			wantErrContains: `kubernetes server "xxx" not found`,
-		},
-		{
-			desc:            "multiple resources with different names is an error",
-			refName:         "foo-bar",
-			resources:       []types.KubeServer{fooBar1, fooBar2},
-			wantErrContains: "matches multiple",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
-			resDesc := "kubernetes server"
-			name, err := GetOneResourceNameToDelete(test.resources, ref, resDesc)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.Equal(t, test.wantName, name)
-		})
-	}
-}
-
-func TestFilterByNameOrDiscoveredName(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	resources := []types.KubeServer{
-		foo1, foo2, fooBar1, fooBar2,
-	}
-	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
-	tests := []struct {
-		desc           string
-		filter         string
-		altNameGetters []AltResourceNameFunc[types.KubeServer]
-		want           []types.KubeServer
-	}{
-		{
-			desc:   "filters by exact name",
-			filter: "foo-eks-us-west-1",
-			want:   []types.KubeServer{foo1},
-		},
-		{
-			desc:   "filters by exact name over discovered names",
-			filter: "foo-bar",
-			want:   []types.KubeServer{fooBar1},
-		},
-		{
-			desc:   "filters by discovered name",
-			filter: "foo",
-			want:   []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:           "checks alt names for exact matches",
-			filter:         "host-foo",
-			altNameGetters: []AltResourceNameFunc[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := FilterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-
-			// test cases that work for FilterByNameOrDiscoveredName should also
-			// work for FilterBySQNOrDiscoveredName
-			got = FilterBySQNOrDiscoveredName(resources, scopes.QualifiedName{Name: test.filter}, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-		})
-	}
-}
 
 func TestFilterBySQNOrDiscoveredName(t *testing.T) {
 	unscopedFoo := mustCreateNewKubeCluster(t, "foo", "foo", nil)
@@ -173,18 +68,6 @@ func TestFilterBySQNOrDiscoveredName(t *testing.T) {
 	}
 }
 
-func TestFormatAmbiguousDeleteMessage(t *testing.T) {
-	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
-	resDesc := "database"
-	names := []string{"xbbb", "xaaa", "xccc", "xb"}
-	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
-	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
-		"should have formatted the ref used and pluralized the resource description")
-	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
-	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
-	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
-}
-
 func makeTestLabels(extraStaticLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
 	maps.Copy(labels, staticLabelsFixture)
@@ -219,14 +102,6 @@ func mustCreateNewKubeCluster(t *testing.T, name, discoveredName string, extraSt
 	return cluster
 }
 
-func mustCreateNewKubeServer(t *testing.T, name, hostname, discoveredName string, extraStaticLabels map[string]string) *types.KubernetesServerV3 {
-	t.Helper()
-	cluster := mustCreateNewKubeCluster(t, name, discoveredName, extraStaticLabels)
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, hostname, uuid.New().String())
-	require.NoError(t, err)
-	return kubeServer
-}
-
 var (
 	staticLabelsFixture = map[string]string{
 		"label1": "val1",
@@ -234,42 +109,3 @@ var (
 		"label3": "val3",
 	}
 )
-
-func BenchmarkPrintMetadataLabels(b *testing.B) {
-	largeLabels := make(map[string]string, 1000)
-	for i := range 1000 {
-		largeLabels[strconv.Itoa(i)] = "foo"
-	}
-
-	testCases := []struct {
-		name      string
-		labels    map[string]string
-		outputLen int
-	}{
-		{
-			name: "no labels",
-		},
-		{
-			name: "one label",
-			labels: map[string]string{
-				"test": "foo",
-			},
-			outputLen: 8,
-		},
-		{
-			name:      "many labels",
-			labels:    largeLabels,
-			outputLen: 7889,
-		},
-	}
-
-	for _, test := range testCases {
-		b.Run(test.name, func(b *testing.B) {
-			for b.Loop() {
-				out := PrintMetadataLabels(test.labels)
-				assert.Len(b, out, test.outputLen)
-				assert.False(b, strings.HasSuffix(out, ","))
-			}
-		})
-	}
-}

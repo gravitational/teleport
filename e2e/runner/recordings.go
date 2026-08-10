@@ -173,7 +173,7 @@ func (t *teleportInstance) seedRecordings(ctx context.Context, e2eDir, dataDir s
 		}
 	}
 
-	slog.Info("seeded session recordings", "recordings", len(t.recordingOwners), "instances", len(instances))
+	slog.InfoContext(ctx, "seeded session recordings", "recordings", len(t.recordingOwners), "instances", len(instances))
 
 	return nil
 }

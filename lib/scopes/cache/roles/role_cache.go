@@ -133,10 +133,10 @@ Outer:
 		}
 	}
 
-	return scopedaccessv1.ListScopedRolesResponse_builder{
+	return &scopedaccessv1.ListScopedRolesResponse{
 		Roles:         out,
 		NextPageToken: nextPageToken,
-	}.Build(), nil
+	}, nil
 }
 
 // Put adds a new role to the cache. It will overwrite any existing role with the same name.

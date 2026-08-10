@@ -216,12 +216,12 @@ type trustDomainSyncState struct {
 // the local cluster. It does this by creating a goroutine that manages each
 // federated cluster.
 func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
-	s.cfg.Logger.DebugContext(
+	s.cfg.Logger.InfoContext(
 		ctx,
 		"Obtained lock, SPIFFEFederation syncer is starting",
 	)
 	defer func() {
-		s.cfg.Logger.DebugContext(
+		s.cfg.Logger.InfoContext(
 			ctx, "SPIFFEFederation syncer has stopped",
 		)
 	}()
@@ -484,20 +484,20 @@ func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 	log *slog.Logger,
 	in *machineidv1.SPIFFEFederation,
 ) string {
-	if !in.HasStatus() {
+	if in.Status == nil {
 		log.DebugContext(ctx, "No status, will sync")
 		return "no_status"
 	}
-	if in.GetStatus().GetCurrentBundle() == "" {
+	if in.Status.CurrentBundle == "" {
 		log.DebugContext(ctx, "No status.current_bundle, will sync")
 		return "no_current_bundle"
 	}
-	if in.GetStatus().GetCurrentBundleSyncedAt().AsTime().IsZero() {
+	if in.Status.CurrentBundleSyncedAt.AsTime().IsZero() {
 		log.DebugContext(ctx, "No status.current_bundle_synced_at, will sync")
 		return "no_current_bundle_synced_at"
 	}
 	// Check if we've passed the next sync time.
-	nextSyncAt := in.GetStatus().GetNextSyncAt().AsTime()
+	nextSyncAt := in.Status.NextSyncAt.AsTime()
 	now := s.cfg.Clock.Now()
 	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
 		log.DebugContext(
@@ -509,8 +509,8 @@ func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 		return "next_sync_at_passed"
 	}
 	// Check to see if the configured bundle source has changed
-	if in.GetStatus().HasCurrentBundleSyncedFrom() {
-		if !proto.Equal(in.GetSpec().GetBundleSource(), in.GetStatus().GetCurrentBundleSyncedFrom()) {
+	if in.Status.CurrentBundleSyncedFrom != nil {
+		if !proto.Equal(in.Spec.BundleSource, in.Status.CurrentBundleSyncedFrom) {
 			log.DebugContext(ctx, "status.current_bundle_synced_from has changed, will sync")
 			return "bundle_source_changed"
 		}
@@ -554,15 +554,15 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	out = proto.Clone(current).(*machineidv1.SPIFFEFederation)
 
 	// Refresh...
-	if !out.HasStatus() {
-		out.SetStatus(&machineidv1.SPIFFEFederationStatus{})
+	if out.Status == nil {
+		out.Status = &machineidv1.SPIFFEFederationStatus{}
 	}
 
 	var bundle *spiffebundle.Bundle
 	var nextSyncIn time.Duration
 	switch {
 	case current.GetSpec().GetBundleSource().GetHttpsWeb() != nil:
-		url := current.GetSpec().GetBundleSource().GetHttpsWeb().GetBundleEndpointUrl()
+		url := current.Spec.BundleSource.HttpsWeb.BundleEndpointUrl
 		log.DebugContext(
 			ctx,
 			"Fetching bundle using https_web profile",
@@ -602,7 +602,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 			ctx, "Fetching bundle using spec.bundle_source.static.bundle",
 		)
 		bundle, err = spiffebundle.Parse(
-			td, []byte(current.GetSpec().GetBundleSource().GetStatic().GetBundle()),
+			td, []byte(current.Spec.BundleSource.Static.Bundle),
 		)
 		if err != nil {
 			return nil, trace.Wrap(
@@ -619,14 +619,14 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling bundle")
 	}
-	out.GetStatus().SetCurrentBundle(string(bundleBytes))
-	out.GetStatus().SetCurrentBundleSyncedFrom(current.GetSpec().GetBundleSource())
+	out.Status.CurrentBundle = string(bundleBytes)
+	out.Status.CurrentBundleSyncedFrom = current.Spec.BundleSource
 
 	syncedAt := s.cfg.Clock.Now().UTC()
-	out.GetStatus().SetCurrentBundleSyncedAt(timestamppb.New(syncedAt))
+	out.Status.CurrentBundleSyncedAt = timestamppb.New(syncedAt)
 	// For certain sources, we need to set a next sync time.
 	if nextSyncIn > 0 {
-		out.GetStatus().SetNextSyncAt(timestamppb.New(syncedAt.Add(nextSyncIn)))
+		out.Status.NextSyncAt = timestamppb.New(syncedAt.Add(nextSyncIn))
 	}
 
 	out, err = s.cfg.Store.UpdateSPIFFEFederation(ctx, out)
@@ -638,7 +638,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	log.InfoContext(
 		ctx,
 		"Sync succeeded, new SPIFFEFederation persisted",
-		"new_revision", out.GetMetadata().GetRevision(),
+		"new_revision", out.Metadata.Revision,
 	)
 
 	return out, nil

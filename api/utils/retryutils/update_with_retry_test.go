@@ -37,7 +37,7 @@ func setupUpdateWithRetryTest[R any](t *testing.T) (*clockwork.FakeClock, *refre
 func Test_UpdateWithRetry_returns_error_if_refreshFn_returns_error(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock, refreshRecorder, updateRecorder := setupUpdateWithRetryTest[string](t)
 
 	refreshRecorder.retErr = errors.New("error from retryFn")
@@ -55,7 +55,7 @@ func Test_UpdateWithRetry_returns_error_if_refreshFn_returns_error(t *testing.T)
 func Test_UpdateWithRetry_passes_value_from_refreshFn_to_updateFn(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock, refreshRecorder, updateRecorder := setupUpdateWithRetryTest[string](t)
 
 	resource := "test_resource_value_1"
@@ -75,7 +75,7 @@ func Test_UpdateWithRetry_passes_value_from_refreshFn_to_updateFn(t *testing.T) 
 func Test_UpdateWithRetry_retries_if_updateFn_returns_CompareFailedError(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock, refreshRecorder, updateRecorder := setupUpdateWithRetryTest[string](t)
 
 	updateRecorder.retErr = trace.CompareFailed("test_compare_failed_1")
@@ -119,7 +119,7 @@ func Test_UpdateWithRetry_retries_if_updateFn_returns_CompareFailedError(t *test
 func Test_UpdateWithRetry_do_not_retry_if_updateFn_returns_different_error(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock, refreshRecorder, updateRecorder := setupUpdateWithRetryTest[string](t)
 
 	updateRecorder.retErr = errors.New("different_update_error_1")
@@ -135,7 +135,7 @@ func Test_UpdateWithRetry_do_not_retry_if_updateFn_returns_different_error(t *te
 func Test_UpdateWithRetry_stops_retrying_if_updateFn_returns_different_error_at_some_point(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock, refreshRecorder, updateRecorder := setupUpdateWithRetryTest[string](t)
 
 	updateRecorder.retErr = trace.CompareFailed("test_compare_failed_1")

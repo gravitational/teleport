@@ -160,7 +160,7 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting TUN device name")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 		clt:           vnet.client,
 		tunName:       tunName,
 		ipv6Prefix:    stackConfig.ipv6Prefix.String(),
@@ -176,14 +176,10 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 			if oc.tunName == "" {
 				return vnet.configureHost(ctx, nil)
 			}
-			cidrRanges := oc.cidrRanges
-			if oc.tunIPv6 != "" {
-				cidrRanges = append(cidrRanges, oc.tunIPv6+"/64")
-			}
 			return vnet.configureHost(ctx, &EmbeddedVNetHostConfig{
 				DeviceIPv4: oc.tunIPv4,
 				DeviceIPv6: oc.tunIPv6,
-				CIDRRanges: cidrRanges,
+				CIDRRanges: append(oc.cidrRanges, oc.tunIPv6+"/64"),
 				DNSAddrs:   oc.dnsAddrs,
 				DNSZones:   oc.dnsZones,
 			})
@@ -216,7 +212,7 @@ func (vnet *EmbeddedVNet) Run(ctx context.Context) error {
 type embeddedApplicationServiceClient struct{ service EmbeddedApplicationService }
 
 func (e *embeddedApplicationServiceClient) AuthenticateProcess(_ context.Context, req *vnetv1.AuthenticateProcessRequest, _ ...grpc.CallOption) (*vnetv1.AuthenticateProcessResponse, error) {
-	return vnetv1.AuthenticateProcessResponse_builder{Version: req.GetVersion()}.Build(), nil
+	return &vnetv1.AuthenticateProcessResponse{Version: req.GetVersion()}, nil
 }
 
 func (e *embeddedApplicationServiceClient) ReportNetworkStackInfo(context.Context, *vnetv1.ReportNetworkStackInfoRequest, ...grpc.CallOption) (*vnetv1.ReportNetworkStackInfoResponse, error) {
@@ -236,7 +232,7 @@ func (e *embeddedApplicationServiceClient) ReissueAppCert(ctx context.Context, r
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetv1.ReissueAppCertResponse_builder{Cert: cert.Certificate[0]}.Build(), nil
+	return &vnetv1.ReissueAppCertResponse{Cert: cert.Certificate[0]}, nil
 }
 
 func (e *embeddedApplicationServiceClient) SignForApp(ctx context.Context, req *vnetv1.SignForAppRequest, _ ...grpc.CallOption) (*vnetv1.SignForAppResponse, error) {
@@ -248,9 +244,9 @@ func (e *embeddedApplicationServiceClient) SignForApp(ctx context.Context, req *
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for app %v", req.GetAppKey())
 	}
-	return vnetv1.SignForAppResponse_builder{
+	return &vnetv1.SignForAppResponse{
 		Signature: sig,
-	}.Build(), nil
+	}, nil
 }
 
 func (*embeddedApplicationServiceClient) OnNewAppConnection(context.Context, *vnetv1.OnNewAppConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewAppConnectionResponse, error) {
@@ -266,7 +262,7 @@ func (e *embeddedApplicationServiceClient) GetTargetOSConfiguration(ctx context.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetv1.GetTargetOSConfigurationResponse_builder{TargetOsConfiguration: cfg}.Build(), nil
+	return &vnetv1.GetTargetOSConfigurationResponse{TargetOsConfiguration: cfg}, nil
 }
 
 func (e *embeddedApplicationServiceClient) UserTLSCert(ctx context.Context, req *vnetv1.UserTLSCertRequest, _ ...grpc.CallOption) (*vnetv1.UserTLSCertResponse, error) {
@@ -296,13 +292,9 @@ func (*embeddedApplicationServiceClient) ExchangeSSHKeys(context.Context, *vnetv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetv1.ExchangeSSHKeysResponse_builder{
+	return &vnetv1.ExchangeSSHKeysResponse{
 		UserPublicKey: signer.PublicKey().Marshal(),
-	}.Build(), nil
-}
-
-func (*embeddedApplicationServiceClient) PerformSessionMFACeremony(context.Context, *vnetv1.PerformSessionMFACeremonyRequest, ...grpc.CallOption) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
-	return nil, trace.NotImplemented("MFA ceremonies not supported in embedded VNet")
+	}, nil
 }
 
 func (e *embeddedApplicationServiceClient) ReissueDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest, _ ...grpc.CallOption) (*vnetv1.ReissueDBCertResponse, error) {
@@ -310,7 +302,7 @@ func (e *embeddedApplicationServiceClient) ReissueDBCert(ctx context.Context, re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetv1.ReissueDBCertResponse_builder{Cert: cert.Certificate[0]}.Build(), nil
+	return &vnetv1.ReissueDBCertResponse{Cert: cert.Certificate[0]}, nil
 }
 
 func (e *embeddedApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest, _ ...grpc.CallOption) (*vnetv1.SignForDBResponse, error) {
@@ -322,7 +314,7 @@ func (e *embeddedApplicationServiceClient) SignForDB(ctx context.Context, req *v
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for db %v", req.GetDatabaseKey())
 	}
-	return vnetv1.SignForDBResponse_builder{Signature: sig}.Build(), nil
+	return &vnetv1.SignForDBResponse{Signature: sig}, nil
 }
 
 func (*embeddedApplicationServiceClient) OnNewDBConnection(context.Context, *vnetv1.OnNewDBConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {

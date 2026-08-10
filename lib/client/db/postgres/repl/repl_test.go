@@ -107,7 +107,7 @@ func TestClose(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				var buf []byte
 				_, err := tc.conn.Read(buf[0:])
-				require.ErrorIs(t, err, io.EOF)
+				assert.ErrorIs(t, err, io.EOF)
 			}, 5*time.Second, time.Millisecond)
 
 			if !tt.expectTerminateMessage {

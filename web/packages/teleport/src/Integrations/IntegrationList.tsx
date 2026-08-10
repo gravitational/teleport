@@ -17,7 +17,8 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { Link as InternalRouteLink, useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
+import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
@@ -86,16 +87,16 @@ type Filters = {
 };
 
 export function IntegrationList(props: Props) {
-  const navigate = useNavigate();
+  const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
     if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
-      navigate(cfg.getIaCIntegrationRoute(row.kind, row.name));
+      history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
       return;
     }
 
     if (!statusKinds.includes(row.kind)) return;
-    navigate(cfg.getIntegrationStatusRoute(row.kind, row.name));
+    history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
@@ -150,7 +151,6 @@ export function IntegrationList(props: Props) {
         row={{
           onClick: handleRowClick,
           getStyle: getRowStyle,
-          getKey: row => `${row.kind}:${row.name}`,
         }}
         columns={[
           {
@@ -262,10 +262,12 @@ export function IntegrationList(props: Props) {
                     <MenuButton>
                       <MenuItem
                         as={InternalRouteLink}
-                        to={cfg.getIntegrationEnrollRoute(
-                          IntegrationKind.ExternalAuditStorage
-                        )}
-                        state={{ continueDraft: true }}
+                        to={{
+                          pathname: cfg.getIntegrationEnrollRoute(
+                            IntegrationKind.ExternalAuditStorage
+                          ),
+                          state: { continueDraft: true },
+                        }}
                       >
                         Continue Setup...
                       </MenuItem>

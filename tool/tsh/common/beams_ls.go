@@ -107,18 +107,18 @@ func (c *beamsLSCommand) fetch(ctx context.Context, tc *client.TeleportClient, a
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			filters.SetUsers([]string{user.GetName()})
+			filters.Users = []string{user.GetName()}
 		}
 
 		beams, err = stream.Collect(
 			clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
 				rsp, err := rootClient.
 					BeamServiceClient().
-					ListBeams(ctx, beamsv1.ListBeamsRequest_builder{
+					ListBeams(ctx, &beamsv1.ListBeamsRequest{
 						PageSize:  int32(pageSize),
 						PageToken: pageToken,
 						Filters:   filters,
-					}.Build())
+					})
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
@@ -158,7 +158,7 @@ func (c *beamsLSCommand) print(cf *CLIConf, beams []*beamsv1.Beam, proxyAddr str
 }
 
 func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
-	headings := []string{"ID", "URL", "Region", "Expires"}
+	headings := []string{"ID", "URL", "Expires"}
 
 	// We only show the owner column when the user passed the `--all` flag,
 	// otherwise there's no point as we're just showing them their own beams.
@@ -171,7 +171,6 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 		row := []string{
 			beam.ID,
 			beam.URL,
-			beam.Region,
 			c.humanizeTimeFn(beam.Expires),
 		}
 		if c.all {

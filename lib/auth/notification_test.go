@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -111,116 +110,130 @@ func TestNotificationMatchers(t *testing.T) {
 
 		// A notification targeted at a specific role (managers)
 		{
-			globalNotification: newGlobalNotification("alice-2", notificationsv1.GlobalNotificationSpec_builder{
-				ByRoles: notificationsv1.ByRoles_builder{
-					Roles: []string{"managers"},
-				}.Build(),
-			}.Build()),
+			globalNotification: newGlobalNotification("alice-2", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByRoles{
+					ByRoles: &notificationsv1.ByRoles{
+						Roles: []string{"managers"},
+					},
+				},
+			}),
 		},
 
 		// A notification for everyone
 		{
-			globalNotification: newGlobalNotification("bob-2,alice-3,carol-1", notificationsv1.GlobalNotificationSpec_builder{
-				All: proto.Bool(true),
-			}.Build()),
+			globalNotification: newGlobalNotification("bob-2,alice-3,carol-1", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_All{All: true},
+			}),
 		},
 
 		// A notification targeted to users with specific permissions (create tokens)
 		{
-			globalNotification: newGlobalNotification("carol-2", notificationsv1.GlobalNotificationSpec_builder{
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Rules: []types.Rule{
-								{
-									Resources: []string{types.KindToken},
-									Verbs:     []string{types.VerbCreate},
+			globalNotification: newGlobalNotification("carol-2", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Rules: []types.Rule{
+									{
+										Resources: []string{types.KindToken},
+										Verbs:     []string{types.VerbCreate},
+									},
 								},
 							},
 						},
 					},
-				}.Build(),
-			}.Build()),
+				},
+			}),
 		},
 
 		// A notification targeted to users who can review certain access requests
 		{
-			globalNotification: newGlobalNotification("alice-4", notificationsv1.GlobalNotificationSpec_builder{
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							ReviewRequests: &types.AccessReviewConditions{
-								Roles: []string{"intern"},
+			globalNotification: newGlobalNotification("alice-4", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								ReviewRequests: &types.AccessReviewConditions{
+									Roles: []string{"intern"},
+								},
 							},
 						},
 					},
-				}.Build(),
-			}.Build()),
+				},
+			}),
 		},
 
 		// A notification for multiple users (by username)
 		{
-			globalNotification: newGlobalNotification("alice-5,bob-3", notificationsv1.GlobalNotificationSpec_builder{
-				ByUsers: notificationsv1.ByUsers_builder{
-					Users: []string{"alice", "bob"},
-				}.Build(),
-			}.Build()),
+			globalNotification: newGlobalNotification("alice-5,bob-3", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByUsers{
+					ByUsers: &notificationsv1.ByUsers{
+						Users: []string{"alice", "bob"},
+					},
+				},
+			}),
 		},
 
 		// Multiple matchers - logical OR
 		{
-			globalNotification: newGlobalNotification("alice-6,carol-3", notificationsv1.GlobalNotificationSpec_builder{
+			globalNotification: newGlobalNotification("alice-6,carol-3", &notificationsv1.GlobalNotificationSpec{
 				MatchAllConditions: false, // logical OR
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Logins: []string{"user"},
-						},
-						{
-							Rules: []types.Rule{types.NewRule(types.KindToken, []string{types.VerbUpdate})},
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Logins: []string{"user"},
+							},
+							{
+								Rules: []types.Rule{types.NewRule(types.KindToken, []string{types.VerbUpdate})},
+							},
 						},
 					},
-				}.Build(),
-			}.Build()),
+				},
+			}),
 		},
 
 		// Multiple matchers - logical AND
 		{
-			globalNotification: newGlobalNotification("nomatches", notificationsv1.GlobalNotificationSpec_builder{
+			globalNotification: newGlobalNotification("nomatches", &notificationsv1.GlobalNotificationSpec{
 				MatchAllConditions: true, // logical AND
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Logins: []string{"user"},
-						},
-						{
-							Rules: []types.Rule{types.NewRule(types.KindToken, []string{types.VerbUpdate})},
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Logins: []string{"user"},
+							},
+							{
+								Rules: []types.Rule{types.NewRule(types.KindToken, []string{types.VerbUpdate})},
+							},
 						},
 					},
-				}.Build(),
-			}.Build()),
+				},
+			}),
 		},
 
 		// A notification for everyone but alice.
 		{
-			globalNotification: newGlobalNotification("bob-4,carol-4", notificationsv1.GlobalNotificationSpec_builder{
-				All:          proto.Bool(true),
+			globalNotification: newGlobalNotification("bob-4,carol-4", &notificationsv1.GlobalNotificationSpec{
+				Matcher:      &notificationsv1.GlobalNotificationSpec_All{All: true},
 				ExcludeUsers: []string{"alice"},
-			}.Build()),
+			}),
 		},
 
 		// Multiple logins in a single rule. The notification goes to all users who
 		// have at least one of the logins mentioned here.
 		{
-			globalNotification: newGlobalNotification("alice-7", notificationsv1.GlobalNotificationSpec_builder{
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Logins: []string{"user", "fakeuser1", "fakeuser2"},
+			globalNotification: newGlobalNotification("alice-7", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Logins: []string{"user", "fakeuser1", "fakeuser2"},
+							},
 						},
 					},
-				}.Build(),
-			}.Build()),
+				},
+			}),
 		},
 	}
 
@@ -254,10 +267,10 @@ func TestNotificationMatchers(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { client.Close() })
 
-			resp, err := client.ListNotifications(t.Context(), notificationsv1.ListNotificationsRequest_builder{PageSize: 100}.Build())
+			resp, err := client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 100})
 			require.NoError(t, err)
 
-			titles := notificationTitles(resp.GetNotifications())
+			titles := notificationTitles(resp.Notifications)
 			assert.Len(t, titles, test.count)
 
 			for _, title := range titles {
@@ -294,53 +307,53 @@ func TestNotificationStates(t *testing.T) {
 	t.Cleanup(func() { client.Close() })
 
 	// Update bob's last seen timestamp, which should make the bob-0 notification go away.
-	_, err = client.UpsertUserLastSeenNotification(t.Context(), "bob", notificationsv1.UserLastSeenNotification_builder{
-		Status: notificationsv1.UserLastSeenNotificationStatus_builder{
+	_, err = client.UpsertUserLastSeenNotification(t.Context(), "bob", &notificationsv1.UserLastSeenNotification{
+		Status: &notificationsv1.UserLastSeenNotificationStatus{
 			LastSeenTime: created[0].GetSpec().GetCreated(),
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	// RBAC check - bob should not be able to set last seen time for other users.
-	_, err = client.UpsertUserLastSeenNotification(t.Context(), "alice", notificationsv1.UserLastSeenNotification_builder{
-		Status: notificationsv1.UserLastSeenNotificationStatus_builder{
+	_, err = client.UpsertUserLastSeenNotification(t.Context(), "alice", &notificationsv1.UserLastSeenNotification{
+		Status: &notificationsv1.UserLastSeenNotificationStatus{
 			LastSeenTime: created[0].GetSpec().GetCreated(),
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Mark notification-1 as dismissed, so it stops showing up.
-	_, err = client.UpsertUserNotificationState(t.Context(), "bob", notificationsv1.UserNotificationState_builder{
-		Spec: notificationsv1.UserNotificationStateSpec_builder{
+	_, err = client.UpsertUserNotificationState(t.Context(), "bob", &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
 			NotificationId: created[1].GetMetadata().GetName(),
-		}.Build(),
-		Status: notificationsv1.UserNotificationStateStatus_builder{
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	// Mark notification-2 as clicked. It will still show up.
-	_, err = client.UpsertUserNotificationState(t.Context(), "bob", notificationsv1.UserNotificationState_builder{
-		Spec: notificationsv1.UserNotificationStateSpec_builder{
+	_, err = client.UpsertUserNotificationState(t.Context(), "bob", &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
 			NotificationId: created[2].GetMetadata().GetName(),
-		}.Build(),
-		Status: notificationsv1.UserNotificationStateStatus_builder{
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
-	resp, err := client.ListNotifications(t.Context(), notificationsv1.ListNotificationsRequest_builder{PageSize: 10}.Build())
+	resp, err := client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 10})
 	require.NoError(t, err)
 
-	require.Len(t, resp.GetNotifications(), 3)
-	require.Equal(t, []string{"notification-3", "notification-2", "notification-0"}, notificationTitles(resp.GetNotifications()))
+	require.Len(t, resp.Notifications, 3)
+	require.Equal(t, []string{"notification-3", "notification-2", "notification-0"}, notificationTitles(resp.Notifications))
 
-	require.Empty(t, resp.GetNotifications()[0].GetMetadata().GetLabels()[types.NotificationClickedLabel])
-	require.Equal(t, "true", resp.GetNotifications()[1].GetMetadata().GetLabels()[types.NotificationClickedLabel])
-	require.Empty(t, resp.GetNotifications()[2].GetMetadata().GetLabels()[types.NotificationClickedLabel])
+	require.Empty(t, resp.Notifications[0].GetMetadata().GetLabels()[types.NotificationClickedLabel])
+	require.Equal(t, "true", resp.Notifications[1].GetMetadata().GetLabels()[types.NotificationClickedLabel])
+	require.Empty(t, resp.Notifications[2].GetMetadata().GetLabels()[types.NotificationClickedLabel])
 }
 
 func TestNotificationPagination(t *testing.T) {
@@ -370,28 +383,28 @@ func TestNotificationPagination(t *testing.T) {
 	var all []*notificationsv1.Notification
 	var token string
 
-	resp, err := client.ListNotifications(t.Context(), notificationsv1.ListNotificationsRequest_builder{PageSize: 3, PageToken: token}.Build())
+	resp, err := client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 3, PageToken: token})
 	require.NoError(t, err)
-	require.Len(t, resp.GetNotifications(), 3)
-	all = append(all, resp.GetNotifications()...)
-	token = resp.GetNextPageToken()
+	require.Len(t, resp.Notifications, 3)
+	all = append(all, resp.Notifications...)
+	token = resp.NextPageToken
 
-	resp, err = client.ListNotifications(t.Context(), notificationsv1.ListNotificationsRequest_builder{PageSize: 4, PageToken: token}.Build())
+	resp, err = client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 4, PageToken: token})
 	require.NoError(t, err)
-	require.Len(t, resp.GetNotifications(), 4)
-	all = append(all, resp.GetNotifications()...)
-	token = resp.GetNextPageToken()
+	require.Len(t, resp.Notifications, 4)
+	all = append(all, resp.Notifications...)
+	token = resp.NextPageToken
 
-	resp, err = client.ListNotifications(t.Context(), notificationsv1.ListNotificationsRequest_builder{PageSize: 1, PageToken: token}.Build())
+	resp, err = client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 1, PageToken: token})
 	require.NoError(t, err)
-	require.Len(t, resp.GetNotifications(), 1)
-	all = append(all, resp.GetNotifications()...)
-	token = resp.GetNextPageToken()
+	require.Len(t, resp.Notifications, 1)
+	all = append(all, resp.Notifications...)
+	token = resp.NextPageToken
 
-	resp, err = client.ListNotifications(t.Context(), notificationsv1.ListNotificationsRequest_builder{PageSize: 10, PageToken: token}.Build())
+	resp, err = client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 10, PageToken: token})
 	require.NoError(t, err)
-	require.Len(t, resp.GetNotifications(), 2) // only 2 remaining
-	all = append(all, resp.GetNotifications()...)
+	require.Len(t, resp.Notifications, 2) // only 2 remaining
+	all = append(all, resp.Notifications...)
 
 	require.Len(t, all, 10)
 
@@ -411,31 +424,31 @@ func TestNotificationPagination(t *testing.T) {
 }
 
 func newUserNotification(username string, title string) *notificationsv1.Notification {
-	return notificationsv1.Notification_builder{
+	return &notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: notificationsv1.NotificationSpec_builder{
+		Spec: &notificationsv1.NotificationSpec{
 			Username: username,
-		}.Build(),
-		Metadata: headerv1.Metadata_builder{
+		},
+		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 func newGlobalNotification(title string, spec *notificationsv1.GlobalNotificationSpec) *notificationsv1.GlobalNotification {
-	spec.SetNotification(notificationsv1.Notification_builder{
+	spec.Notification = &notificationsv1.Notification{
 		SubKind: "test-subkind",
 		Spec:    &notificationsv1.NotificationSpec{},
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		}.Build(),
-	}.Build())
+		},
+	}
 
-	return notificationsv1.GlobalNotification_builder{Spec: spec}.Build()
+	return &notificationsv1.GlobalNotification{Spec: spec}
 }
 
 func mockAuth(t *testing.T) *authtest.TLSServer {

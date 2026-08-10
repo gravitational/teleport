@@ -97,8 +97,8 @@ func TestReconcileResults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			upserts, deletes := ReconcileResults(tt.oldResults, tt.newResults)
-			require.ElementsMatch(t, upserts.GetResources(), tt.expectedUpserts.GetResources())
-			require.ElementsMatch(t, deletes.GetResources(), tt.expectedDeletes.GetResources())
+			require.ElementsMatch(t, upserts.Resources, tt.expectedUpserts.Resources)
+			require.ElementsMatch(t, deletes.Resources, tt.expectedDeletes.Resources)
 		})
 	}
 
@@ -110,88 +110,88 @@ func generateExpected(
 	roleAssigns []*accessgraphv1alpha.AzureRoleAssignment,
 	vms []*accessgraphv1alpha.AzureVirtualMachine,
 ) *accessgraphv1alpha.AzureResourceList {
-	resList := accessgraphv1alpha.AzureResourceList_builder{
+	resList := &accessgraphv1alpha.AzureResourceList{
 		Resources: make([]*accessgraphv1alpha.AzureResource, 0),
-	}.Build()
+	}
 	for _, principal := range principals {
-		resList.SetResources(append(resList.GetResources(), azurePrincipalsWrap(principal)))
+		resList.Resources = append(resList.Resources, azurePrincipalsWrap(principal))
 	}
 	for _, roleDef := range roleDefs {
-		resList.SetResources(append(resList.GetResources(), azureRoleDefWrap(roleDef)))
+		resList.Resources = append(resList.Resources, azureRoleDefWrap(roleDef))
 	}
 	for _, roleAssign := range roleAssigns {
-		resList.SetResources(append(resList.GetResources(), azureRoleAssignWrap(roleAssign)))
+		resList.Resources = append(resList.Resources, azureRoleAssignWrap(roleAssign))
 	}
 	for _, vm := range vms {
-		resList.SetResources(append(resList.GetResources(), azureVmWrap(vm)))
+		resList.Resources = append(resList.Resources, azureVmWrap(vm))
 	}
 	return resList
 }
 
 func generatePrincipals() []*accessgraphv1alpha.AzurePrincipal {
 	return []*accessgraphv1alpha.AzurePrincipal{
-		accessgraphv1alpha.AzurePrincipal_builder{
+		{
 			Id:          "/principals/foo",
 			DisplayName: "userFoo",
-		}.Build(),
-		accessgraphv1alpha.AzurePrincipal_builder{
+		},
+		{
 			Id:          "/principals/bar",
 			DisplayName: "userBar",
-		}.Build(),
-		accessgraphv1alpha.AzurePrincipal_builder{
+		},
+		{
 			Id:          "/principals/charles",
 			DisplayName: "userCharles",
-		}.Build(),
+		},
 	}
 }
 
 func generateRoleDefs() []*accessgraphv1alpha.AzureRoleDefinition {
 	return []*accessgraphv1alpha.AzureRoleDefinition{
-		accessgraphv1alpha.AzureRoleDefinition_builder{
+		{
 			Id:   "/roledefinitions/foo",
 			Name: "roleFoo",
-		}.Build(),
-		accessgraphv1alpha.AzureRoleDefinition_builder{
+		},
+		{
 			Id:   "/roledefinitions/bar",
 			Name: "roleBar",
-		}.Build(),
-		accessgraphv1alpha.AzureRoleDefinition_builder{
+		},
+		{
 			Id:   "/roledefinitions/charles",
 			Name: "roleCharles",
-		}.Build(),
+		},
 	}
 }
 
 func generateRoleAssigns() []*accessgraphv1alpha.AzureRoleAssignment {
 	return []*accessgraphv1alpha.AzureRoleAssignment{
-		accessgraphv1alpha.AzureRoleAssignment_builder{
+		{
 			Id:          "/roleassignments/foo",
 			PrincipalId: "userFoo",
-		}.Build(),
-		accessgraphv1alpha.AzureRoleAssignment_builder{
+		},
+		{
 			Id:          "/roleassignments/bar",
 			PrincipalId: "userBar",
-		}.Build(),
-		accessgraphv1alpha.AzureRoleAssignment_builder{
+		},
+		{
 			Id:          "/roleassignments/charles",
 			PrincipalId: "userCharles",
-		}.Build(),
+		},
 	}
 }
 
 func generateVms() []*accessgraphv1alpha.AzureVirtualMachine {
 	return []*accessgraphv1alpha.AzureVirtualMachine{
-		accessgraphv1alpha.AzureVirtualMachine_builder{
+		{
 			Id:   "/vms/foo",
 			Name: "userFoo",
-		}.Build(),
-		accessgraphv1alpha.AzureVirtualMachine_builder{
+		},
+		{
 			Id:   "/vms/bar",
 			Name: "userBar",
-		}.Build(),
-		accessgraphv1alpha.AzureVirtualMachine_builder{
+		},
+		{
 			Id:   "/vms/charles",
 			Name: "userCharles",
-		}.Build(),
+		},
 	}
 }

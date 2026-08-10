@@ -26,7 +26,6 @@ import {
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
-import { getErrorMessage } from 'shared/utils/error';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
@@ -148,11 +147,7 @@ export function useKeyBasedPagination<T>({
         }
         setState({
           ...stateRef.current,
-          attempt: {
-            status: 'failed',
-            statusText: getErrorMessage(err),
-            statusCode,
-          },
+          attempt: { status: 'failed', statusText: err.message, statusCode },
         });
       }
     },

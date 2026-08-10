@@ -32,8 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -166,7 +164,7 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 		require.NoError(err)
 		t.Cleanup(func() { nc.Close() })
 
-		clt, err := sshClient(t.Context(), nc)
+		clt, err := sshClient(nc)
 		require.NoError(err)
 		t.Cleanup(func() { clt.Close() })
 
@@ -196,7 +194,7 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 		t.Cleanup(func() { resumableNC.Close() })
 		require.IsType((*Conn)(nil), resumableNC)
 
-		clt, err := sshClient(t.Context(), resumableNC)
+		clt, err := sshClient(resumableNC)
 		require.NoError(err)
 		t.Cleanup(func() { clt.Close() })
 
@@ -205,7 +203,7 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 		originalNC.Close()
 		redialingSyncPoint <- struct{}{}
 
-		_, _, err = clt.SendRequest(t.Context(), "foo", true, nil)
+		_, _, err = clt.SendRequest("foo", true, nil)
 		require.NoError(err)
 
 		select {
@@ -220,27 +218,21 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 		clock.Advance(replacementInterval)
 		redialingSyncPoint <- struct{}{}
 
-		_, _, err = clt.SendRequest(t.Context(), "foo", true, nil)
+		_, _, err = clt.SendRequest("foo", true, nil)
 		require.NoError(err)
 	})
 }
 
-func sshClient(ctx context.Context, nc net.Conn) (*tracessh.Client, error) {
-	return apissh.NewClient(
-		ctx,
-		nc,
-		nc.RemoteAddr().String(),
-		apissh.ClientConfig{
-			User: "alice",
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{mockSigner{}}, nil
-				},
-			},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         time.Second,
-		},
-	)
+func sshClient(nc net.Conn) (*ssh.Client, error) {
+	conn, newChC, reqC, err := ssh.NewClientConn(nc, nc.RemoteAddr().String(), &ssh.ClientConfig{
+		User:            "alice",
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ssh.NewClient(conn, newChC, reqC), nil
 }
 
 func discardingSSHServer(t *testing.T) func(nc net.Conn) {

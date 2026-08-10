@@ -36,9 +36,9 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
-var inferenceSecretSpec = summarizerv1.InferenceSecretSpec_builder{
+var inferenceSecretSpec = &summarizerv1.InferenceSecretSpec{
 	Value: "my-secret-value-123",
-}.Build()
+}
 
 type inferenceSecretTestingPrimitives struct {
 	setup *TestSetup
@@ -56,20 +56,20 @@ func (p *inferenceSecretTestingPrimitives) SetupTeleportFixtures(ctx context.Con
 func (p *inferenceSecretTestingPrimitives) CreateTeleportResource(
 	ctx context.Context, name string,
 ) error {
-	secret := summarizerv1.InferenceSecret_builder{
+	secret := &summarizerv1.InferenceSecret{
 		Kind:    types.KindInferenceSecret,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		}.Build(),
+		},
 		Spec: inferenceSecretSpec,
-	}.Build()
+	}
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		CreateInferenceSecret(ctx, summarizerv1.CreateInferenceSecretRequest_builder{Secret: secret}.Build())
+		CreateInferenceSecret(ctx, &summarizerv1.CreateInferenceSecretRequest{Secret: secret})
 	return trace.Wrap(err)
 }
 
@@ -78,11 +78,11 @@ func (p *inferenceSecretTestingPrimitives) GetTeleportResource(
 ) (*summarizerv1.InferenceSecret, error) {
 	resp, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		GetInferenceSecret(ctx, summarizerv1.GetInferenceSecretRequest_builder{Name: name}.Build())
+		GetInferenceSecret(ctx, &summarizerv1.GetInferenceSecretRequest{Name: name})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.GetSecret(), nil
+	return resp.Secret, nil
 }
 
 func (p *inferenceSecretTestingPrimitives) DeleteTeleportResource(
@@ -90,7 +90,7 @@ func (p *inferenceSecretTestingPrimitives) DeleteTeleportResource(
 ) error {
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		DeleteInferenceSecret(ctx, summarizerv1.DeleteInferenceSecretRequest_builder{Name: name}.Build())
+		DeleteInferenceSecret(ctx, &summarizerv1.DeleteInferenceSecretRequest{Name: name})
 	return trace.Wrap(err)
 }
 
@@ -149,8 +149,8 @@ func (p *inferenceSecretTestingPrimitives) CompareTeleportAndKubernetesResource(
 	// InferenceSecret spec is write-only, so Teleport will return spec=nil. We
 	// therefore only compare the metadata.
 	diff := cmp.Diff(
-		tResource.GetMetadata(),
-		kubeResource.ToTeleport().GetMetadata(),
+		tResource.Metadata,
+		kubeResource.ToTeleport().Metadata,
 		ProtoCompareOptions()...,
 	)
 	return diff == "", diff

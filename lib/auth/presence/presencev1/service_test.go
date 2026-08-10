@@ -45,9 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -154,29 +152,29 @@ func TestGetRemoteCluster(t *testing.T) {
 		{
 			name: "success",
 			user: user.GetName(),
-			req: presencev1pb.GetRemoteClusterRequest_builder{
+			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: matchingRC.GetName(),
-			}.Build(),
+			},
 			assertError: require.NoError,
 			want:        matchingRC.(*types.RemoteClusterV3),
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req: presencev1pb.GetRemoteClusterRequest_builder{
+			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: matchingRC.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
 			name: "no permissions - unmatching rc",
 			user: user.GetName(),
-			req: presencev1pb.GetRemoteClusterRequest_builder{
+			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: notMatchingRC.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				// Opaque no permission presents as not found
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
@@ -184,10 +182,10 @@ func TestGetRemoteCluster(t *testing.T) {
 		{
 			name: "validation - no name",
 			user: user.GetName(),
-			req: presencev1pb.GetRemoteClusterRequest_builder{
+			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: "",
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be specified")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -195,10 +193,10 @@ func TestGetRemoteCluster(t *testing.T) {
 		{
 			name: "doesnt exist",
 			user: user.GetName(),
-			req: presencev1pb.GetRemoteClusterRequest_builder{
+			req: &presencev1pb.GetRemoteClusterRequest{
 				Name: "non-existent",
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -221,13 +219,13 @@ func TestGetRemoteCluster(t *testing.T) {
 		client, err := srv.NewClient(authtest.TestUser(user.GetName()))
 		require.NoError(t, err)
 
-		_, doesntExistError := client.PresenceServiceClient().GetRemoteCluster(ctx, presencev1pb.GetRemoteClusterRequest_builder{
+		_, doesntExistError := client.PresenceServiceClient().GetRemoteCluster(ctx, &presencev1pb.GetRemoteClusterRequest{
 			Name: "non-existent",
-		}.Build())
+		})
 		require.Error(t, doesntExistError)
-		_, noPermissionsError := client.PresenceServiceClient().GetRemoteCluster(ctx, presencev1pb.GetRemoteClusterRequest_builder{
+		_, noPermissionsError := client.PresenceServiceClient().GetRemoteCluster(ctx, &presencev1pb.GetRemoteClusterRequest{
 			Name: notMatchingRC.GetName(),
-		}.Build())
+		})
 		require.Error(t, noPermissionsError)
 
 		require.Equal(t, doesntExistError.Error(), noPermissionsError.Error(),
@@ -316,18 +314,18 @@ func TestListRemoteClusters(t *testing.T) {
 			user:        user.GetName(),
 			req:         &presencev1pb.ListRemoteClustersRequest{},
 			assertError: require.NoError,
-			want: presencev1pb.ListRemoteClustersResponse_builder{
+			want: &presencev1pb.ListRemoteClustersResponse{
 				RemoteClusters: []*types.RemoteClusterV3{
 					matchingRC.(*types.RemoteClusterV3),
 					matchingRC2.(*types.RemoteClusterV3),
 				},
-			}.Build(),
+			},
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req:  &presencev1pb.ListRemoteClustersRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -395,29 +393,29 @@ func TestDeleteRemoteCluster(t *testing.T) {
 		{
 			name: "success",
 			user: user.GetName(),
-			req: presencev1pb.DeleteRemoteClusterRequest_builder{
+			req: &presencev1pb.DeleteRemoteClusterRequest{
 				Name: rc.GetName(),
-			}.Build(),
+			},
 			assertError:           require.NoError,
 			checkResourcesDeleted: true,
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req: presencev1pb.DeleteRemoteClusterRequest_builder{
+			req: &presencev1pb.DeleteRemoteClusterRequest{
 				Name: rc.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
 			name: "non existent",
 			user: user.GetName(),
-			req: presencev1pb.DeleteRemoteClusterRequest_builder{
+			req: &presencev1pb.DeleteRemoteClusterRequest{
 				Name: rc.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -430,7 +428,7 @@ func TestDeleteRemoteCluster(t *testing.T) {
 			_, err = client.PresenceServiceClient().DeleteRemoteCluster(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				_, err := srv.Auth().GetRemoteCluster(ctx, tt.req.GetName())
+				_, err := srv.Auth().GetRemoteCluster(ctx, tt.req.Name)
 				require.True(t, trace.IsNotFound(err), "rc should be deleted")
 			}
 		})
@@ -495,7 +493,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 		{
 			name: "success",
 			user: user.GetName(),
-			req: presencev1pb.UpdateRemoteClusterRequest_builder{
+			req: &presencev1pb.UpdateRemoteClusterRequest{
 				RemoteCluster: &types.RemoteClusterV3{
 					Kind:    types.KindRemoteCluster,
 					Version: types.V3,
@@ -511,7 +509,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 					},
 				},
 				UpdateMask: nil,
-			}.Build(),
+			},
 
 			assertError: require.NoError,
 			want: &types.RemoteClusterV3{
@@ -532,7 +530,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 		{
 			name: "patch success",
 			user: user.GetName(),
-			req: presencev1pb.UpdateRemoteClusterRequest_builder{
+			req: &presencev1pb.UpdateRemoteClusterRequest{
 				RemoteCluster: &types.RemoteClusterV3{
 					Kind:    types.KindRemoteCluster,
 					Version: types.V3,
@@ -558,7 +556,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 						"Status.LastHeartbeat",
 					},
 				},
-			}.Build(),
+			},
 
 			assertError: require.NoError,
 			want: &types.RemoteClusterV3{
@@ -582,7 +580,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 		{
 			name: "partial patch success",
 			user: user.GetName(),
-			req: presencev1pb.UpdateRemoteClusterRequest_builder{
+			req: &presencev1pb.UpdateRemoteClusterRequest{
 				RemoteCluster: &types.RemoteClusterV3{
 					Kind:    types.KindRemoteCluster,
 					Version: types.V3,
@@ -604,7 +602,7 @@ func TestUpdateRemoteCluster(t *testing.T) {
 						"Status.LastHeartbeat",
 					},
 				},
-			}.Build(),
+			},
 
 			assertError: require.NoError,
 			want: &types.RemoteClusterV3{
@@ -623,25 +621,25 @@ func TestUpdateRemoteCluster(t *testing.T) {
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req: presencev1pb.UpdateRemoteClusterRequest_builder{
+			req: &presencev1pb.UpdateRemoteClusterRequest{
 				RemoteCluster: &types.RemoteClusterV3{
 					Metadata: types.Metadata{
 						Name: rc.GetName(),
 					},
 				},
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
 			name: "validation - nil rc",
 			user: user.GetName(),
-			req: presencev1pb.UpdateRemoteClusterRequest_builder{
+			req: &presencev1pb.UpdateRemoteClusterRequest{
 				RemoteCluster: nil,
 				UpdateMask:    nil,
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "remote_cluster: must not be nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -649,15 +647,15 @@ func TestUpdateRemoteCluster(t *testing.T) {
 		{
 			name: "validation - no name",
 			user: user.GetName(),
-			req: presencev1pb.UpdateRemoteClusterRequest_builder{
+			req: &presencev1pb.UpdateRemoteClusterRequest{
 				RemoteCluster: &types.RemoteClusterV3{
 					Metadata: types.Metadata{
 						Name: "",
 					},
 				},
 				UpdateMask: nil,
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "remote_cluster.Metadata.Name: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -774,7 +772,7 @@ func TestListAuthServers(t *testing.T) {
 				require.Empty(
 					t, cmp.Diff(
 						tt.want,
-						res.GetServers(),
+						res.Servers,
 						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					),
 				)
@@ -865,8 +863,7 @@ func TestListProxyServers(t *testing.T) {
 				Addr: fmt.Sprintf("127.0.0.1:%d", 3080+i),
 			},
 		}
-		_, err := srv.Auth().UpsertProxyServer(ctx, server)
-		require.NoError(t, err)
+		require.NoError(t, srv.Auth().UpsertProxy(ctx, server))
 		created = append(created, server)
 	}
 
@@ -904,7 +901,7 @@ func TestListProxyServers(t *testing.T) {
 				require.Empty(
 					t, cmp.Diff(
 						tt.want,
-						res.GetServers(),
+						res.Servers,
 						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					),
 				)
@@ -983,7 +980,7 @@ func TestListReverseTunnels(t *testing.T) {
 
 	// Create a few reverse tunnels
 	created := []*types.ReverseTunnelV2{}
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
 		_, err = srv.Auth().Services.UpsertReverseTunnel(ctx, rc)
@@ -1003,15 +1000,15 @@ func TestListReverseTunnels(t *testing.T) {
 			user:        user.GetName(),
 			req:         &presencev1pb.ListReverseTunnelsRequest{},
 			assertError: require.NoError,
-			want: presencev1pb.ListReverseTunnelsResponse_builder{
+			want: &presencev1pb.ListReverseTunnelsResponse{
 				ReverseTunnels: created,
-			}.Build(),
+			},
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req:  &presencev1pb.ListReverseTunnelsRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1043,7 +1040,7 @@ func TestListReverseTunnels(t *testing.T) {
 
 		allGot := []*types.ReverseTunnelV2{}
 		pageToken := ""
-		for i := range 10 {
+		for i := 0; i < 10; i++ {
 			var got []types.ReverseTunnel
 			got, pageToken, err = client.ListReverseTunnels(ctx, 1, pageToken)
 			require.NoError(t, err)
@@ -1109,29 +1106,29 @@ func TestDeleteReverseTunnel(t *testing.T) {
 		{
 			name: "success",
 			user: user.GetName(),
-			req: presencev1pb.DeleteReverseTunnelRequest_builder{
+			req: &presencev1pb.DeleteReverseTunnelRequest{
 				Name: rt.GetName(),
-			}.Build(),
+			},
 			assertError:           require.NoError,
 			checkResourcesDeleted: true,
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req: presencev1pb.DeleteReverseTunnelRequest_builder{
+			req: &presencev1pb.DeleteReverseTunnelRequest{
 				Name: rt.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
 			name: "non existent",
 			user: user.GetName(),
-			req: presencev1pb.DeleteReverseTunnelRequest_builder{
+			req: &presencev1pb.DeleteReverseTunnelRequest{
 				Name: rt.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -1144,206 +1141,8 @@ func TestDeleteReverseTunnel(t *testing.T) {
 			_, err = client.PresenceServiceClient().DeleteReverseTunnel(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				_, err := srv.Auth().GetReverseTunnel(ctx, tt.req.GetName())
+				_, err := srv.Auth().GetReverseTunnel(ctx, tt.req.Name)
 				require.True(t, trace.IsNotFound(err), "rt should be deleted")
-			}
-		})
-	}
-}
-
-// TestDeleteProxyServer is an integration test that uses a real gRPC client/server.
-func TestDeleteProxyServer(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-	ctx := t.Context()
-
-	user, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"proxy-deleter",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindProxy},
-				Verbs:     []string{types.VerbDelete},
-			},
-		})
-	require.NoError(t, err)
-	unprivilegedUser, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"proxy-no-perms",
-		[]string{},
-		[]types.Rule{},
-	)
-	require.NoError(t, err)
-
-	proxy, err := types.NewServer("proxy-1", types.KindProxy, types.ServerSpecV2{})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name                  string
-		user                  string
-		req                   *presencev1pb.DeleteProxyServerRequest
-		assertError           require.ErrorAssertionFunc
-		checkResourcesDeleted bool
-	}{
-		{
-			name: "success",
-			user: user.GetName(),
-			req: presencev1pb.DeleteProxyServerRequest_builder{
-				Name: proxy.GetName(),
-			}.Build(),
-			assertError:           require.NoError,
-			checkResourcesDeleted: true,
-		},
-		{
-			name: "no permissions",
-			user: unprivilegedUser.GetName(),
-			req: presencev1pb.DeleteProxyServerRequest_builder{
-				Name: proxy.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
-			},
-		},
-		{
-			name: "non existent",
-			user: user.GetName(),
-			req: presencev1pb.DeleteProxyServerRequest_builder{
-				Name: proxy.GetName(),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsNotFound(err), "error should be not found")
-			},
-		},
-		{
-			name: "missing name",
-			user: user.GetName(),
-			req:  &presencev1pb.DeleteProxyServerRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
-			require.NoError(t, err)
-
-			_, err = client.PresenceServiceClient().DeleteProxyServer(ctx, tt.req)
-			tt.assertError(t, err)
-			if tt.checkResourcesDeleted {
-				proxies, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListProxyServers))
-				require.NoError(t, err)
-				for _, p := range proxies {
-					require.NotEqual(t, tt.req.GetName(), p.GetName(), "proxy should be deleted")
-				}
-			}
-		})
-	}
-}
-
-// TestUpsertProxyServer is an integration test that uses a real gRPC client/server.
-func TestUpsertProxyServer(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-	ctx := t.Context()
-
-	user, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"proxy-upserter",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindProxy},
-				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
-			},
-		})
-	require.NoError(t, err)
-	unprivilegedUser, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"proxy-upsert-no-perms",
-		[]string{},
-		[]types.Rule{},
-	)
-	require.NoError(t, err)
-
-	proxy, err := types.NewServer("proxy-1", types.KindProxy, types.ServerSpecV2{
-		Addr:     "127.0.0.1:2023",
-		Hostname: "proxy.llama",
-	})
-	require.NoError(t, err)
-
-	tests := []struct {
-		name                  string
-		user                  string
-		req                   *presencev1pb.UpsertProxyServerRequest
-		assertError           require.ErrorAssertionFunc
-		checkResourceUpserted bool
-	}{
-		{
-			name: "success",
-			user: user.GetName(),
-			req: presencev1pb.UpsertProxyServerRequest_builder{
-				Server: proxy.(*types.ServerV2),
-			}.Build(),
-			assertError:           require.NoError,
-			checkResourceUpserted: true,
-		},
-		{
-			name: "no permissions",
-			user: unprivilegedUser.GetName(),
-			req: presencev1pb.UpsertProxyServerRequest_builder{
-				Server: proxy.(*types.ServerV2),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
-			},
-		},
-		{
-			name: "missing server",
-			user: user.GetName(),
-			req:  &presencev1pb.UpsertProxyServerRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
-			},
-		},
-		{
-			name: "validation failure - blank name",
-			user: user.GetName(),
-			req: presencev1pb.UpsertProxyServerRequest_builder{
-				Server: &types.ServerV2{
-					Kind:    types.KindProxy,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name: "",
-					},
-				},
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
-			require.NoError(t, err)
-
-			_, err = client.PresenceServiceClient().UpsertProxyServer(ctx, tt.req)
-			tt.assertError(t, err)
-			if tt.checkResourceUpserted {
-				proxies, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListProxyServers))
-				require.NoError(t, err)
-				var found bool
-				for _, p := range proxies {
-					if p.GetName() == tt.req.GetServer().GetName() {
-						found = true
-						break
-					}
-				}
-				require.True(t, found, "proxy should have been upserted")
 			}
 		})
 	}
@@ -1389,39 +1188,39 @@ func TestUpsertReverseTunnel(t *testing.T) {
 		{
 			name: "success",
 			user: user.GetName(),
-			req: presencev1pb.UpsertReverseTunnelRequest_builder{
+			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: rt.(*types.ReverseTunnelV2),
-			}.Build(),
+			},
 			assertError: require.NoError,
 			want:        rt.(*types.ReverseTunnelV2),
 		},
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req: presencev1pb.UpsertReverseTunnelRequest_builder{
+			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: rt.(*types.ReverseTunnelV2),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
 		{
 			name: "no value",
 			user: user.GetName(),
-			req: presencev1pb.UpsertReverseTunnelRequest_builder{
+			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: nil,
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
 		{
 			name: "validation - invalid",
 			user: user.GetName(),
-			req: presencev1pb.UpsertReverseTunnelRequest_builder{
+			req: &presencev1pb.UpsertReverseTunnelRequest{
 				ReverseTunnel: invalid.(*types.ReverseTunnelV2),
-			}.Build(),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to parse")
 			},
 		},

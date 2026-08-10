@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -123,6 +124,9 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 }
 
 // DialContext implements ContextDialer.
+//
+// The returned conn has already completed its TLS handshake. When using it with
+// a http.Transport, wire it in as DialTLSContext not DialContext.
 func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	tlsConfig, err := d.getTLSConfig(ctx, addr)
 	if err != nil {
@@ -161,6 +165,11 @@ func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (*tls.Conn
 		return nil, trace.BadParameter("failed to convert to tls.Conn")
 	}
 	return tlsConn, nil
+}
+
+// IsALPNPingProtocol checks if the provided protocol is suffixed with Ping.
+func IsALPNPingProtocol(protocol string) bool {
+	return strings.HasSuffix(protocol, constants.ALPNSNIProtocolPingSuffix)
 }
 
 // shouldALPNConnUpgradeWithPing returns true if Ping wrapper is required

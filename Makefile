@@ -13,18 +13,12 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-prealpha.2
+VERSION=18.10.3
 
 DOCKER_IMAGE ?= teleport
 
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-HELM_UNITTEST_VERSION := $(shell cat $(MAKE_DIR)/build.assets/helm-unittest.version)
-HELM_UNITTEST_OS := $(shell if [ "$(shell uname -s)" = Darwin ]; then echo macos; elif [ "$(shell uname -s)" = Linux ]; then echo linux; else echo unsupported; fi)
-HELM_UNITTEST_ARCH := $(shell if [ "$(shell uname -m)" = x86_64 ]; then echo amd64; elif [ "$(shell uname -m)" = arm64 ] || [ "$(shell uname -m)" = aarch64 ]; then echo arm64; else echo unsupported; fi)
-HELM_UNITTEST_PLATFORM := $(HELM_UNITTEST_OS)-$(HELM_UNITTEST_ARCH)
-HELM_UNITTEST_ARCHIVE := helm-unittest-$(HELM_UNITTEST_PLATFORM)-$(HELM_UNITTEST_VERSION:v%=%).tgz
-HELM_UNITTEST_CHECKSUM_CMD := $(shell if command -v sha256sum >/dev/null 2>&1; then echo sha256sum; else echo 'shasum -a 256'; fi)
 
 # If set to 1, webassets are not built.
 WEBASSETS_SKIP_BUILD ?= 0
@@ -37,7 +31,7 @@ BUILDDIR ?= build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
-PWD ?= $(shell pwd)
+PWD ?= `pwd`
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
@@ -64,8 +58,24 @@ BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=fals
 BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
+# HOST_OS is the platform make is running on, which is not necessarily
+# the same as the platform we are building for (that's OS).
+HOST_UNAME := $(shell uname -s 2>/dev/null)
+ifeq ($(HOST_UNAME),Darwin)
+HOST_OS := darwin
+else ifeq ($(HOST_UNAME),Linux)
+HOST_OS := linux
+else ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(HOST_UNAME)))
+HOST_OS := windows
+else ifeq ($(OS),Windows_NT)
+# Native Windows make has no uname, but Windows always sets OS=Windows_NT.
+HOST_OS := windows
+else
+HOST_OS := unknown
+endif
+
 GO_ENV_OS := $(shell go env GOOS)
-OS ?= $(GO_ENV_OS)
+OS ?= $(or $(GO_ENV_OS),$(HOST_OS))
 
 GO_ENV_ARCH := $(shell go env GOARCH)
 ARCH ?= $(GO_ENV_ARCH)
@@ -91,8 +101,8 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
-GOFIPS140 = v1.0.0
-export GOFIPS140
+GOEXPERIMENT = boringcrypto
+export GOEXPERIMENT
 ifeq ($(BUILDBOX_MODE),cross)
 # We need to set CGO_ENABLED=0 when building rdpclient as the build of
 # boring-sys builds and runs a Go program as part of its integrity testing.
@@ -294,7 +304,6 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
-export
 # This unexport statement is required for make to work with the `-e` flag.
 # With -e, the first Makefile sets HELMJANITOR=$$(go tool ...),
 # passes HELMJANITOR=$(go tool) to the child make process.
@@ -303,8 +312,7 @@ export
 # To avoid breaking other parts of the release pipeline, the easiest fix is to
 # unexport HELMJANITOR so the child uses the definition from its Makefile.
 unexport HELMJANITOR
-export KUBECONFIG
-export TEST_KUBE
+export
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
 
@@ -387,7 +395,8 @@ all: version
 # make binaries builds all binaries defined in the BINARIES environment variable
 #
 .PHONY: binaries
-binaries: $(BINARIES)
+binaries:
+	$(MAKE) $(BINARIES)
 
 # Appending new conditional settings for community build type for tools.
 ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
@@ -410,11 +419,11 @@ $(BUILDDIR)/tctl:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tctl without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "grpcnotrace $(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets rdpclient session/reexec/embed/sessionhelper
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "grpcnotrace webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient session/reexec/embed/sessionhelper
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/sessionhelper
 $(BUILDDIR)/sessionhelper:
@@ -448,18 +457,18 @@ $(BUILDDIR)/tsh: rdpdecoder
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "grpcnotrace $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(TSH_RDP_DECODER_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(TSH_RDP_DECODER_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
 # We force cgo to be disabled, else the compiler might decide to enable it.
 $(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG),CGO_ENABLED=0)
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "grpcnotrace $(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -501,59 +510,40 @@ tctl-app:
 	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
 	$(NOTARIZE_TCTL_APP)
 
-# BPF tests will not work in a docker container and so should not be
-# run in CI for now.
-.PHONY: test-bpf
-test-bpf:
-	mkdir -p _test
-	gcc ./lib/srv/testdata/bpf_rodata_args.c -o _test/bpf_rodata_args
-	go test -c -tags bpf,pam -o _test/libsrv.test ./lib/srv
-
-	# ignore non bpf-related tests
-	sudo TELEPORT_BPF_TEST=1 _test/libsrv.test -test.run=TestBPF
-
-# BPF support (IF ENABLED)
-# Requires clang 14+
 #
-# Enable target only if /usr/include/linux/bpf.h exists and clang is installed.
-# This is a requirement for building BPF bytecode.
+# BPF support (IF ENABLED)
+# Requires a recent version of clang and libbpf installed.
+#
+ifeq ("$(with_bpf)","yes")
+$(ER_BPF_BUILDDIR):
+	mkdir -p $(ER_BPF_BUILDDIR)
+
+# Build BPF code
+$(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(LLVM_STRIP) -g $@ # strip useless DWARF info
+
+.PHONY: bpf-er-bytecode
+bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
+
 .PHONY: bpf-bytecode
-bpf-bytecode:
-	@if [ ! -f /usr/include/linux/bpf.h -o  ! -f /usr/include/bpf/bpf_helpers.h ]; then \
-		echo "libbpf-dev is required to build BPF bytecode"; \
-		exit 1; \
-	fi
-	@if ! command clang --version >/dev/null 2>&1; then \
-		echo "clang is required to build BPF bytecode"; \
-		exit 1; \
-	fi
-
-	go generate ./lib/bpf/
-
-# bpf-up-to-date checks if the generated BPF bytecode is up to date.
-.PHONY: bpf-up-to-date
-bpf-up-to-date: must-start-clean/host bpf-bytecode
-	@if ! git diff --quiet; then \
-		./build.assets/please-run.sh "bpf bytecode" "make -C build.assets bpf-bytecode"; \
-		exit 1; \
-	fi
+bpf-bytecode: bpf-er-bytecode
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
 
-RDPCLIENT_SKIP_CARGO ?= 0
+else
+.PHONY: bpf-bytecode
+bpf-bytecode:
+endif
 
 .PHONY: rdpclient
 rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
-ifneq ($(RDPCLIENT_SKIP_CARGO),1)
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
-else
-	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
-endif
 endif
 
 .PHONY: rdpdecoder
@@ -575,25 +565,17 @@ define ironrdp_package_json
 endef
 export ironrdp_package_json
 
-IRONRDP_SKIP_BUILD ?= 0
-
-# wasm-bindgen CLI binary to invoke. Overridden to a per-version path under
-# target/ when WASM_BINDGEN_ISOLATE=1 (see ensure-wasm-bindgen); otherwise the
-# shared binary resolved from $$PATH (typically ~/.cargo/bin).
-WASM_BINDGEN ?= wasm-bindgen
-
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
-ifeq ($(IRONRDP_SKIP_BUILD),1)
-build-ironrdp-wasm:
-	@echo "Skipping ironrdp WASM build (IRONRDP_SKIP_BUILD=1)"
-else
 build-ironrdp-wasm: ensure-wasm-deps
+ifeq ($(HOST_OS),darwin)
+	CC="$(CC)" AR="$(AR)" RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+else
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
-	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
-	$(WASM_BINDGEN) target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
-	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
 endif
+	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
+	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
@@ -620,7 +602,7 @@ endif
 #
 # make full-ent - Builds Teleport enterprise binaries
 #
-.PHONY: full-ent
+.PHONY:full-ent
 full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
@@ -636,6 +618,10 @@ clean: clean-ui clean-build
 clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
+# Check if the variable is set to prevent calling remove on the root directory.
+ifneq ($(ER_BPF_BUILDDIR),)
+	rm -f $(ER_BPF_BUILDDIR)/*.o
+endif
 	rm -rf ./session/reexec/embed
 	-cargo clean
 	-go clean -cache
@@ -652,10 +638,6 @@ clean-ui:
 	rm -rf build.assets/.cache/ts
 	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
-
-.PHONY: clean-ent
-clean-ent:
-	$(MAKE) -C e clean
 
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
@@ -677,7 +659,9 @@ endif
 
 .PHONY: release-ent
 release-ent:
+ifneq (,$(wildcard e/Makefile))
 	$(MAKE) -C e release
+endif
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -921,7 +905,7 @@ release-connect: | $(RELEASE_DIR)
 # Note: this runs in a busybox container to avoid incompatibilities between
 # linux and macos CLI tools.
 #
-.PHONY: docs-fix-whitespace
+.PHONY:docs-fix-whitespace
 docs-fix-whitespace:
 	docker run --rm -v $(PWD):/teleport busybox \
 		find /teleport/docs/ -type f -name '*.md' -exec sed -E -i 's/\s+$$//g' '{}' \;
@@ -929,13 +913,13 @@ docs-fix-whitespace:
 #
 # Test docs for trailing whitespace and broken links
 #
-.PHONY: docs-test
+.PHONY:docs-test
 docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
 #
-.PHONY: docs-test-whitespace
+.PHONY:docs-test-whitespace
 docs-test-whitespace:
 	if find docs/ -type f -name '*.md' | xargs grep -E '\s+$$'; then \
 		echo "trailing whitespace found in docs/ (see above)"; \
@@ -964,6 +948,9 @@ RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
 
+.PHONY: tooling
+tooling: $(DIFF_TEST)
+
 #
 # Runs all Go/shell tests, called by CI/CD.
 #
@@ -975,47 +962,13 @@ $(TEST_LOG_DIR):
 
 .PHONY: helmunit/installed
 helmunit/installed:
-	@if ! grep -q "[[:space:]]$(HELM_UNITTEST_ARCHIVE)$$" build.assets/helm-unittest.sha256; then \
-		echo "No helm-unittest checksum is available for $(HELM_UNITTEST_OS)/$(HELM_UNITTEST_ARCH)." >&2; \
+	@if ! helm unittest -h >/dev/null; then \
+		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11` to install it'; \
 		exit 1; \
 	fi
-	@if ! command -v helm >/dev/null 2>&1; then \
-		printf '%s\n' \
-			'Helm is required to test Helm charts.' \
-			'' \
-			'Install with Homebrew:' \
-			'  brew install helm' \
-			'' \
-			'Or download a static binary (macOS Apple Silicon example):' \
-			'  curl -fsSL https://get.helm.sh/helm-v3.12.2-darwin-arm64.tar.gz | tar -xz' \
-			'  sudo mv darwin-arm64/helm /usr/local/bin/helm'; \
-		exit 1; \
-	fi
-	@actual="$$(helm plugin list 2>/dev/null | awk '$$1 == "unittest" { print $$2; exit }')"; \
-	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
-	if [ -z "$$actual" ]; then \
-		printf '%s\n' \
-			'Helm unittest plugin is required to test Helm charts.'; \
-	elif [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
-		printf '%s\n' \
-			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
-			''; \
-	else \
-		exit 0; \
-	fi; \
-	printf '%s\n' \
-		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
-		'Run:' \
-		'  plugin_dir="$$(helm env HELM_PLUGINS)/helm-unittest"' \
-		'  rm -rf "$$plugin_dir"' \
-		'  mkdir -p "$$plugin_dir"' \
-		'  curl -fsSL -o "$(HELM_UNITTEST_ARCHIVE)" https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/$(HELM_UNITTEST_ARCHIVE)' \
-		'  grep "[[:space:]]$(HELM_UNITTEST_ARCHIVE)$$" build.assets/helm-unittest.sha256 | $(HELM_UNITTEST_CHECKSUM_CMD) -c -' \
-		'  tar -xz -f "$(HELM_UNITTEST_ARCHIVE)" -C "$$plugin_dir"'; \
-	exit 1
 
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
-# helm-unittest/helm-unittest is installed.
+# quintish/helm-unittest is installed.
 #
 # Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
 # so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true
@@ -1059,7 +1012,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets rdpclient $(VERSRC) | $(TEST_LOG_DIR)
+test-go-prepare: ensure-webassets bpf-bytecode $(VERSRC) | $(TEST_LOG_DIR)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -1153,7 +1106,7 @@ test-go-chaos: test-go-prepare | $(TEST_LOG_DIR)
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets rdpclient | $(TEST_LOG_DIR)
+test-go-root: ensure-webassets bpf-bytecode rdpclient | $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
@@ -1177,19 +1130,19 @@ test-api:
 #
 .PHONY: test-operator
 test-operator:
-	$(MAKE) -C integrations/operator test TEST_LOG_DIR=$(TEST_LOG_DIR)
+	make -C integrations/operator test TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Teleport Terraform provider tests.
 #
 .PHONY: test-terraform-provider
 test-terraform-provider:
-	$(MAKE) -C integrations test-terraform-provider TEST_LOG_DIR=$(TEST_LOG_DIR)
+	make -C integrations test-terraform-provider TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Teleport MWI Terraform provider tests.
 #
 .PHONY: test-terraform-provider-mwi
 test-terraform-provider-mwi:
-	$(MAKE) -C integrations test-terraform-provider-mwi TEST_LOG_DIR=$(TEST_LOG_DIR)
+	make -C integrations test-terraform-provider-mwi TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
@@ -1203,15 +1156,15 @@ test-kube-agent-updater:
 
 .PHONY: test-access-integrations
 test-access-integrations:
-	$(MAKE) -C integrations test-access
+	make -C integrations test-access
 
 .PHONY: test-event-handler-integrations
 test-event-handler-integrations:
-	$(MAKE) -C integrations test-event-handler
+	make -C integrations test-event-handler
 
 .PHONY: test-integrations-lib
 test-integrations-lib:
-	$(MAKE) -C integrations test-lib
+	make -C integrations test-lib
 
 #
 # Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
@@ -1332,7 +1285,7 @@ e2e-binaries:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
+lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions lint-e2e-runner
 
 #
 # Runs linters without dedicated GitHub Actions.
@@ -1343,13 +1296,14 @@ lint-no-actions: lint-sh lint-license
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
+
 #
 # Checks that testing symbols and the testify library is not included in binaries.
 #
 #
 .PHONY: lint-test-symbols
 lint-test-symbols:
-	@testing_count=`$(GODA)  tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	@testing_count=`$(GODA) tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
 	if [ "$$testing_count" -gt 0 ]; then \
 		echo ""; \
 		echo "FAIL: \"testing\" is included in binaries"; \
@@ -1388,7 +1342,11 @@ lint-go:
 
 .PHONY: fix-imports
 fix-imports:
-	$(MAKE) -C build.assets fix-imports
+ifndef TELEPORT_DEVBOX
+	$(MAKE) -C build.assets/ fix-imports
+else
+	$(MAKE) fix-imports/host
+endif
 
 .PHONY: fix-imports/host
 fix-imports/host:
@@ -1413,6 +1371,12 @@ lint-api:
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
 lint-kube-agent-updater:
 	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
+
+# e2e/runner is its own module, so the root golangci-lint run doesn't reach it.
+.PHONY: lint-e2e-runner
+lint-e2e-runner: GO_LINT_FLAGS ?=
+lint-e2e-runner:
+	cd e2e/runner && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -1467,6 +1431,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
@@ -1590,13 +1555,26 @@ tag-publish:
 		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
+.PHONY: test-package
+test-package: remove-temp-files
+	go test -v ./$(p)
+
+.PHONY: test-grep-package
+test-grep-package: remove-temp-files
+	go test -v ./$(p) -check.f=$(e)
+
+.PHONY: cover-package
+cover-package: remove-temp-files
+	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
+	go tool cover -html=/tmp/coverage.out
+
 .PHONY: profile
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
 .PHONY: sloccount
 sloccount:
-	find . -name "*.go" -print0 | xargs -0 wc -l
+	find . -o -name "*.go" -print0 | xargs -0 wc -l
 
 #
 # print-go-version outputs Go version as a semver without "go" prefix
@@ -1606,46 +1584,46 @@ print-go-version:
 	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
 # Dockerized build: useful for making Linux releases on macOS
-.PHONY: docker
+.PHONY:docker
 docker:
-	$(MAKE) -C build.assets build
+	make -C build.assets build
 
 # Dockerized build: useful for making Linux binaries on macOS
-.PHONY: docker-binaries
+.PHONY:docker-binaries
 docker-binaries: clean
-	$(MAKE) -C build.assets build-binaries PIV=$(PIV)
+	make -C build.assets build-binaries PIV=$(PIV)
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
-.PHONY: enter
+.PHONY:enter
 enter:
-	$(MAKE) -C build.assets enter
+	make -C build.assets enter
 
 # Interactively enters a Docker container, as root (which you can build and run Teleport inside of)
-.PHONY: enter-root
+.PHONY:enter-root
 enter-root:
-	$(MAKE) -C build.assets enter-root
+	make -C build.assets enter-root
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of).
 # Similar to `enter`, but uses the centos7 container.
-.PHONY: enter/centos7
+.PHONY:enter/centos7
 enter/centos7:
-	$(MAKE) -C build.assets enter/centos7
+	make -C build.assets enter/centos7
 
-.PHONY: enter/centos7-fips
+.PHONY:enter/centos7-fips
 enter/centos7-fips:
-	$(MAKE) -C build.assets enter/centos7-fips
+	make -C build.assets enter/centos7-fips
 
-.PHONY: enter/grpcbox
+.PHONY:enter/grpcbox
 enter/grpcbox:
-	$(MAKE) -C build.assets enter/grpcbox
+	make -C build.assets enter/grpcbox
 
 .PHONY:enter/node
 enter/node:
-	$(MAKE) -C build.assets enter/node
+	make -C build.assets enter/node
 
-.PHONY: enter/arm
+.PHONY:enter/arm
 enter/arm:
-	$(MAKE) -C build.assets enter/arm
+	make -C build.assets enter/arm
 
 BUF := buf
 
@@ -1711,7 +1689,11 @@ derive-up-to-date: must-start-clean/host derive
 # This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
+ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets grpc
+else
+	$(MAKE) grpc/host
+endif
 
 # grpc/host generates gRPC stubs.
 # Unlike grpc, this target runs locally.
@@ -1723,7 +1705,11 @@ grpc/host: protos/all
 # This target runs in the buildbox container.
 .PHONY: protos-up-to-date
 protos-up-to-date:
+ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets protos-up-to-date
+else
+	$(MAKE) protos-up-to-date/host
+endif
 
 # protos-up-to-date/host checks if the generated gRPC stubs are up to date.
 # Unlike protos-up-to-date, this target runs locally.
@@ -1796,7 +1782,6 @@ go-generate-up-to-date: must-start-clean/host go-generate
 		exit 1; \
 	fi
 
-.PHONY: print/env
 print/env:
 	env
 
@@ -1975,7 +1960,7 @@ else
 ensure-wasm-deps: ensure-llvm rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
 .PHONY: ensure-llvm
-ifeq ("$(OS)","darwin")
+ifeq ($(HOST_OS),darwin)
 BREW_DIR = $(shell brew --prefix)
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
@@ -1986,27 +1971,14 @@ unexport BREW_DIR LLVM_PREFIX LLVM_DIR
 # These are applied as target-specific variables so
 # brew is only invoked when necessary and so that
 # CC and AR are only overwritten for WASM compilation.
-build-ironrdp-wasm: CC = $(LLVM_DIR)/bin/clang
-build-ironrdp-wasm: AR = $(LLVM_DIR)/bin/llvm-ar
+build-ironrdp-wasm: override CC = $(LLVM_DIR)/bin/clang
+build-ironrdp-wasm: override AR = $(LLVM_DIR)/bin/llvm-ar
 
 ensure-llvm:
 	@if [[ "$(BREW_DIR)" = "$(LLVM_DIR)" ]]; then \
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
 	fi
-
-else ifeq ("$(OS)","windows")
-LLVM_DIR=$(shell vswhere.exe -latest -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath)
-unexport LLVM_DIR
-build-ironrdp-wasm: CC = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/clang
-build-ironrdp-wasm: AR = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/llvm-ar
-
-ensure-llvm:
-	@if [[ "x" = "x$(LLVM_DIR)" ]]; then \
-		echo "llvm is required, please install Visual Studio with LLVM component"; \
-		exit 1; \
-	fi
-
 else
 ensure-llvm:
 endif
@@ -2016,35 +1988,25 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
 
-# Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
-# from a per-version path under target/ rather than the shared ~/.cargo/bin.
-WASM_BINDGEN_ISOLATE ?= 0
-WASM_BINDGEN_INSTALL_FLAGS =
-ifeq ($(WASM_BINDGEN_ISOLATE),1)
-WASM_BINDGEN_INSTALL_ROOT = $(CURDIR)/target/wasm-bindgen-cli/$(WASM_BINDGEN_VERSION)
-WASM_BINDGEN := $(WASM_BINDGEN_INSTALL_ROOT)/bin/wasm-bindgen
-WASM_BINDGEN_INSTALL_FLAGS = --root "$(WASM_BINDGEN_INSTALL_ROOT)"
-endif
-
 .PHONY: print-wasm-bindgen-version
 print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
+
+ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen:
+	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
+	)
+endif
 
 RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
 
 .PHONY: print-rust-toolchain-version
 print-rust-toolchain-version:
 	@echo $(RUST_TOOLCHAIN_VERSION)
-
-ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
-ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell $(WASM_BINDGEN) --version 2>/dev/null))
-ensure-wasm-bindgen:
-	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)" $(WASM_BINDGEN_INSTALL_FLAGS), \
-		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
-	)
-endif
 
 .PHONY: ensure-wasm-opt
 ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
@@ -2085,36 +2047,15 @@ define rust_toolchain_warning
 endef
 export rust_toolchain_warning
 
-define rust_shadowed_warning
-  The 'cargo'/'rustc' on your PATH are not the ones managed by rustup.
-  Another Rust installation (for example the Homebrew 'rust' formula) is
-  shadowing rustup's shims. Builds will ignore rust-toolchain.toml.
-  Remove the other installation (e.g. 'brew uninstall rust') or put
-  rustup's shims ahead of it on your PATH. Inspect with 'which cargo'
-  and 'cargo --version'.
-endef
-export rust_shadowed_warning
-
 # inspect the current active toolchain and display a warning if it doesn't
-# match the version defined in our toolchain file. Also warn when the cargo
-# on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
-# silently bypasses the toolchain file even though the checks below pass.
+# match the version defined in our toolchain file.
 .PHONY: rustup-toolchain-warning
-rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) --no-print-directory print-rust-toolchain-version)
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
 rustup-toolchain-warning:
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
 		echo -en "\033[31m";\
 		echo  "$$rust_toolchain_warning";\
 		echo  -en "\033[0m";\
-	fi
-	@if command -v rustup >/dev/null 2>&1 && command -v cargo >/dev/null 2>&1; then \
-		rustup_cargo="$$(rustup which cargo 2>/dev/null)";\
-		if [ -n "$$rustup_cargo" ] && \
-			[ "$$("$$rustup_cargo" --version 2>/dev/null)" != "$$(cargo --version 2>/dev/null)" ]; then \
-			echo -en "\033[31m";\
-			echo  "$$rust_shadowed_warning";\
-			echo  -en "\033[0m";\
-		fi;\
 	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of
@@ -2164,6 +2105,7 @@ dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
 
+
 cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
 
 .PHONY: cli-docs-tsh
@@ -2171,7 +2113,7 @@ cli-docs-tsh:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
-	$(BUILDDIR)/tshdocs help >docs/pages/reference/cli/tsh.mdx && \
+	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
 
 .PHONY: cli-docs-tbot
@@ -2179,7 +2121,7 @@ cli-docs-tbot:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
-	$(BUILDDIR)/tbotdocs help >docs/pages/reference/cli/tbot.mdx && \
+	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
 
 .PHONY: cli-docs-teleport
@@ -2187,7 +2129,7 @@ cli-docs-teleport:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
-	$(BUILDDIR)/teleportdocs help >docs/pages/reference/cli/teleport.mdx && \
+	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
 	rm $(BUILDDIR)/teleportdocs
 
 .PHONY: cli-docs-tctl
@@ -2195,7 +2137,7 @@ cli-docs-tctl:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
-	$(BUILDDIR)/tctldocs help >docs/pages/reference/cli/tctl.mdx && \
+	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
 
 # cli-docs-up-to-date checks if the generated CLI reference docs are up to date.

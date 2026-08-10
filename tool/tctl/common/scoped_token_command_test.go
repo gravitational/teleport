@@ -39,7 +39,7 @@ type listedScopedToken struct {
 	Version  string
 	Metadata struct {
 		Name    string
-		Expires *timestamppb.Timestamp
+		Expires timestamppb.Timestamp
 		ID      uint
 	}
 	Spec struct {
@@ -97,35 +97,35 @@ func TestScopedTokens(t *testing.T) {
 	out = mustDecodeJSON[addedToken](t, buf)
 
 	// Create a GCP scoped token to verify it appears in listings.
-	_, err = clt.CreateScopedToken(t.Context(), joiningv1.ScopedToken_builder{
+	_, err = clt.CreateScopedToken(t.Context(), &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "gcp-test-token",
-		}.Build(),
+		},
 		Scope: "/aa",
-		Spec: joiningv1.ScopedTokenSpec_builder{
+		Spec: &joiningv1.ScopedTokenSpec{
 			Roles:         []string{types.KindNode},
 			AssignedScope: "/aa/bb",
 			JoinMethod:    "gcp",
 			UsageMode:     "unlimited",
-			Gcp: joiningv1.GCP_builder{
+			Gcp: &joiningv1.GCP{
 				Allow: []*joiningv1.GCP_Rule{
-					joiningv1.GCP_Rule_builder{
+					{
 						ProjectIds:      []string{"example-project-123456"},
 						Locations:       []string{"us-west1"},
 						ServiceAccounts: []string{"123456789-compute@developer.gserviceaccount.com"},
-					}.Build(),
+					},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	// Test all output formats of "tokens ls".
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls"})
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(buf.String(), "Token"))
+	require.True(t, strings.HasPrefix(buf.String(), "ID"))
 	require.Equal(t, 8, strings.Count(buf.String(), "\n")) // account for header lines
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.Text})

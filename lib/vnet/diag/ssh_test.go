@@ -211,16 +211,18 @@ func TestSSHDiag(t *testing.T) {
 				require.NoError(t, os.WriteFile(userOpenSSHConfigPath, []byte(tc.input), 0o600))
 			}
 
-			expectReport := diagv1.CheckReport_builder{
+			expectReport := &diagv1.CheckReport{
 				Status: diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK,
-				SshConfigurationReport: diagv1.SSHConfigurationReport_builder{
-					UserOpensshConfigPath:                  userOpenSSHConfigPath,
-					VnetSshConfigPath:                      keypaths.VNetSSHConfigPath(tc.profilePath),
-					UserOpensshConfigIncludesVnetSshConfig: tc.expect,
-					UserOpensshConfigExists:                len(tc.input) > 0,
-					UserOpensshConfigContents:              tc.input,
-				}.Build(),
-			}.Build()
+				Report: &diagv1.CheckReport_SshConfigurationReport{
+					SshConfigurationReport: &diagv1.SSHConfigurationReport{
+						UserOpensshConfigPath:                  userOpenSSHConfigPath,
+						VnetSshConfigPath:                      keypaths.VNetSSHConfigPath(tc.profilePath),
+						UserOpensshConfigIncludesVnetSshConfig: tc.expect,
+						UserOpensshConfigExists:                len(tc.input) > 0,
+						UserOpensshConfigContents:              tc.input,
+					},
+				},
+			}
 
 			report, err := diag.Run(t.Context())
 			require.NoError(t, err)

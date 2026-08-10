@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -77,28 +76,34 @@ func TestNotifications(t *testing.T) {
 		},
 		{
 			// Matcher matches by the role "auditors"
-			globalNotification: newGlobalNotification(t, "auditor-3", notificationsv1.GlobalNotificationSpec_builder{
-				ByRoles: notificationsv1.ByRoles_builder{
-					Roles: []string{"auditors"},
-				}.Build(),
-			}.Build()),
+			globalNotification: newGlobalNotification(t, "auditor-3", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByRoles{
+					ByRoles: &notificationsv1.ByRoles{
+						Roles: []string{"auditors"},
+					},
+				},
+			}),
 		},
 		{
 			// This should not be returned in the list since it's not for this user.
-			globalNotification: newGlobalNotification(t, "manager-1", notificationsv1.GlobalNotificationSpec_builder{
-				ByRoles: notificationsv1.ByRoles_builder{
-					Roles: []string{"managers"},
-				}.Build(),
-			}.Build()),
+			globalNotification: newGlobalNotification(t, "manager-1", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByRoles{
+					ByRoles: &notificationsv1.ByRoles{
+						Roles: []string{"managers"},
+					},
+				},
+			}),
 		},
 		{
 			userNotification: newUserNotification(t, username, "auditor-4"),
 		},
 		{
 			// Matcher matches all.
-			globalNotification: newGlobalNotification(t, "auditor-5", notificationsv1.GlobalNotificationSpec_builder{
-				All: proto.Bool(true),
-			}.Build()),
+			globalNotification: newGlobalNotification(t, "auditor-5", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_All{
+					All: true,
+				},
+			}),
 		},
 		{
 			// This should not be returned in the list since it's not for this user.
@@ -106,35 +111,39 @@ func TestNotifications(t *testing.T) {
 		},
 		{
 			// Matcher matches by read & write permission on nodes.
-			globalNotification: newGlobalNotification(t, "auditor-6", notificationsv1.GlobalNotificationSpec_builder{
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Rules: []types.Rule{
-								{
-									Resources: []string{types.KindNode},
-									Verbs:     services.RW(),
+			globalNotification: newGlobalNotification(t, "auditor-6", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Rules: []types.Rule{
+									{
+										Resources: []string{types.KindNode},
+										Verbs:     services.RW(),
+									},
 								},
 							},
 						},
 					},
-				}.Build(),
-			}.Build()),
+				},
+			}),
 		},
 		{
-			globalNotification: newGlobalNotification(t, "auditor-7", notificationsv1.GlobalNotificationSpec_builder{
-				ByPermissions: notificationsv1.ByPermissions_builder{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Logins: []string{"auditor"},
-						},
-						{
-							Logins: []string{"user"},
+			globalNotification: newGlobalNotification(t, "auditor-7", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Logins: []string{"auditor"},
+							},
+							{
+								Logins: []string{"user"},
+							},
 						},
 					},
-				}.Build(),
+				},
 				MatchAllConditions: true,
-			}.Build()),
+			}),
 		},
 	}
 
@@ -238,39 +247,39 @@ func unmarshalNotificationsResponse(t *testing.T, resp []byte) *GetNotifications
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification_builder{
+	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: notificationsv1.NotificationSpec_builder{
+		Spec: &notificationsv1.NotificationSpec{
 			Username: username,
-		}.Build(),
-		Metadata: headerv1.Metadata_builder{
+		},
+		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 
-	return notification
+	return &notification
 }
 
 func newGlobalNotification(t *testing.T, title string, spec *notificationsv1.GlobalNotificationSpec) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	spec.SetNotification(notificationsv1.Notification_builder{
+	spec.Notification = &notificationsv1.Notification{
 		SubKind: "test-subkind",
 		Spec:    &notificationsv1.NotificationSpec{},
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		}.Build(),
-	}.Build())
+		},
+	}
 
-	notification := notificationsv1.GlobalNotification_builder{
+	notification := notificationsv1.GlobalNotification{
 		Spec: spec,
-	}.Build()
+	}
 
-	return notification
+	return &notification
 }
 
 // notificationsToTitlesList accepts a list of notifications notifications and returns a slice of strings containing their titles in order, this is used to compare against

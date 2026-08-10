@@ -32,24 +32,24 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 
 	makeBaseEnv := func() Environment {
 		return Environment{
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "test-bot-1/76efb07a-3077-471c-988a-54d0fa49fc71",
-			}.Build(),
-			Spec: machineidv1.BotInstanceSpec_builder{
+			},
+			Spec: &machineidv1.BotInstanceSpec{
 				BotName:    "test-bot-1",
 				InstanceId: "76efb07a-3077-471c-988a-54d0fa49fc71",
-			}.Build(),
-			LatestAuthentication: machineidv1.BotInstanceStatusAuthentication_builder{
+			},
+			LatestAuthentication: &machineidv1.BotInstanceStatusAuthentication{
 				JoinMethod: "kubernetes",
-			}.Build(),
-			LatestHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
+			},
+			LatestHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 				IsStartup:    false,
 				Version:      "19.0.1",
 				OneShot:      false,
 				Architecture: "arm64",
 				Os:           "linux",
 				Hostname:     "test-hostname-1",
-			}.Build(),
+			},
 		}
 	}
 
@@ -100,9 +100,9 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			expFalse: `!status.latest_heartbeat.one_shot`,
 			envFns: []func(*Environment){
 				func(e *Environment) {
-					e.LatestHeartbeat = machineidv1.BotInstanceStatusHeartbeat_builder{
+					e.LatestHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{
 						OneShot: true,
-					}.Build()
+					}
 				},
 			},
 		},

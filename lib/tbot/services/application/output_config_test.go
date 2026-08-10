@@ -85,6 +85,17 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "app_name must not be empty",
 		},
 		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					AppName:     "app",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
+		{
 			name: "delegation session id conflicts with roles",
 			in: func() *OutputConfig {
 				return &OutputConfig{
@@ -95,17 +106,6 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "delegation_session_id: is mutually-exclusive with roles",
-		},
-		{
-			name:   "scoped",
-			scoped: true,
-			in: func() *OutputConfig {
-				return &OutputConfig{
-					Destination: destination.NewMemory(),
-					AppName:     "app",
-				}
-			},
-			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

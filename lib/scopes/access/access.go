@@ -62,11 +62,8 @@ const (
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
 	maxAssignableScopes = 16
-
-	// invalidChars are the special characters that should not be allowed in certain keys or values.
-	invalidChars = "{}^$*"
-	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
-	invalidLabelChars = "{}^$"
+	invalidChars        = "{}^$*"
+	invalidLabelChars   = "{}^$"
 )
 
 // RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
@@ -223,6 +220,11 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	if err := validateKubeBlock(role.GetSpec().GetKube()); err != nil {
 		return trace.BadParameter("scoped role %q's kube %s", role.GetMetadata().GetName(), err)
+	}
+
+	// verify that app block is well-formed
+	if err := validateAppBlock(role.GetSpec().GetApp()); err != nil {
+		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
 	}
 
 	if err := validateLabels(role.GetSpec().GetWorkloadIdentity().GetLabels()); err != nil {

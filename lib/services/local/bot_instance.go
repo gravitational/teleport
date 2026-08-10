@@ -24,6 +24,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
@@ -95,14 +96,14 @@ func (b *BotInstanceService) serviceForBot(botScope, botName string) (*generic.S
 // Note that new BotInstances will have their .Metadata.Name overwritten by the
 // instance UUID.
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-	instance.SetKind(types.KindBotInstance)
-	instance.SetVersion(types.V1)
+	instance.Kind = types.KindBotInstance
+	instance.Version = types.V1
 
-	if !instance.HasMetadata() {
-		instance.SetMetadata(&headerv1.Metadata{})
+	if instance.Metadata == nil {
+		instance.Metadata = &headerv1.Metadata{}
 	}
 
-	instance.GetMetadata().SetName(instance.GetSpec().GetInstanceId())
+	instance.Metadata.Name = instance.Spec.InstanceId
 
 	serviceWithPrefix, err := b.serviceForBot(instance.GetScope(), instance.GetSpec().GetBotName())
 	if err != nil {
@@ -127,7 +128,8 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *machineidv
 // If an non-empty bot name is provided, only instances for that bot will be fetched. The bot scope must be
 // provided alongside the name for a scoped bot's instances, and only ever qualifies the name - providing a
 // scope without a name is an error rather than a request for every instance in that scope. With no bot filter,
-// instances for all bots are listed, unscoped bots' instances first.
+// instances for all bots are listed, unscoped bots' instances first, narrowed by the options' scope filter if
+// one is set.
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
 // Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest).
 // Sorting by bot name in ascending order is supported - an error is returned for any other sort type.
@@ -138,11 +140,17 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	if options.GetSortDesc() {
 		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
-	// A bot is identified by the pair (scope, name), so the scope filter only
-	// ever qualifies the name filter. Listing a whole scope will be a separate
-	// filter with explicit exact/descendant control.
+	// See the field docs on ListBotInstancesRequestOptions for the rules
+	// enforced here.
 	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
 		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
+	}
+	scopeFilter := options.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if scopeFilter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED && options.GetFilterBotName() != "" {
+		return nil, "", trace.BadParameter("scope filter cannot be combined with a bot name filter")
 	}
 
 	// Satisfied by both the scope-aware wrapper (unified listing across the
@@ -179,12 +187,15 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	}
 
 	filterFn := options.GetFilterFn()
-	if options.GetFilterSearchTerm() == "" && exp == nil && filterFn == nil {
+	if options.GetFilterSearchTerm() == "" && exp == nil && filterFn == nil && scopes.IsMatchAll(scopeFilter) {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
+		if !scopes.MatchScope(scopeFilter, item.GetScope()) {
+			return false
+		}
 		if !services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp) {
 			return false
 		}
@@ -227,12 +238,12 @@ func (b *BotInstanceService) PatchBotInstance(
 
 	const iterLimit = 3
 
-	for range iterLimit {
-		existing, err := b.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
+	for i := 0; i < iterLimit; i++ {
+		existing, err := b.GetBotInstance(ctx, &machineidv1.GetBotInstanceRequest{
 			BotScope:   opts.Bot.Scope,
 			BotName:    opts.Bot.Name,
 			InstanceId: opts.InstanceID,
-		}.Build())
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -268,7 +279,7 @@ func (b *BotInstanceService) PatchBotInstance(
 			return nil, trace.Wrap(err)
 		}
 
-		updated.GetMetadata().SetRevision(lease.GetMetadata().GetRevision())
+		updated.GetMetadata().Revision = lease.GetMetadata().Revision
 		return updated, nil
 	}
 

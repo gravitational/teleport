@@ -19,7 +19,6 @@
 import { useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getErrorMessage } from 'shared/utils/error';
 
 import {
   getDatabaseProtocol,
@@ -108,7 +107,7 @@ export function useConnectionDiagnostic() {
       }
     } catch (err) {
       handleError(err);
-      emitErrorEvent(getErrorMessage(err));
+      emitErrorEvent(err.message);
     }
 
     return { mfaRequired: false };

@@ -33,10 +33,10 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	ctx := t.Context()
 	checkerContext, err := NewScopedAccessCheckerContext(ctx, &AccessInfo{
 		Username: "alice",
-		ScopePin: scopesv1.Pin_builder{
+		ScopePin: &scopesv1.Pin{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/test/scope",
-		}.Build(),
+		},
 	}, "test-cluster", emptyScopedRoleReader{})
 	require.NoError(t, err)
 
@@ -96,7 +96,7 @@ func TestRiskyAuthorizeUnpinnedReadWithScope(t *testing.T) {
 		{
 			name:          "override to orthogonal scope is denied",
 			resourceScope: "/other",
-			wantErr:       "a resource in scope \"/other\" can't be manipulated from a session pinned to orthogonal scope \"/test/scope\"",
+			wantErr:       "scope pin \"/test/scope\" is orthogonal to resource scope \"/other\"",
 		},
 		{
 			name:          "override to empty scope is rejected",

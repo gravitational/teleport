@@ -57,10 +57,10 @@ func TestInitializeCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mockReq := accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
+	mockReq := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
 		Subjects:            []string{types.KindAccessRequest},
 		AutomaticReviewName: handler.HandlerName,
-	}.Build()
+	}
 
 	mockResp := []*accessmonitoringrulesv1.AccessMonitoringRule{
 		newApprovedRule("test-rule", "condition"),
@@ -119,7 +119,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid automatic approval name.
 	rule = newApprovedRule("test-rule", `condition`)
-	rule.GetSpec().GetAutomaticReview().SetIntegration("invalid")
+	rule.Spec.AutomaticReview.Integration = "invalid"
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -128,7 +128,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid state.
 	rule = newApprovedRule("test-rule", `condition`)
-	rule.GetSpec().SetDesiredState("invalid")
+	rule.Spec.DesiredState = "invalid"
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -137,7 +137,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid subject.
 	rule = newApprovedRule("test-rule", `condition`)
-	rule.GetSpec().SetSubjects([]string{"invalid"})
+	rule.Spec.Subjects = []string{"invalid"}
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -221,19 +221,19 @@ func TestScheduleRequest(t *testing.T) {
 		testRuleName,
 		`true`)
 
-	testRule.GetSpec().SetSchedules(map[string]*accessmonitoringrulesv1.Schedule{
-		"test-schedule": accessmonitoringrulesv1.Schedule_builder{
-			Time: accessmonitoringrulesv1.TimeSchedule_builder{
+	testRule.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
+		"test-schedule": {
+			Time: &accessmonitoringrulesv1.TimeSchedule{
 				Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-					accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+					{
 						Weekday: time.Monday.String(),
 						Start:   "14:00",
 						End:     "15:00",
-					}.Build(),
+					},
 				},
-			}.Build(),
-		}.Build(),
-	})
+			},
+		},
+	}
 
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
@@ -513,7 +513,7 @@ func TestHandleAccessRequest(t *testing.T) {
 				m.On("GetUser", mock.Anything, "non-existent-user", false).
 					Return(nil, trace.NotFound("user not found"))
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "user not found")
 			},
 		},
@@ -604,21 +604,21 @@ func newDeniedRule(name, condition string) *accessmonitoringrulesv1.AccessMonito
 }
 
 func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind: types.KindAccessMonitoringRule,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
-		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:     []string{types.KindAccessRequest},
 			Condition:    condition,
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
-			AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 				Integration: handlerName,
 				Decision:    decision,
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 }
 
 // mockClient is a mock implementation of the Teleport API client.
@@ -641,7 +641,7 @@ func (m *mockClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, re
 	error,
 ) {
 	// Expect zero value page size for testing.
-	req.SetPageSize(0)
+	req.PageSize = 0
 
 	args := m.Called(ctx, req)
 	rules, ok := args.Get(0).([]*accessmonitoringrulesv1.AccessMonitoringRule)

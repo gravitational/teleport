@@ -19,6 +19,7 @@
 package local
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -36,7 +37,8 @@ import (
 func TestInstanceEvents(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -103,7 +105,8 @@ func TestInstanceEvents(t *testing.T) {
 func TestInstanceUpsert(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -164,7 +167,8 @@ func TestInstanceFiltering(t *testing.T) {
 	const count = 10_000
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// NOTE: backend must be memory, since parallel subtests are used (makes correct cleanup of
 	// filesystem state tricky).
@@ -190,7 +194,7 @@ func TestInstanceFiltering(t *testing.T) {
 	allServices := append(evenServices, oddServices...)
 
 	// create a bunch of instances with an even mix of odd/even "services".
-	for i := range count {
+	for i := 0; i < count; i++ {
 		serverID := uuid.NewString()
 		var services []types.SystemRole
 		var version string

@@ -258,10 +258,6 @@ export function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
       return 'snowflake';
     case 'dynamodb':
       return 'dynamo';
-    case 'redis':
-      return 'redis';
-    case 'oracle':
-      return 'oracle';
     default:
       return 'database';
   }

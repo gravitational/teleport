@@ -21,7 +21,6 @@ package kubeconfig
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -206,9 +205,10 @@ func TestLocalProxy(t *testing.T) {
 			},
 		}
 		wantConfig.Contexts["root-cluster-kube1"] = &clientcmdapi.Context{
-			Namespace: "namespace",
-			Cluster:   "root-cluster-kube1",
-			AuthInfo:  "root-cluster-kube1",
+			Namespace:        "namespace",
+			Cluster:          "root-cluster-kube1",
+			AuthInfo:         "root-cluster-kube1",
+			LocationOfOrigin: kubeconfigPath,
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
 					Raw:         []byte(`"` + proxyHost + `"`),
@@ -229,6 +229,7 @@ func TestLocalProxy(t *testing.T) {
 			ClientKeyData:         clientKeyData,
 			Impersonate:           "as",
 			ImpersonateGroups:     []string{"group1", "group2"},
+			LocationOfOrigin:      kubeconfigPath,
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
 					Raw:         []byte(`"` + proxyHost + `"`),
@@ -247,6 +248,6 @@ func TestLocalProxy(t *testing.T) {
 
 		// Current context is updated.
 		wantConfig.CurrentContext = "root-cluster-kube1"
-		require.Empty(t, cmp.Diff(wantConfig, *generatedConfig, kubeconfigCmpOpts...))
+		require.Equal(t, wantConfig, *generatedConfig)
 	})
 }

@@ -41,14 +41,14 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 	t.Parallel()
 
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "alice-01",
-			}.Build(),
+			},
 			Scope: "/",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -60,17 +60,17 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/bb",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "alice-02",
-			}.Build(),
+			},
 			Scope: "/aa",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -82,17 +82,17 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/aa/bb",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bob-01",
-			}.Build(),
+			},
 			Scope: "/",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -104,17 +104,17 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/bb",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bob-02",
-			}.Build(),
+			},
 			Scope: "/aa",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -126,17 +126,17 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/aa/bb",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "alice-03",
-			}.Build(),
+			},
 			Scope: "/aa/bb",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -148,17 +148,17 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/aa/bb/cc",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bob-03",
-			}.Build(),
+			},
 			Scope: "/aa/bb",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -170,17 +170,17 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/aa/bb/cc",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "carol-01",
-			}.Build(),
+			},
 			Scope: "/bb",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "carol",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -192,28 +192,28 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 						Scope: "/bb/cc",
 					}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
+		},
 	}
 
 	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
-		_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    assignment.GetMetadata().GetName(),
 			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
-		}.Build())
+		})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 		cache.Put(assignment)
 
-		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    assignment.GetMetadata().GetName(),
 			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
-		}.Build())
+		})
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetAssignment())
 	}
@@ -228,29 +228,29 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 		{
 			name: "descendant",
 			user: "bob",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa/bb",
-			}.Build(),
+			},
 			ok: true,
-			expect: scopesv1.Pin_builder{
+			expect: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa/bb",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":   {"/aa": {"/::role-01"}},
 					"/aa": {"/aa": {"/aa::role-03"}, "/aa/bb": {"/aa::role-04"}},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "ancestral",
 			user: "alice",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/",
-			}.Build(),
+			},
 			ok: true,
-			expect: scopesv1.Pin_builder{
+			expect: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -258,15 +258,15 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 					"/aa":    {"/aa": {"/aa::role-03"}, "/aa/bb": {"/aa::role-04"}},
 					"/aa/bb": {"/aa/bb": {"/aa/bb::role-05"}, "/aa/bb/cc": {"/aa/bb::role-06"}},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "orthogonal",
 			user: "carol",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/xx",
-			}.Build(),
+			},
 			ok: false,
 		},
 	}
@@ -300,51 +300,51 @@ func TestAssignmentTreePruning(t *testing.T) {
 	// set up some initial assignments. pruning operates at the scope of origin level, so assignments
 	// must have a mix of resource scopes to provide a natural pruning boundary.
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "alice-root",
-			}.Build(),
+			},
 			Scope: "/",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "/::root-role", Scope: "/staging"}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "alice-staging",
-			}.Build(),
+			},
 			Scope: "/staging",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "/staging::staging-role", Scope: "/staging"}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		},
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "alice-staging-west",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "/staging/west::west-role", Scope: "/staging/west"}.Build(),
 				},
-			}.Build(),
+			},
 			Version: types.V1,
-		}.Build(),
+		},
 	}
 
 	for _, assignment := range assignments {
@@ -352,18 +352,18 @@ func TestAssignmentTreePruning(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	pin := scopesv1.Pin_builder{
+	pin := &scopesv1.Pin{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging/west",
-	}.Build()
+	}
 	err := cache.PopulatePinnedAssignmentsForUser(t.Context(), "alice", pin)
 	require.NoError(t, err)
 
 	// verify the tree was populated
-	require.NotNil(t, pin.GetAssignmentTree())
+	require.NotNil(t, pin.AssignmentTree)
 
 	// verify the tree fits within the size limit
-	treeSize := proto.Size(pin.GetAssignmentTree())
+	treeSize := proto.Size(pin.AssignmentTree)
 	require.LessOrEqual(t, treeSize, cache.cfg.MaxAssignmentTreeBytes,
 		"assignment tree should be pruned to fit within configured limit")
 
@@ -373,7 +373,7 @@ func TestAssignmentTreePruning(t *testing.T) {
 			"/staging": {"/::root-role"},
 		},
 	}
-	actualTree := pinning.AssignmentTreeIntoMap(pin.GetAssignmentTree())
+	actualTree := pinning.AssignmentTreeIntoMap(pin.AssignmentTree)
 	require.Equal(t, expectedTree, actualTree,
 		"pruning should preserve highest authority assignments (root level)")
 }
@@ -385,12 +385,12 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		// Very "normal" assignment. Scope of SRA matches Bot scope, and
 		// assigned scope is same.
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bernard-01",
-			}.Build(),
+			},
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
@@ -402,14 +402,14 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				},
 			}.Build(),
 			Version: types.V1,
-		}.Build(),
+		},
 		// Assignment to child-scope of main scope
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bernard-02",
-			}.Build(),
+			},
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
@@ -421,14 +421,14 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				},
 			}.Build(),
 			Version: types.V1,
-		}.Build(),
+		},
 		// SRA in parent scope, assigning to bot scope.
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bernard-03",
-			}.Build(),
+			},
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
@@ -440,14 +440,14 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				},
 			}.Build(),
 			Version: types.V1,
-		}.Build(),
+		},
 		// SRA in parent scope, assigning to bot's child scope
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bernard-04",
-			}.Build(),
+			},
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
@@ -459,14 +459,14 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				},
 			}.Build(),
 			Version: types.V1,
-		}.Build(),
+		},
 		// Scope component of `bot` mismatches bot's actual scope - this should be ignored.
 		scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bernard-invalid-01",
-			}.Build(),
+			},
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: "/mismatched", Name: "bernard"}.String(),
@@ -481,12 +481,12 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		}.Build(),
 		// SRA above bot scope ignored.
 		// nb: we may eventually loosen this to behave more like users.
-		scopedaccessv1.ScopedRoleAssignment_builder{
+		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: headerpb.Metadata_builder{
+			Metadata: &headerpb.Metadata{
 				Name: "bernard-invalid-02",
-			}.Build(),
+			},
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
@@ -498,26 +498,26 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 				},
 			}.Build(),
 			Version: types.V1,
-		}.Build(),
+		},
 	}
 
 	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
-		_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    assignment.GetMetadata().GetName(),
 			Scope:   assignment.GetScope(),
 			SubKind: scopedaccess.SubKindDynamic,
-		}.Build())
+		})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 		require.NoError(t, cache.Put(assignment))
 
-		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    assignment.GetMetadata().GetName(),
 			Scope:   assignment.GetScope(),
 			SubKind: scopedaccess.SubKindDynamic,
-		}.Build())
+		})
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetAssignment())
 	}
@@ -534,85 +534,85 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			name:     "standard",
 			botName:  "bernard",
 			botScope: bernardScope,
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope,
-			}.Build(),
-			expect: scopesv1.Pin_builder{
+			},
+			expect: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope,
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":          {bernardScope: {"/::role-03"}, bernardScope + "/child": {"/::role-04"}},
 					bernardScope: {bernardScope: {"/aa::role-01"}, bernardScope + "/child": {"/aa::role-02"}},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name:     "pin scope at child of bot scope",
 			botName:  "bernard",
 			botScope: bernardScope,
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope + "/child",
-			}.Build(),
-			expect: scopesv1.Pin_builder{
+			},
+			expect: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope + "/child",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":          {bernardScope: {"/::role-03"}, bernardScope + "/child": {"/::role-04"}},
 					bernardScope: {bernardScope: {"/aa::role-01"}, bernardScope + "/child": {"/aa::role-02"}},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name:     "pin scope outside bot scope",
 			botName:  "bernard",
 			botScope: bernardScope,
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/bb",
-			}.Build(),
+			},
 			errContains: "is not subject to bot scope",
 		},
 		{
 			name:     "no matching assignments",
 			botName:  "no-such-bot",
 			botScope: "/aa",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa",
-			}.Build(),
+			},
 			errContains: "no scoped role assignments found",
 		},
 		{
 			name:     "empty bot name",
 			botScope: "/aa",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa",
-			}.Build(),
+			},
 			errContains: "missing bot name",
 		},
 		{
 			name:    "empty bot scope",
 			botName: "bernard",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa",
-			}.Build(),
+			},
 			errContains: "missing bot scope",
 		},
 		{
 			name:     "pin with pre-existing assignment tree",
 			botName:  "bernard",
 			botScope: bernardScope,
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope,
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {bernardScope: {"/::role-03"}},
 				}),
-			}.Build(),
+			},
 			errContains: "already contains an assignment tree",
 		},
 	}

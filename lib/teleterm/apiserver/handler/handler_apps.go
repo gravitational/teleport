@@ -29,7 +29,7 @@ import (
 )
 
 func (h *Handler) GetApp(ctx context.Context, req *api.GetAppRequest) (*api.GetAppResponse, error) {
-	appURI, err := uri.Parse(req.GetAppUri())
+	appURI, err := uri.Parse(req.AppUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -53,9 +53,9 @@ func (h *Handler) GetApp(ctx context.Context, req *api.GetAppRequest) (*api.GetA
 		App: app,
 	}
 
-	return api.GetAppResponse_builder{
+	return &api.GetAppResponse{
 		App: newAPIApp(clustersApp),
-	}.Build(), nil
+	}, nil
 }
 
 func newAPIApp(clusterApp clusters.App) *api.App {
@@ -63,12 +63,12 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 
 	awsRoles := []*api.AWSRole{}
 	for _, role := range clusterApp.AWSRoles {
-		awsRoles = append(awsRoles, api.AWSRole_builder{
+		awsRoles = append(awsRoles, &api.AWSRole{
 			Name:      role.Name,
 			Display:   role.Display,
 			Arn:       role.ARN,
 			AccountId: role.AccountID,
-		}.Build())
+		})
 	}
 
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels()))
@@ -76,10 +76,10 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 
 	tcpPorts := make([]*api.PortRange, 0, len(app.GetTCPPorts()))
 	for _, portRange := range app.GetTCPPorts() {
-		tcpPorts = append(tcpPorts, api.PortRange_builder{Port: portRange.Port, EndPort: portRange.EndPort}.Build())
+		tcpPorts = append(tcpPorts, &api.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
 	}
 
-	return api.App_builder{
+	return &api.App{
 		Uri:            clusterApp.URI.String(),
 		EndpointUri:    app.GetURI(),
 		Name:           app.GetName(),
@@ -94,7 +94,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		TcpPorts:       tcpPorts,
 		SubKind:        app.GetSubKind(),
 		PermissionSets: permissionSets,
-	}.Build()
+	}
 }
 
 func newSAMLIdPServiceProviderAPIApp(clusterApp clusters.SAMLIdPServiceProvider) *api.App {
@@ -102,7 +102,7 @@ func newSAMLIdPServiceProviderAPIApp(clusterApp clusters.SAMLIdPServiceProvider)
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(provider.GetAllLabels()))
 
 	// Keep in sync with lib/web/ui/app.go.
-	return api.App_builder{
+	return &api.App{
 		Uri:          clusterApp.URI.String(),
 		Name:         provider.GetName(),
 		Desc:         "SAML Application",
@@ -110,7 +110,7 @@ func newSAMLIdPServiceProviderAPIApp(clusterApp clusters.SAMLIdPServiceProvider)
 		FriendlyName: types.FriendlyName(provider),
 		SamlApp:      true,
 		Labels:       apiLabels,
-	}.Build()
+	}
 }
 
 func makeAPIPermissionSets(sets []*types.IdentityCenterPermissionSet) []*api.IdentityCenterPermissionSet {
@@ -119,11 +119,11 @@ func makeAPIPermissionSets(sets []*types.IdentityCenterPermissionSet) []*api.Ide
 	}
 	apiSets := make([]*api.IdentityCenterPermissionSet, len(sets))
 	for i, set := range sets {
-		apiSets[i] = api.IdentityCenterPermissionSet_builder{
+		apiSets[i] = &api.IdentityCenterPermissionSet{
 			Name:         set.Name,
 			Arn:          set.ARN,
 			AssignmentId: set.AssignmentID,
-		}.Build()
+		}
 	}
 	return apiSets
 }

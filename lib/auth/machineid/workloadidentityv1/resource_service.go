@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -132,7 +133,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
@@ -161,10 +162,13 @@ func (s *ResourceService) GetWorkloadIdentity(
 func (s *ResourceService) ListWorkloadIdentities(
 	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
-	return s.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
-		PageSize:  req.GetPageSize(),
-		PageToken: req.GetPageToken(),
-	}.Build())
+	// V1 cannot express a scope filter, so pin it to mode ALL rather than letting
+	// it inherit the identity-based default and silently hide scoped resources.
+	return s.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+		PageSize:    req.GetPageSize(),
+		PageToken:   req.GetPageToken(),
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	})
 }
 
 // ListWorkloadIdentitiesV2 returns a list of WorkloadIdentity resources. It
@@ -181,14 +185,20 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 
 	// Check generally if this user may have the ability to list workload
 	// identities - ignoring where conditions.
+	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		new(authCtx.RuleContext()),
+		&ruleCtx,
 		types.KindWorkloadIdentity,
 		types.VerbReadNoSecrets,
 		types.VerbList,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	scopeFilter := authCtx.CheckerContext.ResolveScopeFilter(req.GetScopeFilter())
 
 	sortField := services.WorkloadIdentitySortField(req.GetSortField())
 	keyFn, err := services.WorkloadIdentityKey(sortField)
@@ -199,6 +209,9 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 	// Iterate the cache in sorted order, applying any filtering here at the gRPC
 	// layer rather than pushing it down, then collect a single page.
 	items := s.cache.RangeWorkloadIdentities(ctx, req.GetPageToken(), "", sortField, req.GetSortDesc())
+	items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+		return wi, scopes.MatchScope(scopeFilter, wi.GetScope())
+	})
 	if searchTerm := req.GetFilterSearchTerm(); searchTerm != "" {
 		items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
 			values := []string{
@@ -236,10 +249,10 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		return nil, trace.Wrap(err)
 	}
 
-	return workloadidentityv1pb.ListWorkloadIdentitiesResponse_builder{
+	return &workloadidentityv1pb.ListWorkloadIdentitiesResponse{
 		WorkloadIdentities: resources,
 		NextPageToken:      nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // DeleteWorkloadIdentity deletes a WorkloadIdentity by name.
@@ -252,7 +265,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
@@ -332,7 +345,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		}
 	}
 
-	created, err := s.backend.CreateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
+	created, err := s.backend.CreateWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -401,7 +414,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		}
 	}
 
-	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
+	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -470,7 +483,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		}
 	}
 
-	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.GetWorkloadIdentity())
+	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

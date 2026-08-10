@@ -135,8 +135,6 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 			return trace.BadParameter("allow_reissue: not supported with scopes")
 		case o.Cluster != "":
 			return trace.BadParameter("cluster: not supported with scopes")
-		case o.DelegationSessionID != "":
-			return trace.BadParameter("delegation_session_id: not supported with scopes")
 		}
 	}
 

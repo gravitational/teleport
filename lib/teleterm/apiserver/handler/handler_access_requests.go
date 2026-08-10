@@ -51,7 +51,7 @@ func (s *Handler) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 
 	response := &api.GetAccessRequestsResponse{}
 	for _, req := range requests {
-		response.SetRequests(append(response.GetRequests(), newAPIAccessRequest(req)))
+		response.Requests = append(response.Requests, newAPIAccessRequest(req))
 	}
 
 	return response, nil
@@ -65,7 +65,7 @@ func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 	}
 
 	response := &api.GetAccessRequestResponse{}
-	response.SetRequest(newAPIAccessRequest(*request))
+	response.Request = newAPIAccessRequest(*request)
 
 	return response, nil
 }
@@ -77,9 +77,9 @@ func (s *Handler) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 		return nil, trace.Wrap(err)
 	}
 
-	createdRequest := api.CreateAccessRequestResponse_builder{
+	createdRequest := &api.CreateAccessRequestResponse{
 		Request: newAPIAccessRequest(*request),
-	}.Build()
+	}
 	return createdRequest, nil
 }
 
@@ -109,16 +109,16 @@ func (s *Handler) PromoteAccessRequest(ctx context.Context, req *api.PromoteAcce
 		return nil, trace.Wrap(err)
 	}
 
-	accessRequest, err := s.DaemonService.PromoteAccessRequest(ctx, clusterURI, accesslistv1.AccessRequestPromoteRequest_builder{
-		RequestId:      req.GetAccessRequestId(),
-		AccessListName: req.GetAccessListId(),
-		Reason:         req.GetReason(),
-	}.Build())
+	accessRequest, err := s.DaemonService.PromoteAccessRequest(ctx, clusterURI, &accesslistv1.AccessRequestPromoteRequest{
+		RequestId:      req.AccessRequestId,
+		AccessListName: req.AccessListId,
+		Reason:         req.Reason,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return api.PromoteAccessRequestResponse_builder{Request: newAPIAccessRequest(*accessRequest)}.Build(), nil
+	return &api.PromoteAccessRequestResponse{Request: newAPIAccessRequest(*accessRequest)}, nil
 }
 
 // GetSuggestedAccessLists returns suggested access lists for an access request.
@@ -128,7 +128,7 @@ func (s *Handler) GetSuggestedAccessLists(ctx context.Context, req *api.GetSugge
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists, err := s.DaemonService.GetSuggestedAccessLists(ctx, rootClusterURI, req.GetAccessRequestId())
+	accessLists, err := s.DaemonService.GetSuggestedAccessLists(ctx, rootClusterURI, req.AccessRequestId)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +138,7 @@ func (s *Handler) GetSuggestedAccessLists(ctx context.Context, req *api.GetSugge
 		accessListsProto = append(accessListsProto, accesslistv1conv.ToProto(accessList))
 	}
 
-	return api.GetSuggestedAccessListsResponse_builder{AccessLists: accessListsProto}.Build(), nil
+	return &api.GetSuggestedAccessListsResponse{AccessLists: accessListsProto}, nil
 }
 
 // ReviewAccessRequest creates a new AccessRequestReview for a given RequestId.
@@ -147,9 +147,9 @@ func (s *Handler) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response := api.ReviewAccessRequestResponse_builder{
+	response := &api.ReviewAccessRequestResponse{
 		Request: newAPIAccessRequest(*request),
-	}.Build()
+	}
 	return response, nil
 }
 
@@ -157,7 +157,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	reviews := []*api.AccessRequestReview{}
 	requestReviews := req.GetReviews()
 	for _, rev := range requestReviews {
-		reviews = append(reviews, api.AccessRequestReview_builder{
+		reviews = append(reviews, &api.AccessRequestReview{
 			Author:                  rev.Author,
 			Roles:                   rev.Roles,
 			State:                   rev.ProposedState.String(),
@@ -165,7 +165,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			Created:                 timestamppb.New(rev.Created),
 			PromotedAccessListTitle: rev.GetAccessListTitle(),
 			AssumeStartTime:         getProtoTimestamp(rev.AssumeStartTime),
-		}.Build())
+		})
 	}
 
 	thresholdNames := make([]string, 0, len(req.GetThresholds()))
@@ -180,17 +180,17 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	for i, r := range requestedResourceIDs {
 		details := req.ResourceDetails[resourceIDToString(r)]
 
-		resources[i] = api.Resource_builder{
-			Id: api.ResourceID_builder{
+		resources[i] = &api.Resource{
+			Id: &api.ResourceID{
 				ClusterName:     r.ClusterName,
 				Kind:            r.Kind,
 				Name:            r.Name,
 				SubResourceName: r.SubResourceName,
-			}.Build(),
+			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details
 			Details: newAPIResourceDetails(details),
-		}.Build()
+		}
 	}
 
 	dryRunEnrichment := req.GetDryRunEnrichment()
@@ -198,7 +198,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		dryRunEnrichment = &types.AccessRequestDryRunEnrichment{}
 	}
 
-	return api.AccessRequest_builder{
+	return &api.AccessRequest{
 		Id:                      req.GetName(),
 		State:                   req.GetState().String(),
 		ResolveReason:           req.GetResolveReason(),
@@ -218,7 +218,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
 		ReasonMode:              string(dryRunEnrichment.ReasonMode),
 		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
-	}.Build()
+	}
 }
 
 // resourceIDToString marshals a ResourceID to a string.
@@ -230,8 +230,8 @@ func resourceIDToString(id types.ResourceID) string {
 }
 
 func newAPIResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {
-	return api.ResourceDetails_builder{
+	return &api.ResourceDetails{
 		Hostname:     details.Hostname,
 		FriendlyName: details.FriendlyName,
-	}.Build()
+	}
 }

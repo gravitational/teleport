@@ -50,8 +50,13 @@ func (*Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Ha
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	waitConn := utils.NewWaitConn(conn)
-	context.AfterFunc(ctx, func() { waitConn.Close() })
+	waitConn := utils.NewCloserConn(conn)
+	listener := listenerutils.NewSingleUseListener(waitConn)
+	go func() {
+		// Make sure connection is closed when ctx is canceled.
+		<-ctx.Done()
+		waitConn.Close()
+	}()
 
 	httpServer := &http.Server{
 		Handler:     handler,
@@ -62,8 +67,6 @@ func (*Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Ha
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          log.Default(),
 	}
-
-	listener := listenerutils.NewSingleUseListener(waitConn)
 	if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
@@ -123,7 +126,7 @@ func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessi
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App, &session.Identity)
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -49,6 +49,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/httpstream"
+	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -56,9 +59,6 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 	kubeexec "k8s.io/client-go/util/exec"
-	"k8s.io/streaming/pkg/httpstream"
-	httpstreamspdy "k8s.io/streaming/pkg/httpstream/spdy"
-	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1313,6 +1313,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 	}
 
+	// no error means we were granted access
+	accessGranted := err == nil
+
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups := fillDefaultKubePrincipalDetails(kubeAccessDetails.kubeUsers, kubeAccessDetails.kubeGroups, actx.User.GetName())
@@ -1375,8 +1378,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 	}
 
-	// if we were granted access to any kube users or groups, we can safely proceed
-	if len(actx.kubeUsers) > 0 || len(actx.kubeGroups) > 0 {
+	// if access to the cluster was previously granted when determining users and groups, we can proceed
+	if accessGranted {
 		return nil
 	}
 
@@ -1475,30 +1478,36 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(req.Context(), party, true /* emitSessionJoinEvent */)
+		err = session.join(party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		defer func() {
-			// Detach cancellation so leave's moderation rebalance still runs after the websocket closes.
-			leaveCtx := context.WithoutCancel(req.Context())
-			if _, err := session.leave(leaveCtx, party.ID); err != nil {
-				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
-					"participant_id", party.ID,
-					"session_id", session.id,
-					"error", err,
-				)
+		closeC := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case <-stream.Done():
+				party.InformClose(trace.BadParameter("websocket connection closed"))
+			case <-closeC:
+				return
 			}
 		}()
 
-		select {
-		case <-stream.Done():
-			party.InformClose(trace.BadParameter("websocket connection closed"))
-			return nil
-		case err := <-party.closeC:
-			return trace.Wrap(err)
+		err = <-party.closeC
+		close(closeC)
+
+		if _, err := session.leave(party.ID); err != nil {
+			f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+				"participant_id", party.ID,
+				"session_id", session.id,
+				"error", err,
+			)
 		}
+		wg.Wait()
+
+		return trace.Wrap(err)
 	}(); err != nil {
 		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {
@@ -1969,16 +1978,14 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			if err = session.join(ctx, party, true /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
 			err = <-party.closeC
 
-			// Detach cancellation so leave's moderation rebalance still runs after the client disconnects.
-			leaveCtx := context.WithoutCancel(ctx)
-			if _, errLeave := session.leave(leaveCtx, party.ID); errLeave != nil {
-				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
+			if _, errLeave := session.leave(party.ID); errLeave != nil {
+				f.log.DebugContext(ctx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", errLeave,
@@ -2547,12 +2554,7 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (_ 
 	}
 	rt = tracehttp.NewTransport(rt)
 
-	executor, err := remotecommand.NewSPDYExecutorForTransports(
-		rt,
-		spdy.NewUpgraderForStreaming(upgradeRoundTripper),
-		req.Method,
-		req.URL,
-	)
+	executor, err := remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 	if err != nil {
 		upgradeRoundTripper.Cleanup()
 		return nil, nil, trace.Wrap(err)
@@ -2573,7 +2575,7 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return portforward.NewFallbackDialerForStreaming(wsDialer, spdyDialer, func(err error) bool {
+	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
 		// If the error is a known upgrade failure, we can retry with the other protocol.
 		return httpstream.IsUpgradeFailure(err) ||
 			httpstream.IsHTTPSProxyError(err) ||
@@ -2616,9 +2618,7 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (_ ht
 		Transport: tracehttp.NewTransport(rt),
 	}
 
-	return spdy.NewDialerForStreaming(spdy.NewUpgraderForStreaming(upgradeRoundTripper), client, req.Method, req.URL),
-		upgradeRoundTripper.Cleanup,
-		nil
+	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), upgradeRoundTripper.Cleanup, nil
 }
 
 func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
@@ -2626,7 +2626,7 @@ func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) 
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
 	}
-	dialer, err := portforward.NewSPDYOverWebsocketDialerForStreaming(req.URL, cfg)
+	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
 	return dialer, wsCleanup, trace.Wrap(err)
 }
 

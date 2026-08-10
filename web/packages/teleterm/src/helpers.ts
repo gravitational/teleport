@@ -33,20 +33,20 @@ import {
   RouteConflictReport,
   SSHConfigurationReport,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-import {
-  ManagePtyProcessRequest,
-  ManagePtyProcessResponse,
-  PtyEventData,
-  PtyEventExit,
-  PtyEventResize,
-  PtyEventStart,
-  PtyEventStartError,
-} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
   ReloginRequest,
   SendNotificationRequest,
 } from 'teleterm/services/tshdEvents';
+import {
+  PtyClientEvent,
+  PtyEventData,
+  PtyEventExit,
+  PtyEventResize,
+  PtyEventStart,
+  PtyEventStartError,
+  PtyServerEvent,
+} from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb';
 
 export function resourceOneOfIsServer(
   resource: PaginatedResource['resource']
@@ -94,7 +94,7 @@ export function resourceOneOfIsWindowsDesktop(
 }
 
 export function ptyEventOneOfIsStart(
-  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
+  event: PtyClientEvent['event'] | PtyServerEvent['event']
 ): event is {
   oneofKind: 'start';
   start: PtyEventStart;
@@ -103,7 +103,7 @@ export function ptyEventOneOfIsStart(
 }
 
 export function ptyEventOneOfIsData(
-  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
+  event: PtyClientEvent['event'] | PtyServerEvent['event']
 ): event is {
   oneofKind: 'data';
   data: PtyEventData;
@@ -112,7 +112,7 @@ export function ptyEventOneOfIsData(
 }
 
 export function ptyEventOneOfIsResize(
-  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
+  event: PtyClientEvent['event'] | PtyServerEvent['event']
 ): event is {
   oneofKind: 'resize';
   resize: PtyEventResize;
@@ -121,7 +121,7 @@ export function ptyEventOneOfIsResize(
 }
 
 export function ptyEventOneOfIsExit(
-  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
+  event: PtyClientEvent['event'] | PtyServerEvent['event']
 ): event is {
   oneofKind: 'exit';
   exit: PtyEventExit;
@@ -130,7 +130,7 @@ export function ptyEventOneOfIsExit(
 }
 
 export function ptyEventOneOfIsStartError(
-  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
+  event: PtyClientEvent['event'] | PtyServerEvent['event']
 ): event is {
   oneofKind: 'startError';
   startError: PtyEventStartError;

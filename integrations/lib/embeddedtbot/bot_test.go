@@ -426,10 +426,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	botConfig := &BotConfig{
 		AuthServer: authAddr.Addr,
 		Onboarding: onboarding.Config{
-			TokenValue: scopes.QualifiedName{
-				Name:  scopedToken.GetToken().GetMetadata().GetName(),
-				Scope: scopedToken.GetToken().GetScope(),
-			}.String(),
+			TokenValue: scopedToken.GetToken().GetMetadata().GetName(),
 			JoinMethod: types.JoinMethodKubernetes,
 			Kubernetes: onboarding.KubernetesOnboardingConfig{
 				TokenPath: tokenPath,

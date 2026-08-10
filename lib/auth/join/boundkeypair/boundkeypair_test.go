@@ -82,7 +82,7 @@ func TestClientState(t *testing.T) {
 	expectWrites := 3
 
 	// Simulate writes up to the key history recording length.
-	for i := range KeyHistoryLength - 1 {
+	for i := 0; i < KeyHistoryLength-1; i++ {
 		// We should still be able to load the original signer (< KeyHistoryLength)
 		_, err := state.GetSigner(firstKey)
 		require.NoError(t, err)

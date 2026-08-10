@@ -40,62 +40,62 @@ import (
 
 func integrationDiscoveredSummaryFinished(found uint64, syncEnd *timestamppb.Timestamp) *discoveryconfig.IntegrationDiscoveredSummary {
 	return &discoveryconfig.IntegrationDiscoveredSummary{
-		IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
-			AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+		IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+			AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
 				Found:   found,
 				SyncEnd: syncEnd,
-			}.Build(),
-		}.Build(),
+			},
+		},
 	}
 }
 
 func integrationDiscoveredSummaryWithFound(found uint64) *discoveryconfig.IntegrationDiscoveredSummary {
 	return &discoveryconfig.IntegrationDiscoveredSummary{
-		IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
-			AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+		IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+			AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
 				Found: found,
-			}.Build(),
-		}.Build(),
+			},
+		},
 	}
 }
 
 func discoveryStatusServerWithCurrent(found uint64, lastUpdate *timestamppb.Timestamp) *discoveryconfigv1.DiscoveryStatusServer {
-	return discoveryconfigv1.DiscoveryStatusServer_builder{
+	return &discoveryconfigv1.DiscoveryStatusServer{
 		IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-			"my-integration": discoveryconfigv1.DiscoverSummary_builder{
-				AwsEc2: discoveryconfigv1.ResourceSummary_builder{
-					Current: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+			"my-integration": {
+				AwsEc2: &discoveryconfigv1.ResourceSummary{
+					Current: &discoveryconfigv1.ResourcesDiscoveredSummary{
 						Found: found,
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 		},
 		LastUpdate:   lastUpdate,
 		PollInterval: durationpb.New(5 * time.Minute),
-	}.Build()
+	}
 }
 
 func discoveryStatusServerFinished(previous uint64, syncEnd *timestamppb.Timestamp) *discoveryconfigv1.DiscoveryStatusServer {
-	return discoveryconfigv1.DiscoveryStatusServer_builder{
+	return &discoveryconfigv1.DiscoveryStatusServer{
 		IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-			"my-integration": discoveryconfigv1.DiscoverSummary_builder{
-				AwsEc2: discoveryconfigv1.ResourceSummary_builder{
-					Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+			"my-integration": {
+				AwsEc2: &discoveryconfigv1.ResourceSummary{
+					Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{
 						Found:   previous,
 						SyncEnd: syncEnd,
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 		},
 		LastUpdate:   syncEnd,
 		PollInterval: durationpb.New(5 * time.Minute),
-	}.Build()
+	}
 }
 
 func staleDiscoveryStatusServer(lastUpdate *timestamppb.Timestamp) *discoveryconfigv1.DiscoveryStatusServer {
 	ret := discoveryStatusServerFinished(5, lastUpdate)
-	ret.SetPollInterval(durationpb.New(1 * time.Minute))
-	ret.SetLastUpdate(timestamppb.New(lastUpdate.AsTime().Add(-20 * time.Hour)))
+	ret.PollInterval = durationpb.New(1 * time.Minute)
+	ret.LastUpdate = timestamppb.New(lastUpdate.AsTime().Add(-20 * time.Hour))
 	return ret
 }
 

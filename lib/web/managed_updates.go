@@ -301,10 +301,10 @@ func (h *Handler) startGroupUpdate(w http.ResponseWriter, r *http.Request, param
 	}
 
 	client := getAutoUpdateServiceClient(sctx)
-	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, autoupdatepb.TriggerAutoUpdateAgentGroupRequest_builder{
+	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, &autoupdatepb.TriggerAutoUpdateAgentGroupRequest{
 		Groups:       []string{groupName},
 		DesiredState: state,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -327,9 +327,9 @@ func (h *Handler) markGroupDone(w http.ResponseWriter, r *http.Request, params h
 	}
 
 	client := getAutoUpdateServiceClient(sctx)
-	rollout, err := client.ForceAutoUpdateAgentGroup(ctx, autoupdatepb.ForceAutoUpdateAgentGroupRequest_builder{
+	rollout, err := client.ForceAutoUpdateAgentGroup(ctx, &autoupdatepb.ForceAutoUpdateAgentGroupRequest{
 		Groups: []string{groupName},
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -352,10 +352,10 @@ func (h *Handler) rollbackGroup(w http.ResponseWriter, r *http.Request, params h
 	}
 
 	auClient := getAutoUpdateServiceClient(sctx)
-	rollout, err := auClient.RollbackAutoUpdateAgentGroup(ctx, autoupdatepb.RollbackAutoUpdateAgentGroupRequest_builder{
+	rollout, err := auClient.RollbackAutoUpdateAgentGroup(ctx, &autoupdatepb.RollbackAutoUpdateAgentGroupRequest{
 		Groups:           []string{groupName},
 		AllStartedGroups: false,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

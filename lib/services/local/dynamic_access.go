@@ -93,9 +93,10 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		return nil, trace.Wrap(err)
 	}
 	// Setting state is attempted multiple times in the event of concurrent writes.
-	// The reason we bother to re-attempt is that state updates aren't meant
-	// to be "first come, first served". Approved, denied, and promoted states are terminal.
-	for range maxCmpAttempts {
+	// The reason we bother to re-attempt is because state updates aren't meant
+	// to be "first come first serve".  Denials should overwrite approvals, but
+	// approvals should not overwrite denials.
+	for i := 0; i < maxCmpAttempts; i++ {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -107,15 +108,9 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if req.GetState() == params.State && req.GetState().IsResolved() {
-			return nil, trace.BadParameter("cannot update access request in state %q", req.GetState().String())
-		}
-
 		if err := req.SetState(params.State); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
@@ -173,7 +168,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		return nil, trace.Wrap(err)
 	}
 	// Review application is attempted multiple times in the event of concurrent writes.
-	for range maxCmpAttempts {
+	for i := 0; i < maxCmpAttempts; i++ {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {

@@ -60,7 +60,6 @@ import (
 
 func (process *TeleportProcess) initRelay() {
 	process.RegisterWithAuthServer(apitypes.RoleRelay, RelayIdentityEvent)
-	process.ExpectService(teleport.ComponentRelay)
 	process.RegisterCriticalFunc("relay.run", process.runRelayService)
 }
 
@@ -232,7 +231,7 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer peerServer.Close()
 
-	transportTLSConfig, err := process.ServerTLSConfig(conn)
+	transportTLSConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -283,7 +282,7 @@ func (process *TeleportProcess) runRelayService() error {
 	{
 		tc, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 			TransportCredentials: credentials.NewTLS(transportTLSConfig),
-			UserGetter: &authz.Middleware{
+			UserGetter: &auth.Middleware{
 				ClusterName: conn.clusterName,
 			},
 			Authorizer:        authorizer,
@@ -387,26 +386,31 @@ func (process *TeleportProcess) runRelayService() error {
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
-	relayServer.Store(presencev1.RelayServer_builder{
+	relayServer.Store(&presencev1.RelayServer{
 		Kind:    apitypes.KindRelayServer,
 		SubKind: "",
 		Version: apitypes.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: conn.HostUUID(),
-		}.Build(),
-		Spec: presencev1.RelayServer_Spec_builder{
+		},
+		Spec: &presencev1.RelayServer_Spec{
 			Hostname:   process.Config.Hostname,
 			RelayGroup: process.Config.Relay.RelayGroup,
 			PeerAddr:   peerPublicAddr,
 			Nonce:      nonce,
-		}.Build(),
-	}.Build())
+		},
+	})
 
 	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
 		InventoryHandle: process.inventoryHandle,
 		GetResource: func(context.Context) (*presencev1.RelayServer, error) {
 			return relayServer.Load(), nil
 		},
+
+		// there's no fallback announce mode, the relay service only works with
+		// clusters recent enough to support relay heartbeats through the ICS
+		Announcer: nil,
+
 		OnHeartbeat: process.OnHeartbeat(teleport.ComponentRelay),
 	}, sublogger("heartbeat"))
 	if err != nil {
@@ -428,7 +432,7 @@ func (process *TeleportProcess) runRelayService() error {
 
 	{
 		r := proto.CloneOf(relayServer.Load())
-		r.GetSpec().SetTerminating(true)
+		r.GetSpec().Terminating = true
 		relayServer.Store(r)
 	}
 
@@ -472,8 +476,6 @@ func (process *TeleportProcess) runRelayService() error {
 		return nil
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
-
-	shutdownEmitter(process, asyncEmitter, exitEvent.Payload, log)
 
 	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)

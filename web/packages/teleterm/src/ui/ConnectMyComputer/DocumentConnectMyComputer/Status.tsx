@@ -36,7 +36,6 @@ import * as icons from 'design/Icon';
 import type { IconProps } from 'design/Icon/Icon';
 import Indicator from 'design/Indicator';
 import { MenuIcon } from 'shared/components/MenuAction';
-import { getErrorMessage } from 'shared/utils/error';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -113,7 +112,7 @@ export function Status(props: { closeDocument?: () => void }) {
     } catch (e) {
       ctx.notificationsService.notifyError({
         title: 'Failed to open agent logs directory',
-        description: `${getErrorMessage(e)}\n\nNote: the logs directory is created only after the agent process successfully spawns.`,
+        description: `${e.message}\n\nNote: the logs directory is created only after the agent process successfully spawns.`,
       });
     }
   }

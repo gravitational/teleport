@@ -167,11 +167,11 @@ func (s *RevocationService) GetWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	resource, err := s.store.GetWorkloadIdentityX509Revocation(ctx, req.GetName())
+	resource, err := s.store.GetWorkloadIdentityX509Revocation(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -196,17 +196,17 @@ func (s *RevocationService) ListWorkloadIdentityX509Revocations(
 
 	resources, nextToken, err := s.store.ListWorkloadIdentityX509Revocations(
 		ctx,
-		int(req.GetPageSize()),
-		req.GetPageToken(),
+		int(req.PageSize),
+		req.PageToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return workloadidentityv1pb.ListWorkloadIdentityX509RevocationsResponse_builder{
+	return &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsResponse{
 		WorkloadIdentityX509Revocations: resources,
 		NextPageToken:                   nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // DeleteWorkloadIdentityX509Revocation deletes a WorkloadIdentityX509Revocation
@@ -226,11 +226,11 @@ func (s *RevocationService) DeleteWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.store.DeleteWorkloadIdentityX509Revocation(ctx, req.GetName()); err != nil {
+	if err := s.store.DeleteWorkloadIdentityX509Revocation(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -242,7 +242,7 @@ func (s *RevocationService) DeleteWorkloadIdentityX509Revocation(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetName(),
+			Name: req.Name,
 		},
 	}
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
@@ -271,7 +271,7 @@ func (s *RevocationService) CreateWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.store.CreateWorkloadIdentityX509Revocation(ctx, req.GetWorkloadIdentityX509Revocation())
+	created, err := s.store.CreateWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -315,7 +315,7 @@ func (s *RevocationService) UpdateWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.store.UpdateWorkloadIdentityX509Revocation(ctx, req.GetWorkloadIdentityX509Revocation())
+	created, err := s.store.UpdateWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -361,7 +361,7 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.store.UpsertWorkloadIdentityX509Revocation(ctx, req.GetWorkloadIdentityX509Revocation())
+	created, err := s.store.UpsertWorkloadIdentityX509Revocation(ctx, req.WorkloadIdentityX509Revocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -402,9 +402,9 @@ func (s *RevocationService) StreamSignedCRL(
 		// The CRL may not yet have been signed, so, skip straight to waiting
 		// for an update.
 		if len(crl) != 0 {
-			if err := srv.Send(workloadidentityv1pb.StreamSignedCRLResponse_builder{
+			if err := srv.Send(&workloadidentityv1pb.StreamSignedCRLResponse{
 				Crl: crl,
-			}.Build()); err != nil {
+			}); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -484,7 +484,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	}
 	revocationsMap := make(map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation, len(revocationsSlice))
 	for _, revocation := range revocationsSlice {
-		revocationsMap[revocation.GetMetadata().GetName()] = revocation
+		revocationsMap[revocation.Metadata.Name] = revocation
 	}
 
 	handleEvent := func(e types.Event) (bool, error) {
@@ -498,7 +498,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 				)
 			}
 			revocation := unwrapper.UnwrapT()
-			revocationsMap[revocation.GetMetadata().GetName()] = revocation
+			revocationsMap[revocation.Metadata.Name] = revocation
 			return true, nil
 		case types.OpDelete:
 			delete(revocationsMap, e.Resource.GetName())
@@ -565,7 +565,7 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 			}
 			newRevocationsMap := make(map[string]*workloadidentityv1pb.WorkloadIdentityX509Revocation, len(revocationsSlice))
 			for _, revocation := range revocationsSlice {
-				newRevocationsMap[revocation.GetMetadata().GetName()] = revocation
+				newRevocationsMap[revocation.Metadata.Name] = revocation
 			}
 			revocationsMap = newRevocationsMap
 			crl, err := s.signCRL(ctx, revocationsMap)
@@ -607,7 +607,7 @@ func (s *RevocationService) signCRL(
 		tracing.EndSpan(span, err)
 	}()
 
-	s.logger.DebugContext(ctx, "Starting to generate new CRL")
+	s.logger.InfoContext(ctx, "Starting to generate new CRL")
 	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
@@ -637,19 +637,19 @@ func (s *RevocationService) signCRL(
 
 	for _, revocation := range revocations {
 		serial := new(big.Int)
-		_, ok := serial.SetString(revocation.GetMetadata().GetName(), 16)
+		_, ok := serial.SetString(revocation.Metadata.Name, 16)
 		if !ok {
 			s.logger.WarnContext(
 				ctx,
 				"Encountered WorkloadIdentityX509Revocation with unparsable serial number, it will be omitted from the CRL",
-				"workload_identity_revocation_name", revocation.GetMetadata().GetName(),
+				"workload_identity_revocation_name", revocation.Metadata.Name,
 			)
 			continue
 		}
 
 		tmpl.RevokedCertificateEntries = append(tmpl.RevokedCertificateEntries, x509.RevocationListEntry{
 			SerialNumber:   serial,
-			RevocationTime: revocation.GetSpec().GetRevokedAt().AsTime(),
+			RevocationTime: revocation.Spec.RevokedAt.AsTime(),
 		})
 	}
 
@@ -659,7 +659,7 @@ func (s *RevocationService) signCRL(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.logger.DebugContext(ctx, "Finished generating new CRL", "revocations", len(revocations))
+	s.logger.InfoContext(ctx, "Finished generating new CRL", "revocations", len(revocations))
 	return signedCRL, nil
 }
 

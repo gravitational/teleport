@@ -255,7 +255,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	count := len(tp.c.servers) + 1
 	resC := make(chan dialRes, count)
 
-	for range count {
+	for i := 0; i < count; i++ {
 		go func() {
 			conn, err := tp.DialContext(ctx, "", "")
 			resC <- dialRes{
@@ -265,7 +265,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		}()
 	}
 
-	for range count {
+	for i := 0; i < count; i++ {
 		res := <-resC
 		require.Error(t, res.err)
 		require.Nil(t, res.conn)

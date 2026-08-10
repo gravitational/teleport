@@ -77,15 +77,15 @@ func (s *SessionService) CreateDelegationSession(
 		return nil, trace.BadParameter("ttl: cannot be more than %d hours", sessionMaxTTL/time.Hour)
 	}
 
-	session := delegationv1.DelegationSession_builder{
+	session := &delegationv1.DelegationSession{
 		Kind:    types.KindDelegationSession,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:    uuid.NewString(),
 			Expires: timestamppb.New(time.Now().Add(ttl)),
-		}.Build(),
+		},
 		Spec: req.GetSpec(),
-	}.Build()
+	}
 	spec := session.GetSpec()
 	resources := spec.GetResources()
 

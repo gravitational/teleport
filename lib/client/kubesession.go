@@ -89,7 +89,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		body, _ := io.ReadAll(resp.Body)
-		var respData map[string]any
+		var respData map[string]interface{}
 		if err := json.Unmarshal(body, &respData); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -216,7 +216,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, authFn func(context.Context
 
 		go func() {
 			defer auth.Close()
-			if err := RunDefaultPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), ceremony); err != nil {
+			if err := RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), ceremony); err != nil {
 				slog.DebugContext(ctx, "Presence check terminated unexpectedly", "error", err)
 			}
 		}()

@@ -239,8 +239,8 @@ func (s *Service) requestSVID(
 			received = append(received,
 				fmt.Sprintf(
 					"%s:%s",
-					cred.GetWorkloadIdentityName(),
-					cred.GetSpiffeId(),
+					cred.WorkloadIdentityName,
+					cred.SpiffeId,
 				),
 			)
 		}

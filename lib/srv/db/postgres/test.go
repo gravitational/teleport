@@ -458,8 +458,8 @@ func (s *TestServer) handleCreateStoredProcedure(query string, pid uint32) error
 
 	procName := storedProcedureName(pid, match[storedProcedureRe.SubexpIndex("Schema")], match[storedProcedureRe.SubexpIndex("ProcName")])
 	var argsCount int
-	args := strings.SplitSeq(match[storedProcedureRe.SubexpIndex("Args")], ",")
-	for arg := range args {
+	args := strings.Split(match[storedProcedureRe.SubexpIndex("Args")], ",")
+	for _, arg := range args {
 		// Skip arguments that have a default value.
 		if !strings.Contains(strings.ToLower(arg), "default") {
 			argsCount++
@@ -955,6 +955,7 @@ func getJSONB[T any](formatCode int16, src []byte) (T, error) {
 
 func (s *TestServer) sendMessages(client *pgproto3.Backend, messages ...pgproto3.BackendMessage) error {
 	for _, message := range messages {
+		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		client.Send(message)
 	}
 	return trace.Wrap(client.Flush())

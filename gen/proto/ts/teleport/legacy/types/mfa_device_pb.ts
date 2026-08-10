@@ -18,18 +18,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+import { WireType } from "@protobuf-ts/runtime";
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
-import { WireType } from "@protobuf-ts/runtime";
+import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { BinaryReadOptions } from "@protobuf-ts/runtime";
 import type { IBinaryReader } from "@protobuf-ts/runtime";
-import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { BoolValue } from "../../../google/protobuf/wrappers_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
 import { Metadata } from "./metadata_pb";
+/**
+ * BrowserMFADevice is a synthetic MFA device that is made available if a user
+ * has at least one WebAuthn device and no SSO MFA setup. This message doesn't
+ * require any fields, it just needs to exist so it can be an MFA option.
+ *
+ * @generated from protobuf message types.BrowserMFADevice
+ */
+export interface BrowserMFADevice {
+}
 /**
  * MFADevice is a multi-factor authentication device, such as a security key or
  * an OTP app.
@@ -256,15 +265,31 @@ export interface SSOMFADevice {
      */
     displayName: string;
 }
-/**
- * BrowserMFADevice is a synthetic MFA device that is made available if a user
- * has at least one WebAuthn device and no SSO MFA setup. This message doesn't
- * require any fields, it just needs to exist so it can be an MFA option.
- *
- * @generated from protobuf message types.BrowserMFADevice
- */
-export interface BrowserMFADevice {
+// @generated message type with reflection information, may provide speed optimized methods
+class BrowserMFADevice$Type extends MessageType<BrowserMFADevice> {
+    constructor() {
+        super("types.BrowserMFADevice", []);
+    }
+    create(value?: PartialMessage<BrowserMFADevice>): BrowserMFADevice {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<BrowserMFADevice>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BrowserMFADevice): BrowserMFADevice {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: BrowserMFADevice, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
 }
+/**
+ * @generated MessageType for protobuf message types.BrowserMFADevice
+ */
+export const BrowserMFADevice = new BrowserMFADevice$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class MFADevice$Type extends MessageType<MFADevice> {
     constructor() {
@@ -698,28 +723,3 @@ class SSOMFADevice$Type extends MessageType<SSOMFADevice> {
  * @generated MessageType for protobuf message types.SSOMFADevice
  */
 export const SSOMFADevice = new SSOMFADevice$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class BrowserMFADevice$Type extends MessageType<BrowserMFADevice> {
-    constructor() {
-        super("types.BrowserMFADevice", []);
-    }
-    create(value?: PartialMessage<BrowserMFADevice>): BrowserMFADevice {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<BrowserMFADevice>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BrowserMFADevice): BrowserMFADevice {
-        return target ?? this.create();
-    }
-    internalBinaryWrite(message: BrowserMFADevice, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message types.BrowserMFADevice
- */
-export const BrowserMFADevice = new BrowserMFADevice$Type();

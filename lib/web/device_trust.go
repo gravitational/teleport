@@ -40,19 +40,19 @@ import (
 //
 // The result of this call is a redirect to "/web", regardless of the outcome of
 // the ConfirmDeviceWebAuthentication RPC.
-func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (any, error) {
+func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (interface{}, error) {
 	query := r.URL.Query()
 
 	// Read input parameters.
 	confirmToken := &devicepb.DeviceConfirmationToken{}
-	confirmToken.SetId(query.Get("id"))
-	confirmToken.SetToken(query.Get("token"))
+	confirmToken.Id = query.Get("id")
+	confirmToken.Token = query.Get("token")
 	unsafeRedirectURI := query.Get("redirect_uri")
 
 	switch {
-	case confirmToken.GetId() == "":
+	case confirmToken.Id == "":
 		return nil, trace.BadParameter("parameter id required")
-	case confirmToken.GetToken() == "":
+	case confirmToken.Token == "":
 		return nil, trace.BadParameter("parameter token required")
 	}
 
@@ -60,10 +60,10 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	devicesClient := h.GetProxyClient().DevicesClient()
 	ctx := r.Context()
 
-	_, err := devicesClient.ConfirmDeviceWebAuthentication(ctx, devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
+	_, err := devicesClient.ConfirmDeviceWebAuthentication(ctx, &devicepb.ConfirmDeviceWebAuthenticationRequest{
 		ConfirmationToken:   confirmToken,
 		CurrentWebSessionId: sessionCtx.GetSessionID(),
-	}.Build())
+	})
 	switch {
 	case err != nil:
 		h.logger.WarnContext(ctx, "Device web authentication confirm failed",

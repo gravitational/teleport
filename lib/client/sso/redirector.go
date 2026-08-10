@@ -69,11 +69,6 @@ const (
 	// auth connector's callback was encountered.
 	LoginFailedBadCallbackRedirectURL = "/web/msg/error/login/callback"
 
-	// LoginFailedBadCallbackMissingRoleRedirectURL is a redirect URL when an auth connector
-	// callback failed because it couldn't find the user's calculated role (from auth connector
-	// mapping) in the backend.
-	LoginFailedBadCallbackMissingRoleRedirectURL = "/web/msg/error/login/callback_missing_role"
-
 	// LoginFailedUnauthorizedRedirectURL is a redirect URL for when an SSO authenticates successfully,
 	// but the user has no matching roles in Teleport.
 	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
@@ -317,32 +312,7 @@ func (rd *Redirector) clickableURL(redirectURL, postForm string) string {
 		}
 	})
 
-	return clickableURL(rd.baseURL() + shortPath)
-}
-
-// clickableURL fixes the address in a URL to make sure
-// it's clickable, e.g. it replaces "undefined" addresses like
-// 0.0.0.0 used in network listeners with the loopback address.
-func clickableURL(in string) string {
-	out, err := url.Parse(in)
-	if err != nil {
-		return in
-	}
-	host, port, err := net.SplitHostPort(out.Host)
-	if err != nil {
-		return in
-	}
-	ip := net.ParseIP(host)
-	// If address is not an IP address, return it unchanged.
-	if ip == nil && out.Host != "" {
-		return out.String()
-	}
-	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
-	// replace with localhost that is clickable
-	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
-		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
-	}
-	return out.String()
+	return utils.ClickableURL(rd.baseURL() + shortPath)
 }
 
 func (rd *Redirector) baseURL() string {

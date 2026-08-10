@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
@@ -43,7 +44,6 @@ import (
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +55,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -146,119 +145,6 @@ func testIntegrationAthenaEventExport(t *testing.T, bypassSNS bool) {
 	eventsSuite.EventExport(t)
 }
 
-func TestIntegrationAthenaReplayDeduplicatedOnRead(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-	defer cancel()
-
-	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{MaxBatchSize: 1})
-
-	now := ac.clock.Now().UTC()
-	date := now.Format(time.DateOnly)
-	from := now.Add(-time.Hour)
-	to := now.Add(time.Hour)
-
-	makeEvent := func(id, name string) *apievents.AppCreate {
-		return &apievents.AppCreate{
-			Metadata: apievents.Metadata{
-				ID:   id,
-				Type: events.AppCreateEvent,
-				Time: now,
-			},
-			AppMetadata: apievents.AppMetadata{AppName: name},
-		}
-	}
-
-	searchCountByID := func(t *testing.T, id string) int {
-		t.Helper()
-		matched := 0
-		startKey := ""
-		for {
-			got, next, err := ac.log.SearchEvents(ctx, events.SearchEventsRequest{
-				From:     from,
-				To:       to,
-				Limit:    1000,
-				Order:    types.EventOrderAscending,
-				StartKey: startKey,
-			})
-			require.NoError(t, err)
-			for _, e := range got {
-				if e.GetID() == id {
-					matched++
-				}
-			}
-			if next == "" {
-				return matched
-			}
-			startKey = next
-		}
-	}
-
-	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
-	require.NoError(t, err)
-	athenaClient := athena.NewFromConfig(awsCfg)
-
-	dupID := uuid.NewString()
-	require.NoError(t, ac.log.EmitAuditEvent(ctx, makeEvent(dupID, "app-dup")))
-	require.NoError(t, ac.log.EmitAuditEvent(ctx, makeEvent(dupID, "app-dup")))
-
-	collisionID := uuid.NewString()
-	require.NoError(t, ac.log.EmitAuditEvent(ctx, makeEvent(collisionID, "app-alice")))
-	require.NoError(t, ac.log.EmitAuditEvent(ctx, makeEvent(collisionID, "app-bob")))
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dupRows, err := athenaRowCount(ctx, ac, athenaClient, date, dupID)
-		assert.NoError(c, err)
-		collRows, err := athenaRowCount(ctx, ac, athenaClient, date, collisionID)
-		assert.NoError(c, err)
-		assert.Equal(c, 2, dupRows, "identical re-delivery must land as two rows")
-		assert.Equal(c, 2, collRows, "distinct events sharing an id must land as two rows")
-	}, 3*time.Minute, 5*time.Second)
-
-	require.Equal(t, 1, searchCountByID(t, dupID),
-		"two identical rows must be de-duplicated to one at query time")
-	require.Equal(t, 2, searchCountByID(t, collisionID),
-		"two distinct events sharing an id must both be returned")
-}
-
-func athenaRowCount(ctx context.Context, ac *AthenaContext, client *athena.Client, date, uid string) (int, error) {
-	query := fmt.Sprintf("SELECT count(*) FROM %s WHERE event_date = date('%s') AND uid = '%s';", ac.TableName, date, uid)
-	start, err := client.StartQueryExecution(ctx, &athena.StartQueryExecutionInput{
-		QueryExecutionContext: &athenaTypes.QueryExecutionContext{Database: aws.String(ac.Database)},
-		QueryString:           aws.String(query),
-		WorkGroup:             aws.String("primary"),
-		ResultConfiguration:   &athenaTypes.ResultConfiguration{OutputLocation: aws.String(ac.S3ResultsLocation)},
-	})
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	queryID := aws.ToString(start.QueryExecutionId)
-	for {
-		exec, err := client.GetQueryExecution(ctx, &athena.GetQueryExecutionInput{QueryExecutionId: aws.String(queryID)})
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		switch exec.QueryExecution.Status.State {
-		case athenaTypes.QueryExecutionStateSucceeded:
-			res, err := client.GetQueryResults(ctx, &athena.GetQueryResultsInput{QueryExecutionId: aws.String(queryID)})
-			if err != nil {
-				return 0, trace.Wrap(err)
-			}
-			rows := res.ResultSet.Rows
-			if len(rows) < 2 || len(rows[1].Data) < 1 {
-				return 0, trace.Errorf("unexpected count result shape from query %s", queryID)
-			}
-			return strconv.Atoi(aws.ToString(rows[1].Data[0].VarCharValue))
-		case athenaTypes.QueryExecutionStateFailed, athenaTypes.QueryExecutionStateCancelled:
-			return 0, trace.Errorf("count query %s ended in state %s", queryID, exec.QueryExecution.Status.State)
-		}
-		select {
-		case <-ctx.Done():
-			return 0, trace.Wrap(ctx.Err())
-		case <-time.After(2 * time.Second):
-		}
-	}
-}
-
 func TestIntegrationAthenaEventPagination(t *testing.T) {
 	t.Run("sns", func(t *testing.T) {
 		const bypassSNSFalse = false
@@ -267,17 +153,6 @@ func TestIntegrationAthenaEventPagination(t *testing.T) {
 	t.Run("sqs", func(t *testing.T) {
 		const bypassSNSTrue = true
 		testIntegrationAthenaEventPagination(t, bypassSNSTrue)
-	})
-}
-
-func TestIntegrationAthenaSearchEventsBySearchTerm(t *testing.T) {
-	t.Run("sns", func(t *testing.T) {
-		const bypassSNSFalse = false
-		testIntegrationAthenaSearchEventsBySearchTerm(t, bypassSNSFalse)
-	})
-	t.Run("sqs", func(t *testing.T) {
-		const bypassSNSTrue = true
-		testIntegrationAthenaSearchEventsBySearchTerm(t, bypassSNSTrue)
 	})
 }
 
@@ -296,22 +171,6 @@ func testIntegrationAthenaEventPagination(t *testing.T, bypassSNS bool) {
 	}
 
 	eventsSuite.EventPagination(t)
-}
-
-func testIntegrationAthenaSearchEventsBySearchTerm(t *testing.T, bypassSNS bool) {
-	ctx := t.Context()
-	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{BypassSNS: bypassSNS})
-	auditLogger := &EventuallyConsistentAuditLogger{
-		Inner: ac.log,
-		// Additional 5s is used to compensate for uploading parquet on s3.
-		QueryDelay: ac.batcherInterval + 5*time.Second,
-	}
-	eventsSuite := test.EventsSuite{
-		Log:   auditLogger,
-		Clock: ac.clock,
-	}
-
-	eventsSuite.SearchEventsBySearchTerm(t)
 }
 
 func TestIntegrationAthenaLargeEvents(t *testing.T) {
@@ -499,17 +358,6 @@ func (e *EventuallyConsistentAuditLogger) SearchSessionEvents(ctx context.Contex
 		e.emitWasAfterLastDelay = false
 	}
 	return e.Inner.SearchSessionEvents(ctx, req)
-}
-
-func (e *EventuallyConsistentAuditLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.emitWasAfterLastDelay {
-		time.Sleep(e.QueryDelay)
-		// clear emit delay
-		e.emitWasAfterLastDelay = false
-	}
-	return e.Inner.SearchUnstructuredEvents(ctx, req)
 }
 
 func (e *EventuallyConsistentAuditLogger) Close() error {

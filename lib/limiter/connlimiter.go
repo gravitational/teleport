@@ -148,7 +148,7 @@ func (l *ConnectionsLimiter) GetNumConnection(token string) (int64, error) {
 
 	numberOfConnections, exists := l.connections[token]
 	if !exists {
-		return 0, nil
+		return -1, trace.BadParameter("unable to get connections of a nonexistent token: %q", token)
 	}
 
 	return numberOfConnections, nil

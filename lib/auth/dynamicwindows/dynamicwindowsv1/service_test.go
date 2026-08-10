@@ -45,10 +45,10 @@ func TestFailedAccessCheck(t *testing.T) {
 	s := newService(t, authz.AdminActionAuthMFAVerified, &checker)
 	desktop, err := types.NewDynamicWindowsDesktopV1("test2", nil, types.DynamicWindowsDesktopSpecV1{Addr: "addr"})
 	require.NoError(t, err)
-	req := dynamicwindowsv1.CreateDynamicWindowsDesktopRequest_builder{
+	req := dynamicwindowsv1.CreateDynamicWindowsDesktopRequest{
 		Desktop: desktop,
-	}.Build()
-	_, err = s.CreateDynamicWindowsDesktop(context.Background(), req)
+	}
+	_, err = s.CreateDynamicWindowsDesktop(context.Background(), &req)
 	require.NoError(t, err)
 
 	// The methods that accept a client-supplied desktop must reject a request
@@ -80,12 +80,12 @@ func TestFailedAccessCheck(t *testing.T) {
 		})
 	}
 	t.Run("ListDynamicWindowsDesktops failed access check", func(t *testing.T) {
-		req := dynamicwindowsv1.ListDynamicWindowsDesktopsRequest_builder{
+		req := dynamicwindowsv1.ListDynamicWindowsDesktopsRequest{
 			PageSize: 10,
-		}.Build()
-		resp, err := s.ListDynamicWindowsDesktops(context.Background(), req)
+		}
+		resp, err := s.ListDynamicWindowsDesktops(context.Background(), &req)
 		require.NoError(t, err)
-		require.Empty(t, resp.GetDesktops())
+		require.Empty(t, resp.Desktops)
 	})
 }
 

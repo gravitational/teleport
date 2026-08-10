@@ -86,6 +86,7 @@ func TestPrincipals(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -134,13 +135,13 @@ func TestScopePin(t *testing.T) {
 
 	identity := Identity{
 		Username: "alice@example.com",
-		ScopePin: scopesv1.Pin_builder{
+		ScopePin: &scopesv1.Pin{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"/::r1"}, "/foo": {"/::r2"}},
 			}),
-		}.Build(),
+		},
 	}
 
 	subj, err := identity.Subject()
@@ -223,17 +224,17 @@ func TestJoinAttributes(t *testing.T) {
 		BotScope:      "/foo",
 		BotInternal:   true,
 		Expires:       expires,
-		JoinAttributes: workloadidentityv1pb.JoinAttrs_builder{
-			Kubernetes: workloadidentityv1pb.JoinAttrsKubernetes_builder{
-				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
+		JoinAttributes: &workloadidentityv1pb.JoinAttrs{
+			Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
 					Namespace: "default",
 					Name:      "foo",
-				}.Build(),
-				Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
+				},
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 					Name: "bar",
-				}.Build(),
-			}.Build(),
-		}.Build(),
+				},
+			},
+		},
 	}
 
 	subj, err := identity.Subject()
@@ -829,7 +830,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 			name: "pinned user identity",
 			identity: Identity{
 				Username: "alpaca",
-				ScopePin: scopesv1.Pin_builder{
+				ScopePin: &scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -839,7 +840,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 							"/staging/green": {"/staging::staging-access"},
 						},
 					}),
-				}.Build(),
+				},
 			},
 			want: apievents.UserMetadata{
 				User:     "alpaca",
@@ -861,7 +862,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				BotName:       "alpaca",
 				BotInstanceID: "123-123",
 				BotScope:      "/staging",
-				ScopePin: scopesv1.Pin_builder{
+				ScopePin: &scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -871,7 +872,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 							"/staging/green": {"/staging::staging-access"},
 						},
 					}),
-				}.Build(),
+				},
 			},
 			want: apievents.UserMetadata{
 				User:             "bot-alpaca",
@@ -893,16 +894,16 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 			name: "pinned system identity",
 			identity: Identity{
 				Username: "system.teleport.name",
-				ScopePin: scopesv1.Pin_builder{
+				ScopePin: &scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: "/staging",
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: types.RoleInstance.String(),
 						Additional: []string{
 							types.RoleNode.String(), types.RoleKube.String(),
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			want: apievents.UserMetadata{
 				User:     "system.teleport.name",
@@ -1016,43 +1017,6 @@ func TestDelegationSessionID(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, out.IsDelegationSession())
 	require.False(t, out.Renewable)
-	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
-}
-
-func TestBeamID(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
-
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-
-	expires := clock.Now().Add(time.Hour)
-	identity := Identity{
-		Username:          "alice@example.com",
-		Groups:            []string{"admin"},
-		TeleportCluster:   "tele-cluster",
-		OriginClusterName: "tele-cluster",
-		Expires:           expires,
-		BeamID:            "beam-id",
-	}
-
-	subj, err := identity.Subject()
-	require.NoError(t, err)
-
-	certBytes, err := ca.GenerateCertificate(CertificateRequest{
-		Clock:     clock,
-		PublicKey: privateKey.Public(),
-		Subject:   subj,
-		NotAfter:  expires,
-	})
-	require.NoError(t, err)
-
-	cert, err := ParseCertificatePEM(certBytes)
-	require.NoError(t, err)
-	out, err := FromSubject(cert.Subject, cert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, "beam-id", out.BeamID)
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 

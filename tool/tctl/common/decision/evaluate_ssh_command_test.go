@@ -31,33 +31,35 @@ import (
 func TestEvaluateSSH(t *testing.T) {
 	tests := []struct {
 		name     string
-		format   string
 		response *decisionpb.EvaluateSSHAccessResponse
 	}{
 		{
 			name: "denied",
-			response: decisionpb.EvaluateSSHAccessResponse_builder{
-				Denial: decisionpb.SSHAccessDenial_builder{
-					Metadata: decisionpb.DenialMetadata_builder{
-						PdpVersion:  teleport.Version,
-						UserMessage: "denial",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+			response: &decisionpb.EvaluateSSHAccessResponse{
+				Decision: &decisionpb.EvaluateSSHAccessResponse_Denial{
+					Denial: &decisionpb.SSHAccessDenial{
+						Metadata: &decisionpb.DenialMetadata{
+							PdpVersion:  teleport.Version,
+							UserMessage: "denial",
+						},
+					},
+				},
+			},
 		},
 		{
-			name:   "permitted",
-			format: teleport.YAML,
-			response: decisionpb.EvaluateSSHAccessResponse_builder{
-				Permit: decisionpb.SSHAccessPermit_builder{
-					Metadata: decisionpb.PermitMetadata_builder{
-						PdpVersion: teleport.Version,
-					}.Build(),
-					ForwardAgent:    true,
-					X11Forwarding:   true,
-					PortForwardMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
-				}.Build(),
-			}.Build(),
+			name: "permitted",
+			response: &decisionpb.EvaluateSSHAccessResponse{
+				Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
+					Permit: &decisionpb.SSHAccessPermit{
+						Metadata: &decisionpb.PermitMetadata{
+							PdpVersion: teleport.Version,
+						},
+						ForwardAgent:    true,
+						X11Forwarding:   true,
+						PortForwardMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+					},
+				},
+			},
 		},
 	}
 
@@ -70,7 +72,6 @@ func TestEvaluateSSH(t *testing.T) {
 				Username: "alice",
 				ServerID: "server",
 				Login:    "root",
-				Format:   test.format,
 			}
 
 			clt := fakeClient{
@@ -84,7 +85,7 @@ func TestEvaluateSSH(t *testing.T) {
 			require.NoError(t, err, "evaluating SSH access failed")
 
 			var expected bytes.Buffer
-			err = decision.WriteProto(&expected, test.format, test.response)
+			err = decision.WriteProtoJSON(&expected, test.response)
 			require.NoError(t, err, "marshaling expected output failed")
 			require.Equal(t, output.String(), expected.String(), "output did not match")
 		})

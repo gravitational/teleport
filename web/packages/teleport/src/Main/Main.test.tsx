@@ -17,6 +17,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
 
 import { ButtonPrimary } from 'design/Button';
 import { ListThin } from 'design/Icon';
@@ -25,7 +26,6 @@ import {
   enableMswServer,
   fireEvent,
   render,
-  Router,
   screen,
   server,
 } from 'design/utils/testing';
@@ -40,7 +40,6 @@ import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { clusters } from 'teleport/Clusters/fixtures';
-import cfg from 'teleport/config';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { getOSSFeatures } from 'teleport/features';
@@ -50,7 +49,6 @@ import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
-import { KeysEnum } from 'teleport/services/storageService';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
@@ -62,13 +60,6 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 import { Main, MainProps } from './Main';
 
 enableMswServer();
-
-const defaultScopesEnabled = cfg.scopesEnabled;
-
-afterEach(() => {
-  cfg.scopesEnabled = defaultScopesEnabled;
-  localStorage.removeItem(KeysEnum.USE_LOGIN_SCOPE_PICKER);
-});
 
 beforeEach(() => {
   server.use(
@@ -111,7 +102,7 @@ test('renders', () => {
   };
 
   render(
-    <Router>
+    <MemoryRouter>
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <ToastNotificationProvider>
@@ -119,40 +110,11 @@ test('renders', () => {
           </ToastNotificationProvider>
         </ContextProvider>
       </LayoutContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
   expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(0);
-});
-
-test('redirects users with available scopes to the scope picker before rendering the app', async () => {
-  cfg.scopesEnabled = true;
-  localStorage.setItem(KeysEnum.USE_LOGIN_SCOPE_PICKER, JSON.stringify(true));
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
-  ctx.storeUser.setState({
-    ...ctx.storeUser.state,
-    availableScopes: ['/prod', '/staging'],
-  });
-
-  render(
-    <Router>
-      <LayoutContextProvider>
-        <ContextProvider ctx={ctx}>
-          <ToastNotificationProvider>
-            <Main features={getOSSFeatures()} />
-          </ToastNotificationProvider>
-        </ContextProvider>
-      </LayoutContextProvider>
-    </Router>
-  );
-
-  // No navigation expected.
-  expect(screen.queryAllByText('Zero Trust Access')).toHaveLength(0);
-  expect(
-    screen.getByRole('heading', { name: 'Choose a scope for your session:' })
-  ).toBeVisible();
 });
 
 test('toggle rendering of info guide panel', async () => {
@@ -166,7 +128,7 @@ test('toggle rendering of info guide panel', async () => {
   };
 
   render(
-    <Router>
+    <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -174,7 +136,7 @@ test('toggle rendering of info guide panel', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -210,7 +172,7 @@ test('notification render and auto dismissal', async () => {
   };
 
   render(
-    <Router>
+    <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -218,7 +180,7 @@ test('notification render and auto dismissal', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();

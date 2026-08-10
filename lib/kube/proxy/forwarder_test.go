@@ -1457,6 +1457,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			var kubeCreds kubeCreds
 			if !tt.isProxy {
@@ -1744,13 +1745,13 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 
 func (ap mockAccessPoint) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 	if role, ok := ap.scopedRoles[req.GetName()]; ok {
-		return scopedaccessv1.GetScopedRoleResponse_builder{Role: role}.Build(), nil
+		return &scopedaccessv1.GetScopedRoleResponse{Role: role}, nil
 	}
 	return nil, trace.NotFound("role %q not found", req.GetName())
 }
 
 func (ap mockAccessPoint) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: slices.Collect(maps.Values(ap.scopedRoles))}.Build(), nil
+	return &scopedaccessv1.ListScopedRolesResponse{Roles: slices.Collect(maps.Values(ap.scopedRoles))}, nil
 }
 
 type mockRevTunnel struct {
@@ -1802,16 +1803,16 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 
 	var lock *scopedaccessv1.Lock
 	if cfg.kubeLockMode != "" {
-		lock = scopedaccessv1.Lock_builder{Mode: string(cfg.kubeLockMode)}.Build()
+		lock = &scopedaccessv1.Lock{Mode: string(cfg.kubeLockMode)}
 	}
 
-	role := scopedaccessv1.ScopedRole_builder{
+	role := &scopedaccessv1.ScopedRole{
 		Kind: "scoped_role",
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: scopedTestRole,
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: scopedaccessv1.ScopedRoleKube_builder{
 				Labels:                wildcardLabel(),
@@ -1821,20 +1822,20 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 				Lock:                  lock,
 				DisconnectExpiredCert: cfg.kubeDisconnectExpired,
 			}.Build(),
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 
 	reader := &fakeScopedRoleReader{
 		role: role,
 	}
 
-	pin := scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}.Build()
-	pin.SetAssignmentTree(pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+	pin := &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}
+	pin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 		"/": {
 			scopedTestScope: {scopes.QualifiedName{Scope: "/", Name: scopedTestRole}.String()},
 		},
-	}))
+	})
 
 	checkerCtx, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
 		Username: cfg.user.GetName(),
@@ -1859,11 +1860,11 @@ type fakeScopedRoleReader struct {
 
 func (r *fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 
-	return scopedaccessv1.GetScopedRoleResponse_builder{Role: r.role}.Build(), nil
+	return &scopedaccessv1.GetScopedRoleResponse{Role: r.role}, nil
 }
 
 func (r *fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: []*scopedaccessv1.ScopedRole{r.role}}.Build(), nil
+	return &scopedaccessv1.ListScopedRolesResponse{Roles: []*scopedaccessv1.ScopedRole{r.role}}, nil
 }
 
 type mockEventClient struct {
@@ -1935,7 +1936,8 @@ func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.R
 }
 
 func TestKubernetesConnectionLimit(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	type testCase struct {
 		name        string
@@ -2097,7 +2099,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 					string(entitlements.K8s): {Enabled: false},
 				},
 			},
-			assertErrFunc: func(tt require.TestingT, err error, i ...any) {
+			assertErrFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				var kubeErr *kubeerrors.StatusError
 				require.ErrorAs(tt, err, &kubeErr)
@@ -2108,6 +2110,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
@@ -2662,13 +2665,13 @@ func TestForwarderConfig(t *testing.T) {
 			name:        "scoped with scope pin",
 			expectScope: "/test",
 			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
-				cfg.ScopePin = scopesv1.Pin_builder{
+				cfg.ScopePin = &scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: "/test",
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: types.RoleKube.String(),
-					}.Build(),
-				}.Build()
+					},
+				}
 				return &cfg
 			},
 		},
@@ -2676,13 +2679,13 @@ func TestForwarderConfig(t *testing.T) {
 			name: "scoped with both an agent scope and scope pin",
 			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
 				cfg.Scope = "/test"
-				cfg.ScopePin = scopesv1.Pin_builder{
+				cfg.ScopePin = &scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: "/test",
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: types.RoleKube.String(),
-					}.Build(),
-				}.Build()
+					},
+				}
 				return &cfg
 			},
 			expectErr: "either a scope pin or a bare scope must be set for a scoped kube forwarder, not both",

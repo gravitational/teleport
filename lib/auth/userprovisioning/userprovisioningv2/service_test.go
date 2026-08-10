@@ -49,19 +49,19 @@ func staticHostUserName(i int) string {
 
 func makeStaticHostUser(i int) *userprovisioningpb.StaticHostUser {
 	name := staticHostUserName(i)
-	return userprovisioning.NewStaticHostUser(name, userprovisioningpb.StaticHostUserSpec_builder{
+	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
-			userprovisioningpb.Matcher_builder{
+			{
 				NodeLabels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "foo",
 						Values: []string{"bar"},
-					}.Build(),
+					},
 				},
 				Groups: []string{"foo", "bar"},
-			}.Build(),
+			},
 		},
-	}.Build())
+	})
 }
 
 func authorizeWithVerbs(verbs []string, mfaVerified bool) authorizerFactory {
@@ -91,20 +91,20 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 	ctx := context.Background()
 	user, err := env.resourceService.CreateStaticHostUser(
 		ctx,
-		userprovisioningpb.CreateStaticHostUserRequest_builder{
+		&userprovisioningpb.CreateStaticHostUserRequest{
 			User: userprovisioning.NewStaticHostUser(
 				"test",
-				userprovisioningpb.StaticHostUserSpec_builder{
+				&userprovisioningpb.StaticHostUserSpec{
 					Matchers: []*userprovisioningpb.Matcher{
-						userprovisioningpb.Matcher_builder{
+						{
 							Gid:                  1,
 							Uid:                  2,
 							Groups:               []string{"bar", "baz"},
 							NodeLabelsExpression: `labels.dev == "test"`,
-						}.Build(),
+						},
 					},
-				}.Build(),
-			)}.Build(),
+				},
+			)},
 	)
 	require.NoError(t, err)
 
@@ -134,7 +134,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 
 	user, err = env.resourceService.UpdateStaticHostUser(
 		ctx,
-		userprovisioningpb.UpdateStaticHostUserRequest_builder{User: user}.Build(),
+		&userprovisioningpb.UpdateStaticHostUserRequest{User: user},
 	)
 	require.NoError(t, err)
 
@@ -162,7 +162,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 	}
 	user, err = env.resourceService.UpsertStaticHostUser(
 		ctx,
-		userprovisioningpb.UpsertStaticHostUserRequest_builder{User: user}.Build(),
+		&userprovisioningpb.UpsertStaticHostUserRequest{User: user},
 	)
 	require.NoError(t, err)
 
@@ -190,7 +190,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 	}
 	_, err = env.resourceService.DeleteStaticHostUser(
 		ctx,
-		userprovisioningpb.DeleteStaticHostUserRequest_builder{Name: user.GetMetadata().GetName()}.Build(),
+		&userprovisioningpb.DeleteStaticHostUserRequest{Name: user.Metadata.Name},
 	)
 	require.NoError(t, err)
 
@@ -237,9 +237,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "get",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.GetStaticHostUser(ctx, userprovisioningpb.GetStaticHostUserRequest_builder{
+				_, err := svc.GetStaticHostUser(ctx, &userprovisioningpb.GetStaticHostUserRequest{
 					Name: staticHostUserName(0),
-				}.Build())
+				})
 				return err
 			},
 			allowVerbs: []string{types.VerbRead},
@@ -247,9 +247,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "create",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.CreateStaticHostUser(ctx, userprovisioningpb.CreateStaticHostUserRequest_builder{
+				_, err := svc.CreateStaticHostUser(ctx, &userprovisioningpb.CreateStaticHostUserRequest{
 					User: makeStaticHostUser(10),
-				}.Build())
+				})
 				return err
 			},
 			allowVerbs: []string{types.VerbCreate},
@@ -262,10 +262,10 @@ func TestStaticHostUserCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				hostUser.GetSpec().GetMatchers()[0].SetGroups([]string{"baz", "quux"})
-				_, err = svc.UpdateStaticHostUser(ctx, userprovisioningpb.UpdateStaticHostUserRequest_builder{
+				hostUser.Spec.Matchers[0].Groups = []string{"baz", "quux"}
+				_, err = svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
 					User: hostUser,
-				}.Build())
+				})
 				return err
 			},
 			allowVerbs: []string{types.VerbRead, types.VerbUpdate},
@@ -273,9 +273,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "upsert",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.UpsertStaticHostUser(ctx, userprovisioningpb.UpsertStaticHostUserRequest_builder{
+				_, err := svc.UpsertStaticHostUser(ctx, &userprovisioningpb.UpsertStaticHostUserRequest{
 					User: makeStaticHostUser(10),
-				}.Build())
+				})
 				return err
 			},
 			allowVerbs: []string{types.VerbCreate, types.VerbUpdate},
@@ -283,9 +283,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "delete",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.DeleteStaticHostUser(ctx, userprovisioningpb.DeleteStaticHostUserRequest_builder{
+				_, err := svc.DeleteStaticHostUser(ctx, &userprovisioningpb.DeleteStaticHostUserRequest{
 					Name: staticHostUserName(0),
-				}.Build())
+				})
 				return err
 			},
 			allowVerbs: []string{types.VerbDelete},
@@ -293,6 +293,7 @@ func TestStaticHostUserCRUD(t *testing.T) {
 	}
 
 	for _, tc := range accessTests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 
 			t.Run("allow", func(t *testing.T) {
@@ -330,9 +331,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "get nonexistent resource",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.GetStaticHostUser(ctx, userprovisioningpb.GetStaticHostUserRequest_builder{
+				_, err := svc.GetStaticHostUser(ctx, &userprovisioningpb.GetStaticHostUserRequest{
 					Name: "fake",
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbRead},
@@ -341,9 +342,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "create resource twice",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.CreateStaticHostUser(ctx, userprovisioningpb.CreateStaticHostUserRequest_builder{
+				_, err := svc.CreateStaticHostUser(ctx, &userprovisioningpb.CreateStaticHostUserRequest{
 					User: makeStaticHostUser(0),
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbCreate},
@@ -352,9 +353,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "delete nonexisting resource",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.DeleteStaticHostUser(ctx, userprovisioningpb.DeleteStaticHostUserRequest_builder{
+				_, err := svc.DeleteStaticHostUser(ctx, &userprovisioningpb.DeleteStaticHostUserRequest{
 					Name: staticHostUserName(10),
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbDelete},
@@ -363,9 +364,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "update with wrong revision",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.UpdateStaticHostUser(ctx, userprovisioningpb.UpdateStaticHostUserRequest_builder{
+				_, err := svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
 					User: makeStaticHostUser(0),
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbUpdate},
@@ -374,9 +375,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "update nonexistent resource",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.UpdateStaticHostUser(ctx, userprovisioningpb.UpdateStaticHostUserRequest_builder{
+				_, err := svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
 					User: makeStaticHostUser(10),
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbUpdate},
@@ -385,9 +386,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "upsert with update permission only",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.UpsertStaticHostUser(ctx, userprovisioningpb.UpsertStaticHostUserRequest_builder{
+				_, err := svc.UpsertStaticHostUser(ctx, &userprovisioningpb.UpsertStaticHostUserRequest{
 					User: makeStaticHostUser(0),
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbUpdate},
@@ -396,9 +397,9 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		{
 			name: "upsert with create permission only",
 			request: func(ctx context.Context, svc *Service, _ *local.StaticHostUserService) error {
-				_, err := svc.UpsertStaticHostUser(ctx, userprovisioningpb.UpsertStaticHostUserRequest_builder{
+				_, err := svc.UpsertStaticHostUser(ctx, &userprovisioningpb.UpsertStaticHostUserRequest{
 					User: makeStaticHostUser(10),
-				}.Build())
+				})
 				return err
 			},
 			verbs:  []string{types.VerbCreate},
@@ -406,6 +407,7 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		},
 	}
 	for _, tc := range otherTests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			authorizer := authorizeWithVerbs(tc.verbs, true)
@@ -507,7 +509,7 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 
 	localResourceService, err := local.NewStaticHostUserService(backend)
 	require.NoError(t, err)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		_, err := localResourceService.CreateStaticHostUser(ctx, makeStaticHostUser(i))
 		require.NoError(t, err)
 	}

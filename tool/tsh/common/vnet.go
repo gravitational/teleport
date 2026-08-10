@@ -136,8 +136,8 @@ func runDNSDiag(ctx context.Context, vnetProcess *vnet.UserProcess) error {
 		return trace.Wrap(err, "getting unified cluster config for DNS diag")
 	}
 	dnsCfg := &diag.DNSConfig{DNSZones: cfg.AllDNSZones()}
-	if nsi.GetIpv6Prefix() != "" {
-		s, err := diag.DNSServerForIPv6Prefix(nsi.GetIpv6Prefix())
+	if nsi.Ipv6Prefix != "" {
+		s, err := diag.DNSServerForIPv6Prefix(nsi.Ipv6Prefix)
 		if err != nil {
 			return trace.Wrap(err, "computing VNet IPv6 DNS server address for DNS diag")
 		}
@@ -175,32 +175,32 @@ func printDNSReport(r *diagv1.DNSReport) {
 		family string
 		r      *diagv1.VNetDNSReachability
 	}{
-		{"IPv6", r.GetIpv6Reachability()},
-		{"IPv4", r.GetIpv4Reachability()},
+		{"IPv6", r.Ipv6Reachability},
+		{"IPv4", r.Ipv4Reachability},
 	} {
 		if f.r == nil {
 			continue
 		}
-		if !f.r.GetReachable() {
-			fmt.Printf("VNet %s DNS unreachable on %s: %s\n", f.family, f.r.GetAddress(), f.r.GetError())
+		if !f.r.Reachable {
+			fmt.Printf("VNet %s DNS unreachable on %s: %s\n", f.family, f.r.Address, f.r.Error)
 			continue
 		}
-		fmt.Printf("VNet %s DNS reachable on %s (responds to %s)\n", f.family, f.r.GetAddress(), respondedRecordTypes(f.r))
+		fmt.Printf("VNet %s DNS reachable on %s (responds to %s)\n", f.family, f.r.Address, respondedRecordTypes(f.r))
 	}
-	for _, zr := range r.GetZoneResults() {
-		printZoneRecordResult(zr.GetZone(), "A", zr.GetARecord())
-		printZoneRecordResult(zr.GetZone(), "AAAA", zr.GetAaaaRecord())
+	for _, zr := range r.ZoneResults {
+		printZoneRecordResult(zr.Zone, "A", zr.ARecord)
+		printZoneRecordResult(zr.Zone, "AAAA", zr.AaaaRecord)
 	}
 }
 
 // respondedRecordTypes returns a human-readable list of record types the server responded to.
 func respondedRecordTypes(r *diagv1.VNetDNSReachability) string {
 	switch {
-	case r.GetRespondedA() && r.GetRespondedAaaa():
+	case r.RespondedA && r.RespondedAaaa:
 		return "A, AAAA"
-	case r.GetRespondedA():
+	case r.RespondedA:
 		return "A only"
-	case r.GetRespondedAaaa():
+	case r.RespondedAaaa:
 		return "AAAA only"
 	default:
 		return "nothing"
@@ -211,18 +211,18 @@ func printZoneRecordResult(zone, recordType string, r *diagv1.RecordResult) {
 	if r == nil {
 		return
 	}
-	switch r.GetStatus() {
+	switch r.Status {
 	case diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK:
 		// Working as expected; not printed.
 	case diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED:
-		fmt.Printf("DNS zone %q %s record is hijacked: observed=%s\n", zone, recordType, r.GetObservedIp())
+		fmt.Printf("DNS zone %q %s record is hijacked: observed=%s\n", zone, recordType, r.ObservedIp)
 	case diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED:
 		fmt.Printf("DNS zone %q %s record is not registered with the OS resolver\n", zone, recordType)
 	case diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT:
-		fmt.Printf("DNS zone %q %s record timed out: %s\n", zone, recordType, r.GetError())
+		fmt.Printf("DNS zone %q %s record timed out: %s\n", zone, recordType, r.Error)
 	case diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR:
-		fmt.Printf("DNS zone %q %s record resolver error: %s\n", zone, recordType, r.GetError())
+		fmt.Printf("DNS zone %q %s record resolver error: %s\n", zone, recordType, r.Error)
 	default:
-		fmt.Printf("DNS zone %q %s record has unexpected status %s\n", zone, recordType, r.GetStatus())
+		fmt.Printf("DNS zone %q %s record has unexpected status %s\n", zone, recordType, r.Status)
 	}
 }

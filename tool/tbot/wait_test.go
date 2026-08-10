@@ -96,7 +96,12 @@ func createInMemoryWaitClient(handler http.Handler, requests chan<- requestNotif
 }
 
 func TestWaitTimeoutExceeded(t *testing.T) {
-	t.Parallel()
+	// TODO: Evaluate reenabling parallel execution if this branch is updated to
+	// go1.25. Otherwise, parallel execution triggers race conditions in go1.24
+	// synctest bubbles and causes spurious failures.
+	// (This test was for whatever reason not impacted, but has parallel exec
+	// disabled anyway for safety.)
+	// t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		reg := readyz.NewRegistry()
@@ -131,7 +136,18 @@ func TestWaitTimeoutExceeded(t *testing.T) {
 }
 
 func TestWaitSuccess(t *testing.T) {
-	t.Parallel()
+	// TODO: Evaluate reenabling parallel execution if this branch is updated to
+	// go1.25. Otherwise, parallel execution triggers race conditions in go1.24
+	// synctest bubbles and causes spurious failures.
+	// Some extended discussion of issues in go1.24's impl can be found at
+	// https://github.com/golang/go/issues/67434. The issue in these tests
+	// appeared to be that when run in parallel - and only when run in
+	// parallel - tests would occasionally cause synthetic clock advancement in
+	// other, unrelated tests. This would result in timers completing too early
+	// leading to deadlocks, or time advancing impossibly quickly in otherwise
+	// "safe" timers.
+	//
+	// t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		reg := readyz.NewRegistry()
@@ -170,7 +186,10 @@ func TestWaitSuccess(t *testing.T) {
 }
 
 func TestWaitEventualSuccess(t *testing.T) {
-	t.Parallel()
+	// TODO: Evaluate reenabling parallel execution if this branch is updated to
+	// go1.25. Otherwise, parallel execution triggers race conditions in go1.24
+	// synctest bubbles and causes spurious failures.
+	// t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		reg := readyz.NewRegistry()

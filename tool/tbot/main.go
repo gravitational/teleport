@@ -35,13 +35,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -158,6 +156,9 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
+		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
 		cli.NewWorkloadIdentityX509Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityX509Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
@@ -188,7 +189,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	installSystemdCmdStr, installSystemdCmdFn := setupInstallSystemdCmd(app)
 
-	utils.UpdateAppUsageTemplate(app)
+	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
@@ -371,7 +372,7 @@ func onConfigure(
 	// Ensure they have provided either a valid joining URI, or a
 	// join method to use in the configuration.
 	if cfg.JoinURI != "" {
-		if _, err := joinuri.Parse(cfg.JoinURI); err != nil {
+		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
 			return trace.Wrap(err, "invalid joining URI")
 		}
 	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {

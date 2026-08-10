@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,7 +37,7 @@ import (
 
 // httpsConnAuthorizer authorizes incoming HTTPS tunnel connections.
 type httpsConnAuthorizer interface {
-	GetUser(ctx context.Context, connState tls.ConnectionState) (authz.IdentityGetter, error)
+	GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error)
 }
 
 // HTTPSTunnelHandler handles connections from ALPN tunnel ProtocolAppHTTPS.
@@ -73,7 +74,7 @@ type HTTPSTunnelHandler struct {
 func NewHTTPSTunnelHandler(next func(context.Context, net.Conn) error, clusterName string) *HTTPSTunnelHandler {
 	return &HTTPSTunnelHandler{
 		next: next,
-		auth: &authz.Middleware{
+		auth: &auth.Middleware{
 			ClusterName:   clusterName,
 			AcceptedUsage: []string{teleport.UsageAppsOnly},
 		},
@@ -108,7 +109,7 @@ func (h *HTTPSTunnelHandler) HandleConnection(ctx context.Context, conn net.Conn
 		return trace.ConvertSystemError(err)
 	}
 
-	user, err := h.auth.GetUser(ctx, outerConnWithClientCert.ConnectionState())
+	user, err := h.auth.GetUser(outerConnWithClientCert.ConnectionState())
 	if err != nil {
 		return trace.Wrap(err)
 	}

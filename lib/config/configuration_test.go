@@ -44,11 +44,11 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -204,9 +204,7 @@ func TestSampleConfig(t *testing.T) {
 			require.NotNil(t, sfc)
 
 			fn := filepath.Join(t.TempDir(), "default-config.yaml")
-			payload, err := sfc.YAMLString()
-			require.NoError(t, err)
-			err = os.WriteFile(fn, []byte(payload), 0o660)
+			err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0o660)
 			require.NoError(t, err)
 
 			// make sure it could be parsed:
@@ -221,6 +219,8 @@ func TestSampleConfig(t *testing.T) {
 			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
 			require.ElementsMatch(t, testCase.expectProxyPublicAddrs, fc.Proxy.PublicAddr)
 			require.ElementsMatch(t, testCase.expectProxyKeyPairs, fc.Proxy.KeyPairs)
+
+			require.False(t, lib.IsInsecureDevMode())
 		})
 	}
 }
@@ -243,7 +243,7 @@ func TestBooleanParsing(t *testing.T) {
 	}
 	for i, tc := range testCases {
 		msg := fmt.Sprintf("test case %v", i)
-		conf, err := ReadFromString(base64.StdEncoding.EncodeToString(fmt.Appendf(nil, `
+		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
 proxy_service:
@@ -252,7 +252,7 @@ proxy_service:
 auth_service:
   enabled: yes
   disconnect_expired_cert: %v
-`, tc.s, tc.s)))
+`, tc.s, tc.s))))
 		require.NoError(t, err, msg)
 		require.Equal(t, tc.b, conf.Proxy.TrustXForwardedFor.Value(), msg)
 		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
@@ -272,13 +272,13 @@ func TestDuration(t *testing.T) {
 	}
 	for i, tc := range testCases {
 		comment := fmt.Sprintf("test case %v", i)
-		conf, err := ReadFromString(base64.StdEncoding.EncodeToString(fmt.Appendf(nil, `
+		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
 auth_service:
   enabled: yes
   client_idle_timeout: %v
-`, tc.s)))
+`, tc.s))))
 		require.NoError(t, err, comment)
 		require.Equal(t, tc.d, conf.Auth.ClientIdleTimeout.Value(), comment)
 	}
@@ -983,27 +983,6 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
 }
 
-func TestApplyConfigAppsLimiter(t *testing.T) {
-	fc := &FileConfig{
-		Global: Global{
-			Limits: ConnectionLimits{
-				MaxConnections: 100,
-				Rates: []ConnectionRate{
-					{Average: 10, Burst: 10, Period: time.Minute},
-				},
-			},
-		},
-	}
-	cfg := servicecfg.MakeDefaultConfig()
-	require.NoError(t, ApplyFileConfig(fc, cfg))
-
-	require.Equal(t, int64(100), cfg.Apps.Limiter.MaxConnections)
-	require.Len(t, cfg.Apps.Limiter.Rates, 1)
-	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Average)
-	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Burst)
-	require.Equal(t, time.Minute, cfg.Apps.Limiter.Rates[0].Period)
-}
-
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
 // it's fields are not read in.
 func TestApplyConfigNoneEnabled(t *testing.T) {
@@ -1379,7 +1358,7 @@ func TestTunnelStrategy(t *testing.T) {
 		config         string
 		readErr        require.ErrorAssertionFunc
 		applyErr       require.ErrorAssertionFunc
-		tunnelStrategy any
+		tunnelStrategy interface{}
 	}{
 		{
 			desc: "Ensure default is used when no tunnel strategy is given",
@@ -1442,7 +1421,7 @@ func TestTunnelStrategy(t *testing.T) {
 			err = ApplyFileConfig(conf, cfg)
 			tc.applyErr(t, err)
 
-			var actualStrategy any
+			var actualStrategy interface{}
 			if cfg.Auth.NetworkingConfig == nil {
 			} else if s := cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy(); s != nil {
 				actualStrategy = s
@@ -1875,12 +1854,7 @@ func makeConfigFixture() string {
 		},
 	}
 
-	payload, err := conf.YAMLString()
-	if err != nil {
-		panic(err)
-	}
-
-	return payload
+	return conf.DebugDumpToYAML()
 }
 
 func TestPermitUserEnvironment(t *testing.T) {
@@ -2055,10 +2029,10 @@ func TestMergingCAPinConfig(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			clf := CommandLineFlags{
 				CAPins: tt.cliPins,
-				ConfigString: base64.StdEncoding.EncodeToString(fmt.Appendf(nil,
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(
 					configWithCAPins,
 					tt.configPins,
-				)),
+				))),
 			}
 			cfg := servicecfg.MakeDefaultConfig()
 			require.Empty(t, cfg.CAPins)
@@ -2735,55 +2709,6 @@ app_service:
 			inConfigString: `
 app_service:
   enabled: true
-  allowed_hosts:
-    - 10.10.0.0/16
-    - 192.0.2.10
-`,
-			name:   "allowed target hosts",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  denied_hosts:
-    - 169.254.0.0/16
-    - 127.0.0.0/8
-    - ::1/128
-`,
-			name:   "denied target hosts",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  allowed_hosts:
-    - 10.10.0.0/16
-  denied_hosts:
-    - 127.0.0.0/8
-`,
-			name: "allowed and denied target hosts are mutually exclusive",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "mutually exclusive")
-			},
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  denied_hosts:
-    - localhost
-`,
-			name: "target hosts reject hostnames",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must be an IP address or CIDR range")
-			},
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
   apps:
     -
       public_addr: "foo.example.com"
@@ -2935,427 +2860,6 @@ app_service:
 app_service:
   enabled: true
   apps:
-    - name: Foo
-      uri: "http://127.0.0.1:8080"
-`,
-			name: "uppercase app name is rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must be a valid DNS label")
-			},
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: foo
-      uri: "http://127.0.0.1:8080"
-    - name: foo
-      uri: "http://127.0.0.1:8081"
-`,
-			name: "duplicate app names rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "duplicate application name")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-    - name: app2
-      uri: "http://127.0.0.1:3002"
-      public_addr: "app.teleport.test"
-`,
-			name: "duplicate explicit public_addr rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app1")
-				require.ErrorContains(t, err, "app2")
-				require.ErrorContains(t, err, "app.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-`,
-			name: "name plus proxy collision rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-`,
-			name:   "name plus proxy collision undetectable without proxy_service",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr:
-    - teleport.test
-    - alt.teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.alt.teleport.test"
-`,
-			name: "collision on one of multiple proxy public_addrs rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.alt.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr:
-    - teleport.test
-    - alt.teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-`,
-			name:   "multiple proxy public_addrs without collision accepted",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-      use_any_proxy_public_addr: true
-`,
-			name: "use_any_proxy_public_addr explicit public_addr collision rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: other
-      uri: "http://127.0.0.1:3000"
-    - name: app
-      uri: "http://127.0.0.1:3001"
-      public_addr: "somewhere.example.com"
-      use_any_proxy_public_addr: true
-`,
-			name:   "use_any_proxy_public_addr with non-colliding explicit public_addr accepted",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app1.example.com"
-    - name: app2
-      uri: "http://127.0.0.1:3002"
-      public_addr: "app2.example.com"
-`,
-			name:   "distinct effective FQDNs accepted",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-auth_service:
-  enabled: true
-  cluster_name: cluster.example.com
-proxy_service:
-  enabled: true
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.cluster.example.com"
-`,
-			name: "cluster_name fallback collision rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.cluster.example.com")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: Teleport.Test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-`,
-			name: "case insensitive proxy public_addr collision rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test.
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: app1
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-`,
-			name: "trailing dot proxy public_addr collision rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr:
-    - teleport.test:443
-    - teleport.test:3080
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-`,
-			name:   "duplicate proxy public_addr hostnames do not self collide",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-      public_addr: "app.teleport.test"
-      use_any_proxy_public_addr: true
-`,
-			name:   "app whose public_addr equals its name plus proxy form does not self collide",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-auth_service:
-  enabled: true
-  cluster_name: cluster.example.com
-proxy_service:
-  enabled: true
-  public_addr: 10.0.0.5
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.10.0.0.5"
-`,
-			name: "IP proxy public_addr collision rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.10.0.0.5")
-			},
-		},
-		{
-			inConfigString: `
-auth_service:
-  enabled: true
-  cluster_name: cluster.example.com
-proxy_service:
-  enabled: true
-  public_addr: 10.0.0.5
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.cluster.example.com"
-`,
-			name:   "IP proxy public_addr does not fall back to cluster_name",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-auth_service:
-  enabled: true
-  cluster_name: cluster.example.com
-proxy_service:
-  enabled: true
-  public_addr:
-    - 10.0.0.5
-    - teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-`,
-			name: "collision on hostname among mixed IP and hostname proxy public_addr rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.teleport.test")
-			},
-		},
-		{
-			inConfigString: `
-auth_service:
-  enabled: true
-  cluster_name: cluster.example.com
-proxy_service:
-  enabled: true
-  public_addr:
-    - 10.0.0.5
-    - teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.10.0.0.5"
-`,
-			name: "collision on IP among mixed IP and hostname proxy public_addr rejected",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.10.0.0.5")
-			},
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: false
-  public_addr: teleport.test
-app_service:
-  enabled: true
-  apps:
-    - name: app
-      uri: "http://127.0.0.1:3000"
-    - name: other
-      uri: "http://127.0.0.1:3001"
-      public_addr: "app.teleport.test"
-`,
-			name:   "disabled local proxy_service public_addr is ignored",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-proxy_service:
-  enabled: true
-  public_addr:
-    - proxy1.test
-    - proxy2.test
-app_service:
-  enabled: true
-  apps:
-    - name: app1
-      uri: "http://127.0.0.1:3000"
-      public_addr: "beta.proxy1.test"
-    - name: app2
-      uri: "http://127.0.0.1:3001"
-      public_addr: "beta.proxy2.test"
-    - name: beta
-      uri: "http://127.0.0.1:3002"
-`,
-			name: "multi-proxy collision reports the lower-sorted FQDN deterministically",
-			outErr: func(t require.TestingT, err error, _ ...any) {
-				// beta resolves to both beta.proxy1.test and
-				// beta.proxy2.test; both collide. The error must
-				// reference the lower-sorted one so the message is
-				// stable across runs (Go map iteration is random).
-				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "beta.proxy1.test")
-				require.ErrorContains(t, err, "app1")
-				require.ErrorContains(t, err, "beta")
-			},
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
     - name: app-llm-bedrock
       inference:
         format: anthropic
@@ -3419,7 +2923,7 @@ func TestAppsCLF(t *testing.T) {
 			inAppURI:         "",
 			inLegacyAppFlags: true,
 			outApps:          nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
 			},
@@ -3430,7 +2934,7 @@ func TestAppsCLF(t *testing.T) {
 			inAppName: "",
 			inAppURI:  "",
 			outApps:   nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name) and either URI (--uri) or Cloud type (--cloud)")
 			},
@@ -3442,7 +2946,7 @@ func TestAppsCLF(t *testing.T) {
 			inAppURI:         "http://localhost:8080",
 			inLegacyAppFlags: true,
 			outApps:          nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "application name (--app-name) is required to join application proxy to the cluster")
 			},
@@ -3453,7 +2957,7 @@ func TestAppsCLF(t *testing.T) {
 			inAppName: "",
 			inAppURI:  "http://localhost:8080",
 			outApps:   nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "to join application proxy to the cluster provide application name (--name)")
 			},
@@ -3465,7 +2969,7 @@ func TestAppsCLF(t *testing.T) {
 			inAppURI:         "",
 			inLegacyAppFlags: true,
 			outApps:          nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "URI (--app-uri) flag is required to join application proxy to the cluster")
 			},
@@ -3476,7 +2980,7 @@ func TestAppsCLF(t *testing.T) {
 			inAppName: "foo",
 			inAppURI:  "",
 			outApps:   nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "to join application proxy to the cluster provide URI (--uri) or Cloud type (--cloud)")
 			},
@@ -3515,16 +3019,16 @@ func TestAppsCLF(t *testing.T) {
 			inAppName: "-foo",
 			inAppURI:  "http://localhost:8080",
 			outApps:   nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
 			desc:      "missing uri",
 			inAppName: "foo",
 			outApps:   nil,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "missing application \"foo\" URI")
 			},
@@ -3945,6 +3449,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -4748,11 +4253,11 @@ jamf_service:
 func TestAuthHostedPlugins(t *testing.T) {
 	t.Parallel()
 
-	badParameter := func(t require.TestingT, err error, msgAndArgs ...any) {
+	badParameter := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 	}
-	notExist := func(t require.TestingT, err error, msgAndArgs ...any) {
+	notExist := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.Error(t, err)
 		require.ErrorIs(t, err, os.ErrNotExist, `expected "does not exist", but got %v`, err)
 	}
@@ -5106,7 +4611,7 @@ func TestApplyOktaConfig(t *testing.T) {
 					EnabledFlag: "yes",
 				},
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_endpoint is specified"))
 			},
 		},
@@ -5119,7 +4624,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 				APIEndpoint: `bad%url`,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter(`malformed URL bad%%url`))
 			},
 		},
@@ -5132,7 +4637,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 				APIEndpoint: `http://`,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no host"))
 			},
 		},
@@ -5145,7 +4650,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 				APIEndpoint: `//hostname`,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no scheme"))
 			},
 		},
@@ -5157,7 +4662,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 				APIEndpoint: "https://test-endpoint",
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_token_path is specified"))
 			},
 		},
@@ -5170,7 +4675,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint:  "https://test-endpoint",
 				APITokenPath: "/non-existent/path",
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("error trying to find file %s", i...))
 			},
 		},
@@ -5186,7 +4691,7 @@ func TestApplyOktaConfig(t *testing.T) {
 					SyncAccessListsFlag: "yes",
 				},
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("default owners must be set when access list import is enabled"))
 			},
 		},
@@ -5206,7 +4711,7 @@ func TestApplyOktaConfig(t *testing.T) {
 					},
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "error parsing group filter: ^admin-.[[[*$")
 			},
 		},
@@ -5226,7 +4731,7 @@ func TestApplyOktaConfig(t *testing.T) {
 					},
 				},
 			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "error parsing app filter: ^admin-.[[[*$")
 			},
 		},
@@ -5817,8 +5322,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
-			desc:          "AWS section with eice enroll mode, returns an error",
-			expectError:   require.Error,
+			desc:          "AWS section with eice enroll mode",
+			expectError:   require.NoError,
 			expectEnabled: require.True,
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
@@ -5846,6 +5351,27 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				}
 			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "hello-iam-a-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "installer-custom",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				},
+				SSM:         &types.AWSSSM{DocumentName: "hello_document"},
+				Integration: "my-integration",
+				AssumeRole: &types.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID: "externalID123",
+				},
+			}},
 		},
 		{
 			desc:          "AWS cannot use EICE mode without integration",
@@ -6402,7 +5928,6 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-	t.Parallel()
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
@@ -6457,16 +5982,15 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			t.Parallel()
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
 			clf := &CommandLineFlags{
 				FIPS: tc.fips,
 			}
 			cfg := servicecfg.MakeDefaultConfig()
-			cfg.Modules = &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			}
 			if tc.fips {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}
@@ -6491,34 +6015,4 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-func TestApplyAuditQueueConfig(t *testing.T) {
-	t.Parallel()
-	text := editConfig(t, func(cfg cfgMap) {
-		cfg["teleport"].(cfgMap)["audit_queue"] = cfgMap{
-			"soft_limit":                 "50MiB",
-			"hard_limit":                 "500MiB",
-			"max_attempts":               3,
-			"dead_letter_ttl":            "48h",
-			"dead_letter_sweep_interval": "10m",
-			"orphan_scan_interval":       "15m",
-			"backend":                    []any{auditqueue.KindSQLiteDisk, auditqueue.KindSQLiteMemory},
-			"synchronous":                auditqueue.SynchronousFull,
-		}
-	})
-	fc, err := ReadConfig(bytes.NewReader(text))
-	require.NoError(t, err)
-	cfg := servicecfg.MakeDefaultConfig()
-	require.NoError(t, ApplyFileConfig(fc, cfg))
-	require.Equal(t, servicecfg.AuditQueueConfig{
-		SoftLimit:               50 * 1024 * 1024,
-		MaxBytes:                500 * 1024 * 1024,
-		MaxAttempts:             3,
-		DeadLetterTTL:           48 * time.Hour,
-		DeadLetterSweepInterval: 10 * time.Minute,
-		OrphanScanInterval:      15 * time.Minute,
-		Backends:                []string{"sqlite_disk", "sqlite_memory"},
-		Synchronous:             "FULL",
-	}, cfg.AuditQueue)
 }

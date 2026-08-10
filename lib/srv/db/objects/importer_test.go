@@ -87,14 +87,14 @@ func TestCalculateUpdates(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	mkObjectLabel := func(name string, label string) *dbobjectv1.DatabaseObject {
-		out, err := databaseobject.NewDatabaseObjectWithLabels(name, map[string]string{"custom": label}, dbobjectv1.DatabaseObjectSpec_builder{
+		out, err := databaseobject.NewDatabaseObjectWithLabels(name, map[string]string{"custom": label}, &dbobjectv1.DatabaseObjectSpec{
 			Protocol:            types.DatabaseProtocolPostgreSQL,
 			DatabaseServiceName: "dummy",
 			ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 			Database:            "dummy",
 			Schema:              "public",
 			Name:                name,
-		}.Build())
+		})
 
 		require.NoError(t, err)
 		return out
@@ -172,15 +172,15 @@ func TestCalculateUpdates(t *testing.T) {
 			}
 
 			freshObjects := utils.FromSlice(tt.objsNew, func(object *dbobjectv1.DatabaseObject) string {
-				return object.GetMetadata().GetName()
+				return object.GetMetadata().Name
 			})
 
 			initialState := utils.FromSlice(tt.objects, func(object *objWithExpiry) string {
-				return object.obj.GetMetadata().GetName()
+				return object.obj.GetMetadata().Name
 			})
 
 			expectedState := utils.FromSlice(tt.expected, func(object *objWithExpiry) string {
-				return object.obj.GetMetadata().GetName()
+				return object.obj.GetMetadata().Name
 			})
 
 			result := calculateUpdates(context.Background(), cfg, initialState, freshObjects)

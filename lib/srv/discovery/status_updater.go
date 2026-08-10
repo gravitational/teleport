@@ -146,21 +146,21 @@ func (s *discoveryConfigStatusUpdater) updateServerStatus(status discoveryconfig
 	for integration, currentDiscoverSummary := range status.IntegrationDiscoveredResources {
 		previousSummary := existingDiscoverSummary(s.serverID, integration, existingServerStatuses)
 
-		integrationSummaries[integration] = discoveryconfigv1.DiscoverSummary_builder{
+		integrationSummaries[integration] = &discoveryconfigv1.DiscoverSummary{
 			AwsEc2:   mergeResourceSummary(currentDiscoverSummary.GetAwsEc2(), previousSummary.GetAwsEc2()),
 			AwsRds:   mergeResourceSummary(currentDiscoverSummary.GetAwsRds(), previousSummary.GetAwsRds()),
 			AwsEks:   mergeResourceSummary(currentDiscoverSummary.GetAwsEks(), previousSummary.GetAwsEks()),
 			AzureVms: mergeResourceSummary(currentDiscoverSummary.GetAzureVms(), previousSummary.GetAzureVms()),
-		}.Build()
+		}
 	}
 
 	status.ServerStatus = map[string]*discoveryconfig.DiscoveryStatusServer{
 		s.serverID: {
-			DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+			DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
 				IntegrationSummaries: integrationSummaries,
 				LastUpdate:           timestamppb.New(s.clock.Now()),
 				PollInterval:         durationpb.New(s.pollInterval),
-			}.Build(),
+			},
 		},
 	}
 
@@ -197,16 +197,16 @@ func mergeResourceSummary(summary *discoveryconfigv1.ResourcesDiscoveredSummary,
 	}
 
 	if summary.GetSyncEnd() != nil {
-		return discoveryconfigv1.ResourceSummary_builder{
+		return &discoveryconfigv1.ResourceSummary{
 			Previous: summary,
 			Current:  nil,
-		}.Build()
+		}
 	}
 
-	return discoveryconfigv1.ResourceSummary_builder{
+	return &discoveryconfigv1.ResourceSummary{
 		Previous: existingSummary.GetPrevious(),
 		Current:  summary,
-	}.Build()
+	}
 }
 
 func existingServerStatuses(existingDiscoveryConfig *discoveryconfig.DiscoveryConfig) map[string]*discoveryconfig.DiscoveryStatusServer {
@@ -228,5 +228,5 @@ func existingDiscoverSummary(serverID, integration string, existingServerIterati
 	if existingServerStatus.DiscoveryStatusServer == nil {
 		return nil
 	}
-	return existingServerStatus.DiscoveryStatusServer.GetIntegrationSummaries()[integration]
+	return existingServerStatus.DiscoveryStatusServer.IntegrationSummaries[integration]
 }

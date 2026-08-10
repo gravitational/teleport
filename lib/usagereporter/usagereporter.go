@@ -312,7 +312,10 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 
 		case events := <-r.events:
 			if len(r.buf)+len(events) > r.maxBufferSize {
-				keep := max(r.maxBufferSize-len(r.buf), 0)
+				keep := r.maxBufferSize - len(r.buf)
+				if keep < 0 {
+					keep = 0
+				}
 
 				r.logger.WarnContext(ctx, "usage event buffer is full, events will be discarded", "discarded_count", len(events)-keep)
 				events = events[:keep]

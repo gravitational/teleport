@@ -81,9 +81,9 @@ type mockIntegrationsClient struct {
 }
 
 func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Context, in *integrationpb.ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*integrationpb.ExportIntegrationCertAuthoritiesResponse, error) {
-	return integrationpb.ExportIntegrationCertAuthoritiesResponse_builder{
+	return &integrationpb.ExportIntegrationCertAuthoritiesResponse{
 		CertAuthorities: m.caKeySet,
-	}.Build(), nil
+	}, nil
 }
 
 func TestExportAllAuthorities(t *testing.T) {
@@ -247,7 +247,7 @@ func TestExportAllAuthorities(t *testing.T) {
 			req: ExportAuthoritiesRequest{
 				AuthType: "invalid",
 			},
-			errorCheck: func(tt require.TestingT, err error, i ...any) {
+			errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
 			},
 		},

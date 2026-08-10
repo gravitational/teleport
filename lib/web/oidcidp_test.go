@@ -27,6 +27,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib"
 )
 
 // TestOIDCIdPPublicEndpoints ensures the public endpoints for the AWS OIDC integration are available.
@@ -85,7 +87,11 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 func TestThumbprint(t *testing.T) {
 	ctx := context.Background()
 
-	env := newWebPack(t, 1, withInsecureMode())
+	// Proxy starts with self-signed certificates.
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
 	// Request OpenID Configuration public endpoint.

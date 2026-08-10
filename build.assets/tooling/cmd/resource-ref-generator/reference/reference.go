@@ -22,8 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"text/template"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )

@@ -85,25 +85,25 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	workloadIdentity := workloadidentityv1pb.WorkloadIdentity_builder{
+	workloadIdentity := &workloadidentityv1pb.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "foo-bar-bizz",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-		}.Build(),
-		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 				Id: "/valid/{{ user.bot_name }}/{{ workload.unix.pid }}",
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
-		CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
 			WorkloadIdentity: workloadIdentity,
-		}.Build())
+		})
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()

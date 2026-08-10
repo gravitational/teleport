@@ -19,7 +19,6 @@
 import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
-import { ContentMinWidth } from 'teleport/Main/Main';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import {
   errorGetUsers,
@@ -36,17 +35,14 @@ export default {
 const users = [
   {
     name: 'cikar@egaposci.me',
-    displayPrimary: 'Cikar Egaposci',
-    displaySecondary: 'cikar@egaposci.me',
     roles: ['admin'],
-    authType: 'local user',
+    authType: 'teleport local user',
     isLocal: true,
   },
   {
     name: 'hi@nen.pa',
-    displaySecondary: 'hi@nen.pa',
     roles: ['ruhh', 'admin'],
-    authType: 'local user',
+    authType: 'teleport local user',
     isLocal: true,
   },
   {
@@ -70,13 +66,13 @@ const users = [
   {
     name: 'azesotil@jevig.org',
     roles: ['tugu'],
-    authType: 'local user',
+    authType: 'teleport local user',
     isLocal: true,
   },
   {
     name: 'bot-little-robot',
     roles: ['bot-little-robot'],
-    authType: 'local user',
+    authType: 'teleport local user',
     isLocal: true,
     isBot: true,
   },
@@ -89,7 +85,11 @@ export const Loaded: StoryObj = {
     },
   },
   render() {
-    return renderUsers(sample);
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} />
+      </TeleportProviderBasic>
+    );
   },
 };
 
@@ -100,7 +100,11 @@ export const UsersNotEqualMauNotice: StoryObj = {
     },
   },
   render() {
-    return renderUsers({ ...sample, showMauInfo: true });
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} showMauInfo={true} />
+      </TeleportProviderBasic>
+    );
   },
 };
 
@@ -111,7 +115,11 @@ export const Processing: StoryObj = {
     },
   },
   render() {
-    return renderUsers(sample);
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} />
+      </TeleportProviderBasic>
+    );
   },
 };
 
@@ -122,19 +130,13 @@ export const Failed: StoryObj = {
     },
   },
   render() {
-    return renderUsers(sample);
+    return (
+      <TeleportProviderBasic>
+        <Users {...sample} />
+      </TeleportProviderBasic>
+    );
   },
 };
-
-function renderUsers(props) {
-  return (
-    <TeleportProviderBasic>
-      <ContentMinWidth>
-        <Users {...props} />
-      </ContentMinWidth>
-    </TeleportProviderBasic>
-  );
-}
 
 const sample = {
   attempt: {

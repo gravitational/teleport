@@ -36,26 +36,26 @@ import (
 func TestReflectModern(t *testing.T) {
 	now := time.Now().UTC()
 
-	input := machineidv1.Bot_builder{
+	input := &machineidv1.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        "my-bot",
 			Description: "hello",
 			Expires:     timestamppb.New(now),
 			Labels:      map[string]string{"foo": "bar"},
-		}.Build(),
-		Spec: machineidv1.BotSpec_builder{
+		},
+		Spec: &machineidv1.BotSpec{
 			Roles: []string{"foo"},
 			Traits: []*machineidv1.Trait{
-				machineidv1.Trait_builder{
+				{
 					Name:   "logins",
 					Values: []string{"root", "ubuntu"},
-				}.Build(),
+				},
 			},
 			MaxSessionTtl: durationpb.New(1 * time.Hour),
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	expected := &internal.Message{
 		Attributes: []internal.Attribute{

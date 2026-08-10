@@ -25,7 +25,6 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/trail"
@@ -89,9 +88,9 @@ func (c *Ceremony) RunAdmin(
 	if err != nil {
 		return nil, 0, trace.Wrap(err)
 	}
-	cdd := init.GetDeviceData()
-	osType := cdd.GetOsType()
-	assetTag := cdd.GetSerialNumber()
+	cdd := init.DeviceData
+	osType := cdd.OsType
+	assetTag := cdd.SerialNumber
 
 	rewordAccessDenied := func(err error, action string) error {
 		if trace.IsAccessDenied(trail.FromGRPC(err)) {
@@ -105,21 +104,21 @@ func (c *Ceremony) RunAdmin(
 	}
 
 	// Query for current device.
-	findResp, err := devicesClient.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
+	findResp, err := devicesClient.FindDevices(ctx, &devicepb.FindDevicesRequest{
 		IdOrTag: assetTag,
-	}.Build())
+	})
 	if err != nil {
 		return nil, 0, trace.Wrap(rewordAccessDenied(err, "list devices"))
 	}
 	var currentDev *devicepb.Device
-	for _, dev := range findResp.GetDevices() {
-		if dev.GetOsType() == osType {
+	for _, dev := range findResp.Devices {
+		if dev.OsType == osType {
 			currentDev = dev
 			slog.DebugContext(ctx, "Device Trust: Found device",
 				slog.Group("device",
-					slog.String("asset_tag", currentDev.GetAssetTag()),
-					slog.String("os", devicetrust.FriendlyOSType(currentDev.GetOsType())),
-					slog.String("id", currentDev.GetId()),
+					slog.String("asset_tag", currentDev.AssetTag),
+					slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
+					slog.String("id", currentDev.Id),
 				),
 			)
 			break
@@ -129,13 +128,13 @@ func (c *Ceremony) RunAdmin(
 	// If missing, create the device.
 	var outcome RunAdminOutcome
 	if currentDev == nil {
-		currentDev, err = devicesClient.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
-			Device: devicepb.Device_builder{
+		currentDev, err = devicesClient.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
 				OsType:   osType,
 				AssetTag: assetTag,
-			}.Build(),
+			},
 			CreateEnrollToken: true, // Save an additional RPC.
-		}.Build())
+		})
 		if err != nil {
 			return nil, outcome, trace.Wrap(rewordAccessDenied(err, "register devices"))
 		}
@@ -144,22 +143,22 @@ func (c *Ceremony) RunAdmin(
 	// From here onwards, always return `currentDev` and `outcome`!
 
 	// If missing, create a new enrollment token.
-	if currentDev.GetEnrollToken().GetToken() == "" {
-		currentDev.EnrollToken, err = devicesClient.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
-			DeviceId: currentDev.GetId(),
-		}.Build())
+	if currentDev.EnrollToken.GetToken() == "" {
+		currentDev.EnrollToken, err = devicesClient.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+			DeviceId: currentDev.Id,
+		})
 		if err != nil {
 			return currentDev, outcome, trace.Wrap(rewordAccessDenied(err, "create device enrollment tokens"))
 		}
 		slog.DebugContext(ctx, "Device Trust: Created enrollment token for device",
 			slog.Group("device",
-				slog.String("asset_tag", currentDev.GetAssetTag()),
-				slog.String("os", devicetrust.FriendlyOSType(currentDev.GetOsType())),
-				slog.String("id", currentDev.GetId()),
+				slog.String("asset_tag", currentDev.AssetTag),
+				slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
+				slog.String("id", currentDev.Id),
 			),
 		)
 	}
-	token := currentDev.GetEnrollToken().GetToken()
+	token := currentDev.EnrollToken.GetToken()
 
 	// Then proceed onto enrollment.
 	enrolled, err := c.Run(ctx, devicesClient, debug, token)
@@ -177,7 +176,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	init.SetToken(enrollToken)
+	init.Token = enrollToken
 
 	return c.run(ctx, devicesClient, debug, init)
 }
@@ -195,9 +194,11 @@ func (c *Ceremony) run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	defer stream.CloseSend()
 
 	// 1. Init.
-	if err := stream.Send(devicepb.EnrollDeviceRequest_builder{
-		Init: proto.ValueOrDefault(init),
-	}.Build()); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_Init{
+			Init: init,
+		},
+	}); err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.
 		// All other errors are client-side errors and should be returned.
@@ -235,7 +236,7 @@ func (c *Ceremony) run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	if successResp == nil {
 		return nil, trace.BadParameter("unexpected success payload from server: %T", resp.Payload)
 	}
-	return successResp.GetDevice(), nil
+	return successResp.Device, nil
 }
 
 func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
@@ -243,15 +244,17 @@ func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDe
 	if chalResp == nil {
 		return trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
 	}
-	sig, err := c.SignChallenge(chalResp.GetChallenge())
+	sig, err := c.SignChallenge(chalResp.Challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = stream.Send(devicepb.EnrollDeviceRequest_builder{
-		MacosChallengeResponse: devicepb.MacOSEnrollChallengeResponse_builder{
-			Signature: sig,
-		}.Build(),
-	}.Build())
+	err = stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
+			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
+				Signature: sig,
+			},
+		},
+	})
 	if err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.
@@ -266,9 +269,9 @@ func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTr
 	switch {
 	case challenge == nil:
 		return trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
-	case !challenge.HasEncryptedCredential():
+	case challenge.EncryptedCredential == nil:
 		return trace.BadParameter("missing encrypted_credential in challenge from server")
-	case len(challenge.GetAttestationNonce()) == 0:
+	case len(challenge.AttestationNonce) == 0:
 		return trace.BadParameter("missing attestation_nonce in challenge from server")
 	}
 
@@ -276,9 +279,11 @@ func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTr
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = stream.Send(devicepb.EnrollDeviceRequest_builder{
-		TpmChallengeResponse: proto.ValueOrDefault(challengeResponse),
-	}.Build())
+	err = stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: challengeResponse,
+		},
+	})
 	// [io.EOF] indicates that the server has closed the stream.
 	// The client should handle the underlying error on the subsequent Recv call.
 	// All other errors are client-side errors and should be returned.

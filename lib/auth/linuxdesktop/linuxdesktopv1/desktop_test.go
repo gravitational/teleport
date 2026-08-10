@@ -50,9 +50,9 @@ func TestValidateLinuxDesktop(t *testing.T) {
 	valid := linuxdesktopv1pb.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "desktop-1",
-		}.Build(),
+		},
 		Spec: linuxdesktopv1pb.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",

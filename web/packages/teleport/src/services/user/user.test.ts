@@ -19,22 +19,14 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import makeUser, { makeTraits } from './makeUser';
-import {
-  Acl,
-  ExcludeUserField,
-  PasswordState,
-  User,
-  UserContext,
-} from './types';
+import { makeTraits } from './makeUser';
+import { Acl, ExcludeUserField, PasswordState, User } from './types';
 import user from './user';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
     authType: 'local',
     userName: 'foo',
-    displayPrimary: 'Foo User',
-    displaySecondary: 'foo@example.com',
     cluster: {
       name: 'aws',
       lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
@@ -396,22 +388,10 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
-    classifier: {
-      list: false,
-      read: false,
-      edit: false,
-      create: false,
-      remove: false,
-    },
-    mobileDevice: {
-      createEnrollToken: false,
-    },
   };
 
   expect(response).toEqual({
     username: 'foo',
-    displayPrimary: 'Foo User',
-    displaySecondary: 'foo@example.com',
     authType: 'local',
     acl,
     cluster: {
@@ -419,7 +399,7 @@ test('undefined values in context response gives proper default values', async (
       lastConnected: new Date('2020-09-26T17:30:23.512Z'),
       connectedText: '2020-09-26 17:30:23',
       status: 'online',
-      url: '/web/cluster/aws',
+      url: '/web/cluster/aws/',
       authVersion: '4.4.0-dev',
       publicURL: 'localhost',
       proxyVersion: '4.4.0-dev',
@@ -434,9 +414,7 @@ test('undefined values in context response gives proper default values', async (
     },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
-    availableScopes: [],
-    scope: '',
-  } as UserContext);
+  });
 });
 
 test('fetch users, null response values gives empty array', async () => {
@@ -450,8 +428,6 @@ test('fetch users, null response values gives empty array', async () => {
   expect(response).toStrictEqual([
     {
       authType: '',
-      displayPrimary: undefined,
-      displaySecondary: undefined,
       isBot: undefined,
       isLocal: false,
       name: '',
@@ -469,43 +445,6 @@ test('fetch users, null response values gives empty array', async () => {
       },
     },
   ]);
-});
-
-test('makeUser maps display name fields when present', () => {
-  expect(
-    makeUser({
-      name: 'alice',
-      roles: ['access'],
-      displayPrimary: 'Alice Jones',
-      displaySecondary: 'alice@example.com',
-    })
-  ).toMatchObject({
-    name: 'alice',
-    displayPrimary: 'Alice Jones',
-    displaySecondary: 'alice@example.com',
-  });
-
-  expect(makeUser({ name: 'bob', roles: [] })).toMatchObject({
-    displayPrimary: undefined,
-    displaySecondary: undefined,
-  });
-});
-
-test('makeUser labels local users as "local user"', () => {
-  expect(
-    makeUser({ name: 'alice', roles: [], authType: 'local' })
-  ).toMatchObject({
-    authType: 'local user',
-    isLocal: true,
-  });
-
-  // Non-local auth types pass through unchanged.
-  expect(
-    makeUser({ name: 'bob', roles: [], authType: 'github' })
-  ).toMatchObject({
-    authType: 'github',
-    isLocal: false,
-  });
 });
 
 test('createResetPasswordToken', async () => {

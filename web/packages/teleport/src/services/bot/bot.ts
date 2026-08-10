@@ -20,7 +20,6 @@ import { MutationFunction } from '@tanstack/react-query';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import { ApiError } from 'teleport/services/api/parseError';
 import {
   canUseV1Edit,
   canUseV2Edit,
@@ -68,7 +67,7 @@ export async function getBot(
       .then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
-    if (err instanceof ApiError && err.response.status === 404) {
+    if (err?.response?.status === 404) {
       return null;
     }
     throw err;
@@ -113,7 +112,7 @@ export async function listBotTokens(
     return data;
   } catch (err) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.1.0');
   }
 }
 
@@ -168,7 +167,7 @@ export async function editBot(
     return makeBot(res);
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.1.0');
   }
 }
 
@@ -283,7 +282,7 @@ export async function getBotInstanceMetrics(
     return data;
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.4.0');
   }
 }
 

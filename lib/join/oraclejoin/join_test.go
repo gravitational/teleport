@@ -24,6 +24,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -109,10 +110,8 @@ func TestJoinOracle(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-			ScopesFeatures: scopes.Features{
-				Enabled: true,
-			},
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{
@@ -361,26 +360,25 @@ func TestJoinOracle(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, server.Auth().UpsertToken(t.Context(), token))
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, joiningv1.ScopedToken_builder{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, &joiningv1.ScopedToken{
 				Scope: "/test",
-				Metadata: headerv1.Metadata_builder{
-					Name: token.GetName(),
-				}.Build(),
-				Spec: joiningv1.ScopedTokenSpec_builder{
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				}.Build(),
-			}.Build())
+				},
+			})
 			require.NoError(t, err)
-			_, err = server.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+			_, err = server.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 				Token: scopedToken,
-			}.Build())
+			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := server.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
-					Name:  scopedToken.GetMetadata().GetName(),
-					Scope: scopedToken.GetScope(),
-				}.Build())
+				_, err := server.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 			})
 
@@ -398,8 +396,7 @@ func TestJoinOracle(t *testing.T) {
 
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
-					TokenSecret: scopedToken.GetStatus().GetSecret(),
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -469,15 +466,17 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		require.NoError(t, err)
 
 		var signature []byte
-		switch signatureKey.Public().(type) {
-		case *rsa.PublicKey:
-			signature, err = oracle.SignChallenge(signatureKey, challenge)
-		case *ecdsa.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.SHA256)
-		case ed25519.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.Hash(0))
+		switch priv := signatureKey.(type) {
+		case *rsa.PrivateKey:
+			signature, err = oracle.SignChallenge(priv, challenge)
+			require.NoError(t, err)
+		case *ecdsa.PrivateKey:
+			digest := sha256.Sum256([]byte(challenge))
+			signature, err = ecdsa.SignASN1(rand.Reader, priv, digest[:])
+			require.NoError(t, err)
+		case ed25519.PrivateKey:
+			signature = ed25519.Sign(priv, []byte(challenge))
 		}
-		require.NoError(t, err)
 
 		// Make the root CA request but there's no need to actually sign it
 		// since this will be sent to the test's fake Oracle API.

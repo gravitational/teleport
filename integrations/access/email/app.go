@@ -151,15 +151,11 @@ func (a *App) run(ctx context.Context) error {
 // init inits plugin
 func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
-
-	// Preserve the parent context without deadline for the client and its
-	// goroutines (IdentityFileWatcher) which will outlive init.
-	clientCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
 	var err error
-	if a.apiClient, err = a.conf.GetTeleportClient(clientCtx); err != nil {
+	if a.apiClient, err = a.conf.GetTeleportClient(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -525,7 +521,7 @@ func (a *App) sendResolution(ctx context.Context, reqID string, resolution Resol
 // Indeed, this limitation is not that ultimate at least if you know what you're doing.
 func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *PluginData) (PluginData, bool)) (bool, error) {
 	var lastErr error
-	for range maxModifyPluginDataTries {
+	for i := 0; i < maxModifyPluginDataTries; i++ {
 		oldData, err := a.getPluginData(ctx, reqID)
 		if err != nil && !trace.IsNotFound(err) {
 			return false, trace.Wrap(err)

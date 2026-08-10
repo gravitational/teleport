@@ -22,8 +22,8 @@ import (
 	"context"
 	"crypto"
 	"log/slog"
+	"sync"
 	"testing"
-	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 
@@ -49,35 +49,36 @@ func (m *mockKM) Equal(o crypto.PublicKey) bool {
 }
 
 func TestActiveHealthCheckerSync(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		ca := &types.CertAuthorityV2{}
-		err := ca.SetActiveKeys(types.CAKeySet{
-			TLS: []*types.TLSKeyPair{{
-				Cert: []byte{0},
-			}},
-		})
-		require.NoError(t, err)
-
-		ch := make(chan []types.CertAuthority, 1)
-		ch <- []types.CertAuthority{ca}
-		calls := make([]error, 0)
-
-		hc, err := NewActiveHealthChecker(ActiveHealthCheckConfig{
-			Callback: func(err error) {
-				calls = append(calls, err)
-			},
-			ResourceC:  ch,
-			KeyManager: &mockKM{},
-			Logger:     slog.Default(),
-		})
-		require.NoError(t, err)
-		hc.healthFn = func(_ *healthSigner) error {
-			return nil
-		}
-
-		go hc.Run(t.Context())
-		synctest.Wait()
-		require.Len(t, calls, 1)
-		require.NoError(t, calls[0])
+	ca := &types.CertAuthorityV2{}
+	err := ca.SetActiveKeys(types.CAKeySet{
+		TLS: []*types.TLSKeyPair{{
+			Cert: []byte{0},
+		}},
 	})
+	require.NoError(t, err)
+
+	ch := make(chan []types.CertAuthority, 1)
+	ch <- []types.CertAuthority{ca}
+	calls := make([]error, 0)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	hc, err := NewActiveHealthChecker(ActiveHealthCheckConfig{
+		Callback: func(err error) {
+			calls = append(calls, err)
+			wg.Done()
+		},
+		ResourceC:  ch,
+		KeyManager: &mockKM{},
+		Logger:     slog.Default(),
+	})
+	require.NoError(t, err)
+	hc.healthFn = func(_ *healthSigner) error {
+		return nil
+	}
+
+	go hc.Run(t.Context())
+	wg.Wait()
+	require.Len(t, calls, 1)
+	require.NoError(t, calls[0])
 }

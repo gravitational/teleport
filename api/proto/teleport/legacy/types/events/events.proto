@@ -163,10 +163,6 @@ message UserMetadata {
   // ScopePin specifies the current scope pin of the identity.
   ScopePin scope_pin = 17;
 
-  // BeamID is the identifier of the Beam this action is associated with, if
-  // any. It is derived from the user's certificate.
-  string BeamID = 18 [(gogoproto.jsontag) = "beam_id,omitempty"];
-
   // BotScopeOfOrigin is the scope of origin of the Bot if this action is
   // associated with a scoped bot.
   string BotScopeOfOrigin = 19 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
@@ -1040,9 +1036,6 @@ message BPFMetadata {
 
   // Program is name of the executable.
   string Program = 3 [(gogoproto.jsontag) = "program"];
-
-  // AuditSessionID is the internal audit login session ID (auid).
-  uint32 AuditSessionID = 4 [(gogoproto.jsontag) = "audit_session_id"];
 }
 
 // Status contains common command or operation status fields
@@ -1364,22 +1357,6 @@ message UserLogin {
   string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
-// MFAFlowType defines how MFA was enforced for a given authentication event.
-enum MFAFlowType {
-  // MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified. This value is used for
-  // backwards compatibility or when the MFA flow cannot be determined.
-  MFA_FLOW_TYPE_UNSPECIFIED = 0;
-
-  // MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using a per-session certificate during
-  // session establishment. In this flow, a short-lived certificate is issued after successful MFA, which is then used
-  // to authenticate the session.
-  MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE = 1;
-
-  // MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow during session establishment. In this
-  // flow, the target service prompts for and verifies MFA directly as part of session creation.
-  MFA_FLOW_TYPE_IN_BAND = 2;
-}
-
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
 message CreateMFAAuthChallenge {
   // Metadata is a common event metadata.
@@ -1402,9 +1379,6 @@ message CreateMFAAuthChallenge {
 
   // ChallengeAllowReuse defines whether the MFA challenge allows reuse.
   bool ChallengeAllowReuse = 4 [(gogoproto.jsontag) = "challenge_allow_reuse"];
-
-  // FlowType indicates the type of MFA flow used for the challenge.
-  MFAFlowType FlowType = 5 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
@@ -1439,9 +1413,6 @@ message ValidateMFAAuthResponse {
 
   // ChallengeAllowReuse defines whether the MFA challenge used for authentication can be reused.
   bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
-
-  // FlowType indicates the type of MFA flow used for the challenge.
-  MFAFlowType FlowType = 7 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -1752,13 +1723,11 @@ message ResourceAccessID {
   ResourceID id = 1 [(gogoproto.nullable) = false];
 
   oneof constraints {
-    // unknown_constraints represents that constraints were present on the internal
-    // ResourceAccessID, but are of an unknown or unsupported type.
+    // unknown_constraints represents that constraints were present on the internal ResourceAccessID,
+    // but are of an unknown type.
     UnknownConstraints unknown_constraints = 10;
     // aws_console captures audit-log–friendly data for AWS Console scoping constraints.
     AWSConsoleConstraints aws_console = 11;
-    // ssh captures audit-log-friendly data for SSH node scoping constraints.
-    SSHConstraints ssh = 12;
   }
 }
 
@@ -1776,14 +1745,6 @@ message AWSConsoleConstraints {
 
   // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
   repeated string role_arns_preview = 2;
-}
-
-// SSHConstraints is an audit-log-friendly view of SSH node constraints.
-message SSHConstraints {
-  // logins_count is the total number of logins requested.
-  uint32 logins_count = 1;
-  // logins_preview contains up to N logins for inspection; it may be truncated.
-  repeated string logins_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
@@ -1880,13 +1841,6 @@ message X11Forward {
 
   // Status contains operation success or failure status
   Status Status = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ServerMetadata holds server information.
-  ServerMetadata Server = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -3349,144 +3303,6 @@ message AppSessionLLMRequest {
   int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
-// HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
-message HTTPHeader {
-  string name = 1 [(gogoproto.jsontag) = "name"];
-  string value = 2 [(gogoproto.jsontag) = "value"];
-}
-
-// AppSessionHTTPRequest is emitted once per proxied HTTP request.
-// It contains all request metadata needed for HAR reconstruction except the body,
-// which follows in AppSessionHTTPRequestBodyChunk events.
-message AppSessionHTTPRequest {
-  // Common event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // User who initiated the session.
-  UserMetadata user = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Session ID and MFA metadata.
-  SessionMetadata session = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Application being accessed.
-  AppMetadata app = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Unique identifier for this HTTP exchange within the session.
-  string request_id = 5 [(gogoproto.jsontag) = "request_id"];
-  // HTTP method, e.g. GET, POST.
-  string method = 6 [(gogoproto.jsontag) = "method"];
-  // Full request URL.
-  string url = 7 [(gogoproto.jsontag) = "url"];
-  // HTTP version, e.g. HTTP/1.1.
-  string http_version = 8 [(gogoproto.jsontag) = "http_version"];
-  // Request headers.
-  repeated HTTPHeader headers = 9 [(gogoproto.jsontag) = "headers"];
-  // Raw query string (the part after '?' in the URL).
-  string raw_query = 10 [(gogoproto.jsontag) = "raw_query,omitempty"];
-}
-
-// AppSessionHTTPRequestBodyChunk carries a chunk of the HTTP request body.
-// Reassemble in chunk_index order; the last chunk has is_last=true.
-message AppSessionHTTPRequestBodyChunk {
-  // Common event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Session ID for correlation.
-  SessionMetadata session = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Unique identifier for the HTTP exchange this chunk belongs to.
-  string request_id = 3 [(gogoproto.jsontag) = "request_id"];
-  // Zero-based sequence number of this chunk.
-  int64 chunk_index = 4 [(gogoproto.jsontag) = "chunk_index"];
-  // True if this is the last chunk for this request body.
-  bool is_last = 5 [(gogoproto.jsontag) = "is_last"];
-  // Raw body bytes for this chunk.
-  bytes data = 6 [(gogoproto.jsontag) = "data"];
-}
-
-// AppSessionHTTPResponse is emitted once per proxied HTTP response.
-// HAR timings are included here. The response body follows in
-// AppSessionHTTPResponseBodyChunk events.
-message AppSessionHTTPResponse {
-  // Common event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Session ID for correlation.
-  SessionMetadata session = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Application being accessed.
-  AppMetadata app = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Unique identifier for the HTTP exchange this response belongs to.
-  string request_id = 4 [(gogoproto.jsontag) = "request_id"];
-  // HTTP numeric status code.
-  uint32 status_code = 5 [(gogoproto.jsontag) = "status_code"];
-  // HTTP status text, e.g. "OK".
-  string status_text = 6 [(gogoproto.jsontag) = "status_text"];
-  // HTTP version, e.g. HTTP/1.1.
-  string http_version = 7 [(gogoproto.jsontag) = "http_version"];
-  // Response headers.
-  repeated HTTPHeader headers = 8 [(gogoproto.jsontag) = "headers"];
-  // HAR timings.send: time to send request (ms).
-  int64 send_time_ms = 9 [(gogoproto.jsontag) = "send_time_ms"];
-  // HAR timings.wait: time waiting for response (ms).
-  int64 wait_time_ms = 10 [(gogoproto.jsontag) = "wait_time_ms"];
-  // HAR timings.receive: time to receive response (ms).
-  int64 receive_time_ms = 11 [(gogoproto.jsontag) = "receive_time_ms"];
-}
-
-// AppSessionHTTPResponseBodyChunk carries a chunk of the HTTP response body.
-// Reassemble in chunk_index order; the last chunk has is_last=true.
-message AppSessionHTTPResponseBodyChunk {
-  // Common event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Session ID for correlation.
-  SessionMetadata session = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Unique identifier for the HTTP exchange this chunk belongs to.
-  string request_id = 3 [(gogoproto.jsontag) = "request_id"];
-  // Zero-based sequence number of this chunk.
-  int64 chunk_index = 4 [(gogoproto.jsontag) = "chunk_index"];
-  // True if this is the last chunk for this response body.
-  bool is_last = 5 [(gogoproto.jsontag) = "is_last"];
-  // Raw body bytes for this chunk.
-  bytes data = 6 [(gogoproto.jsontag) = "data"];
-}
-
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.
 message AWSRequestMetadata {
   // AWSRegion is the requested AWS region.
@@ -4715,10 +4531,6 @@ enum OSType {
   OS_TYPE_MACOS = 2;
   // Windows.
   OS_TYPE_WINDOWS = 3;
-  // iOS.
-  OS_TYPE_IOS = 4;
-  // iPadOS.
-  OS_TYPE_IPADOS = 5;
 }
 
 // DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.
@@ -5449,10 +5261,6 @@ message OneOf {
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
     events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
-    events.AppAuthConfigCreate AppAuthConfigCreate = 228;
-    events.AppAuthConfigUpdate AppAuthConfigUpdate = 229;
-    events.AppAuthConfigDelete AppAuthConfigDelete = 230;
-    events.AppAuthConfigVerify AppAuthConfigVerify = 231;
     events.VnetConfigCreate VnetConfigCreate = 232;
     events.VnetConfigUpdate VnetConfigUpdate = 233;
     events.VnetConfigDelete VnetConfigDelete = 234;
@@ -5481,18 +5289,9 @@ message OneOf {
     events.BeamsConfigCreate BeamsConfigCreate = 257;
     events.BeamsConfigUpdate BeamsConfigUpdate = 258;
     events.BeamsConfigDelete BeamsConfigDelete = 259;
-    events.ClassifierCreate ClassifierCreate = 260;
-    events.ClassifierUpdate ClassifierUpdate = 261;
-    events.ClassifierDelete ClassifierDelete = 262;
     events.ScopedTokenCreate ScopedTokenCreate = 263;
     events.ScopedTokenUpdate ScopedTokenUpdate = 264;
     events.ScopedTokenDelete ScopedTokenDelete = 265;
-    events.AgentForward AgentForward = 266;
-    events.AppSessionHTTPRequest AppSessionHTTPRequest = 267;
-    events.AppSessionHTTPRequestBodyChunk AppSessionHTTPRequestBodyChunk = 268;
-    events.AppSessionHTTPResponse AppSessionHTTPResponse = 269;
-    events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
-    events.AppSessionTargetDialDenied AppSessionTargetDialDenied = 271;
   }
 }
 
@@ -10044,136 +9843,6 @@ message ClientIPRestrictionsUpdate {
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
 }
 
-// AppAuthConfigCreate is emitted when a AppAuthConfig is created.
-message AppAuthConfigCreate {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Resource is a common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppAuthConfigUpdate is emitted when a AppAuthConfig is updated.
-message AppAuthConfigUpdate {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Resource is a common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Connection holds information about the connection
-  ConnectionMetadata connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppAuthConfigDelete is emitted when a AppAuthConfig is deleted.
-message AppAuthConfigDelete {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Resource is a common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Connection holds information about the connection
-  ConnectionMetadata connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppAuthConfigVerify is emitted when an app auth verification happens.
-message AppAuthConfigVerify {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // AppAuthConfig is the app auth config resource name used on the
-  // verification.
-  string app_auth_config = 2 [(gogoproto.jsontag) = "app_auth_config"];
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // SessionMetadata is a common event session metadata
-  SessionMetadata session = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // App is a common application resource metadata.
-  AppMetadata app = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Status indicates whether the verification was successful or not.
-  Status status = 6 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
 // VnetConfigCreate is emitted when a VnetConfig is created.
 message VnetConfigCreate {
   // Metadata is a common event metadata.
@@ -11044,216 +10713,4 @@ message BeamsConfigDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-}
-
-// ClassifierCreate is emitted when a classifier is created.
-message ClassifierCreate {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata User = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Status indicates whether the creation was successful.
-  Status Status = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Payload contains the classifier data.
-  google.protobuf.Struct Payload = 6 [
-    (gogoproto.jsontag) = "payload,omitempty",
-    (gogoproto.casttype) = "Struct"
-  ];
-}
-
-// ClassifierUpdate is emitted when a classifier is updated.
-message ClassifierUpdate {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata User = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Status indicates whether the update was successful.
-  Status Status = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Payload contains the classifier data.
-  google.protobuf.Struct Payload = 6 [
-    (gogoproto.jsontag) = "payload,omitempty",
-    (gogoproto.casttype) = "Struct"
-  ];
-}
-
-// ClassifierDelete is emitted when a classifier is deleted.
-message ClassifierDelete {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata User = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Status indicates whether the deletion was successful.
-  Status Status = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AgentForward is emitted when a user requests SSH agent forwarding.
-message AgentForward {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Status contains operation success or failure status
-  Status Status = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ServerMetadata holds server information.
-  ServerMetadata Server = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppSessionTargetDialDenied is emitted when an application target dial is
-// denied by app_service target host restrictions.
-message AppSessionTargetDialDenied {
-  // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // User is a common user event metadata.
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // SessionMetadata is a common event session metadata.
-  SessionMetadata Session = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // ServerMetadata is a common server metadata.
-  ServerMetadata Server = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // App is a common application resource metadata.
-  AppMetadata App = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // TargetHost is the host portion of the configured target address.
-  string TargetHost = 6 [(gogoproto.jsontag) = "target_host"];
-  // TargetPort is the port portion of the configured target address.
-  string TargetPort = 7 [(gogoproto.jsontag) = "target_port"];
-  // ResolvedIPs are the concrete IPs considered for the dial.
-  repeated string ResolvedIPs = 8 [(gogoproto.jsontag) = "resolved_ips,omitempty"];
-  // Policy is the target host policy mode that denied the dial.
-  string Policy = 9 [(gogoproto.jsontag) = "policy"];
-  // BlockedIP is the concrete IP that caused the denial, when available.
-  string BlockedIP = 10 [(gogoproto.jsontag) = "blocked_ip,omitempty"];
-  // BlockedPrefix is the configured prefix that matched BlockedIP, when
-  // denied_hosts caused the denial.
-  string BlockedPrefix = 11 [(gogoproto.jsontag) = "blocked_prefix,omitempty"];
 }

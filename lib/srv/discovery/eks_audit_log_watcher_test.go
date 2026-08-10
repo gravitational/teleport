@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -36,8 +35,10 @@ import (
 )
 
 type (
-	kalsClient = grpc.BidiStreamingClient[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse]
-	kalsServer = grpc.BidiStreamingServer[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse]
+	kalsRequest  = accessgraphv1alpha.KubeAuditLogStreamRequest
+	kalsResponse = accessgraphv1alpha.KubeAuditLogStreamResponse
+	kalsClient   = grpc.BidiStreamingClient[kalsRequest, kalsResponse]
+	kalsServer   = grpc.BidiStreamingServer[kalsRequest, kalsResponse]
 )
 
 func TestEKSAuditLogWatcher_Init(t *testing.T) {
@@ -85,7 +86,7 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send a single cluster1 to the watcher to reconcile
-		cluster1 := accessgraphv1alpha.AWSEKSClusterV1_builder{Arn: "test-arn"}.Build()
+		cluster1 := &accessgraphv1alpha.AWSEKSClusterV1{Arn: "test-arn"}
 		fetcher1 := &aws_sync.Fetcher{}
 		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}})
 		synctest.Wait()
@@ -100,7 +101,7 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.Equal(t, 1, fetcherTracker.newCount)
 
 		// Add another cluster
-		cluster2 := accessgraphv1alpha.AWSEKSClusterV1_builder{Arn: "test-arn2"}.Build()
+		cluster2 := &accessgraphv1alpha.AWSEKSClusterV1{Arn: "test-arn2"}
 		fetcher2 := &aws_sync.Fetcher{}
 		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}, {fetcher2, cluster2}})
 		synctest.Wait()
@@ -176,7 +177,7 @@ func TestEKSAuditLogWatcher_ReconcileWhileDisabled(t *testing.T) {
 		require.NotNil(t, clientStream.sentReqs[0].GetConfig())
 
 		// Send a single cluster1 to the watcher to reconcile
-		cluster1 := accessgraphv1alpha.AWSEKSClusterV1_builder{Arn: "test-arn"}.Build()
+		cluster1 := &accessgraphv1alpha.AWSEKSClusterV1{Arn: "test-arn"}
 		fetcher1 := &aws_sync.Fetcher{}
 		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}})
 		synctest.Wait()
@@ -220,12 +221,12 @@ func (fft *fakeFetcherTracker) newFetcher(
 		cleanup: func() {
 			fft.mu.Lock()
 			defer fft.mu.Unlock()
-			delete(fft.fetchers, cluster.GetArn())
+			delete(fft.fetchers, cluster.Arn)
 		},
 	}
 	fft.mu.Lock()
 	defer fft.mu.Unlock()
-	fft.fetchers[cluster.GetArn()] = f
+	fft.fetchers[cluster.Arn] = f
 	fft.newCount++
 	return f
 }
@@ -246,14 +247,16 @@ func (f *fakeEksAuditLogFetcher) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func newKubeAuditLogResponseConfig(cfg *accessgraphv1alpha.KubeAuditLogConfig) *accessgraphv1alpha.KubeAuditLogStreamResponse {
-	return accessgraphv1alpha.KubeAuditLogStreamResponse_builder{
-		Config: proto.ValueOrDefault(cfg),
-	}.Build()
+func newKubeAuditLogResponseConfig(cfg *accessgraphv1alpha.KubeAuditLogConfig) *kalsResponse {
+	return &kalsResponse{
+		State: &accessgraphv1alpha.KubeAuditLogStreamResponse_Config{
+			Config: cfg,
+		},
+	}
 }
 
 func newFakeKubeAuditLogClient(ctx context.Context) *fakeKubeAuditLogClient {
-	tester := grpctest.NewGRPCTester[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse](ctx)
+	tester := grpctest.NewGRPCTester[kalsRequest, kalsResponse](ctx)
 	return &fakeKubeAuditLogClient{
 		clientStream: tester.NewClientStream(),
 		serverStream: tester.NewServerStream(),
@@ -282,15 +285,15 @@ func (c *fakeKubeAuditLogClient) KubeAuditLogStream(ctx context.Context, opts ..
 // implemented. For now if those methods are called, it will panic.
 type failingKubeAuditLogStream struct {
 	grpc.ClientStream
-	sentReqs []*accessgraphv1alpha.KubeAuditLogStreamRequest
+	sentReqs []*kalsRequest
 	recvErr  error
 }
 
-func (s *failingKubeAuditLogStream) Send(req *accessgraphv1alpha.KubeAuditLogStreamRequest) error {
+func (s *failingKubeAuditLogStream) Send(req *kalsRequest) error {
 	s.sentReqs = append(s.sentReqs, req)
 	return nil
 }
 
-func (s *failingKubeAuditLogStream) Recv() (*accessgraphv1alpha.KubeAuditLogStreamResponse, error) {
+func (s *failingKubeAuditLogStream) Recv() (*kalsResponse, error) {
 	return nil, s.recvErr
 }

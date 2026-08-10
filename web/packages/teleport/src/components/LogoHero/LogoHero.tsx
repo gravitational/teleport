@@ -35,8 +35,8 @@ export function logoSrc(themeType: 'light' | 'dark'): string {
   return `${base}logo-${themeType}.svg?v=1`;
 }
 
-// Beams branding is a per-cluster runtime feature flag (cfg.getBeamsUi()), not
-// a build-time binary.
+// Beams branding is a per-cluster runtime feature flag (cfg.beamsUi), not a
+// build-time binary.
 const beamsLogos = {
   light: BeamsLogoLight,
   dark: BeamsLogoDark,
@@ -50,9 +50,7 @@ export const LogoHero = ({
   customSrc?: string;
 }) => {
   const theme = useTheme();
-  const defaultSrc = cfg.getBeamsUi()
-    ? beamsLogos[theme.type]
-    : logoSrc(theme.type);
+  const defaultSrc = cfg.beamsUi ? beamsLogos[theme.type] : logoSrc(theme.type);
   const src = customSrc || defaultSrc;
   return (
     <Box py={py}>

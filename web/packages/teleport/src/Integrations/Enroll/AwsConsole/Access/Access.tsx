@@ -22,7 +22,7 @@ import {
   useQueries,
 } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 
 import { Box, CardTile, Indicator, ResourceIcon } from 'design';
 import * as Alerts from 'design/Alert';
@@ -55,15 +55,14 @@ export function Access() {
   const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
   const canEnroll = integrationsAccess.create;
 
-  const navigate = useNavigate();
-  const location = useLocation();
-  const locationState = location.state as {
+  const history = useHistory();
+  const location = useLocation<{
     integrationName?: string;
     trustAnchorArn?: string;
     syncProfileArn?: string;
     syncRoleArn?: string;
     edit?: boolean;
-  };
+  }>();
 
   const {
     integrationName = '',
@@ -71,7 +70,7 @@ export function Access() {
     syncProfileArn = '',
     syncRoleArn = '',
     edit = false,
-  } = locationState || {};
+  } = location.state;
   const [syncAll, setSyncAll] = useState(!edit);
   const [filters, setFilters] = useState<ProfilesFilterOption[]>([]);
   // initialFilters is used in the edit flow to reset filters if import all is un-toggled
@@ -166,9 +165,10 @@ export function Access() {
         })
         .then(data => data),
     onSuccess: () => {
-      navigate(cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'next'), {
-        state: { integrationName: integrationName },
-      });
+      history.push(
+        cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'next'),
+        { integrationName: integrationName }
+      );
     },
     onError: (e: ApiError) => {
       // Set validity on invalid filter based on API error
@@ -208,7 +208,7 @@ export function Access() {
           mt={4}
           secondaryAction={{
             content: 'Back',
-            onClick: () => navigate(-1),
+            onClick: history.goBack,
           }}
         >
           You do not have permission to enroll integrations. Missing role
@@ -231,7 +231,7 @@ export function Access() {
           mt={4}
           secondaryAction={{
             content: 'Back',
-            onClick: () => navigate(-1),
+            onClick: history.goBack,
           }}
         >
           Missing form data, please try again.
@@ -246,7 +246,7 @@ export function Access() {
         details={editError.message}
         secondaryAction={{
           content: 'Back',
-          onClick: () => navigate(-1),
+          onClick: history.goBack,
         }}
       >
         Unable to edit integration: {editError.name}
@@ -314,7 +314,7 @@ export function Access() {
           {edit ? 'Update Sync' : 'Enable Sync'}
         </ButtonPrimary>
         {edit && (
-          <ButtonSecondary onClick={() => navigate(-1)} width="100px">
+          <ButtonSecondary onClick={history.goBack} width="100px">
             Cancel
           </ButtonSecondary>
         )}

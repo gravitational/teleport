@@ -28,9 +28,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -563,8 +563,24 @@ func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClien
 	// like we do with tctl auth export
 	type output struct{ cert, crl []byte }
 	var results []output
-	for _, keypair := range tlsKeys {
-		results = append(results, output{keypair.Cert, keypair.CRL})
+	for i, keypair := range tlsKeys {
+		crl := keypair.CRL
+		// DELETE IN v19 (probakowski, zmb3): tctl v19 means the server is either v19 or v20,
+		// both of which are guaranteed to have CRLs already in place.
+		if len(crl) == 0 {
+			// WARNING: GenerateCertAuthorityCRL will find any suitable keypair for signing the CRL,
+			// it is not guaranteed to use _this_ particular keypair.
+			fmt.Fprintf(os.Stderr, "Keypair %v is missing CRL for %v authority %v, generating legacy fallback.",
+				i, authority.GetType(), authority.GetName())
+			if len(tlsKeys) > 1 {
+				fmt.Fprintf(os.Stderr, "If you are using HSM or KMS for private key material, please update your auth server and re-export CRLs.")
+			}
+			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		results = append(results, output{keypair.Cert, crl})
 	}
 
 	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
@@ -622,7 +638,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	clusterName := cn.GetClusterName()
 
-	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
+	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 		Key:         key.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
@@ -630,7 +646,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(0),
-	}.Build())
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -641,7 +657,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	keyRing := &client.KeyRing{
 		SSHPrivateKey: key,
-		Cert:          res.GetSshCertificate(),
+		Cert:          res.SshCertificate,
 		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
 	}
 
@@ -724,7 +740,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-	tplVars := map[string]any{
+	tplVars := map[string]interface{}{
 		"files":     strings.Join(filesWritten, ", "),
 		"password":  password,
 		"output":    output,

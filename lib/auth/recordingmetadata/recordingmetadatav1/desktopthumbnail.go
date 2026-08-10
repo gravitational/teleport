@@ -152,14 +152,14 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		return nil, trace.Wrap(err, "encoding thumbnail PNG")
 	}
 
-	return pb.SessionRecordingThumbnail_builder{
+	return &pb.SessionRecordingThumbnail{
 		CursorX:       int32(cursor.X),
 		CursorY:       int32(cursor.Y),
 		CursorVisible: cursor.Visible,
 		ScreenWidth:   int32(screenW),
 		ScreenHeight:  int32(screenH),
 		Png:           bytes.Clone(d.buf.Bytes()),
-	}.Build(), nil
+	}, nil
 }
 
 func (d *desktopThumbnailGenerator) release() {

@@ -94,6 +94,6 @@ func Example() {
 	// true
 	// false
 	// parse error: parsing expression
-	// 	parsing second argument to function (contains)
+	// 	parsing second argument to (contains)
 	// 		expected type string, got value (false) with type (bool)
 }

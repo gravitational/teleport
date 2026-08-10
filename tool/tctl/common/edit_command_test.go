@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -60,13 +59,10 @@ import (
 )
 
 func TestEditResources(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	log := logtest.NewLogger()
-	process, err := testenv.NewTeleportProcess(t.TempDir(),
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.Modules = modulestest.EnterpriseModules()
-		}),
-		testenv.WithLogger(log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -170,7 +166,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
+		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -207,7 +203,7 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := resources.NewRoleCollection([]types.Role{expected})
+		collection := &roleCollection{roles: []types.Role{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -246,7 +242,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetCreatedBy(created.GetCreatedBy())
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := resources.NewUserCollection([]types.User{expected})
+		collection := &userCollection{users: []types.User{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -283,7 +279,7 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetKeepAliveCountMax(1)
 		expected.SetCaseInsensitiveRouting(true)
 
-		collection := &fakeCollection{[]types.Resource{expected}}
+		collection := &netConfigCollection{netConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -321,7 +317,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
-		collection := &fakeCollection{[]types.Resource{expected}}
+		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -358,7 +354,7 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetMode(types.RecordAtProxy)
 
-		collection := &fakeCollection{[]types.Resource{expected}}
+		collection := &recConfigCollection{recConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -380,24 +376,22 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 }
 
 // TestEditEnterpriseResources asserts that tctl edit
-// behaves as expected for enterprise resources. The tests are
-// grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. These resources cannot
+// be tested in parallel because they alter the modules to enable features.
+// The tests are grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestEditEnterpriseResources(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
 	log := logtest.NewLogger()
-	process, err := testenv.NewTeleportProcess(t.TempDir(),
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.Modules = &modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.OIDC: {Enabled: true},
-						entitlements.SAML: {Enabled: true},
-					},
-				},
-			}
-		}),
-		testenv.WithLogger(log))
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -457,7 +451,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
+		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -525,7 +519,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
+		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -551,19 +545,19 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
-	expected := userprovisioning.NewStaticHostUser("alice", userprovisioningpb.StaticHostUserSpec_builder{
+	expected := userprovisioning.NewStaticHostUser("alice", &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
-			userprovisioningpb.Matcher_builder{
+			{
 				NodeLabels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "foo",
 						Values: []string{"bar"},
-					}.Build(),
+					},
 				},
 				Groups: []string{"foo", "bar"},
-			}.Build(),
+			},
 		},
-	}.Build())
+	})
 	created, err := clt.StaticHostUserClient().CreateStaticHostUser(ctx, expected)
 	require.NoError(t, err)
 
@@ -573,17 +567,17 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 
-		expected.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
-		expected.GetSpec().GetMatchers()[0].SetGroups([]string{"baz", "quux"})
+		expected.GetMetadata().Revision = created.GetMetadata().Revision
+		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 
-		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
+		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.StaticHostUserClient().GetStaticHostUser(ctx, expected.GetMetadata().GetName())
+	actual, err := clt.StaticHostUserClient().GetStaticHostUser(ctx, expected.GetMetadata().Name)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expected, actual,
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -598,22 +592,22 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
-	expected, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
-		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
+	expected, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: autoupdate.ToolsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
-	initial, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
-		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
+	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: autoupdate.ToolsUpdateModeDisabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
-	initial, err = serviceClient.CreateAutoUpdateConfig(ctx, autoupdatev1pb.CreateAutoUpdateConfigRequest_builder{Config: initial}.Build())
+	initial, err = serviceClient.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: initial})
 	require.NoError(t, err, "creating initial autoupdate config")
 
 	editor := func(name string) error {
@@ -621,8 +615,8 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 		if err != nil {
 			return trace.Wrap(err, "opening file to edit")
 		}
-		expected.GetMetadata().SetRevision(initial.GetMetadata().GetRevision())
-		collection := resources.NewAutoUpdateConfigCollection(expected)
+		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
+		collection := &autoUpdateConfigCollection{config: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -632,7 +626,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 
 	actual, err := clt.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err, "failed to get autoupdate config after edit")
-	assert.NotEqual(t, initial.GetSpec().GetTools().GetMode(), actual.GetSpec().GetTools().GetMode(),
+	assert.NotEqual(t, initial.GetSpec().GetTools().Mode, actual.GetSpec().GetTools().GetMode(),
 		"tools_autoupdate should have been modified by edit")
 	assert.Equal(t, expected.GetSpec().GetTools().GetMode(), actual.GetSpec().GetTools().GetMode())
 }
@@ -640,22 +634,22 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
-	expected, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
-		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
+	expected, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 			TargetVersion: "3.2.1",
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
-	initial, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
-		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
+	initial, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 			TargetVersion: "1.2.3",
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
-	initial, err = serviceClient.CreateAutoUpdateVersion(ctx, autoupdatev1pb.CreateAutoUpdateVersionRequest_builder{Version: initial}.Build())
+	initial, err = serviceClient.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: initial})
 	require.NoError(t, err, "creating initial autoupdate version")
 
 	editor := func(name string) error {
@@ -663,8 +657,8 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 		if err != nil {
 			return trace.Wrap(err, "opening file to edit")
 		}
-		expected.GetMetadata().SetRevision(initial.GetMetadata().GetRevision())
-		collection := resources.NewAutoUpdateVersionCollection(expected)
+		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
+		collection := &autoUpdateVersionCollection{version: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -680,9 +674,13 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
-	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{Addr: "test"})
+	ctx := context.Background()
+
+	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
+		Addr: "test",
+	})
 	require.NoError(t, err)
-	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(t.Context(), expected)
+	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, expected)
 	require.NoError(t, err)
 
 	editor := func(name string) error {
@@ -694,16 +692,15 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.Spec.Addr = "test2"
 
-		collection := resources.NewDynamicDesktopCollection([]types.DynamicWindowsDesktop{expected})
+		collection := &dynamicWindowsDesktopCollection{desktops: []types.DynamicWindowsDesktop{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(t.Context(), expected.GetName())
+	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, expected.GetName())
 	require.NoError(t, err)
-
 	expected.SetRevision(actual.GetRevision())
 	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
 }
@@ -713,20 +710,20 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 
 	ctx := t.Context()
 
-	created, err := clt.CreateScopedToken(ctx, joiningv1.ScopedToken_builder{
+	created, err := clt.CreateScopedToken(ctx, &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Scope:   "/staging",
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "test-token",
-		}.Build(),
-		Spec: joiningv1.ScopedTokenSpec_builder{
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/staging/aa",
 			Roles:         []string{string(types.RoleNode)},
 			UsageMode:     "unlimited",
 			JoinMethod:    string(types.JoinMethodToken),
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	initialRevision := created.GetMetadata().GetRevision()
@@ -737,11 +734,11 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		// Always use the original revision — it becomes stale after the first edit.
-		created.GetMetadata().SetRevision(initialRevision)
-		if created.GetMetadata().GetLabels() == nil {
-			created.GetMetadata().SetLabels(make(map[string]string))
+		created.GetMetadata().Revision = initialRevision
+		if created.Metadata.Labels == nil {
+			created.Metadata.Labels = make(map[string]string)
 		}
-		created.GetMetadata().GetLabels()["env"] = "test"
+		created.Metadata.Labels["env"] = "test"
 
 		collection := resources.NewScopedTokenCollection([]*joiningv1.ScopedToken{created})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
@@ -753,11 +750,7 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 	}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-		Name:       created.GetMetadata().GetName(),
-		Scope:      created.GetScope(),
-		WithSecret: true,
-	}.Build())
+	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
 	require.NoError(t, err)
 	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
 
@@ -1017,7 +1010,7 @@ func TestMultipleRoles(t *testing.T) {
 			role.SetLogins(types.Allow, []string{"abcdef"})
 		}
 
-		collection := resources.NewRoleCollection(roles)
+		collection := &roleCollection{roles: roles}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -1041,19 +1034,4 @@ func TestMultipleRoles(t *testing.T) {
 			require.NotEqual(t, role.GetRevision(), actual.GetRevision(), "revision should have been modified by edit")
 		}
 	}
-}
-
-// fakeCollection implements [resources.Collection] for testing purposes.
-type fakeCollection struct {
-	resources []types.Resource
-}
-
-// Resources implements [resources.Collection]
-func (c *fakeCollection) Resources() []types.Resource {
-	return c.resources
-}
-
-// WriteText implements [resources.Collection]
-func (c *fakeCollection) WriteText(w io.Writer, verbose bool) error {
-	return nil
 }

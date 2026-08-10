@@ -105,15 +105,6 @@ func runEditCommand(t *testing.T, client *authclient.Client, args []string, opts
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
-func runRequestCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &AccessRequestCommand{
-		stdout: &stdoutBuff,
-	}
-	args = append([]string{"requests"}, args...)
-	return &stdoutBuff, runCommand(t, client, command, args)
-}
-
 func runLockCommand(t *testing.T, client *authclient.Client, args []string) error {
 	command := &LockCommand{}
 	args = append([]string{"lock"}, args...)
@@ -158,7 +149,7 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
-func runNotificationsCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &NotificationCommand{
 		stdout: &stdoutBuff,
@@ -272,7 +263,6 @@ type testServerOptions struct {
 	fakeClock       *clockwork.FakeClock
 	scopesFeatures  scopes.Features
 	enableCache     bool
-	enableProxy     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -307,12 +297,6 @@ func withEnableCache(enableCache bool) testServerOptionFunc {
 	}
 }
 
-func withEnableProxy() testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.enableProxy = true
-	}
-}
-
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -330,14 +314,10 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	cfg.CachePolicy.Enabled = options.enableCache
-	if options.enableProxy {
-		cfg.Proxy.Enabled = true
-	}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
-		cfg.Auth.Clock = options.fakeClock
 	}
 	auth, err = service.NewTeleport(cfg)
 

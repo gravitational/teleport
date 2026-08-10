@@ -6,9 +6,7 @@ batch = 20
 ca = "{{index .CaCertPath}}"
 cert = "{{index .ClientCertPath}}"
 key = "{{index .ClientKeyPath}}"
-url = "https://localhost:8888/events.log"
-# Note: .<session-id>.log is appended to session-url for each session recording.
-# Ensure your log collector's tag matching accounts for this (e.g., session.* in Fluentd/Fluent Bit).
+url = "https://localhost:8888/test.log"
 session-url = "https://localhost:8888/session"
 
 [teleport]

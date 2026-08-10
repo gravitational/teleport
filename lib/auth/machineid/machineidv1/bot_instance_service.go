@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -132,11 +133,11 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, pb.GetBotInstanceRequest_builder{
-		BotScope:   req.GetBotScope(),
-		BotName:    req.GetBotName(),
-		InstanceId: req.GetInstanceId(),
-	}.Build())
+	instance, err := b.backend.GetBotInstance(ctx, &pb.GetBotInstanceRequest{
+		BotScope:   req.BotScope,
+		BotName:    req.BotName,
+		InstanceId: req.InstanceId,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,7 +145,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	ruleCtx.Resource153 = instance
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		instance.GetScope(),
+		instance.Scope,
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -195,7 +196,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	ruleCtx.Resource153 = res
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		res.GetScope(),
+		res.Scope,
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -218,16 +219,25 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		sortField = req.GetSort().Field
 		sortDesc = req.GetSort().IsDesc
 	}
-	return b.ListBotInstancesV2(ctx, pb.ListBotInstancesV2Request_builder{
+	// V1 cannot express a scope filter, so pin it to mode ALL rather than letting it
+	// inherit the identity-based default and silently hide scoped instances. Left
+	// unset alongside a bot filter, which V2 rejects the combination of.
+	var scopeFilter *scopesv1.Filter
+	if req.GetFilterBotName() == "" {
+		scopeFilter = &scopesv1.Filter{Mode: scopesv1.Mode_MODE_ALL}
+	}
+
+	return b.ListBotInstancesV2(ctx, &pb.ListBotInstancesV2Request{
 		PageSize:  req.GetPageSize(),
 		PageToken: req.GetPageToken(),
 		SortField: sortField,
 		SortDesc:  sortDesc,
-		Filter: pb.ListBotInstancesV2Request_Filters_builder{
-			BotName:    req.GetFilterBotName(),
-			SearchTerm: req.GetFilterSearchTerm(),
-		}.Build(),
-	}.Build())
+		Filter: &pb.ListBotInstancesV2Request_Filters{
+			BotName:     req.GetFilterBotName(),
+			SearchTerm:  req.GetFilterSearchTerm(),
+			ScopeFilter: scopeFilter,
+		},
+	})
 }
 
 // ListBotInstancesV2 returns a list of bot instances matching the criteria in the request
@@ -246,38 +256,54 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	if filterBotScope := req.GetFilter().GetBotScope(); filterBotScope != "" {
-		// bot_scope is only designed to scope-qualify bot_name. If we want to
-		// introduce actual scope-filtering down the line, we'll introduce a
-		// new field with more control (i.e. exact, descendent)
-		if req.GetFilter().GetBotName() == "" {
+	f := req.GetFilter()
+	if err := scopes.ValidateFilter(f.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var scopeFilter *scopesv1.Filter
+	if f.GetBotName() != "" {
+		// By-bot listing: bot_scope qualifies bot_name, which already pins the
+		// scope, so a scope_filter is meaningless and rejected.
+		if f.GetScopeFilter().GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
+			return nil, trace.BadParameter(
+				"scope_filter cannot be combined with a bot_name filter",
+			)
+		}
+		if f.GetBotScope() != "" {
+			if err := scopes.StrongValidate(f.GetBotScope()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	} else {
+		// Cross-bot listing: scope_filter selects the scopes, with identity-based
+		// defaults per RFD 0229i; bot_scope only exists to qualify bot_name.
+		if f.GetBotScope() != "" {
 			return nil, trace.BadParameter(
 				"bot_scope filter requires bot_name",
 			)
 		}
-
-		if err := scopes.StrongValidate(filterBotScope); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		scopeFilter = authCtx.CheckerContext.ResolveScopeFilter(f.GetScopeFilter())
 	}
 
 	botInstances, nextToken, err := b.cache.ListBotInstances(
 		ctx,
-		int(req.GetPageSize()),
-		req.GetPageToken(),
+		int(req.PageSize),
+		req.PageToken,
 		&services.ListBotInstancesRequestOptions{
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
-			FilterBotName:    req.GetFilter().GetBotName(),
-			FilterBotScope:   req.GetFilter().GetBotScope(),
-			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
-			FilterQuery:      req.GetFilter().GetQuery(),
+			FilterBotName:    f.GetBotName(),
+			FilterBotScope:   f.GetBotScope(),
+			ScopeFilter:      scopeFilter,
+			FilterSearchTerm: f.GetSearchTerm(),
+			FilterQuery:      f.GetQuery(),
 			FilterFn: func(botInstance *pb.BotInstance) bool {
 				ruleCtx := authCtx.RuleContext()
 				ruleCtx.Resource153 = botInstance
 				err := authCtx.CheckerContext.Decision(
 					ctx,
-					botInstance.GetScope(),
+					botInstance.Scope,
 					func(checker *services.ScopedAccessChecker) error {
 						return checker.CheckAccessToRules(
 							&ruleCtx,
@@ -295,10 +321,10 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	return pb.ListBotInstancesResponse_builder{
+	return &pb.ListBotInstancesResponse{
 		BotInstances:  botInstances,
 		NextPageToken: nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // SubmitHeartbeat records heartbeat information for a bot
@@ -307,7 +333,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !req.HasHeartbeat() {
+	if req.Heartbeat == nil {
 		return nil, trace.BadParameter("heartbeat: must be non-nil")
 	}
 
@@ -337,7 +363,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	// flag set - however - once sufficient time has passed and we're sure all
 	// existing bots will have the BotInternal flag set in their certs, we can
 	// make this check always applied.
-	if ident.ScopePin != nil && ident.ScopePin.GetScope() != "" {
+	if ident.ScopePin != nil && ident.ScopePin.Scope != "" {
 		if !ident.BotInternal {
 			return nil, trace.AccessDenied("identity not marked BotInternal")
 		}
@@ -360,31 +386,31 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"Received bot instance heartbeat",
 		"bot_name", botName,
 		"bot_instance", botInstanceID,
-		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
+		"heartbeat", logutils.StringerAttr(req.Heartbeat),
 	)
 	_, err = b.backend.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
 		Bot:        scopes.QualifiedName{Scope: botScope, Name: botName},
 		InstanceID: botInstanceID,
 		UpdateFn: func(instance *pb.BotInstance) (*pb.BotInstance, error) {
-			if !instance.HasStatus() {
-				instance.SetStatus(&pb.BotInstanceStatus{})
+			if instance.Status == nil {
+				instance.Status = &pb.BotInstanceStatus{}
 			}
 			// Set initial heartbeat if not set.
-			if !instance.GetStatus().HasInitialHeartbeat() {
-				instance.GetStatus().SetInitialHeartbeat(req.GetHeartbeat())
+			if instance.Status.InitialHeartbeat == nil {
+				instance.Status.InitialHeartbeat = req.Heartbeat
 			}
 			// If we're at or above the limit, remove enough of the front
 			// elements to make room for the new one at the end.
-			if len(instance.GetStatus().GetLatestHeartbeats()) >= heartbeatHistoryLimit {
-				toRemove := len(instance.GetStatus().GetLatestHeartbeats()) - heartbeatHistoryLimit + 1
-				instance.GetStatus().SetLatestHeartbeats(instance.GetStatus().GetLatestHeartbeats()[toRemove:])
+			if len(instance.Status.LatestHeartbeats) >= heartbeatHistoryLimit {
+				toRemove := len(instance.Status.LatestHeartbeats) - heartbeatHistoryLimit + 1
+				instance.Status.LatestHeartbeats = instance.Status.LatestHeartbeats[toRemove:]
 			}
 			// Append the new heartbeat to the end.
-			instance.GetStatus().SetLatestHeartbeats(append(instance.GetStatus().GetLatestHeartbeats(), req.GetHeartbeat()))
+			instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
 
 			if storeHeartbeatExtras() {
 				// Overwrite the service health.
-				instance.GetStatus().SetServiceHealth(req.GetServiceHealth())
+				instance.Status.ServiceHealth = req.ServiceHealth
 			}
 
 			return instance, nil

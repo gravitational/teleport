@@ -21,7 +21,6 @@ package export
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -134,7 +133,7 @@ func testExportAll(t *testing.T, tc exportTestCase) {
 	getExported := func() []*auditlogpb.ExportEventUnstructured {
 		exportedMu.Lock()
 		defer exportedMu.Unlock()
-		return slices.Clone(exported)
+		return append([]*auditlogpb.ExportEventUnstructured(nil), exported...)
 	}
 
 	var idleOnce sync.Once

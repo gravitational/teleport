@@ -309,25 +309,25 @@ func TestJoin_Bot(t *testing.T) {
 
 	srv := newTestTLSServer(t, withClock(clockwork.NewRealClock()))
 
-	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), machineidv1pb.Bot_builder{
+	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "test",
-		}.Build(),
-		Spec: machineidv1pb.BotSpec_builder{
+		},
+		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{},
-		}.Build(),
-	}.Build(), srv.Clock().Now(), "", scopes.Features{})
+		},
+	}, srv.Clock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
 
-	goodToken := newBotToken(t, "good-token", bot.GetMetadata().GetName(), types.RoleBot, later)
-	expiredToken := newBotToken(t, "expired", bot.GetMetadata().GetName(), types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
+	goodToken := newBotToken(t, "good-token", bot.Metadata.Name, types.RoleBot, later)
+	expiredToken := newBotToken(t, "expired", bot.Metadata.Name, types.RoleBot, srv.Clock().Now().Add(-1*time.Hour))
 	wrongKind := newBotToken(t, "wrong-kind", "", types.RoleNode, later)
 	wrongUser := newBotToken(t, "wrong-user", "llama", types.RoleBot, later)
-	invalidToken := newBotToken(t, "this-token-does-not-exist", bot.GetMetadata().GetName(), types.RoleBot, later)
+	invalidToken := newBotToken(t, "this-token-does-not-exist", bot.Metadata.Name, types.RoleBot, later)
 
 	err = srv.Auth().UpsertToken(ctx, goodToken)
 	require.NoError(t, err)
@@ -452,17 +452,17 @@ func TestJoin_Bot_Expiry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			botName := uuid.NewString()
-			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), machineidv1pb.Bot_builder{
+			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 				Kind:    types.KindBot,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: botName,
-				}.Build(),
-				Spec: machineidv1pb.BotSpec_builder{
+				},
+				Spec: &machineidv1pb.BotSpec{
 					Roles:  []string{},
 					Traits: []*machineidv1pb.Trait{},
-				}.Build(),
-			}.Build(), srv.Clock().Now(), "", scopes.Features{})
+				},
+			}, srv.Clock().Now(), "", scopes.Features{})
 			require.NoError(t, err)
 			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))

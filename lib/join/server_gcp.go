@@ -46,9 +46,9 @@ func (a *Server) validateGCPToken(
 	// events remain useful.
 	var workloadIDAttrs *workloadidentityv1.JoinAttrs
 	if claims != nil {
-		workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
+		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
 			Gcp: claims.JoinAttrs(),
-		}.Build()
+		}
 	}
 
 	return claims, workloadIDAttrs, trace.Wrap(err)

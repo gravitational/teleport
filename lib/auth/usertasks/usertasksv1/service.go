@@ -131,9 +131,9 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 		return nil, trace.Wrap(err)
 	}
 
-	s.updateStatus(req.GetUserTask(), nil /* existing user task */)
+	s.updateStatus(req.UserTask, nil /* existing user task */)
 
-	rsp, err := s.backend.CreateUserTask(ctx, req.GetUserTask())
+	rsp, err := s.backend.CreateUserTask(ctx, req.UserTask)
 	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,15 +198,15 @@ func (s *Service) ListUserTasks(ctx context.Context, req *usertasksv1.ListUserTa
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.GetPageSize(), req.GetPageToken(), req.GetFilters())
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, req.Filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return usertasksv1.ListUserTasksResponse_builder{
+	return &usertasksv1.ListUserTasksResponse{
 		UserTasks:     rsp,
 		NextPageToken: nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // ListUserTasksByIntegration returns a list of user tasks filtered by an integration.
@@ -220,18 +220,18 @@ func (s *Service) ListUserTasksByIntegration(ctx context.Context, req *usertasks
 		return nil, trace.Wrap(err)
 	}
 
-	filters := usertasksv1.ListUserTasksFilters_builder{
-		Integration: req.GetIntegration(),
-	}.Build()
-	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.GetPageSize(), req.GetPageToken(), filters)
+	filters := &usertasksv1.ListUserTasksFilters{
+		Integration: req.Integration,
+	}
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return usertasksv1.ListUserTasksResponse_builder{
+	return &usertasksv1.ListUserTasksResponse{
 		UserTasks:     rsp,
 		NextPageToken: nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // GetUserTask returns user task resource.
@@ -270,9 +270,9 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 	}
 
 	stateChanged := existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
-	s.updateStatus(req.GetUserTask(), existingUserTask)
+	s.updateStatus(req.UserTask, existingUserTask)
 
-	rsp, err := s.backend.UpdateUserTask(ctx, req.GetUserTask())
+	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
 	s.emitUpdateAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -336,9 +336,9 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		stateChanged = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
 	}
 
-	s.updateStatus(req.GetUserTask(), existingUserTask)
+	s.updateStatus(req.UserTask, existingUserTask)
 
-	rsp, err := s.backend.UpsertUserTask(ctx, req.GetUserTask())
+	rsp, err := s.backend.UpsertUserTask(ctx, req.UserTask)
 	s.emitUpsertAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,17 +353,17 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 
 func (s *Service) updateStatus(ut *usertasksv1.UserTask, existing *usertasksv1.UserTask) {
 	// Default status for UserTask.
-	ut.SetStatus(usertasksv1.UserTaskStatus_builder{
+	ut.Status = &usertasksv1.UserTaskStatus{
 		LastStateChange: timestamppb.New(s.clock.Now()),
-	}.Build())
+	}
 
 	if existing != nil {
 		// Inherit everything from existing UserTask.
-		ut.GetStatus().SetLastStateChange(cmp.Or(existing.GetStatus().GetLastStateChange(), ut.GetStatus().GetLastStateChange()))
+		ut.Status.LastStateChange = cmp.Or(existing.GetStatus().GetLastStateChange(), ut.Status.LastStateChange)
 
 		// Update specific values.
 		if existing.GetSpec().GetState() != ut.GetSpec().GetState() {
-			ut.GetStatus().SetLastStateChange(timestamppb.New(s.clock.Now()))
+			ut.Status.LastStateChange = timestamppb.New(s.clock.Now())
 		}
 	}
 }

@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -38,14 +39,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		CompareResources: func(a1, a2 types.Application) int {
-			return services.EqualFromBool(a1.IsEqual(a2))
-		},
-		GetNewResources: s.monitoredApps.get,
-		OnCreate:        s.onCreate,
-		OnUpdate:        s.onUpdate,
-		OnDelete:        s.onDelete,
-		Logger:          s.log.With("kind", types.KindApp),
+		GetNewResources:     s.monitoredApps.get,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		Logger:              s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -178,10 +176,11 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+
 		if scope != "" {
 			return scopedapp.ScopedAppPublicAddr(scope, appName, addr.Host()), nil
 		}
-		return utils.DefaultAppFQDN(appName, addr.Host(), ""), nil
+		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
 	}
 
 	// Fall back to cluster name.
@@ -193,7 +192,7 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	if scope != "" {
 		return scopedapp.ScopedAppPublicAddr(scope, appName, cn.GetClusterName()), nil
 	}
-	return utils.DefaultAppFQDN(appName, "", cn.GetClusterName()), nil
+	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
 }
 
 func (s *Server) getResources() map[string]types.Application {

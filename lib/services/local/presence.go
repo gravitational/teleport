@@ -282,23 +282,19 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) (types.Server, error) {
+func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) error {
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	lease, err := s.Put(ctx, backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(prefix, server.GetName()),
 		Value:    value,
 		Expires:  server.Expiry(),
 		Revision: rev,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server.SetRevision(lease.Revision)
-	return server, nil
+	return trace.Wrap(err)
 }
 
 // DeleteAllNodes deletes all nodes in a namespace
@@ -531,8 +527,7 @@ func (s *PresenceService) ListAuthServers(ctx context.Context, pageSize int, pag
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
-	_, err := s.upsertServer(ctx, authServersPrefix, server)
-	return trace.Wrap(err)
+	return s.upsertServer(ctx, authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -547,9 +542,9 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 	return s.Delete(context.TODO(), key)
 }
 
-// UpsertProxyServer registers proxy server presence, permanently if ttl is 0
-// or for the specified duration with second resolution if it's >= 1 second.
-func (s *PresenceService) UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error) {
+// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
+// for the specified duration with second resolution if it's >= 1 second
+func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
 	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
@@ -567,8 +562,14 @@ func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pa
 	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
-// DeleteProxyServer deletes proxy
-func (s *PresenceService) DeleteProxyServer(ctx context.Context, name string) error {
+// DeleteAllProxies deletes all proxies
+func (s *PresenceService) DeleteAllProxies() error {
+	startKey := backend.ExactKey(proxiesPrefix)
+	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+}
+
+// DeleteProxy deletes proxy
+func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.NewKey(proxiesPrefix, name)
 	return s.Delete(ctx, key)
 }
@@ -701,7 +702,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 	key := backend.NewKey(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
 
 Acquire:
-	for i := range leaseRetryAttempts {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other acquire attempt we could retry immediately
@@ -878,7 +879,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	for i := range leaseRetryAttempts {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other cancel attempt we could retry immediately
@@ -2110,14 +2111,14 @@ type relayServerParser struct{}
 func (relayServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return types.Resource153ToLegacy(presencev1.RelayServer_builder{
+		return types.Resource153ToLegacy(&presencev1.RelayServer{
 			Kind:    types.KindRelayServer,
 			SubKind: "",
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: event.Item.Key.TrimPrefix(backend.ExactKey(relayServersPrefix)).String(),
-			}.Build(),
-		}.Build()), nil
+			},
+		}), nil
 	case types.OpPut:
 		r, err := services.UnmarshalProtoResource[*presencev1.RelayServer](
 			event.Item.Value,

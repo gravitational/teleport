@@ -34,7 +34,6 @@ import {
   CreateOrOverwriteGitServer,
   DefaultAuthConnector,
   GitServer,
-  KindAuthConnectors,
   makeResource,
   makeResourceList,
   RequestableRole,
@@ -83,24 +82,23 @@ class ResourceService {
       });
   }
 
-  fetchAuthConnectorsList<K extends KindAuthConnectors>(
-    url: string,
-    signal?: AbortSignal
-  ): Promise<{
+  async fetchGithubConnectors(): Promise<{
     defaultConnector: DefaultAuthConnector;
-    connectors: Resource<K>[];
+    connectors: Resource<'github'>[];
   }> {
-    return api.get(url, signal, undefined, { allowReuse: true }).then(res => ({
-      defaultConnector: {
-        name: res.defaultConnectorName,
-        type: res.defaultConnectorType,
-      },
-      connectors: makeResourceList(res.connectors),
-    }));
-  }
+    // MFA reuse needs to be allowed in case we need to fallback to another default connector
+    const challengeResponse =
+      await await auth.getMfaChallengeResponseForAdminAction(true);
 
-  fetchGithubConnectors() {
-    return this.fetchAuthConnectorsList<'github'>(cfg.getGithubConnectorsUrl());
+    return api
+      .get(cfg.getGithubConnectorsUrl(), undefined, challengeResponse)
+      .then(res => ({
+        defaultConnector: {
+          name: res.defaultConnectorName,
+          type: res.defaultConnectorType,
+        },
+        connectors: makeResourceList<'github'>(res.connectors),
+      }));
   }
 
   async setDefaultAuthConnector(
@@ -260,17 +258,7 @@ class ResourceService {
   }
 
   deleteGithubConnector(name: string) {
-    return this.deleteAuthConnector(cfg.getGithubConnectorsUrl(name));
-  }
-
-  /**
-   * deleteAuthConnector deletes the connector at the given URL. The backend
-   * makes multiple admin action calls (the delete plus an auth preference
-   * read/update), so we send a reusable MFA response that satisfies each one.
-   */
-  async deleteAuthConnector(url: string) {
-    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
-    return api.deleteWithOptions(url, { mfaResponse });
+    return api.delete(cfg.getGithubConnectorsUrl(name));
   }
 }
 

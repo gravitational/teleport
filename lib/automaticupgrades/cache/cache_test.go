@@ -59,10 +59,10 @@ func TestTimedMemoize_Get(t *testing.T) {
 	upstreamError := trace.LimitExceeded("rate-limited")
 	oldUpstreamError := trace.CompareFailed("comparison failed")
 
-	assertUncachedError := func(t2 require.TestingT, err error, _ ...any) {
+	assertUncachedError := func(t2 require.TestingT, err error, _ ...interface{}) {
 		require.ErrorIs(t2, err, upstreamError)
 	}
-	assertCachedError := func(t2 require.TestingT, err error, _ ...any) {
+	assertCachedError := func(t2 require.TestingT, err error, _ ...interface{}) {
 		var cachedError cachedError
 		require.ErrorAs(t2, trace.Unwrap(err), &cachedError)
 	}

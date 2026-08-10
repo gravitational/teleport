@@ -15,10 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Route, Routes } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Route, Router } from 'react-router';
+import { action } from 'storybook/actions';
 
 import Box from 'design/Box';
 
@@ -587,6 +588,11 @@ function Wrapper(props?: {
     hasLocksDeletePermission = true,
   } = props ?? {};
 
+  const history = createMemoryHistory({
+    initialEntries: ['/web/bot/ansible-worker'],
+  });
+  history.push = action('history.push');
+
   const customAcl = makeAcl({
     bots: {
       ...defaultAccess,
@@ -621,21 +627,17 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TeleportProviderBasic
-        teleportCtx={ctx}
-        initialEntries={['/web/bot/ansible-worker']}
-      >
-        <Routes>
-          <Route
-            path={cfg.routes.bot}
-            element={
+      <MemoryRouter>
+        <TeleportProviderBasic teleportCtx={ctx}>
+          <Router history={history}>
+            <Route path={cfg.routes.bot}>
               <Box height={820} overflow={'auto'}>
                 <BotDetails />
               </Box>
-            }
-          />
-        </Routes>
-      </TeleportProviderBasic>
+            </Route>
+          </Router>
+        </TeleportProviderBasic>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }

@@ -238,8 +238,8 @@ func (s *JWTOutputService) requestJWTSVID(
 			received = append(received,
 				fmt.Sprintf(
 					"%s:%s",
-					cred.GetWorkloadIdentityName(),
-					cred.GetSpiffeId(),
+					cred.WorkloadIdentityName,
+					cred.SpiffeId,
 				),
 			)
 		}

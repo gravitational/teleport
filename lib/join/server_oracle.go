@@ -100,9 +100,9 @@ func (s *Server) handleOracleJoin(
 		&oracleInit.ClientParams,
 		provisionToken,
 		claims,
-		workloadidentityv1pb.JoinAttrs_builder{
+		&workloadidentityv1pb.JoinAttrs{
 			Oracle: claims.JoinAttrs(),
-		}.Build(),
+		},
 	)
 	return result, trace.Wrap(err)
 }

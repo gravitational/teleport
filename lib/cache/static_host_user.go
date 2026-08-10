@@ -53,13 +53,13 @@ func newStaticHostUserCollection(upstream services.StaticHostUser, w types.Watch
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *userprovisioningv2.StaticHostUser {
-			return userprovisioningv2.StaticHostUser_builder{
+			return &userprovisioningv2.StaticHostUser{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil

@@ -51,7 +51,7 @@ func TestGetIDToken(t *testing.T) {
 		{
 			name:   "unset",
 			getEnv: fakeGetEnv(""),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 			},
 		},

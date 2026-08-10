@@ -201,12 +201,12 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		// send the username, and clientScreenSpec messages.
 		for _, msg := range []tdp.Message{
 			legacy.ClientUsername{Username: s.login},
-			legacy.ClientScreenSpec{Width: hello.ScreenSpec.GetWidth(), Height: hello.ScreenSpec.GetHeight()},
+			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
 			// For backwards compatibility with v17 Windows Desktop Servers, send a duplicate
 			// client screenspec message. This satisfies v18's requirement to receive exactly
 			// 3 handshake messages, while preventing v17 from receiving a keyboard message that
 			// it does not support. Teleport Connect doesn't support non-default keyboard layouts anyhow.
-			legacy.ClientScreenSpec{Width: hello.ScreenSpec.GetWidth(), Height: hello.ScreenSpec.GetHeight()},
+			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
 		} {
 			err = tdpServerConn.WriteMessage(msg)
 			if err != nil {
@@ -256,7 +256,7 @@ type clientStream struct {
 }
 
 func (d clientStream) Send(p []byte) error {
-	return trace.Wrap(d.stream.Send(api.ConnectToDesktopResponse_builder{Data: p}.Build()))
+	return trace.Wrap(d.stream.Send(&api.ConnectToDesktopResponse{Data: p}))
 }
 
 func (d clientStream) Recv() ([]byte, error) {
@@ -357,16 +357,16 @@ func (d *fsRequestHandler) handleSharedDirectoryInfoRequest(directoryID, complet
 		return trace.Wrap(err)
 	}
 
-	info, err := dirAccess.Stat(r.GetPath())
+	info, err := dirAccess.Stat(r.Path)
 	if err == nil {
 		return trace.Wrap(sendToServer(&tdpb.SharedDirectoryResponse{
 			DirectoryId:  directoryID,
 			CompletionId: completionID,
 			ErrorCode:    uint32(SharedDirectoryErrCodeNil),
 			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
-				Info: tdpbv1.SharedDirectoryResponse_Info_builder{
+				Info: &tdpbv1.SharedDirectoryResponse_Info{
 					Fso: toFso(info),
-				}.Build(),
+				},
 			},
 		}))
 	}
@@ -376,9 +376,9 @@ func (d *fsRequestHandler) handleSharedDirectoryInfoRequest(directoryID, complet
 			CompletionId: completionID,
 			ErrorCode:    uint32(SharedDirectoryErrCodeDoesNotExist),
 			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
-				Info: tdpbv1.SharedDirectoryResponse_Info_builder{
+				Info: &tdpbv1.SharedDirectoryResponse_Info{
 					Fso: &tdpbv1.FileSystemObject{},
-				}.Build(),
+				},
 			},
 		}))
 	}
@@ -390,7 +390,7 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(directoryID, complet
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	contents, err := dirAccess.ReadDir(r.GetPath())
+	contents, err := dirAccess.ReadDir(r.Path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -400,9 +400,9 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(directoryID, complet
 		CompletionId: completionID,
 		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
 		Operation: &tdpbv1.SharedDirectoryResponse_List_{
-			List: tdpbv1.SharedDirectoryResponse_List_builder{
+			List: &tdpbv1.SharedDirectoryResponse_List{
 				FsoList: slices.Map(contents, toFso),
-			}.Build(),
+			},
 		},
 	})
 	return trace.Wrap(err)
@@ -411,7 +411,7 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(directoryID, complet
 func (d *fsRequestHandler) handleSharedDirectoryReadRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Read, sendToServer func(message tdp.Message) error) error {
 	// Defense in depth: the protocol decoder already caps Length, but re-check here so
 	// the make([]byte, r.Length) below can't be driven into an unbounded allocation by a future caller.
-	if r.GetLength() > tdp.MaxFileReadWriteLength {
+	if r.Length > tdp.MaxFileReadWriteLength {
 		return tdp.FileReadWriteMaxLenErr
 	}
 
@@ -420,8 +420,8 @@ func (d *fsRequestHandler) handleSharedDirectoryReadRequest(directoryID, complet
 		return trace.Wrap(err)
 	}
 
-	buf := make([]byte, r.GetLength())
-	n, err := dirAccess.Read(r.GetPath(), int64(r.GetOffset()), buf)
+	buf := make([]byte, r.Length)
+	n, err := dirAccess.Read(r.Path, int64(r.Offset), buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -431,9 +431,9 @@ func (d *fsRequestHandler) handleSharedDirectoryReadRequest(directoryID, complet
 		CompletionId: completionID,
 		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
 		Operation: &tdpbv1.SharedDirectoryResponse_Read_{
-			Read: tdpbv1.SharedDirectoryResponse_Read_builder{
+			Read: &tdpbv1.SharedDirectoryResponse_Read{
 				Data: buf[:n],
-			}.Build(),
+			},
 		},
 	})
 	return trace.Wrap(err)
@@ -458,7 +458,7 @@ func (d *fsRequestHandler) handleSharedDirectoryWriteRequest(directoryID, comple
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	bytesWritten, err := dirAccess.Write(r.GetPath(), int64(r.GetOffset()), r.GetData())
+	bytesWritten, err := dirAccess.Write(r.Path, int64(r.Offset), r.Data)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -468,9 +468,9 @@ func (d *fsRequestHandler) handleSharedDirectoryWriteRequest(directoryID, comple
 		CompletionId: completionID,
 		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
 		Operation: &tdpbv1.SharedDirectoryResponse_Write_{
-			Write: tdpbv1.SharedDirectoryResponse_Write_builder{
+			Write: &tdpbv1.SharedDirectoryResponse_Write{
 				BytesWritten: uint32(bytesWritten),
-			}.Build(),
+			},
 		},
 	})
 	return trace.Wrap(err)
@@ -481,7 +481,7 @@ func (d *fsRequestHandler) handleSharedDirectoryTruncateRequest(directoryID, com
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = dirAccess.Truncate(r.GetPath(), r.GetSize())
+	err = dirAccess.Truncate(r.Path, r.Size)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -502,12 +502,12 @@ func (d *fsRequestHandler) handleSharedDirectoryCreateRequest(directoryID, compl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = dirAccess.Create(r.GetPath(), FileType(r.GetFileType()))
+	err = dirAccess.Create(r.Path, FileType(r.FileType))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	info, err := dirAccess.Stat(r.GetPath())
+	info, err := dirAccess.Stat(r.Path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -517,9 +517,9 @@ func (d *fsRequestHandler) handleSharedDirectoryCreateRequest(directoryID, compl
 		CompletionId: completionID,
 		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
 		Operation: &tdpbv1.SharedDirectoryResponse_Create_{
-			Create: tdpbv1.SharedDirectoryResponse_Create_builder{
+			Create: &tdpbv1.SharedDirectoryResponse_Create{
 				Fso: toFso(info),
-			}.Build(),
+			},
 		},
 	})
 	return trace.Wrap(err)
@@ -530,7 +530,7 @@ func (d *fsRequestHandler) handleSharedDirectoryDeleteRequest(directoryID, compl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = dirAccess.Delete(r.GetPath())
+	err = dirAccess.Delete(r.Path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -547,11 +547,11 @@ func (d *fsRequestHandler) handleSharedDirectoryDeleteRequest(directoryID, compl
 }
 
 func toFso(info *FileOrDirInfo) *tdpbv1.FileSystemObject {
-	return tdpbv1.FileSystemObject_builder{
+	return &tdpbv1.FileSystemObject{
 		LastModified: uint64(info.LastModified),
 		Size:         uint64(info.Size),
 		FileType:     uint32(info.FileType),
 		IsEmpty:      info.IsEmpty,
 		Path:         info.Path,
-	}.Build()
+	}
 }

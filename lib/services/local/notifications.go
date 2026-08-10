@@ -172,30 +172,30 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, notif
 		return nil, trace.Wrap(err)
 	}
 
-	if notification.GetSpec().GetUsername() == "" {
+	if notification.Spec.Username == "" {
 		return nil, trace.BadParameter("a username must be specified")
 	}
 
-	notification.SetKind(types.KindNotification)
-	notification.SetVersion(types.V1)
+	notification.Kind = types.KindNotification
+	notification.Version = types.V1
 
 	// Generate uuidv7 ID.
 	uuid, err := uuid.NewV7()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	notification.GetMetadata().SetName(uuid.String())
+	notification.Metadata.Name = uuid.String()
 
-	if err := CheckAndSetExpiry(notification.GetMetadata(), s.clock); err != nil {
+	if err := CheckAndSetExpiry(notification.Metadata, s.clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	notification.GetSpec().SetCreated(timestamppb.New(s.clock.Now()))
+	notification.Spec.Created = timestamppb.New(s.clock.Now())
 
-	notification.GetMetadata().GetLabels()[types.NotificationScope] = "user"
+	notification.Metadata.Labels[types.NotificationScope] = "user"
 
 	// Append username prefix.
-	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.GetSpec().GetUsername())
+	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.Spec.Username)
 
 	created, err := serviceWithPrefix.CreateResource(ctx, notification)
 	return created, trace.Wrap(err)
@@ -208,12 +208,12 @@ func (s *NotificationsService) UpsertUserNotification(ctx context.Context, notif
 	}
 
 	// Precautionary check in case of accidental misuse.
-	if notification.GetMetadata().GetName() == "" {
+	if notification.Metadata.Name == "" {
 		return nil, trace.BadParameter("notification id is missing. Did you mean to use CreateUserNotification?")
 	}
 
 	// Append username prefix.
-	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.GetSpec().GetUsername())
+	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.Spec.Username)
 
 	created, err := serviceWithPrefix.UpsertResource(ctx, notification)
 	return created, trace.Wrap(err)
@@ -261,12 +261,12 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 	// Check to ensure that the metadata for the globalNotification isn't configured, this shouldn't be used and if it is configured, the caller likely meant to
 	// configure the notification's metadata, which is in spec.notification.metadata.
 	// We do this check here instead of in `ValidateGlobalNotification` because we only want to do this check on creation.
-	if globalNotification.HasMetadata() {
+	if globalNotification.Metadata != nil {
 		return nil, trace.BadParameter("metadata should be nil, metadata for a notification should be in spec.notification.metadata")
 	}
 
-	globalNotification.SetKind(types.KindGlobalNotification)
-	globalNotification.SetVersion(types.V1)
+	globalNotification.Kind = types.KindGlobalNotification
+	globalNotification.Version = types.V1
 
 	// Generate uuidv7 ID.
 	uuid, err := uuid.NewV7()
@@ -274,20 +274,20 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := CheckAndSetExpiry(globalNotification.GetSpec().GetNotification().GetMetadata(), s.clock); err != nil {
+	if err := CheckAndSetExpiry(globalNotification.Spec.Notification.Metadata, s.clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	globalNotification.SetMetadata(headerv1.Metadata_builder{
+	globalNotification.Metadata = &headerv1.Metadata{
 		Name: uuid.String(),
 		// Set the same expiry on the outer GlobalNotification wrapper's metadata. This is necessary for the sqlite cleanup routine
 		// to be able to delete this notification when it expires.
-		Expires: globalNotification.GetSpec().GetNotification().GetMetadata().GetExpires(),
-	}.Build())
+		Expires: globalNotification.GetSpec().GetNotification().GetMetadata().Expires,
+	}
 
-	globalNotification.GetSpec().GetNotification().GetSpec().SetCreated(timestamppb.New(s.clock.Now()))
-	globalNotification.GetSpec().GetNotification().GetMetadata().SetName(uuid.String())
-	globalNotification.GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationScope] = "global"
+	globalNotification.Spec.Notification.Spec.Created = timestamppb.New(s.clock.Now())
+	globalNotification.Spec.Notification.Metadata.Name = uuid.String()
+	globalNotification.Spec.Notification.Metadata.Labels[types.NotificationScope] = "global"
 
 	created, err := s.globalNotificationService.CreateResource(ctx, globalNotification)
 	return created, trace.Wrap(err)
@@ -300,7 +300,7 @@ func (s *NotificationsService) UpsertGlobalNotification(ctx context.Context, glo
 	}
 
 	// Precautionary check in case of accidental misuse.
-	if globalNotification.GetSpec().GetNotification().GetMetadata().GetName() == "" {
+	if globalNotification.Spec.Notification.Metadata.Name == "" {
 		return nil, trace.BadParameter("notification id is missing. Did you mean to use CreateGlobalNotification?")
 	}
 
@@ -322,33 +322,33 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 
 	// Verify that the notification this state is for exists.
 	notifServiceWithPrefix := s.userNotificationService.WithPrefix(username)
-	_, err := notifServiceWithPrefix.GetResource(ctx, state.GetSpec().GetNotificationId())
+	_, err := notifServiceWithPrefix.GetResource(ctx, state.Spec.NotificationId)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// If we didn't find a user-specific notification with this ID, try finding a global notification.
-		_, err := s.globalNotificationService.GetResource(ctx, state.GetSpec().GetNotificationId())
+		_, err := s.globalNotificationService.GetResource(ctx, state.Spec.NotificationId)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
 
-			return nil, trace.NotFound("notification '%s' does not exist", state.GetSpec().GetNotificationId())
+			return nil, trace.NotFound("notification '%s' does not exist", state.Spec.NotificationId)
 		}
 	}
 
-	state.SetKind(types.KindUserNotificationState)
-	state.SetVersion(types.V1)
-	state.GetSpec().SetUsername(username)
+	state.Kind = types.KindUserNotificationState
+	state.Version = types.V1
+	state.Spec.Username = username
 
-	if !state.HasMetadata() {
-		state.SetMetadata(&headerv1.Metadata{})
+	if state.Metadata == nil {
+		state.Metadata = &headerv1.Metadata{}
 	}
 
 	// We set this to the notification UUID because the service adapter uses `getName()` to determine the backend key to use when storing the object.
-	state.GetMetadata().SetName(state.GetSpec().GetNotificationId())
+	state.Metadata.Name = state.Spec.NotificationId
 
 	// Append username prefix.
 	serviceWithPrefix := s.userNotificationStateService.WithPrefix(username)
@@ -400,14 +400,14 @@ func (s *NotificationsService) UpsertUserLastSeenNotification(ctx context.Contex
 		return nil, trace.Wrap(err)
 	}
 
-	ulsn.SetKind(types.KindUserLastSeenNotification)
-	ulsn.SetVersion(types.V1)
+	ulsn.Kind = types.KindUserLastSeenNotification
+	ulsn.Version = types.V1
 
-	if !ulsn.HasMetadata() {
-		ulsn.SetMetadata(&headerv1.Metadata{})
+	if ulsn.Metadata == nil {
+		ulsn.Metadata = &headerv1.Metadata{}
 	}
 	// We set this to the username because the service adapter uses `getName()` to determine the backend key to use when storing the object.
-	ulsn.GetMetadata().SetName(username)
+	ulsn.Metadata.Name = username
 
 	upserted, err := s.userLastSeenNotificationService.UpsertResource(ctx, ulsn)
 	return upserted, trace.Wrap(err)
@@ -446,20 +446,20 @@ func (s *NotificationsService) CreateUniqueNotificationIdentifier(ctx context.Co
 		return nil, trace.BadParameter("identifier is missing")
 	}
 
-	uniqueNotificationIdentifier := notificationsv1.UniqueNotificationIdentifier_builder{
-		Spec: notificationsv1.UniqueNotificationIdentifierSpec_builder{
+	uniqueNotificationIdentifier := &notificationsv1.UniqueNotificationIdentifier{
+		Spec: &notificationsv1.UniqueNotificationIdentifierSpec{
 			UniqueIdentifier:       identifier,
 			UniqueIdentifierPrefix: prefix,
-		}.Build(),
-		Metadata: headerv1.Metadata_builder{
+		},
+		Metadata: &headerv1.Metadata{
 			// the service adapter uses `getName()` to determine the backend key
 			Name: identifier,
-		}.Build(),
+		},
 		Kind:    types.KindUniqueNotificationIdentifier,
 		Version: types.V1,
-	}.Build()
+	}
 
-	if err := CheckAndSetExpiry(uniqueNotificationIdentifier.GetMetadata(), s.clock); err != nil {
+	if err := CheckAndSetExpiry(uniqueNotificationIdentifier.Metadata, s.clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -500,10 +500,10 @@ func (s *NotificationsService) DeleteUniqueNotificationIdentifier(ctx context.Co
 // CheckAndSetExpiry checks and sets the default expiry for a notification.
 func CheckAndSetExpiry(metadata *headerv1.Metadata, clock clockwork.Clock) error {
 	// If the expiry hasn't been provided, set the default to 30 days from now.
-	if !metadata.HasExpires() {
+	if metadata.Expires == nil {
 		now := clock.Now()
 		futureTime := now.Add(defaultExpiry)
-		metadata.SetExpires(timestamppb.New(futureTime))
+		metadata.Expires = timestamppb.New(futureTime)
 		return nil
 	}
 
@@ -512,7 +512,7 @@ func CheckAndSetExpiry(metadata *headerv1.Metadata, clock clockwork.Clock) error
 	now := clock.Now()
 	timeOfMaxExpiry := now.Add(maxExpiry)
 
-	if metadata.GetExpires().AsTime().After(timeOfMaxExpiry) {
+	if metadata.Expires.AsTime().After(timeOfMaxExpiry) {
 		return trace.BadParameter("notification expiry cannot be more than %d days from its creation", int(maxExpiry.Hours()/24))
 	}
 

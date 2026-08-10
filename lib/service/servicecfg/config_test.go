@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -116,89 +115,6 @@ func TestDefaultConfig(t *testing.T) {
 
 }
 
-func TestParseTargetHostPrefixes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		hosts   []string
-		want    []netip.Prefix
-		wantErr string
-	}{
-		{
-			name:  "empty",
-			hosts: nil,
-		},
-		{
-			name:  "bare IPv4",
-			hosts: []string{"192.0.2.10"},
-			want:  []netip.Prefix{netip.MustParsePrefix("192.0.2.10/32")},
-		},
-		{
-			name:  "bare IPv6",
-			hosts: []string{"2001:db8::1"},
-			want:  []netip.Prefix{netip.MustParsePrefix("2001:db8::1/128")},
-		},
-		{
-			name:  "CIDRs",
-			hosts: []string{"10.10.0.0/16", "::1/128"},
-			want: []netip.Prefix{
-				netip.MustParsePrefix("10.10.0.0/16"),
-				netip.MustParsePrefix("::1/128"),
-			},
-		},
-		{
-			name:    "hostname",
-			hosts:   []string{"localhost"},
-			wantErr: "must be an IP address or CIDR range",
-		},
-		{
-			name:    "empty entry",
-			hosts:   []string{""},
-			wantErr: "empty entry",
-		},
-		{
-			name:    "malformed CIDR",
-			hosts:   []string{"10.0.0.0/not-a-mask"},
-			wantErr: "must be an IP address or CIDR range",
-		},
-		{
-			name:    "IPv4-in-IPv6 address rejected",
-			hosts:   []string{"::ffff:192.0.2.10"},
-			wantErr: "IPv4-in-IPv6",
-		},
-		{
-			name:    "IPv4-in-IPv6 CIDR rejected",
-			hosts:   []string{"::ffff:169.254.0.0/112"},
-			wantErr: "IPv4-in-IPv6",
-		},
-		{
-			name:    "IPv6 zone identifier rejected",
-			hosts:   []string{"fe80::1%eth0"},
-			wantErr: "zone",
-		},
-		{
-			name:    "non-canonical CIDR rejected",
-			hosts:   []string{"10.0.0.5/8"},
-			wantErr: "canonical",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := ParseTargetHostPrefixes(tt.hosts)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 // TestCheckApp validates application configuration.
 func TestCheckApp(t *testing.T) {
 	type tc struct {
@@ -220,7 +136,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "-foo",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS label",
+			err: "must be a lower case valid DNS subdomain",
 		},
 		{
 			desc: `subdomain cannot contain the exclamation mark character "!"`,
@@ -228,7 +144,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "foo!bar",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS label",
+			err: "must be a lower case valid DNS subdomain",
 		},
 		{
 			desc: "subdomain of length 63 characters is valid (maximum length)",
@@ -243,121 +159,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS label",
-		},
-		{
-			desc: "leading digit is accepted (RFC 1123)",
-			inApp: App{
-				Name: "1stapp",
-				URI:  "http://localhost",
-			},
-		},
-		{
-			desc: "uppercase is rejected",
-			inApp: App{
-				Name: "MyApp",
-				URI:  "http://localhost",
-			},
-			err: "must be a valid DNS label",
-		},
-		{
-			desc: "public_addr with scheme is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "https://foo.example.com",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with mixed case is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "MyApp.example.com",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with port is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo.example.com:443",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with path is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo.example.com/path",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with bracketed IPv6 is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "[::1]",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with single trailing FQDN dot is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo.example.com.",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with two trailing dots is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo.example.com..",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with query string is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo.example.com?x=y",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with fragment is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo.example.com#frag",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with userinfo is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "user@foo.example.com",
-			},
-			err: "must be a valid DNS name",
-		},
-		{
-			desc: "public_addr with empty label is rejected",
-			inApp: App{
-				Name:       "foo",
-				URI:        "http://localhost",
-				PublicAddr: "foo..bar",
-			},
-			err: "must be a valid DNS name",
+			err: "must be a lower case valid DNS subdomain",
 		},
 	}
 	for _, h := range common.ReservedHeaders {
@@ -383,9 +185,9 @@ func TestCheckApp(t *testing.T) {
 			err := tt.inApp.CheckAndSetDefaults()
 			if tt.err != "" {
 				require.Contains(t, err.Error(), tt.err)
-				return
+			} else {
+				require.NoError(t, err)
 			}
-			require.NoError(t, err)
 		})
 	}
 }
@@ -809,7 +611,7 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
@@ -853,6 +655,7 @@ func TestWebPublicAddr(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -998,23 +801,23 @@ func TestBoundKeypairConfig(t *testing.T) {
 	}
 }
 
-func hasNoErr(t require.TestingT, err error, msgAndArgs ...any) {
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.NoError(t, err, msgAndArgs...)
 }
 
-func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
 }
 
 func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }
 
 func hasErrAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

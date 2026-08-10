@@ -16,13 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  useCallback,
-  useMemo,
-  useState,
-  type JSX,
-  type ReactNode,
-} from 'react';
+import { useCallback, useMemo, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Danger } from 'design/Alert';
@@ -45,7 +39,6 @@ import {
   getResourceId,
   openStatusInfoPanel,
 } from 'shared/components/UnifiedResources/shared/StatusInfo';
-import { useStore } from 'shared/libs/stores';
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
@@ -160,7 +153,6 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
-  ctaSlot,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
@@ -172,19 +164,8 @@ export function ClusterResources({
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
-  /**
-   * Optional render-prop for rendering content (such as a CTA) that depends on
-   * the current resource list. It's given the number of currently displayed
-   * resources along with whether any filter or search is active, so the content
-   * can tell a genuinely empty cluster apart from a list emptied by filtering.
-   */
-  ctaSlot?: (props: {
-    resourceCount: number;
-    isFilterApplied: boolean;
-  }) => ReactNode;
 }) {
   const teleCtx = useTeleport();
-  const storeUser = useStore(teleCtx.storeUser);
   const flags = teleCtx.getFeatureFlags();
 
   useNoMinWidth();
@@ -320,13 +301,6 @@ export function ClusterResources({
     });
   }
 
-  const isFilterApplied =
-    !!params.search ||
-    !!params.query ||
-    !!params.pinnedOnly ||
-    !!params.kinds?.length ||
-    !!params.statuses?.length;
-
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
@@ -344,15 +318,11 @@ export function ClusterResources({
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
         ClusterDropdown={
-          // TODO(bl-nero): Enable cluster dropdown for scoped sessions once
-          // it's supported on the backend.
-          storeUser.getScope() ? undefined : (
-            <ClusterDropdown
-              clusterLoader={teleCtx.clusterService}
-              clusterId={clusterId}
-              onError={setLoadClusterError}
-            />
-          )
+          <ClusterDropdown
+            clusterLoader={teleCtx.clusterService}
+            clusterId={clusterId}
+            onError={setLoadClusterError}
+          />
         }
         NoResources={
           <Empty
@@ -396,7 +366,6 @@ export function ClusterResources({
           </>
         }
       />
-      {ctaSlot?.({ resourceCount: resources.length, isFilterApplied })}
     </>
   );
 }

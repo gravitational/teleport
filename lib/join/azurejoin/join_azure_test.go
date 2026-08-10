@@ -560,27 +560,26 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 				Scope: "/test",
-				Metadata: headerv1.Metadata_builder{
-					Name: token.GetName(),
-				}.Build(),
-				Spec: joiningv1.ScopedTokenSpec_builder{
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				}.Build(),
-			}.Build())
+				},
+			})
 			require.NoError(t, err)
 
-			_, err = a.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 				Token: scopedToken,
-			}.Build())
+			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := a.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-					Name:  scopedToken.GetMetadata().GetName(),
-					Scope: scopedToken.GetScope(),
-				}.Build())
+				_, err := a.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 			})
 
@@ -639,8 +638,7 @@ func TestJoinAzure(t *testing.T) {
 			})
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
-					TokenSecret: scopedToken.GetStatus().GetSecret(),
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -699,14 +697,14 @@ func TestJoinAzureClaims(t *testing.T) {
 	defaultVMID := "my-vm-id"
 
 	botName := "botty"
-	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
+	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: botName,
-		}.Build(),
+		},
 		Spec: &machineidv1pb.BotSpec{},
-	}.Build(), a.GetClock().Now(), "", scopes.Features{})
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1027,28 +1025,26 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 				Scope: "/test",
-				Metadata: headerv1.Metadata_builder{
-					Name: token.GetName(),
-				}.Build(),
-				Spec: joiningv1.ScopedTokenSpec_builder{
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				}.Build(),
-			}.Build())
+				},
+			})
 			require.NoError(t, err)
 
-			resp, err := a.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 				Token: scopedToken,
-			}.Build())
+			})
 			require.NoError(t, err)
-			scopedToken = resp.GetToken()
 			t.Cleanup(func() {
-				_, err := a.DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
-					Name:  scopedToken.GetMetadata().GetName(),
-					Scope: scopedToken.GetScope(),
-				}.Build())
+				_, err := a.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 			})
 
@@ -1118,8 +1114,7 @@ func TestJoinAzureClaims(t *testing.T) {
 			t.Run("scoped", func(t *testing.T) {
 				// Try to join via the new join service.
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
-					TokenSecret: scopedToken.GetStatus().GetSecret(),
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -1145,8 +1140,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.UpsertToken(ctx, token))
 
 				result, err := joinclient.Join(ctx, joinclient.JoinParams{
-					Token:       tc.requestTokenName,
-					TokenSecret: scopedToken.GetStatus().GetSecret(),
+					Token: tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleBot,
 					},
@@ -1172,8 +1166,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 				// Make sure the JoinAttributes were set.
 				require.NotNil(t, identity.JoinAttributes)
-				require.NotNil(t, identity.JoinAttributes.GetAzure())
-				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.GetAzure().GetSubscription())
+				require.NotNil(t, identity.JoinAttributes.Azure)
+				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.Azure.Subscription)
 			})
 		})
 	}
@@ -1182,8 +1176,7 @@ func TestJoinAzureClaims(t *testing.T) {
 func TestAzureIssuerCert(t *testing.T) {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:            t.TempDir(),
-			ScopesFeatures: scopes.Features{Enabled: true},
+			Dir: t.TempDir(),
 		}})
 	require.NoError(t, err)
 	a := server.Auth()
@@ -1344,8 +1337,7 @@ func TestAzureIssuerCert(t *testing.T) {
 func TestAzureJoinFetchesCompleteIntermediateChain(t *testing.T) {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:            t.TempDir(),
-			ScopesFeatures: scopes.Features{Enabled: true},
+			Dir: t.TempDir(),
 		}})
 	require.NoError(t, err)
 	a := server.Auth()

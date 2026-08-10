@@ -37,10 +37,10 @@ func init() {
 // TeleportLoginRule holds the kubernetes custom resources for login rules.
 type TeleportLoginRule struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportLoginRuleSpec `json:"spec"`
-	Status teleportcr.Status     `json:"status"`
+	Spec   TeleportLoginRuleSpec `json:"spec,omitempty"`
+	Status teleportcr.Status     `json:"status,omitempty"`
 }
 
 // TeleportLoginRuleSpec matches the JSON of generated CRD spec
@@ -56,7 +56,7 @@ type TeleportLoginRuleSpec struct {
 // TeleportLoginRuleList contains a list of TeleportLoginRule
 type TeleportLoginRuleList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportLoginRule `json:"items"`
 }
 
@@ -65,7 +65,7 @@ type TeleportLoginRuleList struct {
 // by the TeleportResourceReconciler.
 func (l TeleportLoginRule) ToTeleport() *LoginRuleResource {
 	resource := &LoginRuleResource{
-		LoginRule: loginrulepb.LoginRule_builder{
+		LoginRule: &loginrulepb.LoginRule{
 			Metadata: &types.Metadata{
 				Name:        l.Name,
 				Labels:      l.Labels,
@@ -74,13 +74,13 @@ func (l TeleportLoginRule) ToTeleport() *LoginRuleResource {
 			Version:          types.V1,
 			Priority:         l.Spec.Priority,
 			TraitsExpression: l.Spec.TraitsExpression,
-		}.Build(),
+		},
 	}
 	if len(l.Spec.TraitsMap) > 0 {
-		resource.LoginRule.SetTraitsMap(make(map[string]*wrappers.StringValues, len(l.Spec.TraitsMap)))
+		resource.LoginRule.TraitsMap = make(map[string]*wrappers.StringValues, len(l.Spec.TraitsMap))
 	}
 	for traitKey, traitExpressions := range l.Spec.TraitsMap {
-		resource.LoginRule.GetTraitsMap()[traitKey] = &wrappers.StringValues{Values: traitExpressions}
+		resource.LoginRule.TraitsMap[traitKey] = &wrappers.StringValues{Values: traitExpressions}
 	}
 	return resource
 }
@@ -100,25 +100,21 @@ type LoginRuleResource struct {
 }
 
 func (l *LoginRuleResource) GetName() string {
-	return l.LoginRule.GetMetadata().Name
+	return l.LoginRule.Metadata.Name
 }
 
 func (l *LoginRuleResource) SetOrigin(origin string) {
-	l.LoginRule.GetMetadata().SetOrigin(origin)
+	l.LoginRule.Metadata.SetOrigin(origin)
 }
 
 func (l *LoginRuleResource) Origin() string {
-	return l.LoginRule.GetMetadata().Origin()
+	return l.LoginRule.Metadata.Origin()
 }
 
 func (l *LoginRuleResource) GetRevision() string {
-	return l.LoginRule.GetMetadata().GetRevision()
+	return l.LoginRule.Metadata.GetRevision()
 }
 
 func (l *LoginRuleResource) SetRevision(rev string) {
-	l.LoginRule.GetMetadata().SetRevision(rev)
-}
-
-func (l *LoginRuleResource) GetKind() string {
-	return types.KindLoginRule
+	l.LoginRule.Metadata.SetRevision(rev)
 }

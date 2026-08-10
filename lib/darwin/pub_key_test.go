@@ -36,10 +36,13 @@ func TestECDSAPublicKeyFromRaw(t *testing.T) {
 
 	pubKey := privKey.PublicKey
 
-	pubKeyBytes, err := pubKey.Bytes()
-	require.NoError(t, err)
+	// Marshal key into the raw Apple format.
+	rawAppleKey := make([]byte, 1+32+32)
+	rawAppleKey[0] = 0x04
+	pubKey.X.FillBytes(rawAppleKey[1:33])
+	pubKey.Y.FillBytes(rawAppleKey[33:])
 
-	got, err := darwin.ECDSAPublicKeyFromRaw(pubKeyBytes)
+	got, err := darwin.ECDSAPublicKeyFromRaw(rawAppleKey)
 	require.NoError(t, err, "ECDSAPublicKeyFromRaw failed")
 	assert.Equal(t, pubKey, *got, "ECDSAPublicKeyFromRaw mismatch")
 }

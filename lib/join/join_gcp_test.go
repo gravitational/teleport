@@ -54,7 +54,6 @@ func (m *mockGCPTokenValidator) Validate(_ context.Context, token string) (*gcp.
 
 func TestJoinGCP(t *testing.T) {
 	t.Parallel()
-
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockGCPTokenValidator{
 		tokens: map[string]gcp.IDTokenClaims{
@@ -113,7 +112,7 @@ func TestJoinGCP(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -228,27 +227,26 @@ func TestJoinGCP(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tc.request.Token = tc.name
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 				Scope: "/test",
-				Metadata: headerv1.Metadata_builder{
-					Name: token.GetName(),
-				}.Build(),
-				Spec: joiningv1.ScopedTokenSpec_builder{
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				}.Build(),
-			}.Build())
+				},
+			})
 			require.NoError(t, err)
 
-			_, err = auth.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+			_, err = auth.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 				Token: scopedToken,
-			}.Build())
+			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := auth.DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
-					Name:  scopedToken.GetMetadata().GetName(),
-					Scope: scopedToken.GetScope(),
-				}.Build())
+				_, err := auth.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 			})
 
@@ -297,9 +295,8 @@ func TestJoinGCP(t *testing.T) {
 
 			t.Run("scoped", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:       tc.request.Token,
-					TokenSecret: scopedToken.GetStatus().GetSecret(),
-					JoinMethod:  types.JoinMethodGCP,
+					Token:      "scoped_" + tc.request.Token,
+					JoinMethod: types.JoinMethodGCP,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
 						NodeName: "testnode",

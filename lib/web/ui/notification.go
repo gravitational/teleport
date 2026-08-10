@@ -38,17 +38,17 @@ type Notification struct {
 
 // MakeNotification creates a notification object for the WebUI.
 func MakeNotification(notification *notificationsv1.Notification) Notification {
-	labels := ui.MakeLabelsWithoutInternalPrefixes(notification.GetMetadata().GetLabels())
+	labels := ui.MakeLabelsWithoutInternalPrefixes(notification.Metadata.Labels)
 
-	clicked := notification.GetMetadata().GetLabels()[types.NotificationClickedLabel] == "true"
+	clicked := notification.Metadata.GetLabels()[types.NotificationClickedLabel] == "true"
 
 	return Notification{
-		ID:          notification.GetMetadata().GetName(),
-		Title:       notification.GetMetadata().GetLabels()[types.NotificationTitleLabel],
-		SubKind:     notification.GetSubKind(),
-		Created:     notification.GetSpec().GetCreated().AsTime(),
+		ID:          notification.Metadata.GetName(),
+		Title:       notification.Metadata.GetLabels()[types.NotificationTitleLabel],
+		SubKind:     notification.SubKind,
+		Created:     notification.Spec.Created.AsTime(),
 		Clicked:     clicked,
-		TextContent: notification.GetMetadata().GetLabels()[types.NotificationTextContentLabel],
+		TextContent: notification.Metadata.GetLabels()[types.NotificationTextContentLabel],
 		Labels:      labels,
 	}
 }

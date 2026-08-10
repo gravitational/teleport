@@ -23,7 +23,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { isErrnoException } from 'shared/utils/error';
 import { wait } from 'shared/utils/wait';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -66,7 +65,7 @@ async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
     try {
       paths = await fs.readdir(tshDir);
     } catch (err) {
-      if (isErrnoException(err, 'ENOENT')) {
+      if (err.code === 'ENOENT') {
         throw {
           name: 'RpcError',
           code: 'NOT_FOUND',
@@ -89,7 +88,7 @@ async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
           // The file with the cluster disappeared between fs.readdir above and fs.readFile.
           // This is possible in tests where we call `void tshClientMock.removeCluster` without
           // awaiting.
-          if (isErrnoException(err, 'ENOENT')) {
+          if (err.code === 'ENOENT') {
             return null;
           }
           throw err;

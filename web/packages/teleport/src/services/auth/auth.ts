@@ -28,7 +28,6 @@ import {
 } from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import { defaultHeaders } from '../api/api';
 import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
@@ -116,24 +115,17 @@ const auth = {
       .then(parseMfaChallengeJson);
   },
 
-  login(userId: string, password: string, otpCode: string, scope: string) {
+  login(userId: string, password: string, otpCode: string) {
     const data = {
       user: userId,
       pass: password,
       second_factor_token: otpCode,
-      scope,
     };
 
-    return api.postWithOptions(cfg.api.webSessionPath, {
-      data,
-      headers: {
-        ...defaultHeaders,
-        [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
-      },
-    });
+    return api.post(cfg.api.webSessionPath, data);
   },
 
-  loginWithWebauthn(creds?: UserCredentials, scope: string = '') {
+  loginWithWebauthn(creds?: UserCredentials) {
     return auth
       .checkWebauthnSupport()
       .then(() => auth.mfaLoginBegin(creds))
@@ -146,16 +138,9 @@ const auth = {
         const request = {
           user: creds?.username,
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-          scope,
         };
 
-        return api.postWithOptions(cfg.api.mfaLoginFinish, {
-          data: request,
-          headers: {
-            ...defaultHeaders,
-            [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
-          },
-        });
+        return api.post(cfg.api.mfaLoginFinish, request);
       });
   },
 
@@ -558,9 +543,3 @@ export enum MfaChallengeScope {
   ADMIN_ACTION = 7,
   CHANGE_PASSWORD = 8,
 }
-
-/**
- * Header which reports navigator.maxTouchPoints to the proxy service. This piece of information is
- * later used by the Device Trust service.
- */
-const HEADER_MAX_TOUCH_POINTS = 'Max-Touch-Points';

@@ -91,8 +91,6 @@ export const allAccessAcl: Acl = {
   inferenceModel: fullAccess,
   inferenceSecret: fullAccess,
   beam: fullAccess,
-  classifier: fullAccess,
-  mobileDevice: { createEnrollToken: true },
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
@@ -105,8 +103,6 @@ export function getAcl(cfg?: { noAccess: boolean }) {
 export const baseContext = {
   authType: 'local',
   userName: 'llama',
-  displayPrimary: '',
-  displaySecondary: '',
   accessCapabilities: {
     suggestedReviewers: ['george_washington@gmail.com', 'alpha'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],

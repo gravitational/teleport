@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: teleport-util-lib-test
-data:
-  gomemlimit: {{ include "teleport-util-lib.gomemlimit" .Values | quote }}

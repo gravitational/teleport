@@ -156,12 +156,6 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
-	// BeamID is the identifier of the Beam this certificate was created for,
-	// derived from the delegation session's types.BeamIDLabel label.
-	BeamID string
-	// HeadlessAuthenticationID is the ID of the headless authentication
-	// resource this certificate is being generated for.
-	HeadlessAuthenticationID string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
 	// ImmutableLabelHash is the immutable label hash used to verify
@@ -337,17 +331,11 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if i.DelegationSessionID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
 	}
-	if i.BeamID != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionBeamID] = i.BeamID
-	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
 	}
 	if i.GitHubUsername != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = i.GitHubUsername
-	}
-	if i.HeadlessAuthenticationID != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionHeadlessAuthenticationID] = i.HeadlessAuthenticationID
 	}
 
 	if i.PinnedIP != "" {
@@ -367,11 +355,6 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
 		if extension.Mode != types.CertExtensionMode_EXTENSION ||
 			extension.Type != types.CertExtensionType_SSH {
-			continue
-		}
-		// Beam IDs are server-derived from delegation sessions and must not be
-		// spoofed or overwritten by role-supplied certificate extensions.
-		if extension.Name == teleport.CertExtensionBeamID {
 			continue
 		}
 		cert.Extensions[extension.Name] = extension.Value
@@ -505,8 +488,8 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		}
 		// Certs issued before PinKind was introduced will have UNSPECIFIED here.
 		// Pins decoded from the user OID are always user pins.
-		if pin.GetKind() == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
-			pin.SetKind(scopesv1.PinKind_PIN_KIND_USER)
+		if pin.Kind == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+			pin.Kind = scopesv1.PinKind_PIN_KIND_USER
 		}
 		ident.ScopePin = pin
 	}
@@ -604,10 +587,8 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
 	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
-	ident.BeamID = takeValue(teleport.CertExtensionBeamID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
-	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")

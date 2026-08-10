@@ -150,6 +150,12 @@
           "tools": [
             "{{internal.mcp_tools}}"
           ]
+        },
+        "linux_desktop_logins": [
+          "{{internal.linux_desktop_logins}}"
+        ],
+        "linux_desktop_labels": {
+          "*": "*"
         }
       },
       "deny": {}
@@ -647,14 +653,6 @@
               "delete",
               "create_enroll_token",
               "enroll"
-            ]
-          },
-          {
-            "resources": [
-              "mobile_device"
-            ],
-            "verbs": [
-              "create_enroll_token"
             ]
           },
           {
@@ -1187,18 +1185,6 @@
           },
           {
             "resources": [
-              "classifier"
-            ],
-            "verbs": [
-              "list",
-              "create",
-              "read",
-              "update",
-              "delete"
-            ]
-          },
-          {
-            "resources": [
               "retrieval_model"
             ],
             "verbs": [
@@ -1248,18 +1234,6 @@
           {
             "resources": [
               "scoped_token"
-            ],
-            "verbs": [
-              "list",
-              "create",
-              "read",
-              "update",
-              "delete"
-            ]
-          },
-          {
-            "resources": [
-              "app_auth_config"
             ],
             "verbs": [
               "list",

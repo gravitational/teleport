@@ -92,10 +92,10 @@ func addrToProto(a net.Addr) *relaypeeringv1alpha.Addr {
 		return nil
 	}
 
-	return relaypeeringv1alpha.Addr_builder{
+	return &relaypeeringv1alpha.Addr{
 		Network: a.Network(),
 		Addr:    a.String(),
-	}.Build()
+	}
 }
 
 func addrFromProto(a *relaypeeringv1alpha.Addr) net.Addr {

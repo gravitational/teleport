@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/host"
 	"github.com/gravitational/teleport/session/logconstants"
-	"github.com/gravitational/teleport/session/loginuid"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam"
@@ -63,18 +62,10 @@ import (
 	"github.com/gravitational/teleport/session/uds"
 )
 
-const (
-	// procLoginuid is the path to the current process's loginuid.
-	procLoginuid = "/proc/self/loginuid"
-	// procSessionID is the path to the current process's session ID.
-	procSessionID = "/proc/self/sessionid"
-)
-
 // FileFD is a file descriptor passed down from a parent process when
 // Teleport is re-executing itself.
 type FileFD = uintptr
 
-// FileFDs used by all re-exec subcommands.
 const (
 	// CommandFile is used to pass the command and arguments that the
 	// child process should execute from the parent process.
@@ -83,13 +74,12 @@ const (
 	// process.
 	LogFile
 	// ContinueFile is used to communicate to the child process that
-	// it can continue after the parent process starts monitoring the
-	// child's audit login session ID when Enhanced Session Recording
-	// is enabled. Otherwise it isn't used.
+	// it can continue after the parent process assigns a cgroup to the
+	// child process.
 	ContinueFile
-	// ReadyFile is used to communicate to the parent process that the
-	// child has changed its auid and is ready to be monitored when
-	// Enhanced Session Recording is enabled. Otherwise it isn't used.
+	// ReadyFile is used to communicate to the parent process that
+	// the child has completed any setup operations that must occur before
+	// the child is placed into its cgroup.
 	ReadyFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
@@ -97,41 +87,16 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
+	// PTYFileDeprecated is a placeholder for the unused PTY file that
+	// was passed to the child process. The PTY should only be used in the
+	// the parent process but was left here for compatibility purposes.
+	PTYFileDeprecated
+	// TTYFile is a TTY the parent process passes to the child process.
+	TTYFile
+
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile
-)
-
-// FileFDs for terminal based exec sessions.
-const (
-	// TTYFile is a TTY the parent process passes to the child process.
-	TTYFile = FirstExtraFile + iota
-)
-
-// FileFDs for non-terminal based exec sessions.
-const (
-	// StdinFile is used to capture the stdin stream of the shell (grandchild) process.
-	StdinFile = FirstExtraFile + iota
-	// StdoutFile is used to capture the stdout stream of the shell (grandchild) process.
-	StdoutFile
-	// StderrFile is used to capture the stderr stream of the shell (grandchild) process.
-	StderrFile
-)
-
-// FileFDs for SFTP sessions.
-const (
-	// FileTransferOutFile is used to pass write transfer data to the sftp (grandchild) process.
-	FileTransferOutFile = FirstExtraFile + iota
-	// FileTransferInFile is used to pass read transfer data from the sftp (grandchild) process.
-	FileTransferInFile
-	// AuditInFile is used to read audit events from the sftp (grandchild) process.
-	AuditInFile
-)
-
-// FileFDs for networking sessions.
-const (
-	// ListenerFile is a unix datagram socket listener.
-	ListenerFile = FirstExtraFile + iota
+	FirstExtraFile FileFD = TerminateFile + 1
 )
 
 func fdName(f FileFD) string {
@@ -141,10 +106,6 @@ func fdName(f FileFD) string {
 // ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
 type ExecCommand struct {
-	Stdin  io.Reader `json:"-"`
-	Stdout io.Writer `json:"-"`
-	Stderr io.Writer `json:"-"`
-
 	// LogConfig is the log configuration for the child process.
 	LogConfig ExecLogConfig `json:"log_config"`
 
@@ -213,20 +174,21 @@ type ExecCommand struct {
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
+	// ExtraFilesLen is the number of extra files that are inherited from
+	// the parent process. These files start at file descriptor 3 of the
+	// child process, and are only valid for processes without a terminal.
+	ExtraFilesLen int `json:"extra_files_len"`
+
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
 	SetSELinuxContext bool `json:"set_selinux_context"`
-
-	// RecordWithBPF is true when Enhanced Session Recording should
-	// record the session.
-	RecordWithBPF bool `json:"bpf_recording"`
 }
 
 // ExecLogConfig represents all the logging configuration data that
 // needs to be passed to the child.
 type ExecLogConfig struct {
 	// Level is the log level to use.
-	Level slog.Level
+	Level *slog.LevelVar
 	// Format defines the output format. Possible values are 'text' and 'json'.
 	Format string
 	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller].
@@ -295,9 +257,7 @@ func (n *NetAddr) String() string {
 // system state related to the process and/or thread for PAM and SELinux.
 // The process should exit after this function returns so the potentially
 // modified process and/or thread isn't used with a non-standard state.
-// Returns exitErr if the exec/shell command runs and exits successfully
-// or err if command fails to run.
-func RunCommand() (exitErr error, err error) {
+func RunCommand() (code int, err error) {
 	ctx := context.Background()
 
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
@@ -306,46 +266,56 @@ func RunCommand() (exitErr error, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
+	// If the command fails to launch, write the error to stdout for the parent process
+	// to digest. If we have a terminal, write it there for the user to see as well.
+	var tty *os.File
+	defer func() {
+		if err != nil && code == reexecconstants.RemoteCommandFailure {
+			var w io.Writer = os.Stdout
+			if tty != nil {
+				w = io.MultiWriter(os.Stdout, tty)
+			}
+
+			fmt.Fprintf(w, "Failed to launch: %v.\r\n", err)
+		}
+	}()
+
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
-		return nil, trace.BadParameter("command pipe not found")
-	}
-	logfd := os.NewFile(LogFile, fdName(LogFile))
-	if logfd == nil {
-		return nil, trace.BadParameter("log pipe not found")
+		return reexecconstants.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
-		return nil, trace.BadParameter("continue pipe not found")
+		return reexecconstants.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
 	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
 	if readyfd == nil {
-		return nil, trace.BadParameter("ready pipe not found")
+		return reexecconstants.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
 	}
+
+	// Ensure that the ready signal is sent if a failure causes execution
+	// to terminate prior to actually becoming ready to unblock the parent process.
+	defer func() {
+		if readyfd == nil {
+			return
+		}
+
+		_ = readyfd.Close()
+	}()
+
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
-		return nil, trace.BadParameter("terminate pipe not found")
+		return reexecconstants.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
-		return nil, trace.Wrap(err)
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	// If BPF is enabled, ensure that the ready file is closed if a
-	// failure causes execution to terminate prior to the audit session
-	// ID actually being changed to unblock the parent process.
-	if c.RecordWithBPF {
-		defer func() {
-			if readyfd != nil {
-				_ = readyfd.Close()
-			}
-		}()
-	}
-
-	initLogger("reexec", logfd, c.LogConfig)
+	initLogger("reexec", nil, c.LogConfig)
 
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
@@ -355,6 +325,7 @@ func RunCommand() (exitErr error, err error) {
 	}
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
+		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
 		slog.DebugContext(ctx, "failed to send user start event to auditd", "error", err)
 	}
 
@@ -373,47 +344,13 @@ func RunCommand() (exitErr error, err error) {
 		}
 	}()
 
-	// If Enhanced Session Recording is enabled, take note of what the
-	// loginuid is set to before a PAM context is opened. We will need
-	// to write to the loginuid file if PAM hasn't already.
-	var loginUIDBytes []byte
-	if c.RecordWithBPF {
-		loginUIDBytes, err = os.ReadFile(procLoginuid)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	var tty *os.File
+	// If a terminal was requested, file descriptor 7 always points to the
+	// TTY. Extract it and set the controlling TTY. Otherwise, connect
+	// std{in,out,err} directly.
 	if c.Terminal {
-		// If this is an interactive session, use the tty file for grandchild stdio.
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if tty == nil {
-			return nil, trace.BadParameter("tty not found")
-		}
-		c.Stdin = tty
-		c.Stdout = tty
-		c.Stderr = tty
-	} else if c.RequestType == "subsystem" && c.Command == "sftp" {
-		// std{in/out} is not used by the SFTP sub process, just collect stderr.
-		c.Stdin = bytes.NewReader(nil)
-		c.Stdout = io.Discard
-		// Propagate sftp subprocess errors to the parent process.
-		c.Stderr = os.Stderr
-
-	} else {
-		// If this is a normal, non-interactive exec session, use the stdio pipes provided as extra files.
-		c.Stdin = os.NewFile(StdinFile, fdName(StdinFile))
-		if c.Stdin == nil {
-			return nil, trace.BadParameter("stdin not found")
-		}
-		c.Stdout = os.NewFile(StdoutFile, fdName(StdoutFile))
-		if c.Stdout == nil {
-			return nil, trace.BadParameter("stdout not found")
-		}
-		c.Stderr = os.NewFile(StderrFile, fdName(StderrFile))
-		if c.Stderr == nil {
-			return nil, trace.BadParameter("stderr not found")
+			return reexecconstants.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
 	}
 
@@ -422,44 +359,51 @@ func RunCommand() (exitErr error, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		slog.DebugContext(ctx, "Opening PAM context")
+		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
+		// otherwise discard std{out,err}. If this was not done, things like MOTD
+		// would be printed for non-interactive "exec" requests.
+		var stdin io.Reader
+		var stdout io.Writer
+		var stderr io.Writer
+		if tty != nil {
+			stdin = tty
+			stdout = tty
+			stderr = tty
+		} else {
+			stdin = os.Stdin
+			stdout = io.Discard
+			stderr = io.Discard
+		}
 
-		cfg := &pamcfg.PAMConfig{
+		// Open the PAM context.
+		pamContext, err := pam.Open(&pamcfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
-			Env: c.PAMConfig.Environment,
-			// Connect std{in,out,err} to the TTY if a terminal has been allocated.
-			Stdin:  c.Stdin,
-			Stdout: c.Stdout,
-			Stderr: c.Stderr,
-		}
-
-		// Discard std{out,err} for non-interactive requests. Otherwise, things like
-		// MOTD would be printed.
-		if !c.Terminal {
-			cfg.Stdout = io.Discard
-			cfg.Stderr = io.Discard
-		}
-
-		// Open the PAM context.
-		pamContext, err := pam.Open(cfg)
+			Env:    c.PAMConfig.Environment,
+			Stdin:  stdin,
+			Stdout: stdout,
+			Stderr: stderr,
+		})
 		if err != nil {
-			// Format the PAM error to be user friendly.
-			return nil, trace.Errorf("failed to open PAM context: %v", err.Error())
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
 
 		// Save off any environment variables that come from PAM.
-		pamEnvironment, err = pamContext.Environment()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		pamEnvironment = pamContext.Environment()
 	}
 
+	// Alert the parent process that the child process has completed any setup operations,
+	// and that we are now waiting for the continue signal before proceeding. This is needed
+	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	if err := readyfd.Close(); err != nil {
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
+	}
+	readyfd = nil
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
 		UtmpFile:   c.UaccMetadata.UtmpPath,
 		WtmpFile:   c.UaccMetadata.WtmpPath,
@@ -472,15 +416,7 @@ func RunCommand() (exitErr error, err error) {
 		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
 			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
 		}
-		return nil, trace.Wrap(err)
-	}
-
-	// Ensure this process has a unique audit login session ID (auid) set
-	// so Enhanced Session Recording can track events correctly.
-	if c.RecordWithBPF {
-		if err := setAuditSessionID(ctx, c, loginUIDBytes, localUser, readyfd); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.Terminal {
@@ -500,19 +436,16 @@ func RunCommand() (exitErr error, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := BuildCommand(&c, localUser, pamEnvironment)
+	cmd, err := BuildCommand(&c, localUser, tty, pamEnvironment)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
-	// Teleport is monitoring this session if Enhanced Session Recording is enabled.
-	if c.RecordWithBPF {
-		err = WaitForSignal(ctx, contfd, 10*time.Second)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		slog.DebugContext(ctx, "Received continue signal")
+	// the child process has been placed in a cgroup.
+	err = WaitForSignal(ctx, contfd, 10*time.Second)
+	if err != nil {
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// If we're planning on changing credentials, we should first park an
@@ -529,7 +462,7 @@ func RunCommand() (exitErr error, err error) {
 			cmd.SysProcAttr.Credential,
 			c.Login, &systemUser{u: localUser})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 		}
 	}
 
@@ -543,7 +476,7 @@ func RunCommand() (exitErr error, err error) {
 	if c.SetSELinuxContext {
 		seContext, err := selinux.UserContext(c.Login)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to get SELinux context of login user")
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
 		}
 
 		// SetExecLabel changes the SELinux exec context for the
@@ -552,77 +485,23 @@ func RunCommand() (exitErr error, err error) {
 		// the thread as we're exiting after the child exits, and
 		// we want to avoid another goroutine getting denied due to
 		// running on this thread with a different (likely much more
-		// restrictive) SELinux context.
+		// restrictive)SELinux context.
 		runtime.LockOSThread()
 		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return nil, trace.Wrap(err, "failed to set SELinux context")
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
 		}
 	}
 
 	// Start the command.
 	if err := cmd.Start(); err != nil {
-		return nil, trace.Wrap(err)
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
-	slog.DebugContext(ctx, "Started command")
 
 	parkerCancel()
 
-	exitErr = waitForShell(terminatefd, cmd)
-	return trace.Wrap(exitErr), nil
-}
+	err = waitForShell(terminatefd, cmd)
 
-// setAuditSessionID ensures the audit login session ID is updated by
-// either PAM if PAM is configured or us otherwise.
-func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, localUser *user.User, readyfd *os.File) error {
-	// Depending of the PAM service, PAM may write to /proc/self/loginuid
-	// if the 'pam_loginuid.so' module is enabled. We always want to
-	// write to /proc/self/loginuid to ensure the kernel will update the
-	// audit session ID for the next child process, but PAM may or may
-	// not write to it. Even if 'pam_loginuid.so' is enabled, it won't
-	// write to /proc/self/loginuid if the UID is the same as what's
-	// currently in /proc/self/loginuid. In any case we can detect if
-	// we need to write to /proc/self/loginuid ourselves by seeing if
-	// /proc/self/loginuid changed after a PAM context was opened.
-	writeLoginuid := true
-	if c.PAMConfig != nil {
-		postLoginuid, err := os.ReadFile(procLoginuid)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if !bytes.Equal(preLoginUID, postLoginuid) {
-			writeLoginuid = false
-		}
-	}
-
-	if writeLoginuid {
-		oldID, err := os.ReadFile(procSessionID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := loginuid.Write(localUser.Uid); err != nil {
-			return trace.Errorf("failed to write to loginuid: %w", err)
-		}
-
-		newID, err := os.ReadFile(procSessionID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		slog.DebugContext(ctx, "Audit login session IDs", "old", string(oldID), "new", string(newID))
-		// If the audit login session IDs are the same, the session ID
-		// was not changed and ESR logging will not work correctly.
-		if bytes.Equal(oldID, newID) {
-			return trace.Errorf("audit login session ID was not changed")
-		}
-	}
-
-	// Let the parent process know the audit login session ID has changed.
-	if err := readyfd.Close(); err != nil {
-		return trace.Errorf("failed to close audit login session ID: %w", err)
-	}
-
-	return nil
+	return exitCode(err), trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
@@ -724,7 +603,13 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return trace.Wrap(err)
 	}
 
-	found := slices.Contains(groups, group.Gid)
+	found := false
+	for _, localUserGroup := range groups {
+		if localUserGroup == group.Gid {
+			found = true
+			break
+		}
+	}
 
 	if !found {
 		// Check if the new user guid matches the TeleportDropGroup. If not
@@ -761,10 +646,6 @@ func RunNetworking() (code int, err error) {
 	if cmdfd == nil {
 		return reexecconstants.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-	logfd := os.NewFile(LogFile, fdName(LogFile))
-	if logfd == nil {
-		return reexecconstants.RemoteCommandFailure, trace.BadParameter("log pipe not found")
-	}
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
 		return reexecconstants.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -776,7 +657,7 @@ func RunNetworking() (code int, err error) {
 		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("networking", logfd, c.LogConfig)
+	initLogger("networking", nil, c.LogConfig)
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
@@ -800,10 +681,7 @@ func RunNetworking() (code int, err error) {
 		}
 		defer pamContext.Close()
 
-		pamEnvironment, err = pamContext.Environment()
-		if err != nil {
-			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
-		}
+		pamEnvironment = pamContext.Environment()
 	}
 
 	// Once the PAM stack is called with parent process permissions, set the process uid
@@ -864,7 +742,8 @@ func RunNetworking() (code int, err error) {
 		return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
 	}
 
-	ffd := os.NewFile(ListenerFile, "listener")
+	// Build request listener from first extra file that was passed to command.
+	ffd := os.NewFile(FirstExtraFile, "listener")
 	if ffd == nil {
 		return reexecconstants.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
@@ -895,11 +774,6 @@ func RunNetworking() (code int, err error) {
 		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
 	}()
-
-	// Alert the parent process that the child process is ready and listening for networking requests.
-	if _, err := parentConn.Write(make([]byte, 1)); err != nil {
-		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
-	}
 
 	for {
 		buf := make([]byte, 1024)
@@ -1095,7 +969,7 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 }
 
 // runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
-func runCheckHomeDir() (code int) {
+func runCheckHomeDir() (code int, err error) {
 	code = reexecconstants.RemoteCommandSuccess
 	if err := hasAccessibleHomeDir(); err != nil {
 		switch {
@@ -1108,11 +982,11 @@ func runCheckHomeDir() (code int) {
 		}
 	}
 
-	return code
+	return code, nil
 }
 
 // runPark does nothing, forever.
-func runPark() (code int) {
+func runPark() (code int, err error) {
 	// Do not replace this with an empty select because there are no other
 	// goroutines running so it will panic.
 	for {
@@ -1121,7 +995,7 @@ func runPark() (code int) {
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper
-// allows Run{Command,Networking} to use defers and makes sure error messages
+// allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
 func RunAndExit(commandType string) {
 	var code int
@@ -1129,23 +1003,17 @@ func RunAndExit(commandType string) {
 
 	switch commandType {
 	case reexecconstants.ExecSubCommand:
-		var execErr error
-		execErr, err = RunCommand()
-		if err != nil {
-			code = reexecconstants.RemoteCommandFailure
-		} else {
-			code = exitCode(execErr)
-		}
+		code, err = RunCommand()
 	case reexecconstants.NetworkingSubCommand:
 		code, err = RunNetworking()
 	case reexecconstants.CheckHomeDirSubCommand:
-		code = runCheckHomeDir()
+		code, err = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
-		code = runPark()
+		code, err = runPark()
 	case reexecconstants.TrueSubCommand:
 		// nothing to do
 	case reexecconstants.SFTPSubCommand:
-		initLogger("sftp", os.Stderr, ExecLogConfig{})
+		initLogger("sftp", os.Stderr, ExecLogConfig{Level: new(slog.LevelVar)})
 		err = reexecsftp.RunSFTP(slog.Default())
 		if err != nil {
 			code = 1
@@ -1154,12 +1022,6 @@ func RunAndExit(commandType string) {
 		code, err = reexecconstants.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		// Write the error to stderr, where it can be seen by the parent teleport process and
-		// propagated to the client.
-		if code == reexecconstants.RemoteCommandFailure {
-			fmt.Fprintf(os.Stderr, "Failed to launch: %v.\n", err)
-		}
-
 		// The "operation not permitted" error is expected from a variety of operations if the
 		// teleport process is running as a non-root user and is trying to spawn a process for
 		// a different OS user.
@@ -1258,9 +1120,9 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	return envs, trace.Wrap(err)
 }
 
-// BuildCommand constructs a command that will execute the user's shell. This
+// BuildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string) (*exec.Cmd, error) {
+func BuildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1350,12 +1212,14 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	// after environment is fully built, set it to cmd
 	cmd.Env = *env
 
-	// set stdio. If a terminal was requested, the stdio fields all point to the same tty file.
-	cmd.Stdin = c.Stdin
-	cmd.Stdout = c.Stdout
-	cmd.Stderr = c.Stderr
-
+	// If a terminal was requested, connect std{in,out,err} to the TTY and set
+	// the controlling TTY. Otherwise, connect std{in,out,err} to
+	// os.Std{in,out,err}.
 	if c.Terminal {
+		cmd.Stdin = tty
+		cmd.Stdout = tty
+		cmd.Stderr = tty
+
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid:  true,
 			Setctty: true,
@@ -1363,26 +1227,28 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 			// set to our tty above.
 		}
 	} else {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true,
 		}
-	}
 
-	// Pass extra files for SFTP to grandchild.
-	if c.RequestType == "subsystem" && c.Command == "sftp" {
-		out := os.NewFile(FileTransferOutFile, "FileTransferOutFile")
-		if out == nil {
-			return nil, trace.NotFound("FileTransferOutFile file not found")
+		// If a terminal was not requested, and extra files were specified
+		// to be passed to the child, open them so that they can be passed
+		// to the grandchild.
+		if c.ExtraFilesLen > 0 {
+			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
+			for i := 0; i < c.ExtraFilesLen; i++ {
+				fd := FirstExtraFile + uintptr(i)
+				f := os.NewFile(fd, strconv.Itoa(int(fd)))
+				if f == nil {
+					return nil, trace.NotFound("extra file %d not found", fd)
+				}
+				cmd.ExtraFiles[i] = f
+			}
 		}
-		in := os.NewFile(FileTransferInFile, "FileTransferInFile")
-		if in == nil {
-			return nil, trace.NotFound("FileTransferInFile file not found")
-		}
-		audit := os.NewFile(AuditInFile, "AuditInFile")
-		if audit == nil {
-			return nil, trace.NotFound("AuditInFile file not found")
-		}
-		cmd.ExtraFiles = []*os.File{out, in, audit}
 	}
 
 	// Set the command's cwd to the user's $HOME, or "/" if
@@ -1604,6 +1470,13 @@ func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 // rather than handling the formatting here, so we can get rid of
 // internal/logutils
 func initLogger(name string, logWriter *os.File, cfg ExecLogConfig) {
+	if logWriter == nil {
+		logWriter = os.NewFile(LogFile, fdName(LogFile))
+		if logWriter == nil {
+			return
+		}
+	}
+
 	fields, err := logutils.ValidateFields(cfg.ExtraFields)
 	if err != nil {
 		return
@@ -1894,11 +1767,6 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	switch execType {
 	case reexecconstants.NetworkingSubCommand:
 		subCommand = reexecconstants.NetworkingSubCommand
-
-		// Unset XAUTHORITY for the networking command as the SSH session
-		// process given to the user will not have it set which can cause
-		// issues with the X11 forwarding.
-		env.Remove(x11.XAuthFileEnvVar)
 	default:
 		subCommand = reexecconstants.ExecSubCommand
 	}
@@ -1906,8 +1774,6 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
-
-	executor.bpfEnabled = command.RecordWithBPF
 
 	childFiles := slices.Clone(executor.childFiles)
 
@@ -1927,20 +1793,13 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 
 	// Build the "teleport exec" command.
 	executor.Cmd = &exec.Cmd{
+		Stdin:      childFiles[0],
+		Stdout:     childFiles[1],
+		Stderr:     childFiles[2],
 		Path:       executable,
 		Args:       args,
 		Env:        *env,
 		ExtraFiles: childFiles[3:],
-	}
-
-	if childFiles[0] != nil {
-		executor.Cmd.Stdin = childFiles[0]
-	}
-	if childFiles[1] != nil {
-		executor.Cmd.Stdout = childFiles[1]
-	}
-	if childFiles[2] != nil {
-		executor.Cmd.Stderr = childFiles[2]
 	}
 
 	// Perform OS-specific tweaks to the command.

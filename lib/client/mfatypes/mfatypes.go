@@ -101,7 +101,7 @@ type MFAChallengeResponse struct {
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
 	SSOResponse *SSOResponse `json:"sso_response"`
-	// TODO(Joerger): DELETE IN v20.0.0, WebauthnResponse used instead.
+	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 	// BrowserMFAResponse is a response the browser completing an MFA challenge
 	// as part of the Browser MFA flow.

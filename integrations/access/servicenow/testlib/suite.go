@@ -151,23 +151,23 @@ func (s *ServiceNowSuiteOSS) TestMessagePostingWithAMR() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: v1.Metadata_builder{
+			Metadata: &v1.Metadata{
 				Name: "test-servicenow-amr",
-			}.Build(),
-			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: accessmonitoringrulesv1.Notification_builder{
+				Notification: &accessmonitoringrulesv1.Notification{
 					Name: "servicenow",
 					Recipients: []string{
 						"someReviewer", // recipient 1
 					},
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 	assert.NoError(t, err)
 
 	// Test execution: we create a new access request.

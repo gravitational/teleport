@@ -25,13 +25,12 @@ import (
 	"regexp"
 	"strings"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,7 +52,7 @@ func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
 
 // convertLoadConfigError converts common AWS config loading errors to trace errors.
 func convertLoadConfigError(configErr error) error {
-	var sharedConfigProfileNotExistError awsconfig.SharedConfigProfileNotExistError
+	var sharedConfigProfileNotExistError config.SharedConfigProfileNotExistError
 	switch {
 	case errors.As(configErr, &sharedConfigProfileNotExistError):
 		return trace.NotFound("%s", configErr)

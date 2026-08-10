@@ -123,8 +123,7 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
-			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
 		log: logtest.NewLogger(),
 	}
@@ -183,7 +182,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	// 100 additional CAs registered, all CAs should be sent to the client in
 	// the handshake.
 	t.Run("100 CAs", func(t *testing.T) {
-		for i := range 100 {
+		for i := 0; i < 100; i++ {
 			addCA(t, fmt.Sprintf("cluster-%d", i))
 		}
 		testDial(t, 101)

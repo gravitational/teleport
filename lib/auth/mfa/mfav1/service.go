@@ -14,14 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package mfav1 contains the deprecated MFA v1 service. Only CompleteBrowserMFAChallenge remains live.
 package mfav1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
@@ -42,10 +43,11 @@ type ServiceConfig struct {
 	AuthServer AuthServer
 }
 
-// Service implements the mfav1.MFAServiceServer gRPC API.
+// Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 type Service struct {
 	mfav1.UnimplementedMFAServiceServer
 
+	logger     *slog.Logger
 	authorizer authz.Authorizer
 	authServer AuthServer
 }
@@ -60,14 +62,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
+		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
 		authorizer: cfg.Authorizer,
 		authServer: cfg.AuthServer,
 	}, nil
 }
 
-// CompleteBrowserMFAChallenge completes a browser MFA challenge.
-//
-//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+// CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
+// it via an encrypted response parameter in a callback URL for the browser to
+// return to tsh.
 func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -78,22 +81,22 @@ func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.Co
 		return nil, trace.AccessDenied("only local or remote users can complete a browser MFA challenge")
 	}
 
-	if req.GetBrowserMfaResponse() == nil {
+	if req.BrowserMfaResponse == nil {
 		return nil, trace.BadParameter("missing browser_mfa_response in request")
 	}
 
-	if req.GetBrowserMfaResponse().GetRequestId() == "" {
+	if req.BrowserMfaResponse.RequestId == "" {
 		return nil, trace.BadParameter("missing request_id in browser_mfa_response")
 	}
 
-	if req.GetBrowserMfaResponse().GetWebauthnResponse() == nil {
+	if req.BrowserMfaResponse.WebauthnResponse == nil {
 		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
 	}
 
 	tshRedirectURL, err := s.authServer.CompleteBrowserMFAChallenge(
 		ctx,
-		req.GetBrowserMfaResponse().GetRequestId(),
-		req.GetBrowserMfaResponse().GetWebauthnResponse(),
+		req.BrowserMfaResponse.RequestId,
+		req.BrowserMfaResponse.WebauthnResponse,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

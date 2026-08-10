@@ -17,8 +17,9 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
+import { createMemoryHistory } from 'history';
 import type { PropsWithChildren } from 'react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { Router } from 'react-router';
 
 import {
   searchParamsToState,
@@ -73,18 +74,14 @@ describe('stateToSearchParams', () => {
 });
 
 describe('useUrlParams', () => {
-  function createWrapper(initialEntries: string[] = ['/']) {
-    return function wrapper({ children }: PropsWithChildren) {
-      return (
-        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
-      );
-    };
-  }
-
   it('initializes params from URL search params', () => {
-    const wrapper = createWrapper([
-      '/users?search=test&user=alice@company.com',
-    ]);
+    const history = createMemoryHistory({
+      initialEntries: ['/users?search=test&user=alice@company.com'],
+    });
+
+    function wrapper({ children }: PropsWithChildren) {
+      return <Router history={history}>{children}</Router>;
+    }
 
     const { result } = renderHook(() => useUrlParams(), {
       wrapper,
@@ -97,27 +94,26 @@ describe('useUrlParams', () => {
   });
 
   it('updates URL when state changes', () => {
-    const wrapper = createWrapper();
+    const history = createMemoryHistory();
 
-    const { result } = renderHook(
-      () => {
-        const [params, setState] = useUrlParams();
-        const location = useLocation();
-        return { params, setState, location };
-      },
-      {
-        wrapper,
-      }
-    );
+    function wrapper({ children }: PropsWithChildren) {
+      return <Router history={history}>{children}</Router>;
+    }
+
+    const { result } = renderHook(() => useUrlParams(), {
+      wrapper,
+    });
+
+    const [, setState] = result.current;
 
     act(() => {
-      result.current.setState({
+      setState({
         search: 'new search',
         user: 'selected-user',
       });
     });
 
-    expect(result.current.location.search).toContain('search=new+search');
-    expect(result.current.location.search).toContain('user=selected-user');
+    expect(history.location.search).toContain('search=new+search');
+    expect(history.location.search).toContain('user=selected-user');
   });
 });

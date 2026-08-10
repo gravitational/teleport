@@ -35,27 +35,25 @@ type scopedRoleAssignmentClient struct {
 }
 
 func (s *scopedRoleAssignmentClient) Create(ctx context.Context, assignment *accessv1.ScopedRoleAssignment) error {
-	_, err := s.teleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, accessv1.CreateScopedRoleAssignmentRequest_builder{
+	_, err := s.teleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 
-func (s *scopedRoleAssignmentClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, accessv1.DeleteScopedRoleAssignmentRequest_builder{
-		Name:    key.Name,
-		Scope:   key.Scope,
+func (s *scopedRoleAssignmentClient) Delete(ctx context.Context, name string) error {
+	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+		Name:    name,
 		SubKind: scopedaccess.SubKindDynamic,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 
-func (s *scopedRoleAssignmentClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*accessv1.ScopedRoleAssignment, error) {
-	resp, err := s.teleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
-		Name:    key.Name,
-		Scope:   key.Scope,
+func (s *scopedRoleAssignmentClient) Get(ctx context.Context, name string) (*accessv1.ScopedRoleAssignment, error) {
+	resp, err := s.teleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+		Name:    name,
 		SubKind: scopedaccess.SubKindDynamic,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,20 +61,17 @@ func (s *scopedRoleAssignmentClient) Get(ctx context.Context, key reconcilers.Re
 }
 
 func (s *scopedRoleAssignmentClient) Update(ctx context.Context, assignment *accessv1.ScopedRoleAssignment) error {
-	_, err := s.teleportClient.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, accessv1.UpdateScopedRoleAssignmentRequest_builder{
+	_, err := s.teleportClient.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &accessv1.UpdateScopedRoleAssignmentRequest{
 		Assignment: assignment,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 
 func NewScopedRoleAssignmentV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
-	return reconcilers.NewTeleportScopedResource153Reconciler[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
+	return reconcilers.NewTeleportResource153Reconciler[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
 		client,
 		&scopedRoleAssignmentClient{
 			teleportClient: tClient,
-		},
-		reconcilers.Config{
-			Scoped: true,
 		},
 	)
 }

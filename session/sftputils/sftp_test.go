@@ -66,7 +66,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		{
 			name: "~user path",
 			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},

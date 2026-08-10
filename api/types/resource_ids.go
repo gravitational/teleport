@@ -130,40 +130,16 @@ func ResourceIDsToResourceAccessIDs(ids []ResourceID) []ResourceAccessID {
 }
 
 // CombineAsResourceAccessIDs converts plain [ResourceID]s to [ResourceAccessID]s
-// and merges them with existing [ResourceAccessID]s into a single deduplicated
-// slice. When the same resource appears in both lists, the [ResourceAccessID]
-// entry wins so that any constraints it carries are preserved. Dropping the
-// plain duplicate is safe: a [ResourceAccessID] without constraints is
-// equivalent to its plain [ResourceID], and one with constraints expresses
-// strictly narrower access to the same resource, which is the caller's intent
-// when constraints were supplied at all.
-//
-// Use this for API request parameters that carry separate ResourceIDs and
-// ResourceAccessIDs fields (e.g. [AccessCapabilitiesRequest],
-// [RemoteAccessCapabilitiesRequest]), where older clients may populate only
-// the former. For persisted access requests, use
-// [AccessRequestV3.GetAllRequestedResourceIDs] instead: the two spec fields
-// are already deduplicated against each other at creation time validation.
+// and combines them with existing [ResourceAccessID]s into a single slice.
 func CombineAsResourceAccessIDs(ids []ResourceID, accessIDs []ResourceAccessID) []ResourceAccessID {
 	if ids == nil && accessIDs == nil {
 		return nil
 	}
-	// Process constrained ids first so they take precedence.
-	seen := make(map[string]struct{}, len(ids)+len(accessIDs))
-	result := make([]ResourceAccessID, 0, len(ids)+len(accessIDs))
-	for _, raid := range accessIDs {
-		key := ResourceIDToString(raid.GetResourceID())
-		seen[key] = struct{}{}
-		result = append(result, raid)
-	}
-	for _, id := range ids {
-		key := ResourceIDToString(id)
-		if _, exists := seen[key]; !exists {
-			seen[key] = struct{}{}
-			result = append(result, ResourceAccessID{Id: id})
-		}
-	}
-	return result
+	totalLen := len(ids) + len(accessIDs)
+	zipped := make([]ResourceAccessID, 0, totalLen)
+	zipped = append(zipped, ResourceIDsToResourceAccessIDs(ids)...)
+	zipped = append(zipped, accessIDs...)
+	return zipped
 }
 
 // UnwrapResourceAccessIDs separates a slice of [ResourceAccessID]s back into plain

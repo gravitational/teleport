@@ -95,25 +95,9 @@ func TestLabelExpressions(t *testing.T) {
 				"env": "staging",
 			},
 			expectParseError: []string{
-				"parsing first argument to function (contains)",
+				"parsing first argument to (contains)",
 				"expected type []string",
 			},
-		},
-		{
-			desc: "set contains match",
-			expr: `contains(set("dev", "staging"), labels["env"])`,
-			resourceLabels: map[string]string{
-				"env": "staging",
-			},
-			expectMatch: true,
-		},
-		{
-			desc: "set misses match",
-			expr: `contains(set("dev", "staging"), labels["env"])`,
-			resourceLabels: map[string]string{
-				"env": "prod",
-			},
-			expectMatch: false,
 		},
 		{
 			desc: "boolean logic",

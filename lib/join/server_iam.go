@@ -103,9 +103,9 @@ func (s *Server) handleIAMJoin(
 		&iamInit.ClientParams,
 		token,
 		verifiedIdentity,
-		workloadidentityv1pb.JoinAttrs_builder{
+		&workloadidentityv1pb.JoinAttrs{
 			Iam: verifiedIdentity.JoinAttrs(),
-		}.Build(),
+		},
 	)
 	return result, trace.Wrap(err)
 }

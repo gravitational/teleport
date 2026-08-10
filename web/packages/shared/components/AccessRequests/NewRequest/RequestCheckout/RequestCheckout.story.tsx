@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { Link, MemoryRouter } from 'react-router';
+import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
 import { UNSUPPORTED_KINDS } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
@@ -36,7 +36,6 @@ import {
   RequestCheckoutWithSlider,
   RequestCheckoutWithSliderProps,
 } from './RequestCheckout';
-import type { ReviewerOption } from './types';
 
 export default {
   title: 'Shared/AccessRequests/Checkout',
@@ -137,61 +136,6 @@ export const LoadedResourceRequest = () => {
   );
 };
 
-export const LoadedResourceRequestWithReviewerDisplays = () => {
-  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>([
-    {
-      value: 'reviewer-one',
-      label: 'reviewer-one',
-      isSelected: true,
-    },
-    {
-      value: 'manual-reviewer',
-      label: 'manual-reviewer',
-      isSelected: true,
-    },
-  ]);
-  const dryRunResponseWithReviewerDisplays = {
-    ...dryRunResponse,
-    reviewers: [
-      {
-        name: 'reviewer-one',
-        display: {
-          primary: 'Shared Reviewer',
-          secondary: 'reviewer-one@example.com',
-        },
-        state: 'PENDING' as const,
-      },
-      {
-        name: 'reviewer-two',
-        display: { primary: 'Shared Reviewer' },
-        state: 'PENDING' as const,
-      },
-      {
-        name: 'username-only-reviewer',
-        display: {},
-        state: 'PENDING' as const,
-      },
-      {
-        name: 'absent-display-reviewer',
-        state: 'PENDING' as const,
-      },
-    ],
-  } satisfies AccessRequest;
-
-  return (
-    <MemoryRouter>
-      <RequestCheckoutWithSlider
-        {...baseProps}
-        isResourceRequest={true}
-        fetchResourceRequestRolesAttempt={{ status: 'success' }}
-        dryRunResponse={dryRunResponseWithReviewerDisplays}
-        selectedReviewers={selectedReviewers}
-        setSelectedReviewers={setSelectedReviewers}
-      />
-    </MemoryRouter>
-  );
-};
-
 export const LoadedResourceRequestWithConstraints = () => {
   const pendingAccessRequests = [
     {
@@ -213,41 +157,6 @@ export const LoadedResourceRequestWithConstraints = () => {
           'arn:aws:iam::123456789012:role/Admin',
           'arn:aws:iam::123456789012:role/DevOps',
         ],
-      },
-    },
-  } satisfies ResourceConstraintsMap;
-
-  return (
-    <MemoryRouter>
-      <RequestCheckoutWithSlider
-        {...baseProps}
-        isResourceRequest={true}
-        fetchResourceRequestRolesAttempt={{ status: 'success' }}
-        pendingAccessRequests={pendingAccessRequests}
-        addedResourceConstraints={addedResourceConstraints}
-        setResourceConstraints={() => {}}
-      />
-    </MemoryRouter>
-  );
-};
-
-export const LoadedResourceRequestWithSSHConstraints = () => {
-  const pendingAccessRequests = [
-    {
-      kind: 'node',
-      id: 'test-node',
-      name: 'test-node.example.com',
-      clusterName: 'localhost',
-    },
-  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
-  const addedResourceConstraints = {
-    [getResourceIDString({
-      kind: 'node',
-      name: 'test-node',
-      cluster: 'localhost',
-    })]: {
-      ssh: {
-        logins: ['root', 'ubuntu', 'admin'],
       },
     },
   } satisfies ResourceConstraintsMap;

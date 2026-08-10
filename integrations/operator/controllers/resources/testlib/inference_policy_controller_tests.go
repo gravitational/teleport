@@ -34,11 +34,11 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
-var inferencePolicySpec = summarizerv1.InferencePolicySpec_builder{
+var inferencePolicySpec = &summarizerv1.InferencePolicySpec{
 	Kinds:  []string{"ssh", "k8s"},
 	Model:  "test-model",
 	Filter: "resource.metadata.labels[\"env\"] == \"production\"",
-}.Build()
+}
 
 type inferencePolicyTestingPrimitives struct {
 	setup *TestSetup
@@ -50,26 +50,35 @@ func (p *inferencePolicyTestingPrimitives) Init(setup *TestSetup) {
 }
 
 func (p *inferencePolicyTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
-	return nil
+	model := &summarizerv1.InferenceModel{
+		Kind:    types.KindInferenceModel,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: inferencePolicySpec.Model,
+		},
+		Spec: inferenceModelSpec,
+	}
+	_, err := p.setup.TeleportClient.SummarizerClient().UpsertInferenceModel(ctx, model)
+	return trace.Wrap(err)
 }
 
 func (p *inferencePolicyTestingPrimitives) CreateTeleportResource(
 	ctx context.Context, name string,
 ) error {
-	policy := summarizerv1.InferencePolicy_builder{
+	policy := &summarizerv1.InferencePolicy{
 		Kind:    types.KindInferencePolicy,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		}.Build(),
+		},
 		Spec: inferencePolicySpec,
-	}.Build()
+	}
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		CreateInferencePolicy(ctx, summarizerv1.CreateInferencePolicyRequest_builder{Policy: policy}.Build())
+		CreateInferencePolicy(ctx, &summarizerv1.CreateInferencePolicyRequest{Policy: policy})
 	return trace.Wrap(err)
 }
 
@@ -78,11 +87,11 @@ func (p *inferencePolicyTestingPrimitives) GetTeleportResource(
 ) (*summarizerv1.InferencePolicy, error) {
 	resp, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		GetInferencePolicy(ctx, summarizerv1.GetInferencePolicyRequest_builder{Name: name}.Build())
+		GetInferencePolicy(ctx, &summarizerv1.GetInferencePolicyRequest{Name: name})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.GetPolicy(), nil
+	return resp.Policy, nil
 }
 
 func (p *inferencePolicyTestingPrimitives) DeleteTeleportResource(
@@ -90,7 +99,7 @@ func (p *inferencePolicyTestingPrimitives) DeleteTeleportResource(
 ) error {
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		DeleteInferencePolicy(ctx, summarizerv1.DeleteInferencePolicyRequest_builder{Name: name}.Build())
+		DeleteInferencePolicy(ctx, &summarizerv1.DeleteInferencePolicyRequest{Name: name})
 	return trace.Wrap(err)
 }
 

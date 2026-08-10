@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -46,6 +45,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -55,6 +55,11 @@ import (
 type NewWebSessionRequest = sessionreq.NewWebSessionRequest
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	if req.Scope != "" {
+		// TODO(fspmarshall/scopes): add scoping support for web sessions
+		return nil, trace.BadParameter("web sessions cannot be pinned to a scope")
+	}
+
 	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,7 +73,7 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 	// Issue and assign the DeviceWebToken, but never persist it with the
 	// session.
 	if req.CreateDeviceWebToken {
-		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent, req.LoginMaxTouchPoints); err != nil {
+		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -80,7 +85,6 @@ func (a *Server) augmentSessionForDeviceTrust(
 	ctx context.Context,
 	session types.WebSession,
 	loginIP, userAgent string,
-	maxTouchPoints int,
 ) error {
 	// IP and user agent are mandatory for device web authentication.
 	if loginIP == "" || userAgent == "" {
@@ -90,20 +94,19 @@ func (a *Server) augmentSessionForDeviceTrust(
 	// Create the device trust DeviceWebToken.
 	// We only get a token if the server is enabled for Device Trust and the user
 	// has a suitable trusted device.
-	webToken, err := a.createDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
-		WebSessionId:          session.GetName(),
-		BrowserMaxTouchPoints: uint32(maxTouchPoints),
-		BrowserUserAgent:      userAgent,
-		BrowserIp:             loginIP,
-		User:                  session.GetUser(),
-	}.Build())
+	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+		WebSessionId:     session.GetName(),
+		BrowserUserAgent: userAgent,
+		BrowserIp:        loginIP,
+		User:             session.GetUser(),
+	})
 	switch {
 	case err != nil:
 		a.logger.WarnContext(ctx, "Failed to create DeviceWebToken for user", "error", err)
 	case webToken != nil: // May be nil even if err==nil.
 		session.SetDeviceWebToken(&types.DeviceWebToken{
-			Id:    webToken.GetId(),
-			Token: webToken.GetToken(),
+			Id:    webToken.Id,
+			Token: webToken.Token,
 		})
 	}
 
@@ -117,7 +120,7 @@ func (a *Server) calculateTrustedDeviceMode(
 	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
 
 	// Don't evaluate for OSS.
-	if !a.modules.IsEnterpriseBuild() {
+	if !modules.GetModules().IsEnterpriseBuild() {
 		return unspecified, nil
 	}
 
@@ -148,16 +151,7 @@ func (a *Server) newWebSession(
 	ctx context.Context,
 	req NewWebSessionRequest,
 	opts *newWebSessionOpts,
-) (types.WebSession, *services.ScopedAccessCheckerContext, error) {
-	if req.Scope != "" {
-		if req.DelegationSessionID != "" {
-			return nil, nil, trace.BadParameter("access delegation is only supported for unscoped sessions")
-		}
-		if err := a.scopesFeatures.AssertEnabled(); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-
+) (types.WebSession, services.AccessChecker, error) {
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -172,25 +166,15 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	var checkerCtx *services.ScopedAccessCheckerContext
-	var unscopedChecker services.AccessChecker
-	if req.Scope != "" {
-		checkerCtx, err = a.AccessCheckerForScope(ctx, req.Scope, userState, req.RequestedResourceAccessIDs)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	} else {
-		unscopedChecker, err = services.NewAccessChecker(&services.AccessInfo{
-			Username:                 userState.GetName(),
-			Roles:                    req.Roles,
-			Traits:                   req.Traits,
-			AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
-			DelegationSessionID:      req.DelegationSessionID,
-		}, clusterName.GetClusterName(), a)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		checkerCtx = services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker)
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username:                 userState.GetName(),
+		Roles:                    req.Roles,
+		Traits:                   req.Traits,
+		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
+		DelegationSessionID:      req.DelegationSessionID,
+	}, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	idleTimeout, err := a.getWebIdleTimeout(ctx)
@@ -221,7 +205,7 @@ func (a *Server) newWebSession(
 
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
-		sessionTTL = checkerCtx.CertParams().AdjustSessionTTL(apidefaults.CertDuration)
+		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 
 	if req.AttestWebSession {
@@ -255,7 +239,7 @@ func (a *Server) newWebSession(
 		TTL:            sessionTTL,
 		SSHPublicKey:   sshAuthorizedKey,
 		TLSPublicKey:   tlsPublicKeyPEM,
-		CheckerContext: checkerCtx,
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
 	}
@@ -336,14 +320,7 @@ func (a *Server) newWebSession(
 	}
 
 	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		if unscopedChecker != nil {
-			return unscopedChecker.Roles(), nil
-		}
-		// For scoped sessions, no traditional roles apply, so let's only compute
-		// the trusted device mode from global cluster settings.
-		// TODO(bl-nero): Update this once there's actual support for device trust
-		// in scoped sessions.
-		return nil, nil
+		return checker.Roles(), nil
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
 	} else {
@@ -357,7 +334,7 @@ func (a *Server) newWebSession(
 		}
 	}
 
-	return sess, checkerCtx, nil
+	return sess, checker, nil
 }
 
 func (a *Server) getWebIdleTimeout(ctx context.Context) (time.Duration, error) {
@@ -397,12 +374,8 @@ type NewAppSessionRequest = sessionreq.NewAppSessionRequest
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-// unmappedIdentity is the caller's original identity before any trusted-cluster
-// role mapping. It is used solely to source attribution fields (delegation and
-// beam IDs) that the role-mapping rebuild drops from the mapped identity. For
-// local callers it is identical to identity.
-func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity, unmappedIdentity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
+func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -451,13 +424,6 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			// service on behalf of the user's Web Session. We can safely attest this child app session
 			// as a "web_session" as a result.
 			AttestWebSession: identity.PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession,
-			// Propagate delegation and beam attribution from the caller's
-			// unmapped identity so the app-session cert remains linked to the
-			// same delegation session and beam. These are read from the unmapped
-			// identity because a remote (trusted-cluster) caller's mapped
-			// identity is rebuilt without these attribution fields.
-			DelegationSessionID: unmappedIdentity.DelegationSessionID,
-			BeamID:              unmappedIdentity.BeamID,
 		},
 		PublicAddr:        req.PublicAddr,
 		ClusterName:       req.ClusterName,
@@ -479,7 +445,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 }
 
 func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionRequest) (types.WebSession, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -529,13 +495,10 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		checkerContext = services.NewScopedAccessCheckerContextFromUnscoped(checker)
 	}
 
-	sessionID := req.SuggestedSessionID
-	if sessionID == "" {
-		// Create services.WebSession for this session.
-		sessionID, err = utils.CryptoRandomHex(defaults.SessionTokenBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Create services.WebSession for this session.
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Create certificate for this session.
@@ -593,7 +556,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		BotInstanceID:       req.BotInstanceID,
 		BotScope:            req.BotScope,
 		DelegationSessionID: req.DelegationSessionID,
-		BeamID:              req.BeamID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -679,6 +641,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	return session, nil
+}
+
+// UpdateAppSession updates an existing application web session.
+func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
+	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
 }
 
 // generateAppToken generates an JWT token that will be passed along with every
@@ -796,7 +763,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest,
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.DB).Enabled {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.DB).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
@@ -830,41 +797,4 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	a.logger.DebugContext(ctx, "Generated Snowflake web session", "user", req.Username, "ttl", ttl)
 
 	return session, nil
-}
-
-// CreateAppSessionForAppAuth creates a new app session based on app auth
-// config.
-func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthconfigv1.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
-	}
-
-	sess, err := a.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
-		NewWebSessionRequest: sessionreq.NewWebSessionRequest{
-			User:       req.Username,
-			LoginIP:    req.LoginIP,
-			SessionTTL: req.TTL,
-			Roles:      req.Roles,
-			Traits:     req.Traits,
-			// Always attest the web session as sessions from app auth will
-			// always come from proxy, and will only be visible/available to
-			// auth and proxy instances.
-			AttestWebSession: true,
-		},
-		ClusterName:        req.ClusterName,
-		AppName:            req.AppName,
-		AppURI:             req.AppURI,
-		PublicAddr:         req.AppPublicAddr,
-		SuggestedSessionID: req.SuggestedSessionID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
-}
-
-func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
 }

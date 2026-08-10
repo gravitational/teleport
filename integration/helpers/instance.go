@@ -305,8 +305,6 @@ type TeleInstance struct {
 
 	// Log specifies the instance logger
 	Log *slog.Logger
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 	InstanceListeners
 	Fds []*servicecfg.FileDescriptor
 	// ProcessProvider creates a Teleport process (OSS or Enterprise)
@@ -336,9 +334,8 @@ type InstanceConfig struct {
 	Logger *slog.Logger
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
-	Fds     []*servicecfg.FileDescriptor
+
+	Fds []*servicecfg.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -360,10 +357,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
-	if cfg.Modules == nil {
-		cfg.Modules = modules.GetModules()
-	}
-
 	// generate instance secrets (keys):
 	if cfg.Priv == nil || cfg.Pub == nil {
 		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -378,7 +371,8 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
-	authority, err := testauthority.NewKeygen(cfg.Modules.BuildType(), clock.Now)
+	// TODO(tross): replace modules.GetModules with cfg.Modules
+	authority, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
 	fatalIf(err)
 
 	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
@@ -401,23 +395,15 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	subject, err := identity.Subject()
 	fatalIf(err)
 
-	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{
-			CommonName:   cfg.ClusterName,
-			Organization: []string{cfg.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: clock,
-	})
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
 	fatalIf(err)
-
 	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
-
 	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
-
 	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: hostCryptoPubKey,
@@ -426,17 +412,11 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{
-			CommonName:   cfg.ClusterName,
-			Organization: []string{cfg.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: clock,
-	})
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
 	fatalIf(err)
-
 	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
 	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
@@ -455,7 +435,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Log:               cfg.Logger,
 		InstanceListeners: *cfg.Listeners,
 		Fds:               cfg.Fds,
-		Modules:           cfg.Modules,
 	}
 
 	secrets := InstanceSecrets{
@@ -642,8 +621,9 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
+	// TODO(tross): replace modules.GetModules with tconf.Modules
 	clock := cmp.Or(tconf.Clock, clockwork.NewRealClock())
-	keygen, err := testauthority.NewKeygen(tconf.Modules.BuildType(), clock.Now)
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -903,7 +883,6 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.DebugService.Enabled = false
-			cfg.InsecureMode = true
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -935,7 +914,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for range configs {
+	for j := 0; j < len(configs); j++ {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)
@@ -1097,7 +1076,6 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 
 	tconf.Auth.Enabled = false
-	tconf.InsecureMode = true
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)
@@ -1978,8 +1956,8 @@ func (i *TeleInstance) StopAll() error {
 }
 
 // WaitForNodeCount waits for a certain number of nodes in the provided cluster
-// to be connected to the cluster. This should be called prior to any client
-// dialing of nodes to be sure that the node is registered and routable.
+// to be visible to the Proxy. This should be called prior to any client dialing
+// of nodes to be sure that the node is registered and routable.
 func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string, count int) error {
 	const (
 		deadline     = time.Second * 30
@@ -2008,23 +1986,6 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		}
 		if len(nodes) != count {
 			return trace.BadParameter("cache contained %v nodes, but wanted to find %v nodes", len(nodes), count)
-		}
-
-		// Validate that the nodes are connected to the cluster.
-		for _, n := range nodes {
-			conn, err := cluster.DialTCP(reversetunnelclient.DialParams{
-				ConnType:     types.NodeTunnel,
-				ServerID:     n.GetName() + "." + clusterName,
-				TargetServer: n,
-				To: &utils.NetAddr{
-					AddrNetwork: "tcp",
-					Addr:        n.GetAddr(),
-				},
-			})
-			if err != nil {
-				return trace.Wrap(err, "node tunnel preflight dial failed")
-			}
-			conn.Close()
 		}
 
 		// Validate that the site watcher contains the expected count.

@@ -31,30 +31,32 @@ import (
 func TestEvaluateDB(t *testing.T) {
 	tests := []struct {
 		name     string
-		format   string
 		response *decisionpb.EvaluateDatabaseAccessResponse
 	}{
 		{
 			name: "denied",
-			response: decisionpb.EvaluateDatabaseAccessResponse_builder{
-				Denial: decisionpb.DatabaseAccessDenial_builder{
-					Metadata: decisionpb.DenialMetadata_builder{
-						PdpVersion:  teleport.Version,
-						UserMessage: "denial",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+			response: &decisionpb.EvaluateDatabaseAccessResponse{
+				Result: &decisionpb.EvaluateDatabaseAccessResponse_Denial{
+					Denial: &decisionpb.DatabaseAccessDenial{
+						Metadata: &decisionpb.DenialMetadata{
+							PdpVersion:  teleport.Version,
+							UserMessage: "denial",
+						},
+					},
+				},
+			},
 		},
 		{
-			name:   "permitted",
-			format: teleport.YAML,
-			response: decisionpb.EvaluateDatabaseAccessResponse_builder{
-				Permit: decisionpb.DatabaseAccessPermit_builder{
-					Metadata: decisionpb.PermitMetadata_builder{
-						PdpVersion: teleport.Version,
-					}.Build(),
-				}.Build(),
-			}.Build(),
+			name: "permitted",
+			response: &decisionpb.EvaluateDatabaseAccessResponse{
+				Result: &decisionpb.EvaluateDatabaseAccessResponse_Permit{
+					Permit: &decisionpb.DatabaseAccessPermit{
+						Metadata: &decisionpb.PermitMetadata{
+							PdpVersion: teleport.Version,
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -65,7 +67,6 @@ func TestEvaluateDB(t *testing.T) {
 			cmd := decision.EvaluateDatabaseCommand{
 				Output:     &output,
 				DatabaseID: "database",
-				Format:     test.format,
 			}
 
 			clt := fakeClient{
@@ -79,7 +80,7 @@ func TestEvaluateDB(t *testing.T) {
 			require.NoError(t, err, "evaluating database access failed")
 
 			var expected bytes.Buffer
-			err = decision.WriteProto(&expected, test.format, test.response)
+			err = decision.WriteProtoJSON(&expected, test.response)
 			require.NoError(t, err, "marshaling expected output failed")
 			require.Equal(t, output.String(), expected.String(), "output did not match")
 		})

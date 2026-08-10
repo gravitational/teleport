@@ -25,78 +25,56 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// LimitExceededCallback is called when a connection accepted by Listener is
-// rejected because the per-client connection limit was exceeded.
-type LimitExceededCallback func(remoteAddr string, err error)
-
-// ListenerOption configures Listener.
-type ListenerOption func(*Listener)
-
-// WithLimitExceededCallback configures a callback for rejected connections.
-func WithLimitExceededCallback(fn LimitExceededCallback) ListenerOption {
-	return func(l *Listener) {
-		l.onLimitExceeded = fn
-	}
-}
-
 // Listener wraps a [net.Listener] and applies connection limiting
 // per client to all connections that are accepted.
 type Listener struct {
 	net.Listener
-	limiter         *ConnectionsLimiter
-	onLimitExceeded LimitExceededCallback
+	limiter *ConnectionsLimiter
 }
 
 // NewListener creates a [Listener] that enforces the limits of
 // the provided [ConnectionsLimiter] on the all connections accepted
 // by the provided [net.Listener].
-func NewListener(ln net.Listener, limiter *ConnectionsLimiter, opts ...ListenerOption) (*Listener, error) {
+func NewListener(ln net.Listener, limiter *ConnectionsLimiter) (*Listener, error) {
 	if ln == nil {
 		return nil, trace.BadParameter("listener cannot be nil")
 	}
 
-	l := &Listener{
+	return &Listener{
 		Listener: ln,
 		limiter:  limiter,
-	}
-	for _, opt := range opts {
-		opt(l)
-	}
-	return l, nil
+	}, nil
 }
 
 // Accept waits for and returns the next connection to the listener
-// if the limiter is able to acquire a connection. Connections that
-// exceed the per-client limit are closed and do not surface as
-// listener-level accept errors.
+// if the limiter is able to acquire a connection. If not, and the max number
+// of connections has been exceeded then a [trace.LimitExceeded] error
+// is returned.
 func (l *Listener) Accept() (net.Conn, error) {
-	for {
-		conn, err := l.Listener.Accept()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-		if err != nil {
-			_ = conn.Close()
-			continue
-		}
-
-		if err := l.limiter.AcquireConnection(remoteAddr); err != nil {
-			if l.onLimitExceeded != nil {
-				l.onLimitExceeded(remoteAddr, err)
-			}
-			_ = conn.Close()
-			continue
-		}
-
-		return &wrappedConn{
-			Conn: conn,
-			release: func() {
-				l.limiter.ReleaseConnection(remoteAddr)
-			},
-		}, nil
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		return nil, trace.NewAggregate(err, conn.Close())
+	}
+
+	if err := l.limiter.AcquireConnection(remoteAddr); err != nil {
+		// Aggregating the error here makes trace.IsLimitExceeded
+		// return false, which poses problems for consumers relying
+		// on that to determine if the connection was prevented.
+		_ = conn.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return &wrappedConn{
+		Conn: conn,
+		release: func() {
+			l.limiter.ReleaseConnection(remoteAddr)
+		},
+	}, nil
 
 }
 

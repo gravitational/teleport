@@ -191,13 +191,13 @@ func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args pluginServices) 
 		return trace.Wrap(err, "failed to get NetIQ plugin credentials")
 	}
 
-	createPluginRequest := pluginspb.CreatePluginRequest_builder{
+	createPluginRequest := &pluginspb.CreatePluginRequest{
 		Plugin:                plugin,
 		StaticCredentialsList: creds,
 		CredentialLabels: map[string]string{
 			netIQOrgURLLabel: settings.apiURL,
 		},
-	}.Build()
+	}
 
 	if _, err = args.plugins.CreatePlugin(ctx, createPluginRequest); err != nil {
 		return trace.Wrap(err, "failed to create NetIQ plugin")

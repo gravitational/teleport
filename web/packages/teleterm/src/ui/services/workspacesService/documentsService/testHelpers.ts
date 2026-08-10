@@ -66,7 +66,6 @@ export function makeDocumentGatewayDatabase(
     status: '',
     targetSubresourceName: gw.targetSubresourceName,
     origin: 'connection_list',
-    autoUserProvisioning: undefined,
     ...props,
   };
 }
@@ -87,7 +86,6 @@ export function makeDocumentGatewayApp(
     status: '',
     targetSubresourceName: gw.targetSubresourceName,
     origin: 'connection_list',
-    autoUserProvisioning: undefined,
     ...props,
   };
 }

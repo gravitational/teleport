@@ -28,9 +28,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
@@ -302,11 +302,11 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
 	if isReexec {
-		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]any{
+		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]interface{}{
 			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
-	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]any{
+	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]interface{}{
 		"addr":           localProxy.GetAddr(),
 		"format":         c.format,
 		"randomPort":     c.port == "",

@@ -113,7 +113,6 @@ export interface UnifiedResourceNode {
   tunnel: boolean;
   subKind: NodeSubKind;
   requiresRequest?: boolean;
-  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export interface UnifiedResourceKube {

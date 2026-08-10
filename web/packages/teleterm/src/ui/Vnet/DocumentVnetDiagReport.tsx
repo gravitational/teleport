@@ -36,7 +36,6 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
-import { getErrorMessage } from 'shared/utils/error';
 import { pluralize } from 'shared/utils/text';
 
 import {
@@ -123,7 +122,7 @@ export function DocumentVnetDiagReport(props: {
       previousSaveToFileNotificationIdRef.current =
         notificationsService.notifyError({
           title: 'Could not save the report to a file.',
-          description: getErrorMessage(error),
+          description: error?.message,
         });
       return;
     }

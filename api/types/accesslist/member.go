@@ -22,10 +22,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
 
 // AccessListMember is an access list member resource.
 type AccessListMember struct {
@@ -35,24 +38,9 @@ type AccessListMember struct {
 	// Spec is the specification for the access list member.
 	Spec AccessListMemberSpec `json:"spec" yaml:"spec"`
 
-	// Status contains dynamically calculated fields. It is ignored when
-	// marshaling so tctl users do not mistake these read-time values for fields
-	// they could update with resource YAML.
-	Status *AccessListMemberStatus `json:"-" yaml:"-"`
-
 	// Scope is the scope of the access list member, it must be equal to the
 	// scope of the parent access list.
 	Scope string `json:"scope" yaml:"scope"`
-}
-
-// AccessListMemberStatus contains dynamic fields calculated during retrieval.
-// Its fields are ignored when marshaling for the same reason as AccessListMember.Status
-type AccessListMemberStatus struct {
-	// Display contains display values for the member user.
-	Display *types.UserDisplay `json:"-" yaml:"-"`
-
-	// AddedByDisplay contains display values for the user that added the member.
-	AddedByDisplay *types.UserDisplay `json:"-" yaml:"-"`
 }
 
 // AccessListMemberSpec describes the specification of a member of an access list.
@@ -113,11 +101,6 @@ func NewAccessListMemberWithScope(metadata header.Metadata, spec AccessListMembe
 	return member, nil
 }
 
-// IsEqual returns true if both AccessListMembers are identical.
-func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
-	return deriveTeleportEqualAccessListMember(a, other)
-}
-
 // CheckAndSetDefaults defaults empty fields and performs metadata validation.
 func (a *AccessListMember) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessListMember)
@@ -135,6 +118,16 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (a *AccessListMember) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
+}
+
+// IsEqual defines AccessListMember equality for use with
+// `services.CompareResources()` (and hence the services.Reconciler).
+//
+// For the purposes of reconciliation, we only care that the user and target
+// AccessList match.
+func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
+	return a.Spec.Name == other.Spec.Name &&
+		a.Spec.AccessList == other.Spec.AccessList
 }
 
 func (a *AccessListMember) GetScope() string {

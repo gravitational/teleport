@@ -38,39 +38,6 @@ export const Loaded = () => {
   );
 };
 
-export const WithDisplayName = () => {
-  return (
-    <RequestDelete
-      {...props}
-      userDisplay={{ primary: 'Alice Example' }}
-      requestState="PENDING"
-      deleteRequestAttempt={makeEmptyAttempt()}
-    />
-  );
-};
-
-export const WithEmptyDisplay = () => {
-  return (
-    <RequestDelete
-      {...props}
-      userDisplay={{}}
-      requestState="PENDING"
-      deleteRequestAttempt={makeEmptyAttempt()}
-    />
-  );
-};
-
-export const WithPartialDisplay = () => {
-  return (
-    <RequestDelete
-      {...props}
-      userDisplay={{ secondary: 'alice@example.com' }}
-      requestState="PENDING"
-      deleteRequestAttempt={makeEmptyAttempt()}
-    />
-  );
-};
-
 export const Processing = () => {
   return (
     <RequestDelete

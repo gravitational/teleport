@@ -100,9 +100,9 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 		return nil, trace.Wrap(err)
 	}
 
-	return scopedaccessv1.GetScopedRoleResponse_builder{
+	return &scopedaccessv1.GetScopedRoleResponse{
 		Role: role,
-	}.Build(), nil
+	}, nil
 }
 
 // ListScopedRoles returns a paginated list of scoped roles.
@@ -133,9 +133,9 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 		out = append(out, role)
 	}
 
-	return scopedaccessv1.ListScopedRolesResponse_builder{
+	return &scopedaccessv1.ListScopedRolesResponse{
 		Roles: out,
-	}.Build(), nil
+	}, nil
 }
 
 // StreamScopedRoles returns a stream of all scoped roles in the backend. Malformed roles are skipped. Returned roles
@@ -199,9 +199,9 @@ func (s *ScopedAccessService) CreateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	return scopedaccessv1.CreateScopedRoleResponse_builder{
+	return &scopedaccessv1.CreateScopedRoleResponse{
 		Role: scopedRoleWithRevision(role, lease.Revision),
-	}.Build(), nil
+	}, nil
 }
 
 func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleRequest) (*scopedaccessv1.UpdateScopedRoleResponse, error) {
@@ -245,9 +245,9 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	return scopedaccessv1.UpdateScopedRoleResponse_builder{
+	return &scopedaccessv1.UpdateScopedRoleResponse{
 		Role: scopedRoleWithRevision(role, lease.Revision),
-	}.Build(), nil
+	}, nil
 }
 
 func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.DeleteScopedRoleRequest) (*scopedaccessv1.DeleteScopedRoleResponse, error) {
@@ -343,9 +343,9 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 
-	return scopedaccessv1.GetScopedRoleAssignmentResponse_builder{
+	return &scopedaccessv1.GetScopedRoleAssignmentResponse{
 		Assignment: assignment,
-	}.Build(), nil
+	}, nil
 }
 
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
@@ -379,9 +379,9 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 		out = append(out, assignment)
 	}
 
-	return scopedaccessv1.ListScopedRoleAssignmentsResponse_builder{
+	return &scopedaccessv1.ListScopedRoleAssignmentsResponse{
 		Assignments: out,
-	}.Build(), nil
+	}, nil
 }
 
 // StreamScopedRoleAssignments returns a stream of all scoped role assignments in the backend. Malformed assignments are skipped.
@@ -465,9 +465,9 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.Wrap(err)
 	}
 
-	return scopedaccessv1.CreateScopedRoleAssignmentResponse_builder{
+	return &scopedaccessv1.CreateScopedRoleAssignmentResponse{
 		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
-	}.Build(), nil
+	}, nil
 }
 
 // UpdateScopedRoleAssignment updates an existing scoped role assignment.
@@ -517,9 +517,9 @@ func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.Wrap(err)
 	}
 
-	return scopedaccessv1.UpdateScopedRoleAssignmentResponse_builder{
+	return &scopedaccessv1.UpdateScopedRoleAssignmentResponse{
 		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
-	}.Build(), nil
+	}, nil
 }
 
 func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error) {
@@ -687,7 +687,7 @@ func scopedRoleToItem(role *scopedaccessv1.ScopedRole) (backend.Item, error) {
 		return backend.Item{}, trace.BadParameter("missing metadata in scoped role")
 	}
 
-	if role.GetMetadata().HasExpires() {
+	if role.GetMetadata().Expires != nil {
 		return backend.Item{}, trace.BadParameter("scoped roles do not support expiration")
 	}
 
@@ -732,7 +732,7 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 		return backend.Item{}, trace.BadParameter("missing metadata in scoped role assignment")
 	}
 
-	if assignment.GetMetadata().HasExpires() {
+	if assignment.GetMetadata().Expires != nil {
 		return backend.Item{}, trace.BadParameter("scoped role assignments do not support expiration")
 	}
 
@@ -764,13 +764,13 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 // scopedRoleWithRevision creates a copy of the provided role with an updated revision.
 func scopedRoleWithRevision(role *scopedaccessv1.ScopedRole, revision string) *scopedaccessv1.ScopedRole {
 	role = apiutils.CloneProtoMsg(role)
-	role.GetMetadata().SetRevision(revision)
+	role.Metadata.Revision = revision
 	return role
 }
 
 // scopedRoleAssignmentWithRevision creates a shallow copy of the provided assignment with an updated revision.
 func scopedRoleAssignmentWithRevision(assignment *scopedaccessv1.ScopedRoleAssignment, revision string) *scopedaccessv1.ScopedRoleAssignment {
 	assignment = apiutils.CloneProtoMsg(assignment)
-	assignment.GetMetadata().SetRevision(revision)
+	assignment.Metadata.Revision = revision
 	return assignment
 }

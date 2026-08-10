@@ -564,8 +564,8 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 				Run(func(args mock.Arguments) {
 					req, ok := args.Get(1).(*pluginsv1.GetPluginRequest)
 					require.True(t, ok, "expecting a *pluginsv1.GetPluginRequest, got %T", args.Get(1))
-					require.Equal(t, test.cliArgs.pluginName, req.GetName())
-					require.True(t, req.GetWithSecrets())
+					require.Equal(t, test.cliArgs.pluginName, req.Name)
+					require.True(t, req.WithSecrets)
 				}).
 				Return(test.pluginValueProvider(), test.pluginFetchError)
 
@@ -575,11 +575,11 @@ func TestRotateAWSICSCIMToken(t *testing.T) {
 					Return(func(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, _ ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error) {
 						q := in.GetQuery()
 						require.NotNil(t, q, "Update request must specify target labels")
-						require.NotEmpty(t, q.GetLabels(), "Update request must specify non-empty labels")
+						require.NotEmpty(t, q.Labels, "Update request must specify non-empty labels")
 
-						return pluginsv1.UpdatePluginStaticCredentialsResponse_builder{
+						return &pluginsv1.UpdatePluginStaticCredentialsResponse{
 							Credential: &types.PluginStaticCredentialsV1{Spec: in.GetCredential()},
-						}.Build(), test.updateError
+						}, test.updateError
 					})
 			}
 

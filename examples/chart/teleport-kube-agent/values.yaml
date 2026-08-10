@@ -105,6 +105,17 @@ joinParams:
   # If method is `kubernetes`, you must set [`teleportClusterName`](#teleportClusterName).
   tokenName: ""
 
+  # joinParams.tokenSecret(string) -- is the secret value tied to the token identified
+  # by `joinparams.tokenName`. It is only valid when `joinParams.method` is `token` and
+  # `joinParams.tokenName` refers to a scoped token.
+  #
+  # When `joinParams.method` is `token` and `joinParams.tokenName`  refers to a
+  # scoped token, this value is required.
+  #
+  # When `joinParams.method` is not `token` or when `joinParams.tokenName` refers to an
+  # unscoped token, this value is ignored.
+  tokenSecret: ""
+
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
 # [Kubernetes JWKS or OIDC](../../reference/deployment/join-methods.mdx#kubernetes-jwks) join method.
@@ -340,7 +351,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/deployment/config.mdx#database-service).
+#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../enroll-resources/database-access/reference/configuration.mdx).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
@@ -842,6 +853,19 @@ highAvailability:
     # highAvailability.podDisruptionBudget.minAvailable(int) -- is the minimum
     # available pod specified on the PodDisruptionBudget.
     minAvailable: 1
+
+    # highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy(string) -- allows
+    # eviction of unhealthy pods even if it falls below minAvailable. When all
+    # pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
+    # server due to firewall/networking), the default policy
+    # (IfHealthyBudget) prevents draining a node. This chart's default
+    # ("") omits the setting. Set to AlwaysAllow to allow failing pods to be
+    # killed when nodes need to drain.
+    # The value will be omitted with a warning on Kubernetes before 1.27 due to
+    # API support. Set to "" to suppress the warning at helm install time.
+    # See also: [unhealthyPodEvictionPolicy in Kube
+    # docs](https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it)
+    unhealthyPodEvictionPolicy: ""
 
 # podMonitor -- controls the PodMonitor CR (from monitoring.coreos.com/v1)
 # This CRD is managed by the prometheus-operator and allows workload to

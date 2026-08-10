@@ -66,37 +66,37 @@ func TestUsers(t *testing.T) {
 			},
 			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
 				var out []types.User
-				req := userspb.ListUsersRequest_builder{
+				req := &userspb.ListUsersRequest{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
-				}.Build()
+				}
 				resp, err := p.usersS.ListUsers(ctx, req)
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
 
-				for _, u := range resp.GetUsers() {
+				for _, u := range resp.Users {
 					out = append(out, u)
 				}
 
-				return out, resp.GetNextPageToken(), nil
+				return out, resp.NextPageToken, nil
 			},
 			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
 				var out []types.User
-				req := userspb.ListUsersRequest_builder{
+				req := &userspb.ListUsersRequest{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
-				}.Build()
+				}
 				resp, err := p.cache.ListUsers(ctx, req)
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
 
-				for _, u := range resp.GetUsers() {
+				for _, u := range resp.Users {
 					out = append(out, u)
 				}
 
-				return out, resp.GetNextPageToken(), nil
+				return out, resp.NextPageToken, nil
 			},
 			update: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpdateUser(ctx, user)
@@ -109,16 +109,14 @@ func TestUsers(t *testing.T) {
 	})
 
 	t.Run("ListUsers pagination", func(t *testing.T) {
-		ctx := t.Context()
-
 		err := p.usersS.DeleteAllUsers(t.Context())
 		require.NoError(t, err)
 
 		waitForUsersCacheLen := func(expected int) {
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				got, err := p.cache.GetUsers(ctx, false)
-				require.NoError(t, err)
-				require.Len(t, got, expected)
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				got, err := p.cache.GetUsers(t.Context(), false)
+				require.NoError(c, err)
+				require.Len(c, got, expected)
 			}, 3*time.Second, time.Millisecond*100)
 		}
 		waitForUsersCacheLen(0)
@@ -134,19 +132,19 @@ func TestUsers(t *testing.T) {
 		waitForUsersCacheLen(len(usersToCreate))
 
 		var allUsers []*types.UserV2
-		req := userspb.ListUsersRequest_builder{
+		req := &userspb.ListUsersRequest{
 			PageSize: 1,
-		}.Build()
+		}
 		for {
 			resp, err := p.cache.ListUsers(t.Context(), req)
 			require.NoError(t, err)
-			require.Len(t, resp.GetUsers(), 1)
+			require.Len(t, resp.Users, 1)
 
-			allUsers = append(allUsers, resp.GetUsers()...)
-			if resp.GetNextPageToken() == "" {
+			allUsers = append(allUsers, resp.Users...)
+			if resp.NextPageToken == "" {
 				break
 			}
-			req.SetPageToken(resp.GetNextPageToken())
+			req.PageToken = resp.NextPageToken
 		}
 		require.Len(t, allUsers, len(usersToCreate))
 	})

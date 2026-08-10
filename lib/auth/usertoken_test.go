@@ -97,13 +97,11 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
 	username := "joe@example.com"
-	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -151,7 +149,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := as.AuthServer.CreateResetPasswordToken(ctx, tc.req)
+			_, err := srv.Auth().CreateResetPasswordToken(ctx, tc.req)
 			require.Error(t, err)
 		})
 	}
@@ -232,12 +230,10 @@ func TestFormatAccountName(t *testing.T) {
 
 func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 
 	username := "joe@example.com"
-	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -247,16 +243,16 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 		TTL:  time.Hour,
 	}
 
-	token, err := as.AuthServer.CreateResetPasswordToken(ctx, req)
+	token, err := srv.Auth().CreateResetPasswordToken(ctx, req)
 	require.NoError(t, err)
 
-	_, err = as.AuthServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    token.GetName(),
 		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 
-	secrets, err := as.AuthServer.GetUserTokenSecrets(ctx, token.GetName())
+	secrets, err := srv.Auth().GetUserTokenSecrets(ctx, token.GetName())
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -268,13 +264,11 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 
 func TestUserTokenCreationSettings(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 	ctx := t.Context()
 
 	username := "joe@example.com"
-	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	req := authclient.CreateUserTokenRequest{
@@ -283,7 +277,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
-	token, err := as.AuthServer.NewUserToken(ctx, req)
+	token, err := srv.Auth().NewUserToken(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, req.Name, token.GetUser())
 	require.Equal(t, req.Type, token.GetSubKind())
@@ -422,6 +416,7 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

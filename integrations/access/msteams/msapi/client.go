@@ -24,8 +24,9 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 )
 
 // Client represents generic MS API client
@@ -48,7 +49,7 @@ type request struct {
 	// Body request body
 	Body string
 	// Response represents template structure for a response
-	Response any
+	Response interface{}
 	// Err represents template structure for an error
 	Err error
 	// SuccessCode http code representing success
@@ -98,15 +99,7 @@ func (c *Client) request(ctx context.Context, request request) error {
 	r.Header.Set("Authorization", token)
 	r.Header.Set("Content-Type", "application/json")
 
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(backoffBase),
-		First:  backoffBase,
-		Max:    backoffMax,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	backoff := backoff.NewDecorr(backoffBase, backoffMax, clockwork.NewRealClock())
 
 	for {
 		resp, err := client.Do(r)
@@ -122,12 +115,11 @@ func (c *Client) request(ctx context.Context, request request) error {
 		}
 
 		if resp.StatusCode > 499 || resp.StatusCode == http.StatusTooManyRequests {
-			select {
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			case <-retry.After():
-				continue
+			err := backoff.Do(ctx)
+			if err != nil {
+				return trace.Wrap(err)
 			}
+			continue
 		}
 
 		expectedCode := request.SuccessCode

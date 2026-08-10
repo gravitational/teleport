@@ -17,7 +17,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { useHistory, useLocation, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -70,9 +70,11 @@ import { Panel } from './Panel';
 
 export function BotDetails() {
   const ctx = useTeleport();
-  const navigate = useNavigate();
+  const history = useHistory();
   const location = useLocation();
-  const { botName = '' } = useParams<{ botName: string }>();
+  const params = useParams<{
+    botName: string;
+  }>();
   const [isEditing, setEditing] = useState(false);
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
   const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false);
@@ -83,16 +85,13 @@ export function BotDetails() {
   const hasEditPermission = flags.editBots;
   const hasDeletePermission = flags.removeBots;
 
-  const { data, error, isSuccess, isError, isLoading } = useGetBot(
-    { botName },
-    {
-      enabled: hasReadPermission,
-      staleTime: 30_000, // Keep data in the cache for 30 seconds
-    }
-  );
+  const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
+    enabled: hasReadPermission,
+    staleTime: 30_000, // Keep data in the cache for 30 seconds
+  });
 
   const targetKind = 'user';
-  const targetName = `bot-${botName}`;
+  const targetName = `bot-${params.botName}`;
 
   const {
     isLocked,
@@ -107,9 +106,9 @@ export function BotDetails() {
   const handleBackPress = () => {
     // If location.key is unset, or 'default', this is the first history entry in-app in the session.
     if (!location.key || location.key === 'default') {
-      navigate(cfg.getBotsRoute());
+      history.push(cfg.getBotsRoute());
     } else {
-      navigate(-1);
+      history.goBack();
     }
   };
 
@@ -122,7 +121,7 @@ export function BotDetails() {
   };
 
   const handleViewAllTokensClicked = () => {
-    navigate(cfg.getJoinTokensRoute());
+    history.push(cfg.getJoinTokensRoute());
   };
 
   const handleLock = () => {
@@ -139,7 +138,7 @@ export function BotDetails() {
 
   const handleDeleteComplete = () => {
     setShowDeleteConfirmation(false);
-    navigate(cfg.getBotsRoute(), { replace: true });
+    history.replace(cfg.getBotsRoute());
   };
 
   const handleInstanceSelected = (instance: BotInstanceSummary) => {
@@ -150,7 +149,7 @@ export function BotDetails() {
       sortField: 'active_at_latest',
       sortDir: 'DESC',
     });
-    navigate(path);
+    history.push(path);
   };
 
   return (
@@ -219,7 +218,7 @@ export function BotDetails() {
       ) : undefined}
 
       {isSuccess && data === null ? (
-        <Alert kind="warning">Bot {botName} does not exist</Alert>
+        <Alert kind="warning">Bot {params.botName} does not exist</Alert>
       ) : undefined}
 
       {!hasReadPermission ? (
@@ -328,7 +327,7 @@ export function BotDetails() {
           </ColumnContainer>
           <ColumnContainer maxWidth={400}>
             <InstancesPanel
-              botName={botName}
+              botName={params.botName}
               onItemSelected={handleInstanceSelected}
             />
           </ColumnContainer>
@@ -368,7 +367,7 @@ export function BotDetails() {
                 setShowLockConfirmation(true);
                 setShowDeleteConfirmation(false);
               }}
-              botName={botName}
+              botName={params.botName}
               showLockAlternative={!isLocked}
             />
           ) : undefined}

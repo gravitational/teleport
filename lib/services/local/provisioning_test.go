@@ -342,34 +342,35 @@ func TestProvisioningServiceTokenNameConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a scoped token
-	scopedToken := joiningv1.ScopedToken_builder{
+	scopedToken := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "testtoken2",
-		}.Build(),
+		},
 		Scope: "/test",
-		Spec: joiningv1.ScopedTokenSpec_builder{
+		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		}.Build(),
-		Status: joiningv1.ScopedTokenStatus_builder{
+		},
+		Status: &joiningv1.ScopedTokenStatus{
 			Secret: "secret",
-		}.Build(),
-	}.Build()
-	_, err = scopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
+		},
+	}
+	_, err = scopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
 		Token: scopedToken,
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	token.SetName(scopedToken.GetMetadata().GetName())
-
-	// Assert that scoped tokens and unscoped tokens do not conflict
-	// if they have the same name.
-	require.NoError(t, service.CreateToken(ctx, token))
-	require.NoError(t, service.UpsertToken(ctx, token))
+	// assert that creating or upserting an unscoped token with a name that conflicts
+	// with a scoped token fails
+	err = service.CreateToken(ctx, token)
+	require.True(t, trace.IsAlreadyExists(err))
+	err = service.UpsertToken(ctx, token)
+	require.True(t, trace.IsAlreadyExists(err))
 }
 
 func newProvisioningService(t *testing.T, clock clockwork.Clock) *local.ProvisioningService {

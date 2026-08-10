@@ -35,26 +35,26 @@ type UserPreferencesService struct {
 }
 
 func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
-	return userpreferencesv1.UserPreferences_builder{
+	return &userpreferencesv1.UserPreferences{
 		Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
-		UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
+		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 			DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
 			ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 			LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 			AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-		}.Build(),
-		Onboard: userpreferencesv1.OnboardUserPreferences_builder{
+		},
+		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
 			MarketingParams:    &userpreferencesv1.MarketingParams{},
-		}.Build(),
-		ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
+		},
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
-		}.Build(),
+		},
 		// Leave SideNavDrawerMode unset so the UI can detect a first-time
 		// user and apply its own default (or onboarding behavior) instead of
 		// storing a value the user never explicitly chose.
 		SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_UNSPECIFIED,
-	}.Build()
+	}
 }
 
 // NewUserPreferencesService returns a new instance of the UserPreferencesService.

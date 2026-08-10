@@ -696,7 +696,7 @@ Examples:
   force: false`)
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app)
+	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
 	if err != nil {
 		app.Usage(options.Args)
@@ -1072,12 +1072,7 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	configYAML, err := sfc.YAMLString()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	configPath, err := dumpConfigFile(flags.output, configYAML, sampleConfComment)
+	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
 	if err != nil {
 		return trace.Wrap(err)
 	}

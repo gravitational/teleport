@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -165,6 +164,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -295,6 +295,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -764,6 +765,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, scriptEndpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -1061,15 +1063,15 @@ func TestAWSOIDCSecurityGroupsRulesConverter(t *testing.T) {
 	}{
 		{
 			name: "valid",
-			in: []*integrationv1.SecurityGroupRule{integrationv1.SecurityGroupRule_builder{
+			in: []*integrationv1.SecurityGroupRule{{
 				IpProtocol: "tcp",
 				FromPort:   8080,
 				ToPort:     8081,
-				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{integrationv1.SecurityGroupRuleCIDR_builder{
+				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{{
 					Cidr:        "10.10.10.0/24",
 					Description: "cidr x",
-				}.Build()},
-			}.Build()},
+				}},
+			}},
 			expected: []awsoidc.SecurityGroupRule{{
 				IPProtocol: "tcp",
 				FromPort:   8080,
@@ -1107,8 +1109,6 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	proxy := env.proxies[0]
 	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
 	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
-	proxyPublicHost, _, err := net.SplitHostPort(proxyPublicAddr)
-	require.NoError(t, err)
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
@@ -1158,7 +1158,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
-					PublicAddr:  "my-integration." + proxyPublicHost,
+					PublicAddr:  "my-integration." + proxyPublicAddr,
 				},
 			},
 		},
@@ -1210,22 +1210,6 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, `Invalid integration name ("env.prod") for enabling AWS Access.`)
-	})
-
-	t.Run("mixed-case integration name is rejected", func(t *testing.T) {
-		mixedCaseIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
-			Name: "MixedCase",
-		}, &types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/teleport",
-		})
-		require.NoError(t, err)
-
-		_, err = env.server.Auth().CreateIntegration(ctx, mixedCaseIntegration)
-		require.NoError(t, err)
-		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "MixedCase", "aws-app-access")
-		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "contains uppercase characters")
 	})
 }
 
@@ -1294,11 +1278,11 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 	const pageSize = 10
 	ret := &integrationv1.ListDeployedDatabaseServicesResponse{}
-	if in.GetIntegration() != m.integration {
+	if in.Integration != m.integration {
 		return ret, nil
 	}
 
-	services := m.servicesPerRegion[in.GetRegion()]
+	services := m.servicesPerRegion[in.Region]
 	if len(services) == 0 {
 		return ret, nil
 	}
@@ -1306,8 +1290,8 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	requestedPage := 1
 	totalResources := len(services)
 
-	if in.GetNextToken() != "" {
-		currentMarker, err := strconv.Atoi(in.GetNextToken())
+	if in.NextToken != "" {
+		currentMarker, err := strconv.Atoi(in.NextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1315,11 +1299,14 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 
 	sliceStart := pageSize * (requestedPage - 1)
-	sliceEnd := min(pageSize*requestedPage, totalResources)
+	sliceEnd := pageSize * requestedPage
+	if sliceEnd > totalResources {
+		sliceEnd = totalResources
+	}
 
-	ret.SetDeployedDatabaseServices(services[sliceStart:sliceEnd])
+	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
 	if sliceEnd < totalResources {
-		ret.SetNextToken(strconv.Itoa(requestedPage + 1))
+		ret.NextToken = strconv.Itoa(requestedPage + 1)
 	}
 
 	return ret, nil
@@ -1478,7 +1465,7 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 			},
 			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
 				var ret []ui.AWSOIDCDeployedDatabaseService
-				for i := range 1_024 {
+				for i := 0; i < 1_024; i++ {
 					ret = append(ret, ui.AWSOIDCDeployedDatabaseService{
 						Name:                fmt.Sprintf("database-service-vpc-%d", i),
 						DashboardURL:        "url",
@@ -1520,13 +1507,13 @@ func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabel
 
 func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
 	var ret []*integrationv1.DeployedDatabaseService
-	for i := range count {
-		ret = append(ret, integrationv1.DeployedDatabaseService_builder{
+	for i := 0; i < count; i++ {
+		ret = append(ret, &integrationv1.DeployedDatabaseService{
 			Name:                fmt.Sprintf("database-service-vpc-%d", i),
 			ServiceDashboardUrl: "url",
 			ContainerEntryPoint: []string{"teleport"},
 			ContainerCommand:    command,
-		}.Build())
+		})
 	}
 	return ret
 }

@@ -29,7 +29,6 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -311,20 +310,6 @@ func TestConvertResource(t *testing.T) {
 		converted, err := types.ConvertResource[*machineidv1.Bot](resource)
 		require.NoError(t, err)
 		require.Same(t, bot, converted)
-	})
-
-	t.Run("unwraps legacy resource adapter", func(t *testing.T) {
-		chal := &mfav2.ValidatedMFAChallenge{}
-		chal.SetKind(types.KindValidatedMFAChallenge)
-		chal.SetMetadata(&headerv1.Metadata{
-			Name: "challenge",
-		})
-
-		resource := types.ProtoResource153ToLegacy(chal)
-
-		converted, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](resource)
-		require.NoError(t, err)
-		require.Same(t, chal, converted)
 	})
 
 	t.Run("returns bad parameter on mismatched type", func(t *testing.T) {

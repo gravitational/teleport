@@ -20,6 +20,7 @@ package web
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -36,9 +37,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/listener"
 )
+
+func TestWriteUpgradeResponse(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, writeUpgradeResponse(&buf, "custom"))
+
+	resp, err := http.ReadResponse(bufio.NewReader(&buf), nil)
+	require.NoError(t, err)
+
+	// Always drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	require.Equal(t, "custom", resp.Header.Get("Upgrade"))
+}
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
 	expectedPayload := "hello@"
@@ -98,6 +115,38 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 			checkHandlerError: trace.IsNotFound,
 		},
 		{
+			// TODO(greedy52) DELETE in 17.0
+			name:                  "upgraded to ALPN (legacy)",
+			inputALPNHandler:      simpleWriteHandler,
+			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPN, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
+			checkClientConnString: mustReadClientConnString,
+		},
+		{
+			// TODO(greedy52) DELETE in 17.0
+			name:                  "upgraded to ALPN with Ping (legacy)",
+			inputALPNHandler:      simpleWriteHandler,
+			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPNPing, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPNPing,
+			wrapClientConn:        toNetConn(pingconn.New),
+			checkClientConnString: mustReadClientConnString,
+		},
+		{
+			// TODO(greedy52) DELETE in 17.0
+			name:                  "nested ALPN (legacy) upgrade",
+			inputALPNHandler:      nestedUpgradeHandler,
+			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPN, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
+			checkClientConnString: mustWriteNestedWebSocketConnString,
+		},
+		{
+			name:                  "upgraded to ALPN with Teleport-specific header",
+			inputALPNHandler:      simpleWriteHandler,
+			inputRequest:          makeConnUpgradeRequest(t, constants.WebAPIConnUpgradeTeleportHeader, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
+			checkClientConnString: mustReadClientConnString,
+		},
+		{
 			name:                  "upgraded to WebSocket",
 			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeWebSocketRequest(t, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
@@ -131,6 +180,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -287,6 +337,9 @@ func mustReadSwitchProtocolsResponse(t *testing.T, r *http.Request, clientConn n
 	io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
+	if upgradeType != "websocket" {
+		require.Equal(t, upgradeType, resp.Header.Get(constants.WebAPIConnUpgradeTeleportHeader))
+	}
 	require.Equal(t, upgradeType, resp.Header.Get(constants.WebAPIConnUpgradeHeader))
 	require.Equal(t, constants.WebAPIConnUpgradeConnectionType, resp.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)

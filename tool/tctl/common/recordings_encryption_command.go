@@ -64,7 +64,7 @@ func (c *recordingsEncryptionCommand) Initialize(recordingsCmd *kingpin.CmdClaus
 
 	c.rotateCmd = c.cmd.Command("rotate", "Rotate encryption keys used for encrypting session recordings.")
 	c.statusCmd = c.cmd.Command("status", "Show current rotation status.")
-	c.statusCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.statusCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
 	c.completeCmd = c.cmd.Command("complete-rotation", "Completes an in-progress encryption key rotation.")
 	c.rollbackCmd = c.cmd.Command("rollback-rotation", "Rolls back an in-progress encryption key rotation.")
 	if stdout == nil {
@@ -169,17 +169,17 @@ func (c *recordingsEncryptionCommand) writeStatusText(w io.Writer, keyStates []*
 	rotationState := recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_UNSPECIFIED
 	t := asciitable.MakeTable([]string{"Key Pair Fingerprint", "State"})
 	for _, pair := range keyStates {
-		if pair.GetState() == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
-			rotationState = pair.GetState()
+		if pair.State == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
+			rotationState = pair.State
 		}
 
-		if pair.GetState() == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING {
+		if pair.State == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING {
 			if rotationState != recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
-				rotationState = pair.GetState()
+				rotationState = pair.State
 			}
 		}
 
-		t.AddRow([]string{pair.GetFingerprint(), c.getFriendlyStatusString(pair.GetState())})
+		t.AddRow([]string{pair.Fingerprint, c.getFriendlyStatusString(pair.State)})
 	}
 
 	switch rotationState {

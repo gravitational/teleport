@@ -119,12 +119,12 @@ func renderMultiServerSummary(t *testing.T, now time.Time) string {
 			Name:           "multi-config",
 			DiscoveryGroup: "prod",
 			State:          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING.String(),
-			LastSyncTime:   new(now.Add(-2 * time.Minute)),
+			LastSyncTime:   ptrTo(now.Add(-2 * time.Minute)),
 			Servers: []serverSummary{
 				{
 					ServerID:     "server-a",
 					PollInterval: "5m0s",
-					LastUpdate:   new(now.Add(-time.Minute)),
+					LastUpdate:   ptrTo(now.Add(-time.Minute)),
 					Integrations: []integrationSummary{
 						{
 							Resources: []resourceResult{
@@ -144,7 +144,7 @@ func renderMultiServerSummary(t *testing.T, now time.Time) string {
 				{
 					ServerID:     "server-b",
 					PollInterval: "10m0s",
-					LastUpdate:   new(now.Add(-3 * time.Minute)),
+					LastUpdate:   ptrTo(now.Add(-3 * time.Minute)),
 					Integrations: []integrationSummary{
 						{
 							Resources: []resourceResult{

@@ -61,11 +61,15 @@ func TestProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send the device assertion init message
-	err = stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
-		DeviceAssertion: devicepb.AssertDeviceRequest_builder{
-			Init: &devicepb.AssertDeviceInit{},
-		}.Build(),
-	}.Build())
+	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceRequest{
+				Payload: &devicepb.AssertDeviceRequest_Init{
+					Init: &devicepb.AssertDeviceInit{},
+				},
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	// Receive the device assertion challenge message
@@ -74,11 +78,15 @@ func TestProxy(t *testing.T) {
 	assert.NotNil(t, msg.GetDeviceAssertion().GetChallenge())
 
 	// Send the device assertion challenge response message
-	err = stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
-		DeviceAssertion: devicepb.AssertDeviceRequest_builder{
-			ChallengeResponse: devicepb.AuthenticateDeviceChallengeResponse_builder{Signature: []byte("response")}.Build(),
-		}.Build(),
-	}.Build())
+	err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceRequest{
+				Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
+					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{Signature: []byte("response")},
+				},
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	// Receive the device assertion response message
@@ -139,11 +147,15 @@ func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsS
 		return trace.BadParameter("missing device init")
 	}
 
-	err = in.Send(accessgraphsecretsv1pb.ReportSecretsResponse_builder{
-		DeviceAssertion: devicepb.AssertDeviceResponse_builder{
-			Challenge: devicepb.AuthenticateDeviceChallenge_builder{Challenge: []byte("challenge")}.Build(),
-		}.Build(),
-	}.Build())
+	err = in.Send(&accessgraphsecretsv1pb.ReportSecretsResponse{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceResponse{
+				Payload: &devicepb.AssertDeviceResponse_Challenge{
+					Challenge: &devicepb.AuthenticateDeviceChallenge{Challenge: []byte("challenge")},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -156,11 +168,15 @@ func (f *fakeSecretsScannerSvc) ReportSecrets(in accessgraphsecretsv1pb.SecretsS
 		return trace.BadParameter("missing device challenge")
 	}
 
-	err = in.Send(accessgraphsecretsv1pb.ReportSecretsResponse_builder{
-		DeviceAssertion: devicepb.AssertDeviceResponse_builder{
-			DeviceAsserted: &devicepb.DeviceAsserted{},
-		}.Build(),
-	}.Build())
+	err = in.Send(&accessgraphsecretsv1pb.ReportSecretsResponse{
+		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
+			DeviceAssertion: &devicepb.AssertDeviceResponse{
+				Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{
+					DeviceAsserted: &devicepb.DeviceAsserted{},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

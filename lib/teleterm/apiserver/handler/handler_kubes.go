@@ -50,7 +50,7 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 		if !ok {
 			return nil, trace.BadParameter("expected resource type %T, got %T", types.KubernetesResourceV1{}, resource)
 		}
-		response.SetResources(append(response.GetResources(), newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI)))
+		response.Resources = append(response.Resources, newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI))
 	}
 
 	return response, nil
@@ -62,11 +62,11 @@ func (s *Handler) ListKubernetesServers(ctx context.Context, req *api.ListKubern
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response := api.ListKubernetesServersResponse_builder{
+	response := &api.ListKubernetesServersResponse{
 		NextPageToken: resp.NextKey,
-	}.Build()
+	}
 	for _, server := range resp.Servers {
-		response.SetResources(append(response.GetResources(), newAPIKubeServer(server)))
+		response.Resources = append(response.Resources, newAPIKubeServer(server))
 	}
 	return response, nil
 }
@@ -76,40 +76,40 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 		ui.MakeLabelsWithoutInternalPrefixes(kube.KubernetesCluster.GetAllLabels()),
 	)
 
-	return api.Kube_builder{
+	return &api.Kube{
 		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
-		TargetHealth: api.TargetHealth_builder{
+		TargetHealth: &api.TargetHealth{
 			Status:  kube.TargetHealth.Status,
 			Error:   kube.TargetHealth.TransitionError,
 			Message: kube.TargetHealth.Message,
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string, resourceURI uri.ResourceURI) *api.KubeResource {
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels()))
 
-	return api.KubeResource_builder{
+	return &api.KubeResource{
 		Uri:       resourceURI.AppendKube(kubeCluster).AppendKubeResourceNamespace(resource.GetName()).String(),
 		Kind:      resource.GetKind(),
 		Name:      resource.GetName(),
 		Labels:    apiLabels,
 		Namespace: resource.Spec.Namespace,
 		Cluster:   kubeCluster,
-	}.Build()
+	}
 }
 
 func newAPIKubeServer(server clusters.KubeServer) *api.KubeServer {
-	return api.KubeServer_builder{
+	return &api.KubeServer{
 		Uri:      server.URI.String(),
 		Hostname: server.GetHostname(),
 		HostId:   server.GetHostID(),
-		TargetHealth: api.TargetHealth_builder{
+		TargetHealth: &api.TargetHealth{
 			Status:  server.GetTargetHealth().Status,
 			Error:   server.GetTargetHealth().TransitionError,
 			Message: server.GetTargetHealth().Message,
-		}.Build(),
-	}.Build()
+		},
+	}
 }

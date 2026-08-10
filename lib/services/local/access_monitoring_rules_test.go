@@ -24,10 +24,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
@@ -49,29 +49,29 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	service, err := NewAccessMonitoringRulesService(mem)
 	require.NoError(t, err)
 
-	AccessMonitoringRule1 := accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	AccessMonitoringRule1 := &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: v1.Metadata_builder{
+		Metadata: &v1.Metadata{
 			Name: "p1",
-		}.Build(),
-		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:  []string{"someSubject"},
 			Condition: "someCondition",
-		}.Build(),
-	}.Build()
+		},
+	}
 
-	AccessMonitoringRule2 := accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	AccessMonitoringRule2 := &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: v1.Metadata_builder{
+		Metadata: &v1.Metadata{
 			Name: "p2",
-		}.Build(),
-		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:  []string{"someSubject"},
 			Condition: "someCondition",
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	// Create both AccessMonitoringRules.
 	_, err = service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule1)
@@ -80,9 +80,13 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch a specific AccessMonitoringRule.
-	rule, err := service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.GetMetadata().GetName())
+	rule, err := service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.Metadata.Name)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rule, AccessMonitoringRule2, protocmp.Transform()))
+	require.Empty(t, cmp.Diff(rule, AccessMonitoringRule2,
+		cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
+		cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
+		cmpopts.IgnoreUnexported(v1.Metadata{}),
+	))
 
 	// Try to fetch a AccessMonitoringRule that doesn't exist.
 	_, err = service.GetAccessMonitoringRule(ctx, "doesnotexist")
@@ -93,9 +97,9 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Delete a AccessMonitoringRule.
-	err = service.DeleteAccessMonitoringRule(ctx, AccessMonitoringRule1.GetMetadata().GetName())
+	err = service.DeleteAccessMonitoringRule(ctx, AccessMonitoringRule1.Metadata.Name)
 	require.NoError(t, err)
-	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule1.GetMetadata().GetName())
+	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule1.Metadata.Name)
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to delete a AccessMonitoringRule that doesn't exist.
@@ -105,9 +109,9 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	// Delete all AccessMonitoringRule.
 	err = service.DeleteAllAccessMonitoringRules(ctx)
 	require.NoError(t, err)
-	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule1.GetMetadata().GetName())
+	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule1.Metadata.Name)
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
-	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.GetMetadata().GetName())
+	_, err = service.GetAccessMonitoringRule(ctx, AccessMonitoringRule2.Metadata.Name)
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }
 
@@ -120,123 +124,123 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 	}{
 		{
 			description: "filter by notification integration",
-			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
+			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: v1.Metadata_builder{
+				Metadata: &v1.Metadata{
 					Name: "example-notification-rule",
-				}.Build(),
-				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+				},
+				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: accessmonitoringrulesv1.Notification_builder{
+					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
-					}.Build(),
-				}.Build(),
-			}.Build(),
-			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
+					},
+				},
+			},
+			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
 				Subjects:         []string{types.KindAccessRequest},
 				NotificationName: "notificationIntegration",
-			}.Build(),
+			},
 			expectedRule: true,
 		},
 		{
 			description: "filter by automatic_review integration",
-			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
+			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: v1.Metadata_builder{
+				Metadata: &v1.Metadata{
 					Name: "example-automatic-approval-rule",
-				}.Build(),
-				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+				},
+				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
-			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
+					},
+				},
+			},
+			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: "automaticReviewIntegration",
-			}.Build(),
+			},
 			expectedRule: true,
 		},
 		{
 			description: "filter by both notification and automatic_review integration",
-			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
+			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: v1.Metadata_builder{
+				Metadata: &v1.Metadata{
 					Name: "example-combined-rule",
-				}.Build(),
-				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+				},
+				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: accessmonitoringrulesv1.Notification_builder{
+					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
-					}.Build(),
-					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+					},
+					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
-			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
+					},
+				},
+			},
+			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: "automaticReviewIntegration",
 				NotificationName:    "notificationIntegration",
-			}.Build(),
+			},
 			expectedRule: true,
 		},
 		{
 			description: "filter by builtin automatic_review rules",
-			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
+			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: v1.Metadata_builder{
+				Metadata: &v1.Metadata{
 					Name: "example-builtin-automatic_approval-rule",
-				}.Build(),
-				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+				},
+				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: accessmonitoringrulesv1.Notification_builder{
+					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
-					}.Build(),
-					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+					},
+					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
-			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
+					},
+				},
+			},
+			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: types.BuiltInAutomaticReview,
-			}.Build(),
+			},
 			expectedRule: true,
 		},
 		{
 			description: "no match",
-			rule: accessmonitoringrulesv1.AccessMonitoringRule_builder{
+			rule: &accessmonitoringrulesv1.AccessMonitoringRule{
 				Kind:    types.KindAccessMonitoringRule,
 				Version: types.V1,
-				Metadata: v1.Metadata_builder{
+				Metadata: &v1.Metadata{
 					Name: "no-match-rule",
-				}.Build(),
-				Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+				},
+				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
-			req: accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
+					},
+				},
+			},
+			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
 				Subjects:            []string{types.KindAccessRequest},
 				AutomaticReviewName: "automaticReviewIntegration",
-			}.Build(),
+			},
 			expectedRule: false,
 		},
 	}
@@ -285,18 +289,18 @@ func TestListAccessMonitoringRules(t *testing.T) {
 	require.NoError(t, err)
 
 	var insertedAccessMonitoringRules []*accessmonitoringrulesv1.AccessMonitoringRule
-	for i := range numAccessMonitoringRules {
-		AccessMonitoringRule := accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	for i := 0; i < numAccessMonitoringRules; i++ {
+		AccessMonitoringRule := &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: v1.Metadata_builder{
+			Metadata: &v1.Metadata{
 				Name: fmt.Sprintf("p%02d", i+1),
-			}.Build(),
-			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someSubject"},
 				Condition: "someCondition",
-			}.Build(),
-		}.Build()
+			},
+		}
 		_, err := service.CreateAccessMonitoringRule(ctx, AccessMonitoringRule)
 		require.NoError(t, err)
 		insertedAccessMonitoringRules = append(insertedAccessMonitoringRules, AccessMonitoringRule)
@@ -323,7 +327,11 @@ func TestListAccessMonitoringRules(t *testing.T) {
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page2...)
 		fetchedAccessMonitoringRules = append(fetchedAccessMonitoringRules, page3...)
 
-		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules, protocmp.Transform()))
+		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules,
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
+			cmpopts.IgnoreUnexported(v1.Metadata{}),
+		))
 	})
 
 	t.Run("single", func(t *testing.T) {
@@ -331,6 +339,10 @@ func TestListAccessMonitoringRules(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, nextKey)
 
-		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules, protocmp.Transform()))
+		require.Empty(t, cmp.Diff(insertedAccessMonitoringRules, fetchedAccessMonitoringRules,
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRule{}),
+			cmpopts.IgnoreUnexported(accessmonitoringrulesv1.AccessMonitoringRuleSpec{}),
+			cmpopts.IgnoreUnexported(v1.Metadata{}),
+		))
 	})
 }

@@ -24,13 +24,12 @@ import (
 	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
@@ -128,7 +127,7 @@ type defaultTAGIAMConfigureClient struct {
 
 // NewAccessGraphIAMConfigureClient creates a new TAGIAMConfigureClient.
 func NewAccessGraphIAMConfigureClient(ctx context.Context) (AccessGraphIAMConfigureClient, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, awsconfig.WithRegion("" /* region */))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("" /* region */))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

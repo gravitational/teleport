@@ -1,4 +1,5 @@
-FROM golang:bookworm
+ARG GO_VERSION
+FROM golang:${GO_VERSION}-bookworm
 
 ARG UID
 ARG GID

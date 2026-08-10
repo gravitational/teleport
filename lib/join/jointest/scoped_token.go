@@ -18,8 +18,11 @@ package jointest
 
 import (
 	"cmp"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -43,78 +46,80 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		}
 	}
 
-	scopedToken := joiningv1.ScopedToken_builder{
+	scopedToken := &joiningv1.ScopedToken{
 		Kind:     types.KindScopedToken,
 		Version:  types.V1,
 		Scope:    override.GetScope(),
 		Metadata: override.GetMetadata(),
-		Spec: joiningv1.ScopedTokenSpec_builder{
-			AssignedScope: override.GetSpec().GetAssignedScope(),
-			JoinMethod:    cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
-			Roles:         roles,
-			UsageMode:     override.GetSpec().GetUsageMode(),
-		}.Build(),
-	}.Build()
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope:   override.GetSpec().GetAssignedScope(),
+			JoinMethod:      cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
+			Roles:           roles,
+			UsageMode:       override.GetSpec().GetUsageMode(),
+			Bot:             override.GetSpec().GetBot(),
+			ImmutableLabels: override.GetSpec().GetImmutableLabels(),
+		},
+	}
 
 	switch base.JoinMethod {
 	case types.JoinMethodEC2:
 		allow := make([]*joiningv1.AWS_Rule, len(base.Allow))
 		for i, rule := range base.Allow {
-			allow[i] = joiningv1.AWS_Rule_builder{
+			allow[i] = &joiningv1.AWS_Rule{
 				AwsAccount:        rule.AWSAccount,
 				AwsRegions:        rule.AWSRegions,
 				AwsRole:           rule.AWSRole,
 				AwsArn:            rule.AWSARN,
 				AwsOrganizationId: rule.AWSOrganizationID,
-			}.Build()
+			}
 		}
-		scopedToken.GetSpec().SetAws(joiningv1.AWS_builder{
+		scopedToken.Spec.Aws = &joiningv1.AWS{
 			Allow:  allow,
 			IidTtl: base.AWSIIDTTL.Duration().String(),
-		}.Build())
+		}
 	case types.JoinMethodIAM:
 		allow := make([]*joiningv1.AWS_Rule, len(base.Allow))
 		for i, rule := range base.Allow {
-			allow[i] = joiningv1.AWS_Rule_builder{
+			allow[i] = &joiningv1.AWS_Rule{
 				AwsAccount:        rule.AWSAccount,
 				AwsRegions:        rule.AWSRegions,
 				AwsRole:           rule.AWSRole,
 				AwsArn:            rule.AWSARN,
 				AwsOrganizationId: rule.AWSOrganizationID,
-			}.Build()
+			}
 		}
-		scopedToken.GetSpec().SetAws(joiningv1.AWS_builder{
+		scopedToken.Spec.Aws = &joiningv1.AWS{
 			Allow:       allow,
 			Integration: base.Integration,
-		}.Build())
+		}
 	case types.JoinMethodGCP:
 		allow := make([]*joiningv1.GCP_Rule, len(base.GCP.Allow))
 		for i, rule := range base.GCP.Allow {
-			allow[i] = joiningv1.GCP_Rule_builder{
+			allow[i] = &joiningv1.GCP_Rule{
 				ProjectIds:      rule.ProjectIDs,
 				Locations:       rule.Locations,
 				ServiceAccounts: rule.ServiceAccounts,
-			}.Build()
+			}
 		}
-		scopedToken.GetSpec().SetGcp(joiningv1.GCP_builder{
+		scopedToken.Spec.Gcp = &joiningv1.GCP{
 			Allow: allow,
-		}.Build())
+		}
 	case types.JoinMethodAzure:
 		allow := make([]*joiningv1.Azure_Rule, len(base.Azure.Allow))
 		for i, rule := range base.Azure.Allow {
-			allow[i] = joiningv1.Azure_Rule_builder{
+			allow[i] = &joiningv1.Azure_Rule{
 				Tenant:         rule.Tenant,
 				Subscription:   rule.Subscription,
 				ResourceGroups: rule.ResourceGroups,
-			}.Build()
+			}
 		}
-		scopedToken.GetSpec().SetAzure(joiningv1.Azure_builder{
+		scopedToken.Spec.Azure = &joiningv1.Azure{
 			Allow: allow,
-		}.Build())
+		}
 	case types.JoinMethodAzureDevops:
 		allow := make([]*joiningv1.AzureDevops_Rule, len(base.AzureDevops.Allow))
 		for i, rule := range base.AzureDevops.Allow {
-			allow[i] = joiningv1.AzureDevops_Rule_builder{
+			allow[i] = &joiningv1.AzureDevops_Rule{
 				Sub:               rule.Sub,
 				ProjectName:       rule.ProjectName,
 				PipelineName:      rule.PipelineName,
@@ -123,62 +128,98 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 				RepositoryUri:     rule.RepositoryURI,
 				RepositoryVersion: rule.RepositoryVersion,
 				RepositoryRef:     rule.RepositoryRef,
-			}.Build()
+			}
 		}
-		scopedToken.GetSpec().SetAzureDevops(joiningv1.AzureDevops_builder{
+		scopedToken.Spec.AzureDevops = &joiningv1.AzureDevops{
 			Allow:          allow,
 			OrganizationId: base.AzureDevops.OrganizationID,
-		}.Build())
+		}
 	case types.JoinMethodOracle:
 		allow := make([]*joiningv1.Oracle_Rule, len(base.Oracle.Allow))
 		for i, rule := range base.Oracle.Allow {
-			allow[i] = joiningv1.Oracle_Rule_builder{
+			allow[i] = &joiningv1.Oracle_Rule{
 				Tenancy:            rule.Tenancy,
 				ParentCompartments: rule.ParentCompartments,
 				Regions:            rule.Regions,
 				Instances:          rule.Instances,
-			}.Build()
+			}
 		}
-		scopedToken.GetSpec().SetOracle(joiningv1.Oracle_builder{
+		scopedToken.Spec.Oracle = &joiningv1.Oracle{
 			Allow: allow,
-		}.Build())
+		}
 	case types.JoinMethodKubernetes:
 		if base.Kubernetes == nil {
 			return nil, trace.BadParameter("kubernetes configuration must be defined for kubernetes join method")
 		}
 		allow := make([]*joiningv1.Kubernetes_Rule, len(base.Kubernetes.Allow))
 		for i, rule := range base.Kubernetes.Allow {
-			allow[i] = joiningv1.Kubernetes_Rule_builder{
+			allow[i] = &joiningv1.Kubernetes_Rule{
 				ServiceAccount:          rule.ServiceAccount,
 				ServiceAccountNamespace: rule.ServiceAccountNamespace,
 				ServiceAccountName:      rule.ServiceAccountName,
-			}.Build()
+			}
 		}
 
 		var staticJWKS *joiningv1.Kubernetes_StaticJWKSConfig
 		if base.Kubernetes.StaticJWKS != nil {
-			staticJWKS = joiningv1.Kubernetes_StaticJWKSConfig_builder{
+			staticJWKS = &joiningv1.Kubernetes_StaticJWKSConfig{
 				Jwks: base.Kubernetes.StaticJWKS.JWKS,
-			}.Build()
+			}
 		}
 
 		var oidc *joiningv1.Kubernetes_OIDCConfig
 		if base.Kubernetes.OIDC != nil {
-			oidc = joiningv1.Kubernetes_OIDCConfig_builder{
+			oidc = &joiningv1.Kubernetes_OIDCConfig{
 				Issuer:                  base.Kubernetes.OIDC.Issuer,
 				InsecureAllowHttpIssuer: base.Kubernetes.OIDC.InsecureAllowHTTPIssuer,
-			}.Build()
+			}
 		}
 
-		scopedToken.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+		scopedToken.Spec.Kubernetes = &joiningv1.Kubernetes{
 			Allow:      allow,
 			Type:       string(base.Kubernetes.Type),
 			StaticJwks: staticJWKS,
 			Oidc:       oidc,
-		}.Build())
+		}
+	case types.JoinMethodGitHub:
+		if err := setProviderConfig(scopedToken.GetSpec(), "github", base.GitHub); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}
 
 	return scopedToken, nil
+}
+
+// setProviderConfig populates a provider message by protobuf field name. This
+// keeps forward-looking integration tests buildable before the generated scoped
+// provider type exists, while still failing until the production schema defines
+// and can decode the expected field.
+func setProviderConfig(spec *joiningv1.ScopedTokenSpec, fieldName string, config any) error {
+	if config == nil {
+		return trace.BadParameter("missing %s configuration", fieldName)
+	}
+
+	message := spec.ProtoReflect()
+	field := message.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil {
+		return trace.NotImplemented("scoped token proto does not define %q configuration", fieldName)
+	}
+	if field.Kind() != protoreflect.MessageKind {
+		return trace.BadParameter("scoped token field %q must be a message", fieldName)
+	}
+
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return trace.Wrap(err, "marshaling classic %s configuration", fieldName)
+	}
+
+	value := message.NewField(field)
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(encoded, value.Message().Interface()); err != nil {
+		return trace.Wrap(err, "converting classic %s configuration to scoped form", fieldName)
+	}
+	message.Set(field, value)
+
+	return nil
 }

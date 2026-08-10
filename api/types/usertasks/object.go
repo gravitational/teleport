@@ -316,11 +316,6 @@ var DiscoverRDSIssueTypes = []string{
 // List of Auto Discover Azure VM issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover Azure VM tasks.
 const (
-	// AutoDiscoverAzureVMIssueSubscriptionListDenied indicates the integration
-	// lacks permission to list subscriptions while expanding a wildcard
-	// subscription matcher.
-	AutoDiscoverAzureVMIssueSubscriptionListDenied = "azure-vm-subscription-list-denied"
-
 	// AutoDiscoverAzureVMIssueMissingRunCommandsPermission is used to identify VMs that failed to auto-enroll
 	// because the Azure integration is missing runCommands permissions (runCommands/write or runCommands/read).
 	AutoDiscoverAzureVMIssueMissingRunCommandsPermission = "azure-vm-missing-run-commands-permission"
@@ -340,7 +335,6 @@ const (
 
 // DiscoverAzureVMIssueTypes is a list of issue types that can occur when trying to auto enroll Azure VMs.
 var DiscoverAzureVMIssueTypes = []string{
-	AutoDiscoverAzureVMIssueSubscriptionListDenied,
 	AutoDiscoverAzureVMIssueMissingRunCommandsPermission,
 	AutoDiscoverAzureVMIssueVMNotRunning,
 	AutoDiscoverAzureVMIssueVMAgentNotAvailable,
@@ -631,20 +625,14 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 	if discover == nil {
 		return trace.BadParameter("%s: discover_azure_vm field is required", TaskTypeDiscoverAzureVM)
 	}
-	isSubscriptionListIssue := spec.IssueType == AutoDiscoverAzureVMIssueSubscriptionListDenied
-	if !isSubscriptionListIssue {
-		switch {
-		case discover.SubscriptionId == "":
-			return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
-		case discover.ResourceGroup == "":
-			return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
-		case discover.Region == "":
-			return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
-		case len(discover.Instances) == 0:
-			return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
-		}
+	switch {
+	case discover.SubscriptionId == "":
+		return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
+	case discover.ResourceGroup == "":
+		return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
+	case discover.Region == "":
+		return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
 	}
-
 	expectedTaskName := taskNameForDiscoverAzureVM(
 		TaskGroup{
 			Integration: spec.Integration,
@@ -662,12 +650,9 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 			ut.Metadata.Name,
 		)
 	}
-
-	// Subscription resolution fails before VM scope or instance data is known.
-	if isSubscriptionListIssue {
-		return nil
+	if len(discover.Instances) == 0 {
+		return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
 	}
-
 	for vmID, vmIssue := range discover.Instances {
 		switch {
 		case vmIssue == nil:
@@ -701,14 +686,20 @@ type TaskNameForDiscoverEC2Parts struct {
 // TaskNameForDiscoverEC2 returns a deterministic name for the DiscoverEC2 task type.
 // This method is used to ensure a single UserTask is created to report issues in enrolling EC2 instances for a given integration, issue type, account id and region.
 func TaskNameForDiscoverEC2(parts TaskNameForDiscoverEC2Parts) string {
-	return taskNameFromParts(discoverEC2Namespace,
-		parts.Integration,
-		parts.IssueType,
-		parts.AccountID,
-		parts.Region,
-		parts.SSMDocument,
-		parts.InstallerScript,
-	)
+	var bs []byte
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
+	bs = append(bs, []byte(parts.Integration)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
+	bs = append(bs, []byte(parts.IssueType)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
+	bs = append(bs, []byte(parts.AccountID)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
+	bs = append(bs, []byte(parts.Region)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.SSMDocument)))...)
+	bs = append(bs, []byte(parts.SSMDocument)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.InstallerScript)))...)
+	bs = append(bs, []byte(parts.InstallerScript)...)
+	return uuid.NewSHA1(discoverEC2Namespace, bs).String()
 }
 
 // discoverEC2Namespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEC2 User Task names.
@@ -727,13 +718,19 @@ type TaskNameForDiscoverEKSParts struct {
 // TaskNameForDiscoverEKS returns a deterministic name for the DiscoverEKS task type.
 // This method is used to ensure a single UserTask is created to report issues in enrolling EKS clusters for a given integration, issue type, account id and region.
 func TaskNameForDiscoverEKS(parts TaskNameForDiscoverEKSParts) string {
-	return taskNameFromParts(discoverEKSNamespace,
-		parts.Integration,
-		parts.IssueType,
-		parts.AccountID,
-		parts.Region,
-		strconv.FormatBool(parts.AppAutoDiscover),
-	)
+	var bs []byte
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
+	bs = append(bs, []byte(parts.Integration)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
+	bs = append(bs, []byte(parts.IssueType)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
+	bs = append(bs, []byte(parts.AccountID)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
+	bs = append(bs, []byte(parts.Region)...)
+	appAutoDiscoverString := strconv.FormatBool(parts.AppAutoDiscover)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(appAutoDiscoverString)))...)
+	bs = append(bs, []byte(appAutoDiscoverString)...)
+	return uuid.NewSHA1(discoverEKSNamespace, bs).String()
 }
 
 // discoverEKSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEKS User Task names.
@@ -751,12 +748,16 @@ type TaskNameForDiscoverRDSParts struct {
 // TaskNameForDiscoverRDS returns a deterministic name for the DiscoverRDS task type.
 // This method is used to ensure a single UserTask is created to report issues in enrolling RDS databases for a given integration, issue type, account id and region.
 func TaskNameForDiscoverRDS(parts TaskNameForDiscoverRDSParts) string {
-	return taskNameFromParts(discoverRDSNamespace,
-		parts.Integration,
-		parts.IssueType,
-		parts.AccountID,
-		parts.Region,
-	)
+	var bs []byte
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
+	bs = append(bs, []byte(parts.Integration)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
+	bs = append(bs, []byte(parts.IssueType)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
+	bs = append(bs, []byte(parts.AccountID)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
+	bs = append(bs, []byte(parts.Region)...)
+	return uuid.NewSHA1(discoverRDSNamespace, bs).String()
 }
 
 // discoverRDSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverRDS User Task names.
@@ -774,11 +775,8 @@ type taskNameForDiscoverAzureVMParts struct {
 // This method is used to ensure a single UserTask is created to report issues in enrolling Azure VMs for a given integration, issue type, subscription id, resource group and region.
 func taskNameForDiscoverAzureVM(tg TaskGroup, parts taskNameForDiscoverAzureVMParts) string {
 	return taskNameFromParts(discoverAzureVMNamespace,
-		tg.Integration,
-		tg.IssueType,
-		parts.SubscriptionID,
-		parts.ResourceGroup,
-		parts.Region,
+		tg.Integration, tg.IssueType,
+		parts.SubscriptionID, parts.ResourceGroup, parts.Region,
 	)
 }
 

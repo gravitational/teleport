@@ -80,7 +80,6 @@ type ServiceConfig struct {
 	AccessGraph                   AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
 	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
-	Modules                       modules.Modules
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -110,7 +109,6 @@ type Service struct {
 	accessGraph                   AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
 	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
-	modules                       modules.Modules
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -126,8 +124,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
-	case cfg.Modules == nil:
-		return nil, trace.BadParameter("modules is required")
 	}
 
 	if cfg.ReadOnlyCache == nil {
@@ -149,7 +145,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		accessGraph:                   cfg.AccessGraph,
 		readOnlyCache:                 cfg.ReadOnlyCache,
 		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
-		modules:                       cfg.Modules,
 	}, nil
 }
 
@@ -214,26 +209,26 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.GetAuthPreference().GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
+	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.GetAuthPreference().GetDeviceTrust(), s.modules); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.GetAuthPreference().CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
+	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req.GetAuthPreference().SetOrigin(types.OriginDynamic)
+	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateAuthPreference(ctx, req.GetAuthPreference())
+	updated, err := s.backend.UpdateAuthPreference(ctx, req.AuthPreference)
 
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
@@ -243,7 +238,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.GetAuthPreference()),
+		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
 	}); auditErr != nil {
 		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
@@ -282,26 +277,26 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.GetAuthPreference().GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
+	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.GetAuthPreference().GetDeviceTrust(), s.modules); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.GetAuthPreference().CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
+	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req.GetAuthPreference().SetOrigin(types.OriginDynamic)
+	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpsertAuthPreference(ctx, req.GetAuthPreference())
+	updated, err := s.backend.UpsertAuthPreference(ctx, req.AuthPreference)
 
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
@@ -311,7 +306,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.GetAuthPreference()),
+		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
 	}); auditErr != nil {
 		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
@@ -349,7 +344,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		pref, err := s.cache.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -454,7 +449,7 @@ func (s *Service) CreateClusterNetworkingConfig(ctx context.Context, cfg types.C
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering && s.modules.BuildType() != modules.BuildEnterprise {
+	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -490,15 +485,15 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	tst, err := req.GetClusterNetworkConfig().GetTunnelStrategyType()
+	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering && s.modules.BuildType() != modules.BuildEnterprise {
+	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	req.GetClusterNetworkConfig().SetOrigin(types.OriginDynamic)
+	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
 
 	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 	if err != nil {
@@ -506,13 +501,12 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 	}
 
 	newCfg := req.GetClusterNetworkConfig()
-	PreserveCloudClusterNetworkConfig(*authzCtx, s.modules, newCfg, oldCfg)
 
-	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.GetClusterNetworkConfig())
+	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.ClusterNetworkConfig)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.ClusterNetworkingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -556,15 +550,15 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	tst, err := req.GetClusterNetworkConfig().GetTunnelStrategyType()
+	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering && s.modules.BuildType() != modules.BuildEnterprise {
+	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	req.GetClusterNetworkConfig().SetOrigin(types.OriginDynamic)
+	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
 
 	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 	if err != nil {
@@ -572,9 +566,8 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 	}
 
 	newCfg := req.GetClusterNetworkConfig()
-	PreserveCloudClusterNetworkConfig(*authzCtx, s.modules, newCfg, oldCfg)
 
-	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -628,14 +621,14 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 		return nil, trace.Wrap(err)
 	}
 
-	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, defaultConfig, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, defaultConfig, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		cfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -683,12 +676,12 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 // customers are not allowed to edit certain fields of the cluster networking config, and even if they were,
 // the edits would be overwritten by the values from the static config file every time an auth process starts
 // up.
-func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Modules, newConfig, oldConfig types.ClusterNetworkingConfig) error {
+func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
 	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
 		return nil
 	}
 
-	if !modules.Features().Cloud {
+	if !modules.GetModules().Features().Cloud {
 		return nil
 	}
 
@@ -705,13 +698,8 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 
 	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
 	newts := newConfig.GetProxyPeeringTunnelStrategy()
-	if oldts != nil && newts != nil {
-		if oldts.AgentConnectionCount != newts.AgentConnectionCount {
-			return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
-		}
-		if oldts.DisconnectThresholdSeconds != newts.DisconnectThresholdSeconds {
-			return trace.BadParameter(cloudUpdateFailureMsg, "disconnect_threshold")
-		}
+	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
+		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
 	}
 
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
@@ -723,27 +711,6 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 	}
 
 	return nil
-}
-
-// PreserveCloudClusterNetworkConfig preserves cloud-managed fields when an older
-// supported client attempts to update the cluster network config without knowing
-// a field exists. This should only be used to preserve new fields that must only
-// be configured by cloud.
-func PreserveCloudClusterNetworkConfig(authzCtx authz.Context, modules modules.Modules, newConfig, oldConfig types.ClusterNetworkingConfig) {
-	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
-		return
-	}
-	if !modules.Features().Cloud {
-		return
-	}
-
-	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
-	newts := newConfig.GetProxyPeeringTunnelStrategy()
-	if oldts != nil && newts != nil {
-		if oldts.DisconnectThresholdSeconds != 0 && newts.DisconnectThresholdSeconds == 0 {
-			newts.DisconnectThresholdSeconds = oldts.DisconnectThresholdSeconds
-		}
-	}
 }
 
 // GetSessionRecordingConfig returns the locally cached networking configuration.
@@ -826,13 +793,13 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 		return nil, trace.Wrap(err)
 	}
 
-	req.GetSessionRecordingConfig().SetOrigin(types.OriginDynamic)
+	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
-	if err := services.ValidateSessionRecordingConfig(req.GetSessionRecordingConfig(), s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.GetSessionRecordingConfig())
+	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -876,13 +843,13 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 		return nil, trace.Wrap(err)
 	}
 
-	req.GetSessionRecordingConfig().SetOrigin(types.OriginDynamic)
+	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
-	if err := services.ValidateSessionRecordingConfig(req.GetSessionRecordingConfig(), s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.GetSessionRecordingConfig())
+	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -928,7 +895,7 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 
 		cfg, err := s.cache.GetSessionRecordingConfig(ctx)
 		if err != nil {
@@ -982,14 +949,13 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
 	}
 
-	// If Access Graph is disabled in the license, return a disabled response. If
-	// this is a Cloud cluster, return the response to allow demo mode enabling.
-	if !s.modules.Features().GetEntitlement(entitlements.AccessGraph).Enabled && !s.modules.Features().AccessGraph && !s.modules.Features().Cloud {
-		return clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
-			AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
+	// If the policy feature is disabled in the license, return a disabled response. if cloud, return the response to allow demo mode enabling
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+			AccessGraph: &clusterconfigpb.AccessGraphConfig{
 				Enabled: false,
-			}.Build(),
-		}.Build(), nil
+			},
+		}, nil
 	}
 
 	var sshScanEnabled bool
@@ -1000,17 +966,17 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		sshScanEnabled = obj.SecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
 	}
 
-	return clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
-		AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
+	return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+		AccessGraph: &clusterconfigpb.AccessGraphConfig{
 			Enabled:  s.accessGraph.Enabled,
 			Address:  s.accessGraph.Address,
 			Ca:       s.accessGraph.CA,
 			Insecure: s.accessGraph.Insecure,
-			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfiguration_builder{
+			SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
 				SshScanEnabled: sshScanEnabled,
-			}.Build(),
-		}.Build(),
-	}.Build(), nil
+			},
+		},
+	}, nil
 }
 
 func (s *Service) GetAccessGraphSettings(ctx context.Context, _ *clusterconfigpb.GetAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
@@ -1085,8 +1051,8 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !s.modules.Features().GetEntitlement(entitlements.AccessGraph).Enabled && !s.modules.Features().AccessGraph && !s.modules.Features().Cloud {
-		return nil, trace.AccessDenied("access graph feature isn't enabled")
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
 	cfg := req.GetAccessGraphSettings()
@@ -1129,8 +1095,8 @@ func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !s.modules.Features().GetEntitlement(entitlements.AccessGraph).Enabled && !s.modules.Features().AccessGraph {
-		return nil, trace.AccessDenied("access graph feature isn't enabled")
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
 	cfg := req.GetAccessGraphSettings()
@@ -1173,13 +1139,13 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if !s.modules.Features().GetEntitlement(entitlements.AccessGraph).Enabled && !s.modules.Features().AccessGraph {
-		return nil, trace.AccessDenied("access graph feature isn't enabled")
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
-	obj, err := clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
+	obj, err := clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

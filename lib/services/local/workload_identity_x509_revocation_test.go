@@ -55,18 +55,18 @@ func setupWorkloadIdentityX509RevocationServiceTest(
 }
 
 func newValidWorkloadIdentityX509Revocation(clock clockwork.Clock, name string) *workloadidentityv1pb.WorkloadIdentityX509Revocation {
-	return workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+	return &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 		Kind:    types.KindWorkloadIdentityX509Revocation,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:    name,
 			Expires: timestamppb.New(clock.Now().Add(time.Hour)),
-		}.Build(),
-		Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 			Reason:    "compromised",
 			RevokedAt: timestamppb.New(clock.Now()),
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 func TestWorkloadIdentityX509RevocationService_Create(t *testing.T) {
@@ -80,7 +80,7 @@ func TestWorkloadIdentityX509RevocationService_Create(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentityX509Revocation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -124,7 +124,7 @@ func TestWorkloadIdentityX509RevocationService_Upsert(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentityX509Revocation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -154,7 +154,7 @@ func TestWorkloadIdentityX509RevocationService_List(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := range 49 {
+	for i := 0; i < 49; i++ {
 		created, err := service.CreateWorkloadIdentityX509Revocation(
 			ctx,
 			newValidWorkloadIdentityX509Revocation(clock, fmt.Sprintf("%d%d", i, i)),
@@ -214,7 +214,7 @@ func TestWorkloadIdentityX509RevocationService_Get(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetWorkloadIdentityX509Revocation(ctx, "aa")
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -293,15 +293,15 @@ func TestWorkloadIdentityX509RevocationService_Update(t *testing.T) {
 			proto.Clone(toCreate).(*workloadidentityv1pb.WorkloadIdentityX509Revocation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
-		got.GetSpec().SetReason("changed")
+		require.NotEmpty(t, got.Metadata.Revision)
+		got.Spec.Reason = "changed"
 		got2, err := service.UpdateWorkloadIdentityX509Revocation(
 			ctx,
 			// Clone to avoid Marshaling modifying want
 			proto.Clone(got).(*workloadidentityv1pb.WorkloadIdentityX509Revocation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got2.GetMetadata().GetRevision())
+		require.NotEmpty(t, got2.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			got,
 			got2,
@@ -318,8 +318,8 @@ func TestWorkloadIdentityX509RevocationService_Update(t *testing.T) {
 			proto.Clone(toCreate).(*workloadidentityv1pb.WorkloadIdentityX509Revocation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
-		got.GetSpec().SetReason("")
+		require.NotEmpty(t, got.Metadata.Revision)
+		got.Spec.Reason = ""
 		got2, err := service.UpdateWorkloadIdentityX509Revocation(
 			ctx,
 			// Clone to avoid Marshaling modifying want

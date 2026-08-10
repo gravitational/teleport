@@ -36,12 +36,14 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 
 	// Test valid pin.
 	stream.assertResp = func(res *api.LoginPasswordlessResponse) error {
-		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN, res.GetPrompt())
+		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN, res.Prompt)
 		return nil
 	}
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
-		return api.LoginPasswordlessRequest_builder{Pin: api.LoginPasswordlessRequest_LoginPasswordlessPINResponse_builder{
-			Pin: "1234"}.Build()}.Build(), nil
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{
+			Pin: &api.LoginPasswordlessRequest_LoginPasswordlessPINResponse{
+				Pin: "1234"},
+		}}, nil
 	}
 
 	prompt := newPwdlessLoginPrompt(context.Background(), slog.Default(), stream)
@@ -51,8 +53,10 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 
 	// Test invalid pin.
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
-		return api.LoginPasswordlessRequest_builder{Pin: api.LoginPasswordlessRequest_LoginPasswordlessPINResponse_builder{
-			Pin: ""}.Build()}.Build(), nil
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{
+			Pin: &api.LoginPasswordlessRequest_LoginPasswordlessPINResponse{
+				Pin: ""},
+		}}, nil
 	}
 
 	_, err = prompt.PromptPIN()
@@ -63,7 +67,7 @@ func TestPwdlessLoginPrompt_PromptTouch(t *testing.T) {
 	stream := &mockLoginPwdlessStream{}
 
 	stream.assertResp = func(res *api.LoginPasswordlessResponse) error {
-		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP, res.GetPrompt())
+		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP, res.Prompt)
 		return nil
 	}
 
@@ -84,21 +88,23 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 	}
 
 	expectedCredResponse := []*api.CredentialInfo{
-		api.CredentialInfo_builder{Username: "ape"}.Build(),
-		api.CredentialInfo_builder{Username: "bar"}.Build(),
-		api.CredentialInfo_builder{Username: "foo"}.Build(),
-		api.CredentialInfo_builder{Username: "llama"}.Build(),
+		{Username: "ape"},
+		{Username: "bar"},
+		{Username: "foo"},
+		{Username: "llama"},
 	}
 
 	// Test valid index.
 	stream.assertResp = func(res *api.LoginPasswordlessResponse) error {
-		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL, res.GetPrompt())
+		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL, res.Prompt)
 		require.Equal(t, expectedCredResponse, res.GetCredentials())
 		return nil
 	}
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
-		return api.LoginPasswordlessRequest_builder{Credential: api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse_builder{
-			Index: 2}.Build()}.Build(), nil
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Credential{
+			Credential: &api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{
+				Index: 2},
+		}}, nil
 	}
 
 	prompt := newPwdlessLoginPrompt(context.Background(), slog.Default(), stream)
@@ -108,8 +114,10 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 
 	// Test invalid index.
 	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
-		return api.LoginPasswordlessRequest_builder{Credential: api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse_builder{
-			Index: 4}.Build()}.Build(), nil
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Credential{
+			Credential: &api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{
+				Index: 4},
+		}}, nil
 	}
 	_, err = prompt.PromptCredential(unsortedCreds)
 	require.True(t, trace.IsBadParameter(err))

@@ -389,8 +389,8 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m *tdpb.SharedDirectory
 // an error.
 func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completionID, directory directoryID, m *tdpbv1.SharedDirectoryRequest_Read) *events.DesktopSharedDirectoryRead {
 	did := directory
-	path := m.GetPath()
-	offset := m.GetOffset()
+	path := m.Path
+	offset := m.Offset
 
 	err := d.auditCache.SetReadRequestInfo(directory, completion, readRequestInfo{
 		path:   path,
@@ -425,7 +425,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completi
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
-		Length:        m.GetLength(),
+		Length:        m.Length,
 		Offset:        offset,
 		DesktopName:   d.getName(),
 	}
@@ -468,7 +468,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(did directoryID,
 		DirectoryName:      string(name),
 		DirectoryID:        uint32(did),
 		Path:               path,
-		Length:             uint32(len(m.GetData())),
+		Length:             uint32(len(m.Data)),
 		Offset:             offset,
 		DesktopName:        d.getName(),
 	}
@@ -480,8 +480,8 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(did directoryID,
 // an error.
 func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion completionID, directory directoryID, m *tdpbv1.SharedDirectoryRequest_Write) *events.DesktopSharedDirectoryWrite {
 	did := directory
-	path := m.GetPath()
-	offset := m.GetOffset()
+	path := m.Path
+	offset := m.Offset
 
 	err := d.auditCache.SetWriteRequestInfo(
 		directory,
@@ -520,7 +520,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
-		Length:        uint32(len(m.GetData())),
+		Length:        uint32(len(m.Data)),
 		Offset:        offset,
 	}
 }
@@ -563,7 +563,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(did directoryID
 		DirectoryName:      string(name),
 		DirectoryID:        uint32(did),
 		Path:               path,
-		Length:             m.GetBytesWritten(),
+		Length:             m.BytesWritten,
 		Offset:             offset,
 		DesktopName:        d.getName(),
 	}

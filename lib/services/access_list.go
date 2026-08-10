@@ -387,9 +387,6 @@ func AccessListTitleIndexKey(al *accesslist.AccessList) string {
 	return title + "/" + AccessListNameIndexKey(al)
 }
 
-// AccessListSearchTermMatcherFunc reports whether an access list matches a search term.
-type AccessListSearchTermMatcherFunc func(al *accesslist.AccessList, term string) bool
-
 // MatchAccessList returns true if the access list matches the given filter criteria.
 // The function applies filters in sequence: owners, then roles, then search.
 // All provided filters must match for the access list to be included.
@@ -397,11 +394,10 @@ type AccessListSearchTermMatcherFunc func(al *accesslist.AccessList, term string
 //   - If owners filter is provided, the access list must have at least one matching owner
 //   - If roles filter is provided, the access list must grant at least one matching role
 //   - If search filter is provided, all search terms must be found across the access list's
-//     title, name, owner names, description, granted roles, and origin fields, or match a search term matcher
+//     title, name, owner names, description, granted roles, and origin fields
 //
 // All matching is case-insensitive and supports partial matches.
-// Search term matchers are evaluated in order for terms that do not match stored access list fields.
-func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter, searchTermMatchers ...AccessListSearchTermMatcherFunc) bool {
+func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
 	if req == nil {
 		return true
 	}
@@ -488,12 +484,6 @@ func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFil
 						break
 					}
 				}
-			}
-
-			if !termFound {
-				termFound = slices.ContainsFunc(searchTermMatchers, func(matcher AccessListSearchTermMatcherFunc) bool {
-					return matcher(al, term)
-				})
 			}
 
 			// If this term wasn't found in any field, the search fails

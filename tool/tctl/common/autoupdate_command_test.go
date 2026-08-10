@@ -32,7 +32,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -72,7 +71,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 
 	config, err := authClient.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "enabled", config.GetSpec().GetTools().GetMode())
+	assert.Equal(t, "enabled", config.Spec.Tools.Mode)
 
 	// Disable client tools auto updates to check that AutoUpdateConfig resource is modified.
 	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "disable"})
@@ -80,7 +79,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 
 	config, err = authClient.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "disabled", config.GetSpec().GetTools().GetMode())
+	assert.Equal(t, "disabled", config.Spec.Tools.Mode)
 
 	// Set target version for client tools auto updates.
 	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "target", "1.2.3"})
@@ -88,7 +87,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 
 	version, err := authClient.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+	assert.Equal(t, "1.2.3", version.Spec.Tools.TargetVersion)
 
 	getBuf, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "status", "--format=json"})
 	require.NoError(t, err)
@@ -111,7 +110,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	require.NoError(t, err)
 	version, err = authClient.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
-	assert.Nil(t, version.GetSpec().GetTools())
+	assert.Nil(t, version.Spec.Tools)
 }
 
 func runAutoUpdateCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
@@ -149,21 +148,6 @@ func (m *mockAutoUpdateClient) ListAutoUpdateAgentReports(_ context.Context, pag
 	return args.Get(0).([]*autoupdatepb.AutoUpdateAgentReport), "", args.Error(1)
 }
 
-func (m *mockAutoUpdateClient) TriggerAutoUpdateAgentGroup(_ context.Context, groups []string, state autoupdatepb.AutoUpdateAgentGroupState) (*autoupdatepb.AutoUpdateAgentRollout, error) {
-	args := m.Called(groups, state)
-	return args.Get(0).(*autoupdatepb.AutoUpdateAgentRollout), args.Error(1)
-}
-
-func (m *mockAutoUpdateClient) ForceAutoUpdateAgentGroup(_ context.Context, groups []string) (*autoupdatepb.AutoUpdateAgentRollout, error) {
-	args := m.Called(groups)
-	return args.Get(0).(*autoupdatepb.AutoUpdateAgentRollout), args.Error(1)
-}
-
-func (m *mockAutoUpdateClient) RollbackAutoUpdateAgentGroup(_ context.Context, groups []string, allStartedGroups bool) (*autoupdatepb.AutoUpdateAgentRollout, error) {
-	args := m.Called(groups, allStartedGroups)
-	return args.Get(0).(*autoupdatepb.AutoUpdateAgentRollout), args.Error(1)
-}
-
 func TestAutoUpdateAgentStatusCommand(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
@@ -182,14 +166,14 @@ func TestAutoUpdateAgentStatusCommand(t *testing.T) {
 		},
 		{
 			name: "rollout immediate schedule",
-			fixture: autoupdatepb.AutoUpdateAgentRollout_builder{
-				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+			fixture: &autoupdatepb.AutoUpdateAgentRollout{
+				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleImmediate,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-				}.Build(),
-			}.Build(),
+				},
+			},
 			expectedOutput: `Agent autoupdate mode: enabled
 Start version: 1.2.3
 Target version: 1.2.4
@@ -199,18 +183,18 @@ Schedule is immediate. Every group immediately updates to the target version.
 		},
 		{
 			name: "rollout regular schedule time-based",
-			fixture: autoupdatepb.AutoUpdateAgentRollout_builder{
-				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+			fixture: &autoupdatepb.AutoUpdateAgentRollout{
+				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 					StartVersion:              "1.2.3",
 					TargetVersion:             "1.2.4",
 					Schedule:                  autoupdate.AgentsScheduleRegular,
 					AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 					Strategy:                  autoupdate.AgentsStrategyTimeBased,
 					MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-				}.Build(),
-				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+				},
+				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						{
 							Name:             "dev",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 12, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
@@ -218,29 +202,29 @@ Schedule is immediate. Every group immediately updates to the target version.
 							LastUpdateReason: "outside_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  8,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "stage",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 14, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 							LastUpdateReason: "in_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  14,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "prod",
 							StartTime:        nil,
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 							LastUpdateReason: "outside_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  18,
-						}.Build(),
+						},
 					},
 					State:        autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 					StartTime:    timestamppb.New(time.Date(2025, 1, 15, 2, 0, 0, 0, time.UTC)),
 					TimeOverride: nil,
-				}.Build(),
-			}.Build(),
+				},
+			},
 			expectedOutput: `Agent autoupdate mode: enabled
 Rollout creation date: 2025-01-15 02:00:00
 Start version: 1.2.3
@@ -257,17 +241,17 @@ prod       Unstarted                     outside_window
 		},
 		{
 			name: "rollout regular schedule halt-on-error",
-			fixture: autoupdatepb.AutoUpdateAgentRollout_builder{
-				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+			fixture: &autoupdatepb.AutoUpdateAgentRollout{
+				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-				}.Build(),
-				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+				},
+				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						{
 							Name:             "dev",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 12, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
@@ -275,29 +259,29 @@ prod       Unstarted                     outside_window
 							LastUpdateReason: "outside_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  8,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "stage",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 14, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 							LastUpdateReason: "in_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  14,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "prod",
 							StartTime:        nil,
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 							LastUpdateReason: "outside_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  18,
-						}.Build(),
+						},
 					},
 					State:        autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 					StartTime:    timestamppb.New(time.Date(2025, 1, 15, 2, 0, 0, 0, time.UTC)),
 					TimeOverride: nil,
-				}.Build(),
-			}.Build(),
+				},
+			},
 			expectedOutput: `Agent autoupdate mode: enabled
 Rollout creation date: 2025-01-15 02:00:00
 Start version: 1.2.3
@@ -314,17 +298,17 @@ prod       Unstarted                     outside_window
 		},
 		{
 			name: "rollout regular schedule halt-on-error with progress",
-			fixture: autoupdatepb.AutoUpdateAgentRollout_builder{
-				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+			fixture: &autoupdatepb.AutoUpdateAgentRollout{
+				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-				}.Build(),
-				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+				},
+				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						{
 							Name:             "dev",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 12, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
@@ -335,16 +319,16 @@ prod       Unstarted                     outside_window
 							PresentCount:     1023,
 							UpToDateCount:    567,
 							InitialCount:     1012,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "stage",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 14, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 							LastUpdateReason: "in_window",
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  14,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "prod",
 							StartTime:        nil,
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
@@ -352,13 +336,13 @@ prod       Unstarted                     outside_window
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  18,
 							PresentCount:     789,
-						}.Build(),
+						},
 					},
 					State:        autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 					StartTime:    timestamppb.New(time.Date(2025, 1, 15, 2, 0, 0, 0, time.UTC)),
 					TimeOverride: nil,
-				}.Build(),
-			}.Build(),
+				},
+			},
 			expectedOutput: `Agent autoupdate mode: enabled
 Rollout creation date: 2025-01-15 02:00:00
 Start version: 1.2.3
@@ -375,17 +359,17 @@ prod (catch-all) Unstarted                     outside_window 789         0
 		},
 		{
 			name: "rollout regular schedule halt-on-error with progress, with canary",
-			fixture: autoupdatepb.AutoUpdateAgentRollout_builder{
-				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+			fixture: &autoupdatepb.AutoUpdateAgentRollout{
+				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-				}.Build(),
-				Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+				},
+				Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 					Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						{
 							Name:             "dev",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 12, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
@@ -396,8 +380,8 @@ prod (catch-all) Unstarted                     outside_window 789         0
 							PresentCount:     1023,
 							UpToDateCount:    567,
 							InitialCount:     1012,
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "stage",
 							StartTime:        timestamppb.New(time.Date(2025, 1, 15, 14, 00, 0, 0, time.UTC)),
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
@@ -406,27 +390,27 @@ prod (catch-all) Unstarted                     outside_window 789         0
 							ConfigStartHour:  14,
 							CanaryCount:      5,
 							Canaries: []*autoupdatepb.Canary{
-								autoupdatepb.Canary_builder{
+								{
 									UpdaterId: uuid.NewString(),
 									HostId:    uuid.NewString(),
 									Hostname:  "host-1",
 									Success:   true,
-								}.Build(),
-								autoupdatepb.Canary_builder{
+								},
+								{
 									UpdaterId: uuid.NewString(),
 									HostId:    uuid.NewString(),
 									Hostname:  "host-2",
 									Success:   false,
-								}.Build(),
-								autoupdatepb.Canary_builder{
+								},
+								{
 									UpdaterId: uuid.NewString(),
 									HostId:    uuid.NewString(),
 									Hostname:  "host-3",
 									Success:   true,
-								}.Build(),
+								},
 							},
-						}.Build(),
-						autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+						},
+						{
 							Name:             "prod",
 							StartTime:        nil,
 							State:            autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
@@ -434,13 +418,13 @@ prod (catch-all) Unstarted                     outside_window 789         0
 							ConfigDays:       []string{"Mon", "Tue", "Wed", "Thu", "Fri"},
 							ConfigStartHour:  18,
 							PresentCount:     789,
-						}.Build(),
+						},
 					},
 					State:        autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 					StartTime:    timestamppb.New(time.Date(2025, 1, 15, 2, 0, 0, 0, time.UTC)),
 					TimeOverride: nil,
-				}.Build(),
-			}.Build(),
+				},
+			},
 			expectedOutput: `Agent autoupdate mode: enabled
 Rollout creation date: 2025-01-15 02:00:00
 Start version: 1.2.3
@@ -465,7 +449,7 @@ prod (catch-all) Unstarted                        outside_window 789         0
 
 			// Test execution: run command.
 			output := &bytes.Buffer{}
-			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }, format: teleport.Text}
+			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }}
 			err := cmd.agentsStatusCommand(ctx, clt)
 			require.NoError(t, err)
 
@@ -502,34 +486,34 @@ func TestAutoUpdateAgentReportCommand(t *testing.T) {
 		{
 			name: "only expired agent reports",
 			fixtures: []*autoupdatepb.AutoUpdateAgentReport{
-				autoupdatepb.AutoUpdateAgentReport_builder{
-					Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
-					Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+				{
+					Metadata: &headerv1.Metadata{Name: "auth1"},
+					Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 						Timestamp: timestamppb.New(fewMinutesAgo),
 						Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-							"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							"dev": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
-									"1.2.4": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 234}.Build(),
+									"1.2.3": {Count: 123},
+									"1.2.4": {Count: 234},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-				autoupdatepb.AutoUpdateAgentReport_builder{
-					Metadata: headerv1.Metadata_builder{Name: "auth2"}.Build(),
-					Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+					},
+				},
+				{
+					Metadata: &headerv1.Metadata{Name: "auth2"},
+					Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 						Timestamp: timestamppb.New(fewMinutesAgo),
 						Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-							"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							"dev": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 456}.Build(),
-									"1.2.4": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 567}.Build(),
+									"1.2.3": {Count: 456},
+									"1.2.4": {Count: 567},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			expectedOutput: "Read 2 reports, but they are expired. If you just (re)deployed the Auth service, you might want to retry after 60 seconds.\n",
 			expectErr:      require.Error,
@@ -537,44 +521,44 @@ func TestAutoUpdateAgentReportCommand(t *testing.T) {
 		{
 			name: "valid reports",
 			fixtures: []*autoupdatepb.AutoUpdateAgentReport{
-				autoupdatepb.AutoUpdateAgentReport_builder{
-					Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
-					Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+				{
+					Metadata: &headerv1.Metadata{Name: "auth1"},
+					Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 						Timestamp: timestamppb.New(fewSecondsAgo),
 						Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-							"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							"dev": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
-									"1.2.4": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 234}.Build(),
+									"1.2.3": {Count: 123},
+									"1.2.4": {Count: 234},
 								},
-							}.Build(),
-							"stage": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							},
+							"stage": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+									"1.2.3": {Count: 123},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-				autoupdatepb.AutoUpdateAgentReport_builder{
-					Metadata: headerv1.Metadata_builder{Name: "auth2"}.Build(),
-					Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+					},
+				},
+				{
+					Metadata: &headerv1.Metadata{Name: "auth2"},
+					Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 						Timestamp: timestamppb.New(fewSecondsAgo),
 						Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-							"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							"dev": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 456}.Build(),
-									"1.2.4": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 567}.Build(),
+									"1.2.3": {Count: 456},
+									"1.2.4": {Count: 567},
 								},
-							}.Build(),
-							"prod": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							},
+							"prod": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 789}.Build(),
+									"1.2.3": {Count: 789},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			expectErr: require.NoError,
 			expectedOutput: `2 autoupdate agent reports aggregated
@@ -588,50 +572,50 @@ Agent Version dev  prod stage
 		{
 			name: "valid reports with omissions",
 			fixtures: []*autoupdatepb.AutoUpdateAgentReport{
-				autoupdatepb.AutoUpdateAgentReport_builder{
-					Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
-					Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+				{
+					Metadata: &headerv1.Metadata{Name: "auth1"},
+					Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 						Timestamp: timestamppb.New(fewSecondsAgo),
 						Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-							"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							"dev": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
-									"1.2.4": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 234}.Build(),
+									"1.2.3": {Count: 123},
+									"1.2.4": {Count: 234},
 								},
-							}.Build(),
-							"stage": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							},
+							"stage": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+									"1.2.3": {Count: 123},
 								},
-							}.Build(),
+							},
 						},
 						Omitted: []*autoupdatepb.AutoUpdateAgentReportSpecOmitted{
-							autoupdatepb.AutoUpdateAgentReportSpecOmitted_builder{Reason: "agent is too old", Count: 2}.Build(),
+							{Reason: "agent is too old", Count: 2},
 						},
-					}.Build(),
-				}.Build(),
-				autoupdatepb.AutoUpdateAgentReport_builder{
-					Metadata: headerv1.Metadata_builder{Name: "auth2"}.Build(),
-					Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+					},
+				},
+				{
+					Metadata: &headerv1.Metadata{Name: "auth2"},
+					Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 						Timestamp: timestamppb.New(fewSecondsAgo),
 						Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-							"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							"dev": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 456}.Build(),
-									"1.2.4": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 567}.Build(),
+									"1.2.3": {Count: 456},
+									"1.2.4": {Count: 567},
 								},
-							}.Build(),
-							"prod": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+							},
+							"prod": {
 								Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-									"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 789}.Build(),
+									"1.2.3": {Count: 789},
 								},
-							}.Build(),
+							},
 						},
 						Omitted: []*autoupdatepb.AutoUpdateAgentReportSpecOmitted{
-							autoupdatepb.AutoUpdateAgentReportSpecOmitted_builder{Reason: "updater is disabled", Count: 5}.Build(),
+							{Reason: "updater is disabled", Count: 5},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			expectErr: require.NoError,
 			expectedOutput: `2 autoupdate agent reports aggregated
@@ -656,7 +640,7 @@ Agent Version dev  prod stage
 
 			// Test execution: run command.
 			output := &bytes.Buffer{}
-			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }, format: teleport.Text}
+			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }}
 			err := cmd.agentsReportCommand(ctx, clt)
 			tt.expectErr(t, err)
 
@@ -668,195 +652,4 @@ Agent Version dev  prod stage
 		})
 	}
 
-}
-
-func TestAutoUpdateAgentStatusStructuredOutput(t *testing.T) {
-	ctx := t.Context()
-	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
-	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
-			AutoupdateMode: "enabled",
-			StartVersion:   "1.2.3",
-			TargetVersion:  "1.2.4",
-			Schedule:       "regular",
-			Strategy:       "time-based",
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
-			StartTime: timestamppb.New(now),
-			State:     autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
-			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
-					Name:          "dev",
-					State:         autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-					PresentCount:  3,
-					UpToDateCount: 2,
-				}.Build(),
-			},
-		}.Build(),
-	}.Build()
-
-	for _, format := range []string{"json", "yaml"} {
-		t.Run(format, func(t *testing.T) {
-			clt := &mockAutoUpdateClient{}
-			clt.On("GetAutoUpdateAgentRollout", mock.Anything).Return(rollout, nil).Once()
-
-			output := &bytes.Buffer{}
-			cmd := AutoUpdateCommand{stdout: output, format: format}
-			require.NoError(t, cmd.agentsStatusCommand(ctx, clt))
-
-			var got agentStatusOutput
-			if format == "yaml" {
-				got = mustDecodeJSON[agentStatusOutput](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, output)))
-			} else {
-				got = mustDecodeJSON[agentStatusOutput](t, output)
-			}
-			require.Equal(t, newAgentStatusOutput(rollout), got)
-			clt.AssertExpectations(t)
-		})
-	}
-}
-
-func TestAutoUpdateAgentReportStructuredOutput(t *testing.T) {
-	ctx := t.Context()
-	now := time.Now()
-	reports := []*autoupdatepb.AutoUpdateAgentReport{
-		autoupdatepb.AutoUpdateAgentReport_builder{
-			Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
-			Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
-				Timestamp: timestamppb.New(now),
-				Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-					"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
-						Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 2}.Build(),
-						},
-					}.Build(),
-				},
-				Omitted: []*autoupdatepb.AutoUpdateAgentReportSpecOmitted{
-					autoupdatepb.AutoUpdateAgentReportSpecOmitted_builder{Reason: "agent is too old", Count: 1}.Build(),
-				},
-			}.Build(),
-		}.Build(),
-	}
-
-	for _, format := range []string{"json", "yaml"} {
-		t.Run(format, func(t *testing.T) {
-			clt := &mockAutoUpdateClient{}
-			clt.On("ListAutoUpdateAgentReports", mock.Anything, mock.Anything, mock.Anything).Return(reports, nil).Once()
-
-			output := &bytes.Buffer{}
-			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }, format: format}
-			require.NoError(t, cmd.agentsReportCommand(ctx, clt))
-
-			var got agentReportSummary
-			if format == "yaml" {
-				got = mustDecodeJSON[agentReportSummary](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, output)))
-			} else {
-				got = mustDecodeJSON[agentReportSummary](t, output)
-			}
-			require.Equal(t, newAgentReportSummary(reports), got)
-			clt.AssertExpectations(t)
-		})
-	}
-}
-
-// rolloutFixture is the rollout returned by the mocked rollout mutation
-// methods, used to verify structured output of start-update/mark-done/rollback.
-func rolloutFixture() *autoupdatepb.AutoUpdateAgentRollout {
-	return autoupdatepb.AutoUpdateAgentRollout_builder{
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
-			AutoupdateMode: "enabled",
-			StartVersion:   "1.2.3",
-			TargetVersion:  "1.2.4",
-			Schedule:       "regular",
-			Strategy:       "time-based",
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
-			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
-			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
-					Name:          "dev",
-					State:         autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-					PresentCount:  3,
-					UpToDateCount: 2,
-				}.Build(),
-			},
-		}.Build(),
-	}.Build()
-}
-
-func TestAutoUpdateAgentRolloutMutationStructuredOutput(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	rollout := rolloutFixture()
-
-	// Each rollout mutation command shares the same structured output shape, so
-	// we exercise all three against json and yaml, plus an invalid format.
-	tests := []struct {
-		name   string
-		groups []string
-		setup  func(clt *mockAutoUpdateClient)
-		run    func(cmd *AutoUpdateCommand, clt autoupdateClient) error
-	}{
-		{
-			name:   "start-update",
-			groups: []string{"dev"},
-			setup: func(clt *mockAutoUpdateClient) {
-				clt.On("TriggerAutoUpdateAgentGroup", mock.Anything, mock.Anything).Return(rollout, nil).Once()
-			},
-			run: func(cmd *AutoUpdateCommand, clt autoupdateClient) error {
-				return cmd.agentsStartUpdateCommand(ctx, clt)
-			},
-		},
-		{
-			name: "mark-done",
-			setup: func(clt *mockAutoUpdateClient) {
-				clt.On("ForceAutoUpdateAgentGroup", mock.Anything).Return(rollout, nil).Once()
-			},
-			run: func(cmd *AutoUpdateCommand, clt autoupdateClient) error {
-				return cmd.agentsMarkDoneCommand(ctx, clt)
-			},
-		},
-		{
-			name: "rollback",
-			setup: func(clt *mockAutoUpdateClient) {
-				clt.On("RollbackAutoUpdateAgentGroup", mock.Anything, mock.Anything).Return(rollout, nil).Once()
-			},
-			run: func(cmd *AutoUpdateCommand, clt autoupdateClient) error {
-				return cmd.agentsRollbackCommand(ctx, clt)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, format := range []string{teleport.JSON, teleport.YAML} {
-				t.Run(format, func(t *testing.T) {
-					clt := &mockAutoUpdateClient{}
-					tt.setup(clt)
-
-					output := &bytes.Buffer{}
-					cmd := AutoUpdateCommand{stdout: output, format: format, groups: tt.groups}
-					require.NoError(t, tt.run(&cmd, clt))
-
-					var got agentStatusOutput
-					if format == teleport.YAML {
-						got = mustDecodeJSON[agentStatusOutput](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, output)))
-					} else {
-						got = mustDecodeJSON[agentStatusOutput](t, output)
-					}
-					require.Equal(t, newAgentStatusOutput(rollout), got)
-					clt.AssertExpectations(t)
-				})
-			}
-
-			t.Run("invalid format", func(t *testing.T) {
-				clt := &mockAutoUpdateClient{}
-				tt.setup(clt)
-
-				cmd := AutoUpdateCommand{stdout: &bytes.Buffer{}, format: "bogus", groups: tt.groups}
-				err := tt.run(&cmd, clt)
-				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
-			})
-		})
-	}
 }

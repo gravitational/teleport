@@ -223,17 +223,17 @@ func (m *Manager) ensureManualEncryptionKeys(ctx context.Context, manualKeyCfg t
 			return nil, trace.Wrap(err)
 		}
 
-		encryptionKeys = append(encryptionKeys, recordingencryptionv1.KeyPair_builder{
+		encryptionKeys = append(encryptionKeys, &recordingencryptionv1.KeyPair{
 			KeyPair: &types.EncryptionKeyPair{
 				PublicKey: pubKey,
 			},
-		}.Build())
+		})
 	}
-	return recordingencryptionv1.RecordingEncryption_builder{
-		Spec: recordingencryptionv1.RecordingEncryptionSpec_builder{
+	return &recordingencryptionv1.RecordingEncryption{
+		Spec: &recordingencryptionv1.RecordingEncryptionSpec{
 			ActiveKeyPairs: encryptionKeys,
-		}.Build(),
-	}.Build(), nil
+		},
+	}, nil
 }
 
 // ensureActiveKeyPair checks that there is at least one accessible key in the list of active pairs given.
@@ -243,14 +243,14 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 	var foundActiveKey bool
 	if len(activePairs) > 0 {
 		for _, pair := range activePairs {
-			if pair.GetState() != recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE {
+			if pair.State != recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE {
 				continue
 			}
 
 			foundActiveKey = true
 			// fetch the decrypter to ensure we have access to it
-			if _, err := m.keyStore.GetDecrypter(ctx, pair.GetKeyPair()); err != nil {
-				fp, _ := fingerprintPEM(pair.GetKeyPair().PublicKey)
+			if _, err := m.keyStore.GetDecrypter(ctx, pair.KeyPair); err != nil {
+				fp, _ := fingerprintPEM(pair.KeyPair.PublicKey)
 				m.logger.DebugContext(ctx, "key not accessible", "fingerprint", fp)
 				continue
 			}
@@ -273,10 +273,10 @@ func (m *Manager) ensureActiveKeyPair(ctx context.Context, activePairs []*record
 	fp, _ := fingerprintPEM(encryptionPair.PublicKey)
 	m.logger.InfoContext(ctx, "no active encryption keys, generated new pair", "public_fingerprint", fp)
 
-	return append(activePairs, recordingencryptionv1.KeyPair_builder{
+	return append(activePairs, &recordingencryptionv1.KeyPair{
 		KeyPair: encryptionPair,
 		State:   recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE,
-	}.Build()), true, nil
+	}), true, nil
 }
 
 // resolveRecordingEncryption returns the configured [RecordingEncryption] resource if it exists with an
@@ -310,9 +310,9 @@ func (m *Manager) resolveRecordingEncryption(ctx context.Context, sessionRecordi
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			encryption = recordingencryptionv1.RecordingEncryption_builder{
+			encryption = &recordingencryptionv1.RecordingEncryption{
 				Spec: &recordingencryptionv1.RecordingEncryptionSpec{},
-			}.Build()
+			}
 			persistFn = m.RecordingEncryption.CreateRecordingEncryption
 		}
 	}
@@ -326,7 +326,7 @@ func (m *Manager) resolveRecordingEncryption(ctx context.Context, sessionRecordi
 		return encryption, nil
 	}
 
-	encryption.GetSpec().SetActiveKeyPairs(activePairs)
+	encryption.Spec.ActiveKeyPairs = activePairs
 	encryption, err = persistFn(ctx, encryption)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -355,7 +355,7 @@ func (m *Manager) findDecrypter(ctx context.Context, fingerprint string) (crypto
 			continue
 		}
 
-		activeFP, err := fingerprintPEM(key.GetKeyPair().PublicKey)
+		activeFP, err := fingerprintPEM(key.KeyPair.PublicKey)
 		if err != nil {
 			m.logger.ErrorContext(ctx, "failed to fingerprint active public key", "error", err)
 			continue
@@ -365,7 +365,7 @@ func (m *Manager) findDecrypter(ctx context.Context, fingerprint string) (crypto
 			continue
 		}
 
-		decrypter, err := m.keyStore.GetDecrypter(ctx, key.GetKeyPair())
+		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyPair)
 		if err != nil {
 			continue
 		}
@@ -457,7 +457,7 @@ func (m *Manager) RotateKey(ctx context.Context) error {
 		return trace.NotFound("no active key present to rotate")
 	}
 
-	activePair.SetState(recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING)
+	activePair.State = recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING
 	if _, err := m.modifyRecordingEncryption(ctx, encryption); err != nil {
 		return trace.Wrap(err)
 	}
@@ -501,7 +501,7 @@ func (m *Manager) CompleteRotation(ctx context.Context) error {
 		}
 	}
 
-	encryption.GetSpec().SetActiveKeyPairs(remainingPairs)
+	encryption.Spec.ActiveKeyPairs = remainingPairs
 	if _, err := m.modifyRecordingEncryption(ctx, encryption); err != nil {
 		return trace.Wrap(err)
 	}
@@ -530,7 +530,7 @@ func (m *Manager) RollbackRotation(ctx context.Context) error {
 	var rollbackPairs []*recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
 		if pair.GetState() == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING {
-			pair.SetState(recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE)
+			pair.State = recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE
 			rollbackPairs = append(rollbackPairs, pair)
 		}
 	}
@@ -539,7 +539,7 @@ func (m *Manager) RollbackRotation(ctx context.Context) error {
 		return trace.BadParameter("skipping rollback that would remove all encryption keys")
 	}
 
-	encryption.GetSpec().SetActiveKeyPairs(rollbackPairs)
+	encryption.Spec.ActiveKeyPairs = rollbackPairs
 	if _, err := m.modifyRecordingEncryption(ctx, encryption); err != nil {
 		return trace.Wrap(err)
 	}
@@ -575,10 +575,10 @@ func (m *Manager) GetRotationState(ctx context.Context) ([]*recordingencryptionv
 			return nil, trace.Wrap(err)
 		}
 
-		states = append(states, recordingencryptionv1.FingerprintWithState_builder{
+		states = append(states, &recordingencryptionv1.FingerprintWithState{
 			Fingerprint: fingerprint,
 			State:       pair.GetState(),
-		}.Build())
+		})
 	}
 
 	return states, nil
@@ -746,12 +746,12 @@ func (m *Manager) resolveRecordingEncryptionState(ctx context.Context, shouldRet
 func getAgeEncryptionKeys(keys []*recordingencryptionv1.KeyPair) iter.Seq[*types.AgeEncryptionKey] {
 	return func(yield func(*types.AgeEncryptionKey) bool) {
 		for _, key := range keys {
-			if !key.HasKeyPair() {
+			if key.KeyPair == nil {
 				continue
 			}
 
 			if !yield(&types.AgeEncryptionKey{
-				PublicKey: key.GetKeyPair().PublicKey,
+				PublicKey: key.KeyPair.PublicKey,
 			}) {
 				return
 			}

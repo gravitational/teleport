@@ -131,9 +131,9 @@ func getWorkloadIdentityScoped(
 		return nil, rejectSubKind(types.KindWorkloadIdentity, subKind)
 	}
 	if sqn == nil {
-		// No SQN was provided, so this is a list-all. The classic handler
-		// normally serves list-all (workload_identity is registered in both
-		// maps), but fall back to it here for safety.
+		// No SQN was provided, so this is a list-all. On this branch the
+		// classic (unscoped) surface still lives in resource_command.go rather
+		// than in Handlers(), so serve list-all here directly.
 		return getWorkloadIdentity(ctx, client, services.Ref{Kind: types.KindWorkloadIdentity}, opts)
 	}
 
@@ -201,7 +201,13 @@ func createWorkloadIdentity(
 		}
 	}
 
-	fmt.Printf("Workload Identity %q has been created\n", scopes.QualifiedName{Name: in.GetMetadata().GetName(), Scope: in.GetScope()}.String())
+	fmt.Printf(
+		"Workload Identity %q has been created\n",
+		scopes.QualifiedName{
+			Name:  in.GetMetadata().GetName(),
+			Scope: in.GetScope(),
+		}.String(),
+	)
 
 	return nil
 }

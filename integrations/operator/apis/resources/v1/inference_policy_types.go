@@ -60,16 +60,16 @@ type TeleportInferencePolicyList struct {
 
 // ToTeleport returns a Teleport representation of this Kubernetes resource.
 func (p *TeleportInferencePolicy) ToTeleport() *summarizerv1.InferencePolicy {
-	resource := summarizerv1.InferencePolicy_builder{
+	resource := &summarizerv1.InferencePolicy{
 		Kind:    types.KindInferencePolicy,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        p.Name,
 			Description: p.Annotations[teleportcr.DescriptionKey],
 			Labels:      p.Labels,
-		}.Build(),
+		},
 		Spec: (*summarizerv1.InferencePolicySpec)(p.Spec),
-	}.Build()
+	}
 	return resource
 }
 

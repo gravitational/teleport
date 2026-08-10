@@ -30,7 +30,7 @@ import { Logger } from 'design/logger';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClientScreenSpec, ClipboardData, TdpClient } from 'shared/libs/tdp';
-import { getErrorMessage, isAbortError } from 'shared/utils/error';
+import { isAbortError } from 'shared/utils/error';
 
 declare global {
   interface Window {
@@ -206,7 +206,7 @@ export default function useDesktopSession(
         severity: 'warn',
         content: {
           title: 'Could not share a directory',
-          description: getErrorMessage(e),
+          description: e.message,
         },
       });
     }
@@ -222,7 +222,7 @@ export default function useDesktopSession(
           severity: 'warn',
           content: {
             title: 'Failed to unmount the shared directory',
-            description: getErrorMessage(e),
+            description: e.message,
           },
         });
       }

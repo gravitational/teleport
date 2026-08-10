@@ -107,8 +107,8 @@ func TestBuildDiscoverySummaryFromServerStatus(t *testing.T) {
 		Found:     10,
 		Enrolled:  8,
 		Failed:    2,
-		SyncStart: new(now.Add(-5 * time.Minute)),
-		SyncEnd:   new(now.Add(-4*time.Minute - time.Second)),
+		SyncStart: ptrTo(now.Add(-5 * time.Minute)),
+		SyncEnd:   ptrTo(now.Add(-4*time.Minute - time.Second)),
 	}, serverA.Integrations[0].Resources[0])
 
 	serverB := multiSummary.Servers[1]

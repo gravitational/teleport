@@ -23,9 +23,9 @@ import (
 func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_Resource {
 	return &PaginatedResource_LinuxDesktop{
 		LinuxDesktop: &LinuxDesktop{
-			Kind:     desktop.Kind,
-			SubKind:  desktop.SubKind,
-			Version:  desktop.Version,
+			Kind:     desktop.GetKind(),
+			SubKind:  desktop.GetSubKind(),
+			Version:  desktop.GetVersion(),
 			Metadata: types.Metadata153ToLegacy(desktop.GetMetadata()),
 			Addr:     desktop.GetSpec().GetAddr(),
 			Hostname: desktop.GetSpec().GetHostname(),
@@ -36,16 +36,16 @@ func PackLinuxDesktop(desktop *linuxdesktopv1.LinuxDesktop) isPaginatedResource_
 
 // UnpackLinuxDesktop converts a wire-format LinuxDesktop resource back into an  linuxdesktopv1.LinuxDesktop instance.
 func UnpackLinuxDesktop(src *LinuxDesktop) types.ResourceWithLabels {
-	dst := &linuxdesktopv1.LinuxDesktop{
+	dst := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:     src.Kind,
 		SubKind:  src.SubKind,
 		Version:  src.Version,
 		Metadata: types.LegacyTo153Metadata(src.Metadata),
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     src.Addr,
 			Hostname: src.Hostname,
 			ProxyIds: src.ProxyIds,
-		},
-	}
+		}.Build(),
+	}.Build()
 	return types.ProtoResource153ToLegacy(dst)
 }

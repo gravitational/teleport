@@ -245,10 +245,6 @@ type Identity struct {
 	// certificate was created for.
 	DelegationSessionID string
 
-	// BeamID is the identifier of the Beam this certificate was created for,
-	// derived from the delegation session's types.BeamIDLabel label.
-	BeamID string
-
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
@@ -660,6 +656,7 @@ var (
 	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
 	// ResourceAccessIDs which the certificate should be able to grant access to
 	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
@@ -679,10 +676,6 @@ var (
 	// AgentScopePinASN1ExtensionOID is an extension OID that contains the agent scope pin,
 	// encoding the agent's pinned scope and system roles.
 	AgentScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 31}
-
-	// BeamIDASN1ExtensionOID is an extension OID that contains the identifier of
-	// the Beam this certificate was created for.
-	BeamIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 32}
 
 	// BotScopeASN1ExtensionOID is an extension OID that encodes the scope of
 	// the Machine ID bot the certificate was issued to, if any.
@@ -1096,14 +1089,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
-	if id.BeamID != "" {
-		subject.ExtraNames = append(subject.ExtraNames,
-			pkix.AttributeTypeAndValue{
-				Type:  BeamIDASN1ExtensionOID,
-				Value: id.BeamID,
-			})
-	}
-
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1473,8 +1458,8 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				// Certs issued before PinKind was introduced will have UNSPECIFIED here.
 				// Pins decoded from the user OID are always user pins.
-				if pin.GetKind() == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
-					pin.SetKind(scopesv1.PinKind_PIN_KIND_USER)
+				if pin.Kind == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+					pin.Kind = scopesv1.PinKind_PIN_KIND_USER
 				}
 				id.ScopePin = pin
 			}
@@ -1495,10 +1480,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.DelegationSessionID = val
-			}
-		case attr.Type.Equal(BeamIDASN1ExtensionOID):
-			if val, ok := attr.Value.(string); ok {
-				id.BeamID = val
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
@@ -1649,7 +1630,6 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		UserTraits:        id.Traits.Clone(),
 		UserClusterName:   userTeleportCluster,
 		ScopePin:          pinning.ToEventsPin(id.ScopePin),
-		BeamID:            id.BeamID,
 	}
 }
 

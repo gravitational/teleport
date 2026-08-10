@@ -21,7 +21,6 @@ import fs from 'node:fs';
 import fsAsync from 'node:fs/promises';
 import path from 'node:path';
 
-import { isErrnoException } from 'shared/utils/error';
 import { debounce } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
@@ -53,7 +52,7 @@ export interface FileStorage {
   getFileName(): string;
 
   /** Returns the error that could occur while reading and parsing the file. */
-  getFileLoadingError(): unknown;
+  getFileLoadingError(): Error | undefined;
 }
 
 /**
@@ -81,7 +80,7 @@ export function createFileStorage(opts: {
 
   const { filePath } = opts;
 
-  let state: any, error: unknown;
+  let state: any, error: Error | undefined;
   try {
     state = loadStateSync(filePath);
   } catch (e) {
@@ -128,7 +127,7 @@ export function createFileStorage(opts: {
     return path.basename(opts.filePath);
   }
 
-  function getFileLoadingError(): unknown {
+  function getFileLoadingError(): Error | undefined {
     return error;
   }
 
@@ -162,7 +161,7 @@ function readOrCreateFileSync(filePath: string): string {
   try {
     return fs.readFileSync(filePath, { encoding: 'utf-8' });
   } catch (error) {
-    if (isErrnoException(error, 'ENOENT')) {
+    if (error?.code === 'ENOENT') {
       fs.writeFileSync(filePath, defaultValue);
       return defaultValue;
     }

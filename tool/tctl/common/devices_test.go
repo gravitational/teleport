@@ -17,18 +17,12 @@
 package common
 
 import (
-	"bytes"
 	"testing"
-	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -42,12 +36,12 @@ func TestDeviceSourceToString(t *testing.T) {
 	}{
 		{
 			name:   "default name for origin",
-			source: devicepb.DeviceSource_builder{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE, Name: "intune"}.Build(),
+			source: &devicepb.DeviceSource{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE, Name: "intune"},
 			want:   "Intune",
 		},
 		{
 			name:   "custom name",
-			source: devicepb.DeviceSource_builder{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF, Name: "cool jamf"}.Build(),
+			source: &devicepb.DeviceSource{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF, Name: "cool jamf"},
 			want:   "cool jamf",
 		},
 		{
@@ -57,7 +51,7 @@ func TestDeviceSourceToString(t *testing.T) {
 		},
 		{
 			name:   "unsupported origin",
-			source: devicepb.DeviceSource_builder{Origin: 1337, Name: "even cooler jamf"}.Build(),
+			source: &devicepb.DeviceSource{Origin: 1337, Name: "even cooler jamf"},
 			// Show the name instead of something like "unknown" as name is required and likely more
 			// informative than displaying "unknown".
 			want: "even cooler jamf",
@@ -71,101 +65,19 @@ func TestDeviceSourceToString(t *testing.T) {
 	}
 }
 
-// TestWriteEnrollToken covers the structured output of `tctl devices enroll`.
-// Device enrollment itself is an Enterprise feature, so we exercise the output
-// rendering directly with a synthetic token.
-func TestWriteEnrollToken(t *testing.T) {
-	t.Parallel()
-	token := devicepb.DeviceEnrollToken_builder{
-		Token:      "sometoken",
-		ExpireTime: timestamppb.New(time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)),
-	}.Build()
-
-	t.Run("text", func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, writeEnrollToken(teleport.Text, "dev-123", "display-name", "asset-1", token, &buf))
-		require.Contains(t, buf.String(), "sometoken")
-		require.Contains(t, buf.String(), "tsh device enroll")
-	})
-
-	t.Run("json", func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, writeEnrollToken(teleport.JSON, "dev-123", "display-name", "asset-1", token, &buf))
-		got := mustDecodeJSON[deviceEnrollTokenOutput](t, &buf)
-		require.Equal(t, "sometoken", got.Token)
-		require.Equal(t, "asset-1", got.AssetTag)
-		require.Equal(t, "dev-123", got.DeviceID)
-		require.NotNil(t, got.Expires)
-		require.NotContains(t, buf.String(), "tsh device enroll")
-	})
-
-	t.Run("yaml", func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, writeEnrollToken(teleport.YAML, "dev-123", "display-name", "asset-1", token, &buf))
-		got := mustDecodeJSON[deviceEnrollTokenOutput](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, &buf)))
-		require.Equal(t, "sometoken", got.Token)
-		require.Equal(t, "asset-1", got.AssetTag)
-		require.Equal(t, "dev-123", got.DeviceID)
-		require.NotContains(t, buf.String(), "tsh device enroll")
-	})
-
-	t.Run("invalid format", func(t *testing.T) {
-		err := writeEnrollToken("bogus", "dev-123", "display-name", "asset-1", token, &bytes.Buffer{})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
-	})
-}
-
-// TestWriteCreatedLock covers the structured output shared by `tctl lock` and
-// `tctl devices lock`.
-func TestWriteCreatedLock(t *testing.T) {
-	t.Parallel()
-	lock, err := types.NewLock("test-lock", types.LockSpecV2{
-		Target:  types.LockTarget{User: "bad@actor"},
-		Message: "Come see me",
-	})
-	require.NoError(t, err)
-
-	t.Run("text", func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, writeCreatedLock(teleport.Text, lock, &buf))
-		require.Equal(t, "Created a lock with name \"test-lock\".\n", buf.String())
-	})
-
-	t.Run("json", func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, writeCreatedLock(teleport.JSON, lock, &buf))
-		got := mustDecodeJSON[*types.LockV2](t, &buf)
-		require.Equal(t, "test-lock", got.GetName())
-		require.Equal(t, "bad@actor", got.Spec.Target.User)
-	})
-
-	t.Run("yaml", func(t *testing.T) {
-		var buf bytes.Buffer
-		require.NoError(t, writeCreatedLock(teleport.YAML, lock, &buf))
-		got := mustDecodeJSON[*types.LockV2](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, &buf)))
-		require.Equal(t, "test-lock", got.GetName())
-		require.Equal(t, "bad@actor", got.Spec.Target.User)
-	})
-
-	t.Run("invalid format", func(t *testing.T) {
-		err := writeCreatedLock("bogus", lock, &bytes.Buffer{})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
-	})
-}
-
 // TestOSTypeFlagValues covers the --os values offered by `tctl devices add`.
 // They come from devicepb.OSType, so an OSType that ResourceOSTypeToString
 // doesn't know about would reach the CLI as its bare proto name.
 func TestOSTypeFlagValues(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, []string{"ios", "ipados", "linux", "macos", "windows"},
+	require.Equal(t, []string{"linux", "macos", "windows"},
 		osTypeFlagValues(), "osTypeFlagValues mismatch")
 }
 
 // TestDeviceAddOSFlag covers the --os values `tctl devices add` accepts.
 // The flag is the only thing keeping UNSPECIFIED out, as
-// [types.ResourceOSTypeFromString] resolves "unspecified" without an error.
+// types.ResourceOSTypeFromString resolves "unspecified" without an error.
 func TestDeviceAddOSFlag(t *testing.T) {
 	t.Parallel()
 
@@ -186,7 +98,7 @@ func TestDeviceAddOSFlag(t *testing.T) {
 
 	for _, os := range []string{"unspecified", "OS_TYPE_MACOS", "bogus"} {
 		t.Run("rejects "+os, func(t *testing.T) {
-			assert.ErrorContains(t, parse(t, os), "enum value must be one of ios,", "--os %v accepted", os)
+			assert.ErrorContains(t, parse(t, os), "enum value must be one of linux,", "--os %v accepted", os)
 		})
 	}
 }

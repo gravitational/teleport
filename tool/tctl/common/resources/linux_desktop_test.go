@@ -19,8 +19,10 @@
 package resources
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -66,7 +68,12 @@ func TestLinuxDesktopCollection_WriteText(t *testing.T) {
 
 	formatted := table.AsBuffer().String()
 
-	collectionFormatTest(t, &linuxDesktopCollection{desktops: desktops}, formatted, formatted)
+	collection := linuxDesktopCollection{desktops: desktops}
+	var sb strings.Builder
+	err := collection.WriteText(&sb, false)
+	require.NoError(t, err)
+	diff := cmp.Diff(formatted, sb.String())
+	require.Empty(t, diff)
 }
 
 func TestLinuxDesktopCollection_Resources(t *testing.T) {

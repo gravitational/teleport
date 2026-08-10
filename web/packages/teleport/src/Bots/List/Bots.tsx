@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useHistory } from 'react-router-dom';
 
 import { Alert, Box, Button, Indicator } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
@@ -40,7 +40,7 @@ import { EmptyState } from './EmptyState/EmptyState';
 
 export function Bots() {
   const ctx = useTeleport();
-  const navigate = useNavigate();
+  const history = useHistory();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
   const canListBots = flags.listBots;
@@ -97,9 +97,9 @@ export function Bots() {
 
   const handleSelect = useCallback(
     (item: FlatBot) => {
-      navigate(cfg.getBotDetailsRoute(item.name));
+      history.push(cfg.getBotDetailsRoute(item.name));
     },
-    [navigate]
+    [history]
   );
 
   if (fetchAttempt.status === 'processing') {

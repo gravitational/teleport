@@ -87,9 +87,9 @@ func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
 	return linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
+		},
 		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",

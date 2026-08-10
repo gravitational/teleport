@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"slices"
 	"sort"
 	"testing"
 
@@ -601,7 +600,7 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 
 	// the first value for shell encountered while checking roles should be used, which means
 	// secondaryShell should never be the result here
-	require.Equal(t, expectedShell, hui.Info.GetShell())
+	require.Equal(t, expectedShell, hui.Shell)
 }
 
 func TestAccessCheckerDesktopGroups(t *testing.T) {
@@ -697,320 +696,6 @@ func TestAccessCheckerDesktopGroups(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondition(t *testing.T) {
-	t.Parallel()
-
-	const roleName = "allow-all-nodes"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	preconds, err := accessChecker.CheckConditionalAccess(
-		node,
-		AccessState{
-			MFARequired:         MFARequiredNever, // Simulate MFA is never required.
-			ReturnPreconditions: true,
-		},
-	)
-	require.NoError(t, err)
-	require.False(
-		t,
-		slices.ContainsFunc(
-			preconds,
-			func(p *decisionpb.Precondition) bool {
-				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-			},
-		),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to NOT be included", preconds,
-	)
-}
-
-// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckConditionalAccess_MFAVerifiedPreconditions(t *testing.T) {
-	t.Parallel()
-
-	const roleName = "allow-all-nodes"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	preconds, err := accessChecker.CheckConditionalAccess(
-		node,
-		AccessState{
-			MFARequired:         MFARequiredAlways, // MFA is always required.
-			MFAVerified:         true,              // MFA has been verified via legacy out-of-band MFA flow.
-			ReturnPreconditions: true,
-		},
-	)
-	require.NoError(t, err)
-	require.False(
-		t,
-		slices.ContainsFunc(
-			preconds,
-			func(p *decisionpb.Precondition) bool {
-				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-			},
-		),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to NOT be included", preconds,
-	)
-}
-
-func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_ReturnsMFAPrecondition(t *testing.T) {
-	t.Parallel()
-
-	const roleName = "allow-all-nodes"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	preconds, err := accessChecker.CheckConditionalAccess(
-		node,
-		AccessState{
-			MFARequired:         MFARequiredAlways, // Simulate MFA is always required.
-			MFAVerified:         false,             // MFA has not been verified yet.
-			ReturnPreconditions: true,
-		},
-	)
-	require.NoError(t, err)
-	require.True(
-		t,
-		slices.ContainsFunc(
-			preconds,
-			func(p *decisionpb.Precondition) bool {
-				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-			},
-		),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
-	)
-}
-
-// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_EnforceInBandMFA_ReturnsMFAPrecondition(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-	const roleName = "allow-all-nodes"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	preconds, err := accessChecker.CheckConditionalAccess(
-		node,
-		AccessState{
-			MFARequired:         MFARequiredAlways, // Simulate MFA is always required.
-			MFAVerified:         true,              // MFA has been verified via legacy out-of-band MFA flow.
-			ReturnPreconditions: true,
-		},
-	)
-	require.NoError(t, err)
-	require.True(
-		t,
-		slices.ContainsFunc(
-			preconds,
-			func(p *decisionpb.Precondition) bool {
-				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-			},
-		),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
-	)
-}
-
-func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsMFAPrecondition(t *testing.T) {
-	t.Parallel()
-
-	const roleName = "mfa-required"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-
-		r.SetOptions(types.RoleOptions{
-			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
-		})
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	preconds, err := accessChecker.CheckConditionalAccess(
-		node,
-		AccessState{
-			ReturnPreconditions: true,
-		},
-	)
-	require.NoError(t, err)
-	require.True(
-		t,
-		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		}),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
-	)
-}
-
-// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_ReturnsMFAPrecondition(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-	const roleName = "mfa-required"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-
-		r.SetOptions(types.RoleOptions{
-			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
-		})
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	preconds, err := accessChecker.CheckConditionalAccess(
-		node,
-		AccessState{
-			MFAVerified:         true, // Simulate MFA has been verified via legacy out-of-band MFA flow.
-			ReturnPreconditions: true,
-		},
-	)
-	require.NoError(t, err)
-	require.True(
-		t,
-		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		}),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
-	)
-}
-
-// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckAccess_ReadOnlyBypassWhenMFAForced(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-	const roleName = "mfa-required"
-
-	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
-		r.SetName(roleName)
-
-		r.SetOptions(types.RoleOptions{
-			RequireMFAType: types.RequireMFAType_SESSION,
-		})
-	}))
-
-	accessInfo := &AccessInfo{
-		Roles: []string{roleName},
-	}
-
-	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
-
-	srv, err := types.NewServer(
-		"test-server",
-		types.KindNode,
-		types.ServerSpecV2{},
-	)
-	require.NoError(t, err)
-
-	node := &serverStub{Server: srv}
-
-	err = accessChecker.CheckAccess(
-		node,
-		AccessState{
-			// Simulate a read-only access check that is being allowed to bypass MFA requirements even when the role
-			// requires MFA and the force in-band MFA env var is set. This is to allow users to perform read-only
-			// operations like listing nodes without being forced to complete MFA verification.
-			MFARequired:         MFARequiredPerRole,
-			MFAVerified:         true,
-			ReturnPreconditions: false,
-		},
-	)
-	require.NoError(t, err)
 }
 
 func TestSSHPortForwarding(t *testing.T) {
@@ -1231,21 +916,21 @@ func (serverStub) GetKind() string {
 func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	localCluster := "cluster"
 
-	noLabelsWI := workloadidentityv1pb.WorkloadIdentity_builder{
+	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
 		Kind: types.KindWorkloadIdentity,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "no-labels",
-		}.Build(),
-	}.Build()
-	fooLabeledWI := workloadidentityv1pb.WorkloadIdentity_builder{
+		},
+	}
+	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
 		Kind: types.KindWorkloadIdentity,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "foo-labeled",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	roleNoLabels := newRole(func(rv *types.RoleV6) {})
 	roleWildcard := newRole(func(rv *types.RoleV6) {
@@ -1321,6 +1006,96 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
+	const localCluster = "cluster"
+
+	tests := []struct {
+		info         *AccessInfo
+		name         string
+		resource     types.AppServerV3
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name: "matches kind and subkind",
+			info: &AccessInfo{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							Kind:        types.KindIdentityCenterAccount,
+							ClusterName: localCluster,
+							Name:        "aws-dev",
+						},
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindApp,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: require.NoError,
+		},
+		{
+			name: "unmatched subkind",
+			info: &AccessInfo{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							Kind:        types.KindIdentityCenterAccount,
+							ClusterName: localCluster,
+							Name:        "aws-dev",
+						},
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+		{
+			name: "unmatched kind",
+			info: &AccessInfo{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							Kind:        types.KindIdentityCenterAccount,
+							ClusterName: localCluster,
+							Name:        "aws-dev",
+						},
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindAppSession,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
+			tc.assertAccess(t, accessChecker.CheckAccess(
+				&tc.resource,
+				AccessState{MFARequired: MFARequiredNever},
+			))
+		})
+	}
+}
+
 func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 	roleEmptyTools := newRole(func(rv *types.RoleV6) {
 		rv.SetName("empty")
@@ -1392,78 +1167,6 @@ func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 				enumResult := accessChecker.EnumerateMCPTools(tt.mcpServer)
 				require.Equal(t, tt.result, enumResult)
 			})
-		})
-	}
-}
-
-func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
-	const localCluster = "cluster"
-
-	tests := []struct {
-		info         *AccessInfo
-		name         string
-		resource     types.AppServerV3
-		assertAccess require.ErrorAssertionFunc
-	}{
-		{
-			name: "matches kind and subkind",
-			info: &AccessInfo{
-				AllowedResourceAccessIDs: []types.ResourceAccessID{
-					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind:    types.KindApp,
-				SubKind: types.KindIdentityCenterAccount,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: require.NoError,
-		},
-		{
-			name: "unmatched subkind",
-			info: &AccessInfo{
-				AllowedResourceAccessIDs: []types.ResourceAccessID{
-					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind: types.KindApp,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "not in allowed resource IDs")
-			},
-		},
-		{
-			name: "unmatched kind",
-			info: &AccessInfo{
-				AllowedResourceAccessIDs: []types.ResourceAccessID{
-					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind:    types.KindAppSession,
-				SubKind: types.KindIdentityCenterAccount,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "not in allowed resource IDs")
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
-			tc.assertAccess(t, accessChecker.CheckAccess(
-				&tc.resource,
-				AccessState{MFARequired: MFARequiredNever},
-			))
 		})
 	}
 }

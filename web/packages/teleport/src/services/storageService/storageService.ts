@@ -48,7 +48,6 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SESSION_RECORDINGS_DISMISSED_CTA,
   KeysEnum.IDENTITY_SECURITY_RECOMMENDATIONS_UNIFIED_RESOURCES_CTA_SEEN,
   KeysEnum.DESKTOP_HIDPI,
-  KeysEnum.USE_LOGIN_SCOPE_PICKER,
 ];
 
 const RECENT_HISTORY_MAX_LENGTH = 10;
@@ -260,10 +259,6 @@ export const storageService = {
     window.localStorage.removeItem(KeysEnum.ACCESS_GRAPH_ENABLED);
   },
 
-  getAccessGraphIacEnabled(): boolean {
-    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_IAC_ENABLED, false);
-  },
-
   getAccessGraphSQLEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },
@@ -378,23 +373,5 @@ export const storageService = {
       return '';
     }
     return parsed.hash;
-  },
-
-  getUseLoginScopePicker(): boolean {
-    return this.getParsedJSONValue(KeysEnum.USE_LOGIN_SCOPE_PICKER, false);
-  },
-
-  // Returns true if the user has already picked a scope for this session or
-  // explicitly made the session unscoped. This allows us to tell the
-  // difference between a session that is "implicitly unscoped" (where the user
-  // has not yet interacted with the scope picker) and an "explicitly unscoped"
-  // one (where the user already made their choice). In both cases, the scope
-  // is an empty string, hence this additional flag.
-  getScopeSelected(): boolean {
-    return this.getParsedJSONValue(KeysEnum.SCOPE_SELECTED, false);
-  },
-
-  setScopeSelected(s: boolean) {
-    window.localStorage.setItem(KeysEnum.SCOPE_SELECTED, JSON.stringify(s));
   },
 };

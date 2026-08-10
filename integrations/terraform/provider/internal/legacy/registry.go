@@ -21,7 +21,6 @@ import "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 // DataSourceTypes returns all legacy Teleport data source types.
 func DataSourceTypes() map[string]tfsdk.DataSourceType {
 	return map[string]tfsdk.DataSourceType{
-		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
@@ -42,6 +41,8 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
+		"teleport_access_list":                dataSourceTeleportAccessListType{},
+		"teleport_access_list_member":         dataSourceTeleportMemberType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
@@ -51,8 +52,9 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
+		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
+		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
-		"teleport_classifier":                 dataSourceTeleportClassifierType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -68,7 +70,6 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 // ResourceTypes returns all legacy Teleport resource types.
 func ResourceTypes() map[string]tfsdk.ResourceType {
 	return map[string]tfsdk.ResourceType{
-		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
@@ -90,6 +91,8 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
+		"teleport_access_list":                resourceTeleportAccessListType{},
+		"teleport_access_list_member":         resourceTeleportMemberType{},
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
@@ -103,9 +106,10 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_classifier":                 resourceTeleportClassifierType{},
 		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
+		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
+		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
 		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
 	}

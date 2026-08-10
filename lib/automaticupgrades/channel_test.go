@@ -162,8 +162,8 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 		name                        string
 		channel                     *Channel
 		assertError                 require.ErrorAssertionFunc
-		expectedVersionGetterType   any
-		expectedCriticalTriggerType any
+		expectedVersionGetterType   interface{}
+		expectedCriticalTriggerType interface{}
 	}{
 		{
 			name:        "empty (invalid)",

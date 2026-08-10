@@ -241,7 +241,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						},
 					}
 				},
-				checkAuthErr: func(t require.TestingT, err error, i ...any) {
+				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
 					require.True(t, trace.IsAccessDenied(err))
 				},
@@ -270,7 +270,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						},
 					}
 				},
-				checkRegisterErr: func(t require.TestingT, err error, i ...any) {
+				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
 					require.True(t, trace.IsBadParameter(err))
 				},
@@ -568,7 +568,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
 		deviceName:  "saml",
 		authHandler: passkeyWebAuthnHandler,
-		checkErr: func(t require.TestingT, err error, _ ...any) {
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
 			assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
 		},
@@ -1032,16 +1032,16 @@ func TestCreateAppSession_routesByName(t *testing.T) {
 }
 
 func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.App: {Enabled: true},
 			},
 		},
-	}))
+	})
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 
 	user, _, err := authtest.CreateUserAndRole(authServer, "teleport-user", []string{"teleport-user"}, nil)
@@ -1207,11 +1207,18 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 }
 
 func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
 
-	testServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	testServer := newTestTLSServer(t)
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock := testServer.Clock()
 	clusterName := testServer.ClusterName()
 	authServer := testServer.Auth()
@@ -1484,11 +1491,13 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 // Test that device trust is required for a user registering their first MFA device.
 func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+	})
 
-	testServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	testServer := newTestTLSServer(t)
 
-	ctx := t.Context()
+	ctx := context.Background()
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
@@ -1610,9 +1619,13 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 }
 
 func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
+		TestFeatures:  modules.GetModules().Features(),
+	})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 	clock := srv.Clock()
 	userCertTTL := 12 * time.Hour
 	userCertExpires := clock.Now().Add(userCertTTL)
@@ -1929,7 +1942,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "the given webauthn session allows reuse, but reuse is not permitted in this context")
 				},
 			},
@@ -1950,61 +1963,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "can only request database certificates")
-				},
-			},
-		},
-		{
-			desc: "fail kube multi with wrong usage",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey:  tlsPub,
-					Username:      user.GetName(),
-					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:         proto.UserCertsRequest_App,
-					RequesterName: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
-					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
-					RouteToApp: proto.RouteToApp{
-						Name: "app-a",
-					},
-				},
-				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorContains(t, err, "can only request Kubernetes certificates")
-				},
-			},
-		},
-		{
-			desc: "kube multi with reuse",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey:      tlsPub,
-					Username:          user.GetName(),
-					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:             proto.UserCertsRequest_Kubernetes,
-					KubernetesCluster: "kube-a",
-					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
-					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
-				},
-				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-				authnHandler:  registered.webAuthHandler,
-				verifyErr:     require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
-					require.Equal(t, "kube-a", identity.KubernetesCluster)
 				},
 			},
 		},
@@ -2066,31 +2026,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
 					return resp
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
-				},
-			},
-		},
-		{
-			desc: "fail kube multi with reuse expired",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey:      tlsPub,
-					Username:          user.GetName(),
-					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:             proto.UserCertsRequest_Kubernetes,
-					KubernetesCluster: "kube-a",
-					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
-					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
-				},
-				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					resp := registered.webAuthHandler(t, challenge)
-					// Delete the session data to simulate that the session has expired.
-					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
-					return resp
-				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 				},
 			},
@@ -2240,42 +2176,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
-			desc: "kube multi with ttl limit disabled",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry should *not* be adjusted to single user cert TTL,
-					// since ttl limiting is disabled when requester is a local proxy.
-					// It *should* be adjusted to the user cert ttl though.
-					Expires:           clock.Now().Add(1000 * time.Hour),
-					Usage:             proto.UserCertsRequest_Kubernetes,
-					KubernetesCluster: "kube-a",
-					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
-					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
-				},
-				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-				authnHandler:  registered.webAuthHandler,
-				verifyErr:     require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-					require.Equal(t, userCertExpires, cert.NotAfter)
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
-					require.Equal(t, "kube-a", identity.KubernetesCluster)
-				},
-			},
-		},
-		{
 			desc: "app with ttl limit disabled",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -2388,7 +2288,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_All,
 					NodeName:     "node-a",
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "all purposes")
 				},
 			},
@@ -2409,7 +2309,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
 				},
 			},
@@ -2518,7 +2418,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
 				},
 			},
@@ -2673,7 +2573,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					SSHLogin: "role",
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2691,7 +2591,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					KubernetesCluster: "kube-b",
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2712,7 +2612,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2732,7 +2632,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2753,7 +2653,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
@@ -2818,12 +2718,14 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
-	t.Parallel()
+	testModules := modulestest.Modules{
+		TestBuildType:       modules.BuildEnterprise,
+		MockAttestationData: &keys.AttestationData{},
+	}
+	modulestest.SetTestModules(t, testModules)
 
-	ctx := t.Context()
-
-	testModules := modulestest.EnterpriseModules()
-	srv := newTestTLSServer(t, withModules(testModules))
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
 	// Register an SSH node.
 	node := &types.ServerV2{
@@ -2854,6 +2756,7 @@ func TestIsMFARequired(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, roleRequireMFAType := range requireMFATypes {
+				roleRequireMFAType := roleRequireMFAType
 				t.Run(fmt.Sprintf("role=%v", roleRequireMFAType.String()), func(t *testing.T) {
 					user, err := types.NewUser(roleRequireMFAType.String())
 					require.NoError(t, err)
@@ -2874,13 +2777,9 @@ func TestIsMFARequired(t *testing.T) {
 					mfaVerifiedByHardwareKey := role.GetPrivateKeyPolicy().MFAVerified() || authPref.GetPrivateKeyPolicy().MFAVerified()
 					if mfaVerifiedByHardwareKey {
 						// Set attestated key policy to the most restrictive hardware key MFA is required.
-						testModules.MockAttestationData = &keys.AttestationData{
-							PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
-						}
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 					} else {
-						testModules.MockAttestationData = &keys.AttestationData{
-							PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-						}
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKey
 					}
 
 					cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
@@ -3001,10 +2900,10 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 }
 
 func TestIsMFARequired_nodeMatch(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
 	// Register an SSH node.
 	node, err := types.NewServerWithLabels(uuid.NewString(), types.KindNode, types.ServerSpecV2{
@@ -3081,6 +2980,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -3353,7 +3253,8 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newTestTLSServer(t)
 
@@ -3425,11 +3326,11 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	err = stream.Send(ctx, proto.UpstreamInventoryHello_builder{
+	err = stream.Send(ctx, &proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
 		Services: types.SystemRoles(roles).StringSlice(),
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	select {
@@ -3463,9 +3364,9 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	case msg := <-stream.Recv():
 		ping, ok := msg.(*proto.DownstreamInventoryPing)
 		require.True(t, ok)
-		err = stream.Send(ctx, proto.UpstreamInventoryPong_builder{
-			ID: ping.GetID(),
-		}.Build())
+		err = stream.Send(ctx, &proto.UpstreamInventoryPong{
+			ID: ping.ID,
+		})
 		require.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for downstream ping")
@@ -4147,7 +4048,7 @@ func TestAppsCRUD(t *testing.T) {
 	}
 	require.Empty(t, iterOut)
 
-	_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
+	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
 		Kind: types.KindProxy,
 		Metadata: types.Metadata{
 			Name: "proxy",
@@ -4293,7 +4194,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.Empty(t, resources.Resources)
 
 	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
-		_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
+		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
 			Kind: types.KindProxy,
 			Metadata: types.Metadata{
 				Name: "proxy",
@@ -4601,7 +4502,7 @@ func TestServerInfoCRUD(t *testing.T) {
 		require.Empty(t, serverInfos)
 	}
 
-	requireResourcesEqual := func(t *testing.T, expected, actual any) {
+	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
 		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	}
 
@@ -4849,6 +4750,8 @@ func TestListResources(t *testing.T) {
 	}
 
 	for name, test := range testCases {
+		name := name
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -5191,7 +5094,7 @@ func TestExport(t *testing.T) {
 	}
 
 	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
-		return func(t require.TestingT, i any, i2 ...any) {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
 			require.NotEmpty(t, i)
 			resourceSpans, ok := i.([]*otlptracev1.ResourceSpans)
 			require.True(t, ok)
@@ -5354,11 +5257,11 @@ func TestExport(t *testing.T) {
 		{
 			name:     "failure to forward spans",
 			identity: authtest.TestBuiltin(types.RoleNode),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
 			},
-			uploadedAssertion: func(t require.TestingT, i any, i2 ...any) {
+			uploadedAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				require.Len(t, i, 1)
 			},
@@ -5382,6 +5285,7 @@ func TestExport(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -5428,7 +5332,13 @@ func TestExport(t *testing.T) {
 // request if the calling user does not have permissions to create or update
 // a SAML connector.
 func TestSAMLValidation(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
 
 	// minimal entity_descriptor to pass validation. not actually valid
 	const minimalEntityDescriptor = `
@@ -5475,16 +5385,10 @@ func TestSAMLValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			server := newTestTLSServer(t, withModules(&modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.SAML: {Enabled: true},
-					},
-				},
-			}))
+			server := newTestTLSServer(t)
 			// Create an http server to serve the entity descriptor url
 			entityServerCalled := false
 			entityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -5605,14 +5509,14 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 
 			if tc.hasAgentRollout {
 				rollout, err := autoupdate.NewAutoUpdateAgentRollout(
-					autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
+					&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
 						StartVersion:              "1.2.3",
 						TargetVersion:             "1.2.4",
 						Schedule:                  autoupdate.AgentsScheduleImmediate,
 						AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 						Strategy:                  autoupdate.AgentsStrategyTimeBased,
 						MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-					}.Build())
+					})
 				require.NoError(t, err)
 				_, err = grpc.AuthServer.CreateAutoUpdateAgentRollout(ctx, rollout)
 				require.NoError(t, err)
@@ -5663,7 +5567,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 }
 
 func TestRoleVersions(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+	t.Parallel()
 	srv := newTestTLSServer(t)
 
 	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
@@ -6017,133 +5921,29 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestApplicationServerHeartbeatLowercase asserts the gRPC handler
-// plumbs NormalizeAppServerForHeartbeat through to the backend write
-// for a legacy agent's mixed-case heartbeat.
-func TestApplicationServerHeartbeatLowercase(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	server := newTestTLSServer(t)
-	// The RoleApp identity's host ID must match the app server's HostID.
-	agent := authtest.TestServerID(types.RoleApp, "host-id")
-	client, err := server.NewClient(agent)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-
-	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
-		URI: "http://localhost:8080",
-	})
-	require.NoError(t, err)
-	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
-	require.NoError(t, err)
-
-	_, err = client.UpsertApplicationServer(ctx, appServer)
-	require.NoError(t, err)
-
-	stored, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, stored, 1)
-	require.Equal(t, "mixedcaseapp", stored[0].GetApp().GetName())
-	require.Equal(t, "mixedcaseapp", stored[0].GetName())
-}
-
-// TestServerUpsertApplicationServerValidates asserts
-// (*Server).UpsertApplicationServer validates rather than relying on
-// the gRPC handler. Moving validation up would re-open the
-// inventory-stream bypass.
-func TestServerUpsertApplicationServerValidates(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	srv := newTestTLSServer(t)
-
-	bad, err := types.NewAppV3(types.Metadata{Name: "MixedCase"}, types.AppSpecV3{
-		URI: "http://localhost:8080",
-	})
-	require.NoError(t, err)
-	badServer, err := types.NewAppServerV3FromApp(bad, "localhost", "host-id-direct")
-	require.NoError(t, err)
-
-	_, err = srv.Auth().UpsertApplicationServer(ctx, badServer)
-	require.ErrorContains(t, err, "must be a valid DNS name")
-}
-
-// TestApplicationAdminPathsRejectMixedCase asserts CreateApp,
-// UpdateApp, and UpsertApplicationServer all reject mixed-case names
-// for admin callers (the heartbeat-role normalize gate does not
-// apply).
-func TestApplicationAdminPathsRejectMixedCase(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	server := newTestTLSServer(t)
-	admin := authtest.TestAdmin()
-	client, err := server.NewClient(admin)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-
-	t.Run("CreateApp", func(t *testing.T) {
-		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		err = client.CreateApp(ctx, app)
-		require.ErrorContains(t, err, "must be a valid DNS name")
-	})
-
-	t.Run("UpdateApp", func(t *testing.T) {
-		seeded, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		require.NoError(t, client.CreateApp(ctx, seeded))
-
-		bad, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		err = client.UpdateApp(ctx, bad)
-		require.ErrorContains(t, err, "must be a valid DNS name")
-	})
-
-	t.Run("UpsertApplicationServer", func(t *testing.T) {
-		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id-admin")
-		require.NoError(t, err)
-		_, err = client.UpsertApplicationServer(ctx, appServer)
-		require.ErrorContains(t, err, "must be a valid DNS name")
-	})
-}
-
 func TestGetAccessGraphConfig(t *testing.T) {
-	t.Parallel()
-
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+			},
+		},
+	})
 	server := newTestTLSServer(t,
 		withAccessGraphConfig(auth.AccessGraphConfig{
 			Enabled: true,
 			CA:      []byte("ca"),
 			Address: "addr",
 		}),
-		withModules(&modulestest.Modules{
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.AccessGraph: {Enabled: true},
-				},
-			},
-		}),
 	)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
-	positiveResponse := clusterconfigpb.AccessGraphConfig_builder{
+	positiveResponse := &clusterconfigpb.AccessGraphConfig{
 		Enabled:           true,
 		Ca:                []byte("ca"),
 		Address:           "addr",
 		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-	}.Build()
+	}
 
 	tests := []struct {
 		desc      string
@@ -6198,10 +5998,10 @@ func TestGetVnetConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create newConfig.
-	newConfig, err := vnet.NewVnetConfig(vnetv1pb.VnetConfigSpec_builder{
+	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
 		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
-		CustomDnsZones: []*vnetv1pb.CustomDNSZone{vnetv1pb.CustomDNSZone_builder{Suffix: "example.com"}.Build()},
-	}.Build())
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{{Suffix: "example.com"}},
+	})
 	require.NoError(t, err)
 	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
 	require.NoError(t, err)
@@ -6223,7 +6023,8 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 func synctestCreateAuditStreamLimit(t *testing.T) {
 	const inflightLimit = 5
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
@@ -6276,7 +6077,7 @@ func synctestCreateAuditStreamLimit(t *testing.T) {
 }
 
 func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+	t.Parallel()
 
 	srv := newTestTLSServer(t)
 
@@ -7057,7 +6858,6 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 }
 
 func TestGRPCServingStatus(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 	defer srv.Close()
@@ -7083,16 +6883,16 @@ func TestGRPCServingStatus(t *testing.T) {
 }
 
 func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessGraph: {Enabled: true},
+				entitlements.Policy: {Enabled: true},
 			},
 		},
-	}))
+	})
+	ctx := t.Context()
+	testServer := newTestTLSServer(t)
 
 	// Create an user without access Graph access
 	userWithoutAccessGraph, _, err := authtest.CreateUserAndRole(testServer.Auth(), "non_ag_user", []string{"non_ag_user"}, nil)
@@ -7208,15 +7008,15 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 }
 
 func TestGenerateUserCertsScopedBot(t *testing.T) {
-	t.Parallel()
-	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessGraph: {Enabled: true},
+				entitlements.Policy: {Enabled: true},
 			},
 		},
-	}))
+	})
 	adminClient, err := testServer.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
@@ -7263,47 +7063,47 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := t.Context()
-			bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
-				Bot: machineidv1.Bot_builder{
+			bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+				Bot: &machineidv1.Bot{
 					Kind:    types.KindBot,
 					Version: types.V1,
-					Metadata: headerv1.Metadata_builder{
+					Metadata: &headerv1.Metadata{
 						Name: c.botName,
-					}.Build(),
+					},
 					Scope: c.scope,
 					Spec:  &machineidv1.BotSpec{},
-				}.Build(),
-			}.Build())
+				},
+			})
 			require.NoError(t, err)
 
 			ident := authtest.TestBot(c.botName, c.internal)
 			if c.scope != "" {
 				scopedSvc := adminClient.ScopedAccessServiceClient()
-				roleResp, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
-					Role: scopedaccessv1.ScopedRole_builder{
+				roleResp, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+					Role: &scopedaccessv1.ScopedRole{
 						Kind:    scopedaccess.KindScopedRole,
 						Version: types.V1,
-						Metadata: headerv1.Metadata_builder{
+						Metadata: &headerv1.Metadata{
 							Name: c.botName + "-role",
-						}.Build(),
+						},
 						Scope: c.scope,
-						Spec: scopedaccessv1.ScopedRoleSpec_builder{
+						Spec: &scopedaccessv1.ScopedRoleSpec{
 							AssignableScopes: []string{c.scope},
-						}.Build(),
-					}.Build(),
-				}.Build())
+						},
+					},
+				})
 				require.NoError(t, err)
 
-				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
-					Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+					Assignment: &scopedaccessv1.ScopedRoleAssignment{
 						Kind:    scopedaccess.KindScopedRoleAssignment,
 						SubKind: scopedaccess.SubKindDynamic,
 						Version: types.V1,
-						Metadata: headerv1.Metadata_builder{
+						Metadata: &headerv1.Metadata{
 							Name: uuid.NewString(),
-						}.Build(),
+						},
 						Scope: c.scope,
-						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 							Bot: scopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
 							Assignments: []*scopedaccessv1.Assignment{
 								scopedaccessv1.Assignment_builder{
@@ -7311,13 +7111,13 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 									Scope: c.scope,
 								}.Build(),
 							},
-						}.Build(),
-					}.Build(),
-				}.Build())
+						},
+					},
+				})
 				require.NoError(t, err)
 
 				waitForSRACache(t, testServer, sra)
-				ident = authtest.TestScopedBot(c.botName, c.scope, c.internal)
+				ident = authtest.TestScopedBot(t, scopes.QualifiedName{Scope: c.scope, Name: c.botName}, c.internal)
 			}
 
 			client, err := testServer.NewClient(ident)

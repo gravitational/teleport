@@ -19,6 +19,7 @@
 package shell
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ import (
 func TestGetShell(t *testing.T) {
 	shell, err := GetLoginShell("root")
 	require.NoError(t, err)
-	require.True(t, shell == "/bin/bash" || shell == "/bin/sh")
+	require.True(t, strings.HasSuffix(shell, "/bin/bash") || strings.HasSuffix(shell, "/bin/sh"))
 
 	_, err = GetLoginShell("non-existent-user")
 	require.ErrorContains(t, err, "unknown user")

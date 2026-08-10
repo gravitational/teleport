@@ -285,16 +285,16 @@ func (s *Server) handleTLSConnection(nc net.Conn) error {
 		addrFromProto(req.GetDestination()),
 	)
 	if err != nil {
-		_ = writeProto(tc, relaypeeringv1alpha.DialResponse_builder{
+		_ = writeProto(tc, &relaypeeringv1alpha.DialResponse{
 			Status: status.Convert(trail.ToGRPC(err)).Proto(),
-		}.Build())
+		})
 		return trace.Wrap(err)
 	}
 	defer lc.Close()
 
-	if err := writeProto(tc, relaypeeringv1alpha.DialResponse_builder{
+	if err := writeProto(tc, &relaypeeringv1alpha.DialResponse{
 		Status: nil, // i.e. status.Convert(error(nil)).Proto()
-	}.Build()); err != nil {
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 

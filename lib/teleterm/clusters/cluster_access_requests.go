@@ -113,38 +113,38 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authcl
 		request types.AccessRequest
 	)
 
-	resourceIDs := make([]types.ResourceID, 0, len(req.GetResourceIds()))
-	for _, resource := range req.GetResourceIds() {
+	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
+	for _, resource := range req.ResourceIds {
 		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName:     resource.GetClusterName(),
-			Name:            resource.GetName(),
-			Kind:            resource.GetKind(),
-			SubResourceName: resource.GetSubResourceName(),
+			ClusterName:     resource.ClusterName,
+			Name:            resource.Name,
+			Kind:            resource.Kind,
+			SubResourceName: resource.SubResourceName,
 		})
 	}
 
 	// Role-based and Resource-based AccessRequests are mutually exclusive.
-	if len(req.GetResourceIds()) > 0 {
-		request, err = services.NewAccessRequestWithResources(c.status.Username, req.GetRoles(), types.ResourceIDsToResourceAccessIDs(resourceIDs))
+	if len(req.ResourceIds) > 0 {
+		request, err = services.NewAccessRequestWithResources(c.status.Username, req.Roles, types.ResourceIDsToResourceAccessIDs(resourceIDs))
 	} else {
-		request, err = services.NewAccessRequest(c.status.Username, req.GetRoles()...)
+		request, err = services.NewAccessRequest(c.status.Username, req.Roles...)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	request.SetRequestReason(req.GetReason())
-	request.SetSuggestedReviewers(req.GetSuggestedReviewers())
-	request.SetDryRun(req.GetDryRun())
+	request.SetRequestReason(req.Reason)
+	request.SetSuggestedReviewers(req.SuggestedReviewers)
+	request.SetDryRun(req.DryRun)
 
-	if req.HasMaxDuration() {
-		request.SetMaxDuration(req.GetMaxDuration().AsTime())
+	if req.MaxDuration != nil {
+		request.SetMaxDuration(req.MaxDuration.AsTime())
 	}
-	if req.HasRequestTtl() {
-		request.SetExpiry(req.GetRequestTtl().AsTime())
+	if req.RequestTtl != nil {
+		request.SetExpiry(req.RequestTtl.AsTime())
 	}
 	if req.GetAssumeStartTime() != nil {
-		request.SetAssumeStartTime(req.GetAssumeStartTime().AsTime())
+		request.SetAssumeStartTime(req.AssumeStartTime.AsTime())
 	}
 
 	var reqOut types.AccessRequest
@@ -169,23 +169,23 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient authcl
 	)
 
 	var reviewState types.RequestState
-	if err := reviewState.Parse(req.GetState()); err != nil {
+	if err := reviewState.Parse(req.State); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
 		var assumeStartTimePtr *time.Time
-		if req.HasAssumeStartTime() {
-			assumeStartTime := req.GetAssumeStartTime().AsTime()
+		if req.AssumeStartTime != nil {
+			assumeStartTime := req.AssumeStartTime.AsTime()
 			assumeStartTimePtr = &assumeStartTime
 		}
 
 		reviewSubmission := types.AccessReviewSubmission{
-			RequestID: req.GetAccessRequestId(),
+			RequestID: req.AccessRequestId,
 			Review: types.AccessReview{
-				Roles:           req.GetRoles(),
+				Roles:           req.Roles,
 				ProposedState:   reviewState,
-				Reason:          req.GetReason(),
+				Reason:          req.Reason,
 				Created:         time.Now(),
 				AssumeStartTime: assumeStartTimePtr,
 			},
@@ -207,7 +207,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient authcl
 
 func (c *Cluster) DeleteAccessRequest(ctx context.Context, rootAuthClient authclient.ClientI, req *api.DeleteAccessRequestRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
-		return rootAuthClient.DeleteAccessRequest(ctx, req.GetAccessRequestId())
+		return rootAuthClient.DeleteAccessRequest(ctx, req.AccessRequestId)
 	})
 	return trace.Wrap(err)
 }
@@ -215,14 +215,14 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, rootAuthClient authcl
 func (c *Cluster) AssumeRole(ctx context.Context, rootClient *client.ClusterClient, req *api.AssumeRoleRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
-			AccessRequests:     req.GetAccessRequestIds(),
-			DropAccessRequests: req.GetDropRequestIds(),
+			AccessRequests:     req.AccessRequestIds,
+			DropAccessRequests: req.DropRequestIds,
 			RouteToCluster:     c.clusterClient.SiteName,
 		}
 
 		// keep existing access requests that aren't included in the droprequests
 		for _, reqID := range c.status.ActiveRequests {
-			if !slices.Contains(req.GetDropRequestIds(), reqID) {
+			if !slices.Contains(req.DropRequestIds, reqID) {
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
 		}

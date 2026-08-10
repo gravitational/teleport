@@ -93,7 +93,7 @@ func TestGetStaticHostUser(t *testing.T) {
 		{
 			name: "object does not exist",
 			key:  "dummy",
-			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...interface{}) bool {
 				return assert.True(t, trace.IsNotFound(err), msgAndArgs...)
 			},
 		},
@@ -135,15 +135,15 @@ func TestUpdateStaticHostUser(t *testing.T) {
 	key := getStaticHostUser(0).GetMetadata().GetName()
 	obj, err := service.GetStaticHostUser(ctx, key)
 	require.NoError(t, err)
-	obj.GetMetadata().SetExpires(expiry)
+	obj.Metadata.Expires = expiry
 
 	objUpdated, err := service.UpdateStaticHostUser(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
+	require.Equal(t, expiry, objUpdated.Metadata.Expires)
 
 	objFresh, err := service.GetStaticHostUser(ctx, key)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
+	require.Equal(t, expiry, objFresh.Metadata.Expires)
 }
 
 func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
@@ -156,7 +156,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getStaticHostUser(0)
-	obj.GetMetadata().SetExpires(expiry)
+	obj.Metadata.Expires = expiry
 
 	// Update should be rejected as the revision is missing.
 	_, err := service.UpdateStaticHostUser(ctx, obj)
@@ -178,7 +178,7 @@ func TestDeleteStaticHostUser(t *testing.T) {
 		{
 			name: "object does not exist",
 			key:  "dummy",
-			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.True(t, trace.IsNotFound(err), msgAndArgs...)
 			},
 		},
@@ -214,7 +214,7 @@ func TestListStaticHostUsers(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -238,7 +238,7 @@ func TestListStaticHostUsers(t *testing.T) {
 					}
 				}
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -264,25 +264,25 @@ func getStaticHostUserService(t *testing.T) services.StaticHostUser {
 
 func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
 	name := fmt.Sprintf("obj%v", index)
-	return userprovisioning.NewStaticHostUser(name, userprovisioningpb.StaticHostUserSpec_builder{
+	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
-			userprovisioningpb.Matcher_builder{
+			{
 				NodeLabels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "foo",
 						Values: []string{"bar"},
-					}.Build(),
+					},
 				},
 				Groups: []string{"foo", "bar"},
 				Uid:    1234,
 				Gid:    5678,
-			}.Build(),
+			},
 		},
-	}.Build())
+	})
 }
 
 func prepopulateStaticHostUsers(t *testing.T, service services.StaticHostUser, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateStaticHostUser(context.Background(), getStaticHostUser(i))
 		require.NoError(t, err)
 	}

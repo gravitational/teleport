@@ -103,11 +103,11 @@ func (rs *DatabaseObjectService) GetDatabaseObject(ctx context.Context, req *pb.
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	out, err := rs.backend.GetDatabaseObject(ctx, req.GetName())
+	out, err := rs.backend.GetDatabaseObject(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,14 +123,14 @@ func (rs *DatabaseObjectService) ListDatabaseObjects(
 		return nil, trace.Wrap(err)
 	}
 
-	out, next, err := rs.backend.ListDatabaseObjects(ctx, int(req.GetPageSize()), req.GetPageToken())
+	out, next, err := rs.backend.ListDatabaseObjects(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return pb.ListDatabaseObjectsResponse_builder{
+	return &pb.ListDatabaseObjectsResponse{
 		Objects:       out,
 		NextPageToken: next,
-	}.Build(), nil
+	}, nil
 }
 
 // CreateDatabaseObject creates a new DatabaseObject. It will return an error if the DatabaseObject already
@@ -143,12 +143,12 @@ func (rs *DatabaseObjectService) CreateDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 
-	err = databaseobject.ValidateDatabaseObject(req.GetObject())
+	err = databaseobject.ValidateDatabaseObject(req.Object)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating object")
 	}
 
-	out, err := rs.backend.CreateDatabaseObject(ctx, req.GetObject())
+	out, err := rs.backend.CreateDatabaseObject(ctx, req.Object)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,12 +180,12 @@ func (rs *DatabaseObjectService) UpdateDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 
-	err = databaseobject.ValidateDatabaseObject(req.GetObject())
+	err = databaseobject.ValidateDatabaseObject(req.Object)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating object")
 	}
 
-	object, err := rs.backend.UpdateDatabaseObject(ctx, req.GetObject())
+	object, err := rs.backend.UpdateDatabaseObject(ctx, req.Object)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ func (rs *DatabaseObjectService) DeleteDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 
-	err = rs.backend.DeleteDatabaseObject(ctx, req.GetName())
+	err = rs.backend.DeleteDatabaseObject(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

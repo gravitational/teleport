@@ -29,16 +29,13 @@ import (
 )
 
 // NewScopedTokenDataSourceType returns the scoped token data source type.
-func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
-	return tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
+func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
+	return tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier]{
+		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
-		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
-			path.Root("metadata").AtName("name"),
-			path.Root("scope"),
-		),
-		Kind: apitypes.KindScopedToken,
+		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
+		Kind:       apitypes.KindScopedToken,
 		Codec: tfdriver.DataSourceCodecFuncs[joiningv1.ScopedToken]{
 			SchemaFunc:  schemav1.GenSchemaScopedToken,
 			ToStateFunc: schemav1.CopyScopedTokenToTerraform,
@@ -47,9 +44,9 @@ func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToke
 }
 
 // NewScopedTokenResourceType returns the scoped token resource type.
-func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
-	return tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
+func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
+	return tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier]{
+		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindScopedToken,
@@ -59,13 +56,9 @@ func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, t
 			FromPlanFunc: schemav1.CopyScopedTokenFromTerraform,
 		},
 		Normalizer: tfdriver.ForceKind[joiningv1.ScopedToken](apitypes.KindScopedToken),
-		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(
-			path.Root("metadata").AtName("name"),
-			path.Root("scope"),
-			func(st *joiningv1.ScopedToken) (string, string) {
-				return st.GetMetadata().GetName(), st.GetScope()
-			},
-		),
+		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(st *joiningv1.ScopedToken) string {
+			return st.GetMetadata().GetName()
+		}),
 		ResourceRevision: func(st *joiningv1.ScopedToken) string {
 			return st.GetMetadata().GetRevision()
 		},

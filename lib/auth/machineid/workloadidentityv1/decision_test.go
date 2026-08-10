@@ -34,17 +34,17 @@ import (
 )
 
 func Test_decide(t *testing.T) {
-	standardAttrs := workloadidentityv1pb.Attrs_builder{
-		User: workloadidentityv1pb.UserAttrs_builder{
+	standardAttrs := &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
 			Name: "jeff",
-		}.Build(),
-		Workload: workloadidentityv1pb.WorkloadAttrs_builder{
-			Kubernetes: workloadidentityv1pb.WorkloadAttrsKubernetes_builder{
+		},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 				PodName:   "pod1",
 				Namespace: "default",
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 	tests := []struct {
 		name         string
 		wid          *workloadidentityv1pb.WorkloadIdentity
@@ -54,18 +54,18 @@ func Test_decide(t *testing.T) {
 	}{
 		{
 			name: "invalid dns name",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/valid",
-						X509: workloadidentityv1pb.WorkloadIdentitySPIFFEX509_builder{
+						X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 							DnsSans: []string{
 								"//imvalid;;",
 							},
-						}.Build(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
+						},
+					},
+				},
+			},
 			attrs:     standardAttrs,
 			wantIssue: false,
 			assertReason: func(t require.TestingT, err error, i ...any) {
@@ -83,19 +83,19 @@ func Test_decide(t *testing.T) {
 }
 
 func Test_evaluateRules(t *testing.T) {
-	attrs := workloadidentityv1pb.Attrs_builder{
-		User: workloadidentityv1pb.UserAttrs_builder{
+	attrs := &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
 			Name: "foo",
-		}.Build(),
-		Workload: workloadidentityv1pb.WorkloadAttrs_builder{
-			Kubernetes: workloadidentityv1pb.WorkloadAttrsKubernetes_builder{
+		},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 				PodName:   "pod1",
 				Namespace: "default",
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 
-	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...any) {
+	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no matching rule found")
 	}
@@ -108,278 +108,294 @@ func Test_evaluateRules(t *testing.T) {
 	}{
 		{
 			name: "no rules: pass",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 					Rules: &workloadidentityv1pb.WorkloadIdentityRules{},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			attrs:      attrs,
 			requireErr: require.NoError,
 		},
 		{
 			name: "eq: pass",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										Eq: workloadidentityv1pb.WorkloadIdentityConditionEq_builder{
-											Value: "foo",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: require.NoError,
 		},
 		{
 			name: "eq: fail",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										Eq: workloadidentityv1pb.WorkloadIdentityConditionEq_builder{
-											Value: "not-foo",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "not-foo",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
 		{
 			name: "not_eq: pass",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										NotEq: workloadidentityv1pb.WorkloadIdentityConditionNotEq_builder{
-											Value: "bar",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_NotEq{
+											NotEq: &workloadidentityv1pb.WorkloadIdentityConditionNotEq{
+												Value: "bar",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: require.NoError,
 		},
 		{
 			name: "not_eq: fail",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										NotEq: workloadidentityv1pb.WorkloadIdentityConditionNotEq_builder{
-											Value: "foo",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_NotEq{
+											NotEq: &workloadidentityv1pb.WorkloadIdentityConditionNotEq{
+												Value: "foo",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
 		{
 			name: "in: pass",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										In: workloadidentityv1pb.WorkloadIdentityConditionIn_builder{
-											Values: []string{"bar", "foo"},
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_In{
+											In: &workloadidentityv1pb.WorkloadIdentityConditionIn{
+												Values: []string{"bar", "foo"},
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: require.NoError,
 		},
 		{
 			name: "in: fail",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										In: workloadidentityv1pb.WorkloadIdentityConditionIn_builder{
-											Values: []string{"bar", "fizz"},
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_In{
+											In: &workloadidentityv1pb.WorkloadIdentityConditionIn{
+												Values: []string{"bar", "fizz"},
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
 		{
 			name: "not_in: pass",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										NotIn: workloadidentityv1pb.WorkloadIdentityConditionNotIn_builder{
-											Values: []string{"bar", "fizz"},
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_NotIn{
+											NotIn: &workloadidentityv1pb.WorkloadIdentityConditionNotIn{
+												Values: []string{"bar", "fizz"},
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: require.NoError,
 		},
 		{
 			name: "in: fail",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "user.name",
-										NotIn: workloadidentityv1pb.WorkloadIdentityConditionNotIn_builder{
-											Values: []string{"bar", "foo"},
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_NotIn{
+											NotIn: &workloadidentityv1pb.WorkloadIdentityConditionNotIn{
+												Values: []string{"bar", "foo"},
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
 		{
 			name: "expression: pass",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{Expression: `user.name == "foo"`}.Build(),
+							{Expression: `user.name == "foo"`},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: require.NoError,
 		},
 		{
 			name: "expression: fail",
-			wid: workloadidentityv1pb.WorkloadIdentity_builder{
+			wid: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{Expression: `user.name == "not-foo"`}.Build(),
+							{Expression: `user.name == "not-foo"`},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
@@ -394,16 +410,16 @@ func Test_evaluateRules(t *testing.T) {
 }
 
 func Test_decision_sigstore(t *testing.T) {
-	identity := workloadidentityv1pb.WorkloadIdentity_builder{
-		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-			Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+	identity := &workloadidentityv1pb.WorkloadIdentity{
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-					workloadidentityv1pb.WorkloadIdentityRule_builder{Expression: `sigstore.policy_satisfied("foo") && sigstore.policy_satisfied("bar")`}.Build(),
+					{Expression: `sigstore.policy_satisfied("foo") && sigstore.policy_satisfied("bar")`},
 				},
-			}.Build(),
+			},
 			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{},
-		}.Build(),
-	}.Build()
+		},
+	}
 	attrs := &workloadidentityv1pb.Attrs{}
 
 	t.Run("success", func(t *testing.T) {
@@ -514,19 +530,19 @@ func TestTemplateExtraClaims_Success(t *testing.T) {
 	err = json.Unmarshal([]byte(expectedOutputJSON), &expectedOutput)
 	require.NoError(t, err)
 
-	output, err := templateExtraClaims(input, workloadidentityv1pb.Attrs_builder{
-		User: workloadidentityv1pb.UserAttrs_builder{
+	output, err := templateExtraClaims(input, &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
 			Name: "Bobby",
-		}.Build(),
-		Workload: workloadidentityv1pb.WorkloadAttrs_builder{
-			Podman: workloadidentityv1pb.WorkloadAttrsPodman_builder{
-				Pod: workloadidentityv1pb.WorkloadAttrsPodmanPod_builder{
+		},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Podman: &workloadidentityv1pb.WorkloadAttrsPodman{
+				Pod: &workloadidentityv1pb.WorkloadAttrsPodmanPod{
 					Name:   "webserver",
 					Labels: map[string]string{"a": "a", "b": "b"},
-				}.Build(),
-			}.Build(),
-		}.Build(),
-	}.Build())
+				},
+			},
+		},
+	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expectedOutput, output, protocmp.Transform()))
 }

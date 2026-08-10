@@ -104,7 +104,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/shell"
@@ -695,11 +694,6 @@ type CLIConf struct {
 	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
 
-	// databaseMCPRegistryOverride overrides database access MCP servers
-	// registry. used in tests.
-	databaseMCPRegistryOverride dbmcp.Registry
-
-	kingpinApp *kingpin.Application
 	// ForkAfterAuthentication indicates that tsh should go into the background
 	// after authentication.
 	ForkAfterAuthentication bool
@@ -712,6 +706,12 @@ type CLIConf struct {
 
 	// checkManagedUpdates initiates check of managed update after client connects to cluster.
 	checkManagedUpdates bool
+
+	// databaseMCPRegistryOverride overrides database access MCP servers
+	// registry. used in tests.
+	databaseMCPRegistryOverride dbmcp.Registry
+
+	kingpinApp *kingpin.Application
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -972,7 +972,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
 	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
-	if !moduleCfg.IsFIPSBuild() {
+	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
 		app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments.").
 			Default("false").
@@ -1006,7 +1006,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO, mfaModeBrowser}
-	app.Flag("mfa-mode", "Preferred mode for MFA and Passwordless assertions.").
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v).", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
@@ -1046,8 +1046,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	ssh.Flag("request-mode", "Type of automatic Access Request to make.").Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
-	ssh.Flag("disable-access-request", "Disable automatic resource Access Requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
@@ -1127,7 +1127,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
-	appLogin.Flag("interactive", "Prompt for AWS Roles interactively (--aws-role takes precedence).").Short('T').Default("true").Envar(awsLoginInteractive).BoolVar(&cf.Interactive)
+	appLogin.Flag("interactive", "Prompt for AWS Roles interactively (--aws-role takes precedence).").Short('T').Envar(awsLoginInteractive).BoolVar(&cf.Interactive)
 	appLogin.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").SetValue(&cf.AppSQN)
@@ -1143,7 +1143,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
 	lsRecordings := recordings.Command("ls", "List recorded sessions.")
-	lsRecordings.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	lsRecordings.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	lsRecordings.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.FromUTC)
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
@@ -1176,7 +1176,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	proxyDB.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	proxyDB.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
+	proxyDB.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().SetValue(&cf.AppSQN)
@@ -1229,7 +1229,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbLogin.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	dbLogin.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
+	dbLogin.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -1256,7 +1256,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	dbConnect.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").Hidden().BoolVar(&cf.LocalProxyTunnel)
 	dbExec := db.Command("exec", "Execute database commands on target database services.")
 	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
@@ -1274,7 +1274,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	join.Flag("mode", "Mode of joining the session.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
+	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
 	join.Arg("session-id", "ID of the session to join.").Required().StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
@@ -1439,9 +1439,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	delegationCreateSession.Flag("bot", "Name of a bot allowed to use the delegation session. Repeat to allow multiple bots.").StringsVar(&cf.DelegationBots)
 	delegationCreateSession.Flag("session-ttl", "How long the delegation session should remain valid.").DurationVar(&cf.SessionTTL)
 
-	req := app.Command("request", "Manage Access Requests.").Alias("requests")
+	req := app.Command("request", "Manage access requests.").Alias("requests")
 
-	reqList := req.Command("ls", "List Access Requests.").Alias("list")
+	reqList := req.Command("ls", "List access requests.").Alias("list")
 	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user.").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer.").BoolVar(&cf.SuggestedRequests)
@@ -1454,18 +1454,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
-	reqCreate := req.Command("create", "Create a new Access Request.").Alias("new")
+	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested.").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting.").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers.").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	reqCreate.Flag("resource", "Resource ID to be requested.").StringsVar(&cf.RequestedResourceIDs)
-	reqCreate.Flag("request-ttl", "Expiration time for the Access Request.").DurationVar(&cf.RequestTTL)
+	reqCreate.Flag("request-ttl", "Expiration time for the access request.").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
-	reqReview := req.Command("review", "Review an Access Request.")
+	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval.").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial.").BoolVar(&cf.Deny)
@@ -1543,7 +1543,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one or more Access Requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one or more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -1580,6 +1580,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
+	svidCmd := newSVIDCommands(app)
 	workloadIdentityCmd := newWorkloadIdentityCommands(app)
 
 	vnetCommand := newVnetCommand(app)
@@ -1636,7 +1637,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app)
+	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(insertDoubleDashAfterKubectl(args))
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
@@ -2032,6 +2033,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
+	case svidCmd.issue.FullCommand():
+		err = svidCmd.issue.run(&cf)
 	case workloadIdentityCmd.issueX509.FullCommand():
 		err = workloadIdentityCmd.issueX509.run(&cf)
 	case workloadIdentityCmd.issueJWT.FullCommand():
@@ -2086,6 +2089,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = beamsCmd.scp.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case updateCommand.update.FullCommand():
+		err = updateCommand.update.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
 		err = mcpCmd.dbStart.run()
 	case mcpCmd.dbConfig.FullCommand():
@@ -2096,8 +2101,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.list.run()
 	case mcpCmd.config.FullCommand():
 		err = mcpCmd.config.run()
-	case updateCommand.update.FullCommand():
-		err = updateCommand.update.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -2117,7 +2120,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
 	var fipsErr *sshutils.FIPSError
-	if moduleCfg.IsFIPSBuild() && errors.As(err, &fipsErr) {
+	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
 		return trace.Wrap(err,
 			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
 		)
@@ -2345,9 +2348,9 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 // resolveScope determines the target scope based on the CLI flag state and the current
 // profile. It returns the desired scope string and whether the scope differs from the profile's
 // current scope. The 3 cases are:
-//  1. --scope not provided at all -> inherit profile.ScopePin.Scope, scopeChanged = false
-//  2. --scope="" -> explicitly descope, scopeChanged = (profile.ScopePin.Scope != "")
-//  3. --scope=/foo -> switch to /foo, scopeChanged = (profile.ScopePin.Scope != "/foo")
+//  1. --scope not provided at all -> inherit profile.Scope, scopeChanged = false
+//  2. --scope="" -> explicitly descope, scopeChanged = (profile.Scope != "")
+//  3. --scope=/foo -> switch to /foo, scopeChanged = (profile.Scope != "/foo")
 func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 	// --scope was explicitly set by the user
 	if cf.ScopeSetByUser {
@@ -2356,7 +2359,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 		currentScope := ""
 		if profile != nil && profile.ScopePin != nil {
-			currentScope = profile.ScopePin.GetScope()
+			currentScope = profile.ScopePin.Scope
 		}
 
 		return targetScope, targetScope != currentScope
@@ -2364,7 +2367,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 	// --scope not provided, inherit from profile.
 	if profile != nil && profile.ScopePin != nil {
-		return profile.ScopePin.GetScope(), false
+		return profile.ScopePin.Scope, false
 	}
 
 	return "", false
@@ -2786,7 +2789,7 @@ func onLogout(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
-	profiles := slices.Clone(available)
+	profiles := append([]*client.ProfileStatus{}, available...)
 	if active != nil {
 		profiles = append(profiles, active)
 	}
@@ -2968,9 +2971,6 @@ func onLogout(cf *CLIConf) error {
 // onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) error {
 	if cf.ListAll {
-		if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
-			return trace.BadParameter("--all cannot be specified with --headless/--auth=headless")
-		}
 		return trace.Wrap(listNodesAllClusters(cf))
 	}
 
@@ -3158,6 +3158,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 	)
 
 	for _, cluster := range clusters {
+		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -4341,7 +4342,7 @@ func retryWithAccessRequest(
 	}
 
 	// Print and log the original AccessDenied error.
-	fmt.Fprint(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 	if err := promptUserForAccessRequestDetails(cf, req); err != nil {
 		return trace.Wrap(err)
@@ -4708,26 +4709,17 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 
 func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if status := tc.ExitStatus(); status != 0 {
-		if err == nil {
-			return trace.Wrap(&common.ExitCodeError{Code: status})
-		}
-
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
-
-		// If we get a basic SSH exit error with no unexpected msg or signal,
-		// convert it to an exitCodeError and return.
-		var sshExitErr *ssh.ExitError
-		if errors.As(err, &sshExitErr) && sshExitErr.Msg() == "" && sshExitErr.Signal() == "" {
-			return trace.Wrap(&common.ExitCodeError{Code: status})
+		if err != nil {
+			// Print the error here so we don't lose it when returning the exitCodeError.
+			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
 		}
-
-		// For unexpected errors, print the error message before converting to an exitCodeError.
-		fmt.Fprint(tc.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&common.ExitCodeError{Code: status})
+		err = &common.ExitCodeError{Code: status}
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
 }
@@ -4745,7 +4737,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
-		fmt.Fprint(os.Stderr, utils.UserMessageFromError(err))
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
@@ -4769,7 +4761,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", trace.UserMessage(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
 			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}
@@ -4955,7 +4947,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(hostUser, "=") {
-			labels, err = parse.LabelSelectorSpec(hostUser)
+			labels, err = client.ParseLabelSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -4982,7 +4974,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// explicitly passed --labels overrides user@labels positional arg form.
 	if cf.Labels != "" {
-		labels, err = parse.LabelSelectorSpec(cf.Labels)
+		labels, err = client.ParseLabelSpec(cf.Labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6243,6 +6235,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 		errors   []error
 	)
 	for _, cluster := range clusters {
+		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -6493,6 +6486,7 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 	}
 
 	for _, p := range profiles {
+		p := p
 		proxyAddr := p.ProxyURL.Host
 		if p.IsExpired(time.Now()) {
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)

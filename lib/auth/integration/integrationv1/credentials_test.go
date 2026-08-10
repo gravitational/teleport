@@ -29,10 +29,13 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestExportIntegrationCertAuthorities(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")
 	ctx, localClient, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1")
 
@@ -52,9 +55,9 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 		Username: string(types.RoleAdmin),
 	})
 
-	_, err = resourceSvc.CreateIntegration(adminCtx, integrationpb.CreateIntegrationRequest_builder{Integration: githubIntegration}.Build())
+	_, err = resourceSvc.CreateIntegration(adminCtx, &integrationpb.CreateIntegrationRequest{Integration: githubIntegration})
 	require.NoError(t, err)
-	_, err = resourceSvc.CreateIntegration(adminCtx, integrationpb.CreateIntegrationRequest_builder{Integration: oidcIntegration}.Build())
+	_, err = resourceSvc.CreateIntegration(adminCtx, &integrationpb.CreateIntegrationRequest{Integration: oidcIntegration})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -71,11 +74,11 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, resp)
-				require.NotNil(t, resp.GetCertAuthorities())
-				require.Len(t, resp.GetCertAuthorities().SSH, 1)
-				require.NotNil(t, resp.GetCertAuthorities().SSH[0])
-				assert.NotEmpty(t, resp.GetCertAuthorities().SSH[0].PublicKey)
-				assert.Empty(t, resp.GetCertAuthorities().SSH[0].PrivateKey)
+				require.NotNil(t, resp.CertAuthorities)
+				require.Len(t, resp.CertAuthorities.SSH, 1)
+				require.NotNil(t, resp.CertAuthorities.SSH[0])
+				assert.NotEmpty(t, resp.CertAuthorities.SSH[0].PublicKey)
+				assert.Empty(t, resp.CertAuthorities.SSH[0].PrivateKey)
 			},
 		},
 		{
@@ -92,7 +95,7 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 		{
 			name:        "not allowed",
 			integration: githubIntegration.GetName(),
-			identity:    authorizerForAdminUser(t, ctx, types.RoleSpecV6{}, localClient),
+			identity:    authorizerForDummyUser(t, ctx, types.RoleSpecV6{}, localClient),
 			check: func(t *testing.T, resp *integrationpb.ExportIntegrationCertAuthoritiesResponse, err error) {
 				t.Helper()
 				require.Nil(t, resp)
@@ -115,9 +118,9 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resp, err := resourceSvc.ExportIntegrationCertAuthorities(test.identity, integrationpb.ExportIntegrationCertAuthoritiesRequest_builder{
+			resp, err := resourceSvc.ExportIntegrationCertAuthorities(test.identity, &integrationpb.ExportIntegrationCertAuthoritiesRequest{
 				Integration: test.integration,
-			}.Build())
+			})
 			test.check(t, resp, err)
 		})
 	}

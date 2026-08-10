@@ -207,16 +207,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
-			wantAttrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:namespace:my-service-account",
-				Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 					Name: "podA",
-				}.Build(),
-				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
 					Name:      "my-service-account",
 					Namespace: "namespace",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			kubeVersion:   &boundTokenKubernetesVersion,
 			expectedError: nil,
 			// As the cluster doesn't have default audiences, we should not set
@@ -249,16 +249,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
-			wantAttrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:namespace:my-service-account",
-				Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 					Name: "podA",
-				}.Build(),
-				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
 					Name:      "my-service-account",
 					Namespace: "namespace",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			kubeVersion:      &boundTokenKubernetesVersion,
 			expectedError:    nil,
 			clusterAudiences: defaultKubeAudiences,
@@ -288,13 +288,13 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
-			wantAttrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:namespace:my-service-account",
-				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
 					Name:      "my-service-account",
 					Namespace: "namespace",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			kubeVersion:   &legacyTokenKubernetesVersion,
 			expectedError: nil,
 		},
@@ -375,6 +375,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.token, func(t *testing.T) {
 			// Fill value of raw to avoid duplication in test table
 			if tt.wantResult != nil {
@@ -515,16 +516,16 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				ServiceAccountNamespace: "default",
 				ServiceAccountName:      "my-service-account",
 			},
-			wantAttrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:default:my-service-account",
-				Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 					Name: "my-pod-797959fdf-wptbj",
-				}.Build(),
-				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
+				},
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
 					Name:      "my-service-account",
 					Namespace: "default",
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 		{
 			name:   "missing bound pod claim",

@@ -23,8 +23,7 @@ import (
 	"os"
 	"path"
 	"strings"
-
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"text/template"
 
 	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
@@ -576,6 +575,52 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	accessList = payload{
+		Name:                   "AccessList",
+		TypeName:               "AccessList",
+		VarName:                "accessList",
+		GetMethod:              "AccessListClient().GetAccessList",
+		CreateMethod:           "AccessListClient().UpsertAccessList",
+		UpsertMethodArity:      2,
+		UpdateMethod:           "AccessListClient().UpsertAccessList",
+		DeleteMethod:           "AccessListClient().DeleteAccessList",
+		ID:                     "accessList.Header.Metadata.Name",
+		Kind:                   "access_list",
+		HasStaticID:            false,
+		SchemaPackage:          "schemav1",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
+		ProtoPackage:           "accesslist",
+		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
+		TerraformResourceType:  "teleport_access_list",
+		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
+		HasCheckAndSetDefaults: true,
+		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
+	}
+
+	accessListMember = payload{
+		Name:                   "Member",
+		TypeName:               "Member",
+		VarName:                "accessListMember",
+		GetMethod:              "AccessListClient().GetStaticAccessListMember",
+		CreateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		UpsertMethodArity:      2,
+		UpdateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		DeleteMethod:           "AccessListClient().DeleteStaticAccessListMember",
+		IDPrefix:               "accessListMember.Spec.AccessList",
+		ID:                     "accessListMember.Header.Metadata.Name",
+		Kind:                   "access_list_member",
+		HasStaticID:            false,
+		SchemaPackage:          "schemav1",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
+		ProtoPackage:           "accesslist",
+		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
+		TerraformResourceType:  "teleport_access_list_member",
+		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
+		ConvertToProtoFunc:     "ToMemberProto",
+		ConvertFromProtoFunc:   "FromMemberProto",
+		HasCheckAndSetDefaults: true,
+	}
+
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -832,32 +877,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	appAuthConfig = payload{
-		Name:                  "AppAuthConfig",
-		TypeName:              "AppAuthConfig",
-		VarName:               "appauthconfig",
-		GetMethod:             "GetAppAuthConfig",
-		CreateMethod:          "CreateAppAuthConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertAppAuthConfig",
-		DeleteMethod:          "DeleteAppAuthConfig",
-		ID:                    "appauthconfig.Metadata.Name",
-		Kind:                  "app_auth_config",
-		HasStaticID:           false,
-		ProtoPackage:          "appauthconfigv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/appauthconfig/v1",
-		TerraformResourceType: "teleport_app_auth_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAppAuthConfig",
-	}
-
 	inferenceModel = payload{
 		Name:                  "InferenceModel",
 		VarName:               "inferenceModel",
@@ -968,30 +987,86 @@ var (
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
 
-	classifier = payload{
-		Name:                  "Classifier",
-		VarName:               "classifier",
-		TypeName:              "Classifier",
-		GetMethod:             "SummarizerClient().GetClassifier",
-		CreateMethod:          "SummarizerClient().CreateClassifier",
-		UpdateMethod:          "SummarizerClient().UpsertClassifier",
+	scopedRole = payload{
+		Name:                  "ScopedRole",
+		TypeName:              "ScopedRole",
+		VarName:               "scopedRole",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRole",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRole",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRole",
 		UpsertMethodArity:     2,
-		DeleteMethod:          "SummarizerClient().DeleteClassifier",
-		ID:                    "classifier.Metadata.Name",
-		Kind:                  "classifier",
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRole",
+		ID:                    "scopedRole.Metadata.Name",
+		Kind:                  "scoped_role",
 		HasStaticID:           false,
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
-		ProtoPackage:          "summarizerv1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
 		SchemaPackage:         "schemav1",
-		TerraformResourceType: "teleport_classifier",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindClassifier",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1",
+		TerraformResourceType: "teleport_scoped_role",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRole",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Role",
+			GetRequest:           "GetScopedRoleRequest",
+			CreateRequest:        "CreateScopedRoleRequest",
+			UpdateRequest:        "UpsertScopedRoleRequest",
+			DeleteRequest:        "DeleteScopedRoleRequest",
+		},
+	}
+
+	scopedRoleAssignment = payload{
+		Name:                  "ScopedRoleAssignment",
+		TypeName:              "ScopedRoleAssignment",
+		VarName:               "scopedRoleAssignment",
+		GetMethod:             "ScopedAccessServiceClient().GetScopedRoleAssignment",
+		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRoleAssignment",
+		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRoleAssignment",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRoleAssignment",
+		ID:                    "scopedRoleAssignment.Metadata.Name",
+		Kind:                  "scoped_role_assignment",
+		HasStaticID:           false,
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
+		SchemaPackage:         "assignmentschemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/assignment/v1",
+		TerraformResourceType: "teleport_scoped_role_assignment",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRoleAssignment",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField: "Assignment",
+			GetRequest:           "GetScopedRoleAssignmentRequest",
+			CreateRequest:        "CreateScopedRoleAssignmentRequest",
+			UpdateRequest:        "UpsertScopedRoleAssignmentRequest",
+			DeleteRequest:        "DeleteScopedRoleAssignmentRequest",
+		},
+		DefaultSubKind: "\"dynamic\"",
+	}
+
+	scopedToken = payload{
+		Name:                  "ScopedToken",
+		TypeName:              "ScopedToken",
+		VarName:               "scopedToken",
+		GetMethod:             "GetScopedToken",
+		CreateMethod:          "CreateScopedToken",
+		UpdateMethod:          "UpsertScopedToken",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "DeleteScopedToken",
+		ID:                    "scopedToken.Metadata.Name",
+		Kind:                  "scoped_token",
+		WithSecrets:           "true",
+		HasStaticID:           false,
+		ProtoPackage:          "joiningv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
+		TerraformResourceType: "teleport_scoped_token",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindScopedToken",
 	}
 
 	workloadCluster = payload{
@@ -1164,6 +1239,10 @@ func genTFSchema() {
 	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(oktaImportRule, pluralResource)
 	generateDataSource(oktaImportRule, pluralDataSource)
+	generateResource(accessList, pluralResource)
+	generateDataSource(accessList, pluralDataSource)
+	generateResource(accessListMember, pluralResource)
+	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
@@ -1186,18 +1265,20 @@ func genTFSchema() {
 	generateDataSource(vnetConfig, singularDataSource)
 	generateResource(integration, pluralResource)
 	generateDataSource(integration, pluralDataSource)
-	generateResource(appAuthConfig, pluralResource)
-	generateDataSource(appAuthConfig, pluralDataSource)
 	generateResource(inferenceModel, pluralResource)
 	generateDataSource(inferenceModel, pluralDataSource)
 	generateResource(inferenceSecret, pluralResource)
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
-	generateResource(classifier, pluralResource)
-	generateDataSource(classifier, pluralDataSource)
+	generateResource(scopedRole, pluralResource)
+	generateDataSource(scopedRole, pluralDataSource)
+	generateResource(scopedRoleAssignment, pluralResource)
+	generateDataSource(scopedRoleAssignment, pluralDataSource)
 	generateResource(retrievalModel, singularResource)
 	generateDataSource(retrievalModel, singularDataSource)
+	generateResource(scopedToken, pluralResource)
+	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
 	generateResource(databaseObjectImportRule, pluralResource)

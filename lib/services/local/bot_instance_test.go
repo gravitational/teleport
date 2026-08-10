@@ -31,6 +31,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -44,15 +45,15 @@ import (
 func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *machineidv1.BotInstance {
 	id := uuid.New()
 
-	bi := machineidv1.BotInstance_builder{
+	bi := &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: machineidv1.BotInstanceSpec_builder{
+		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    botName,
 			InstanceId: id.String(),
-		}.Build(),
+		},
 		Status: &machineidv1.BotInstanceStatus{},
-	}.Build()
+	}
 
 	for _, fn := range fns {
 		fn(bi)
@@ -65,9 +66,9 @@ func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *mach
 // raise an error during an insert attempt.
 func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		bi.SetMetadata(headerv1.Metadata_builder{
+		bi.Metadata = &headerv1.Metadata{
 			Name: "invalid",
-		}.Build())
+		}
 	}
 }
 
@@ -75,11 +76,11 @@ func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 // the given timestamp.
 func withBotInstanceExpiry(expiry time.Time) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasMetadata() {
-			bi.SetMetadata(&headerv1.Metadata{})
+		if bi.Metadata == nil {
+			bi.Metadata = &headerv1.Metadata{}
 		}
 
-		bi.GetMetadata().SetExpires(timestamppb.New(expiry))
+		bi.Metadata.Expires = timestamppb.New(expiry)
 	}
 }
 
@@ -94,11 +95,11 @@ func withBotInstanceScope(scope string) func(*machineidv1.BotInstance) {
 // the given value.
 func withBotInstanceId(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasSpec() {
-			bi.SetSpec(&machineidv1.BotInstanceSpec{})
+		if bi.Spec == nil {
+			bi.Spec = &machineidv1.BotInstanceSpec{}
 		}
 
-		bi.GetSpec().SetInstanceId(value)
+		bi.Spec.InstanceId = value
 	}
 }
 
@@ -106,15 +107,15 @@ func withBotInstanceId(value string) func(*machineidv1.BotInstance) {
 // field of a bot instance to the given value.
 func withBotInstanceHeartbeatJoinMethod(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
 		}
 
-		if !bi.GetStatus().HasInitialHeartbeat() {
-			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
 		}
 
-		bi.GetStatus().GetInitialHeartbeat().SetJoinMethod(value)
+		bi.Status.InitialHeartbeat.JoinMethod = value
 	}
 }
 
@@ -122,15 +123,15 @@ func withBotInstanceHeartbeatJoinMethod(value string) func(*machineidv1.BotInsta
 // field of a bot instance to the given value.
 func withBotInstanceHeartbeatVersion(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
 		}
 
-		if !bi.GetStatus().HasInitialHeartbeat() {
-			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
 		}
 
-		bi.GetStatus().GetInitialHeartbeat().SetVersion(value)
+		bi.Status.InitialHeartbeat.Version = value
 	}
 }
 
@@ -138,33 +139,16 @@ func withBotInstanceHeartbeatVersion(value string) func(*machineidv1.BotInstance
 // field of a bot instance to the given value.
 func withBotInstanceHeartbeatHostname(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
 		}
 
-		if !bi.GetStatus().HasInitialHeartbeat() {
-			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
 		}
 
-		bi.GetStatus().GetInitialHeartbeat().SetHostname(value)
+		bi.Status.InitialHeartbeat.Hostname = value
 	}
-}
-
-// createInstances creates new bot instances for the named bot with random UUIDs
-func createInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, count int, fns ...func(*machineidv1.BotInstance)) map[string]struct{} {
-	t.Helper()
-
-	ids := map[string]struct{}{}
-
-	for range count {
-		bi := newBotInstance(botName, fns...)
-		_, err := service.CreateBotInstance(ctx, bi)
-		require.NoError(t, err)
-
-		ids[bi.GetSpec().GetInstanceId()] = struct{}{}
-	}
-
-	return ids
 }
 
 // listInstances fetches all instances from the BotInstanceService matching the botName filter
@@ -212,8 +196,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 				require.True(t, ok)
 
 				// .Metadata.Name should be overwritten with the correct value
-				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
-				require.Nil(t, bi.GetMetadata().GetExpires())
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Nil(t, bi.Metadata.Expires)
 			},
 		},
 		{
@@ -224,8 +208,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
-				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
-				require.Nil(t, bi.GetMetadata().GetExpires())
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Nil(t, bi.Metadata.Expires)
 			},
 		},
 		{
@@ -236,8 +220,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
-				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
-				require.Equal(t, clock.Now().Add(time.Hour).UTC(), bi.GetMetadata().GetExpires().AsTime())
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Equal(t, clock.Now().Add(time.Hour).UTC(), bi.Metadata.Expires.AsTime())
 			},
 		},
 	}
@@ -308,13 +292,16 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// metadata should be generated from the bot spec
-	require.Equal(t, bi.GetSpec().GetInstanceId(), patched.GetMetadata().GetName())
+	require.Equal(t, bi.Spec.InstanceId, patched.Metadata.Name)
 
 	// we should be able to retrieve a matching instance
-	bi2, err := service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build())
+	bi2, err := service.GetBotInstance(ctx, &machineidv1.GetBotInstanceRequest{
+		BotName:    bi.Spec.BotName,
+		InstanceId: bi.Spec.InstanceId,
+	})
 	require.NoError(t, err)
 	require.EqualExportedValues(t, patched, bi2)
-	require.Equal(t, bi.GetMetadata().GetName(), bi2.GetMetadata().GetName())
+	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
 
 	resources := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
 		FilterBotName: "example",
@@ -324,107 +311,326 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, patched, resources[0])
 
 	// append a heartbeat to a stored instance
-	heartbeat := machineidv1.BotInstanceStatusHeartbeat_builder{
+	heartbeat := &machineidv1.BotInstanceStatusHeartbeat{
 		Hostname: "foo",
-	}.Build()
+	}
 
 	patched, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Name: bi.GetSpec().GetBotName()},
-		InstanceID: bi.GetSpec().GetInstanceId(),
+		Bot:        scopes.QualifiedName{Name: bi.Spec.BotName},
+		InstanceID: bi.Spec.InstanceId,
 		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-			bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
+			bi.Status.LatestHeartbeats = append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.Status.LatestHeartbeats...)
 			return bi, nil
 		},
 	})
 	require.NoError(t, err)
 
-	require.Len(t, patched.GetStatus().GetLatestHeartbeats(), 1)
-	require.EqualExportedValues(t, heartbeat, patched.GetStatus().GetLatestHeartbeats()[0])
+	require.Len(t, patched.Status.LatestHeartbeats, 1)
+	require.EqualExportedValues(t, heartbeat, patched.Status.LatestHeartbeats[0])
 
 	// delete the stored instance
-	require.NoError(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build()))
+	req := &machineidv1.DeleteBotInstanceRequest{
+		BotName:    bi.Spec.BotName,
+		InstanceId: bi.Spec.InstanceId,
+	}
+	require.NoError(t, service.DeleteBotInstance(ctx, req))
 
 	// subsequent delete attempts should fail
-	require.Error(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build()))
+	require.Error(t, service.DeleteBotInstance(ctx, req))
 }
 
-// TestBotInstanceList verifies list and filtering by bot functionality for bot
-// instances.
+// listInstanceSpec declaratively describes a bot instance for
+// TestBotInstanceList cases.
+type listInstanceSpec struct {
+	scope, botName, id            string
+	hostname, version, joinMethod string
+}
+
+func (s listInstanceSpec) build() *machineidv1.BotInstance {
+	fns := []func(*machineidv1.BotInstance){withBotInstanceId(s.id)}
+	if s.scope != "" {
+		fns = append(fns, withBotInstanceScope(s.scope))
+	}
+	if s.hostname != "" {
+		fns = append(fns, withBotInstanceHeartbeatHostname(s.hostname))
+	}
+	if s.version != "" {
+		fns = append(fns, withBotInstanceHeartbeatVersion(s.version))
+	}
+	if s.joinMethod != "" {
+		fns = append(fns, withBotInstanceHeartbeatJoinMethod(s.joinMethod))
+	}
+	return newBotInstance(s.botName, fns...)
+}
+
+// TestBotInstanceList exercises ListBotInstances across filtering and sorting.
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-	clock := clockwork.NewFakeClock()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	aIds := createInstances(t, ctx, service, "a", 3)
-	bIds := createInstances(t, ctx, service, "b", 4)
-	// "a" is also the name of a scoped bot in /foo; its instances live in the
-	// scoped key range.
-	scopedAIds := createInstances(t, ctx, service, "a", 2, withBotInstanceScope("/foo"))
-
-	// listing "a" should only return known instances of the unscoped bot "a"
-	aInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-		FilterBotName: "a",
-	})
-	require.Len(t, aInstances, 3)
-	for _, ins := range aInstances {
-		require.Contains(t, aIds, ins.GetSpec().GetInstanceId())
+	botInstanceIDs := func(instances []*machineidv1.BotInstance) []string {
+		out := make([]string, 0, len(instances))
+		for _, b := range instances {
+			out = append(out, b.GetSpec().GetInstanceId())
+		}
+		return out
 	}
 
-	// listing "b" should only return known "b" instances
-	bInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-		FilterBotName: "b",
-	})
-	require.Len(t, bInstances, 4)
-	for _, ins := range bInstances {
-		require.Contains(t, bIds, ins.GetSpec().GetInstanceId())
+	// Two unscoped bots and a same-named scoped bot, to prove bot filters are
+	// scope-strict.
+	botFilterInstances := []listInstanceSpec{
+		{botName: "db", id: "db-a"},
+		{botName: "web", id: "web-a"},
+		{botName: "web", id: "web-b"},
+		{scope: "/prod", botName: "web", id: "web-c"},
 	}
 
-	// listing "a" in scope /foo should only return the scoped bot's instances
-	scopedAInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-		FilterBotName:  "a",
-		FilterBotScope: "/foo",
-	})
-	require.Len(t, scopedAInstances, 2)
-	for _, ins := range scopedAInstances {
-		require.Contains(t, scopedAIds, ins.GetSpec().GetInstanceId())
+	// Instance IDs name their scope, so expectations read as selected scopes.
+	scopeFilterInstances := []listInstanceSpec{
+		{botName: "u", id: "u"},
+		{scope: "/foo", botName: "f", id: "foo"},
+		{scope: "/foo/sub", botName: "fs", id: "foo-sub"},
+		{scope: "/bar", botName: "b", id: "bar"},
 	}
 
-	// a scope filter only qualifies a bot name, so listing scope /foo without a
-	// bot name is rejected rather than listing the whole scope
-	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		FilterBotScope: "/foo",
-	})
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
-
-	allIds := map[string]struct{}{}
-	for i := range aIds {
-		allIds[i] = struct{}{}
+	filterFnInstances := []listInstanceSpec{
+		{botName: "bot", id: "i-0"},
+		{botName: "bot", id: "i-1"},
+		{scope: "/s", botName: "bot", id: "i-2"},
+		{scope: "/s", botName: "bot", id: "i-3"},
 	}
-	for i := range bIds {
-		allIds[i] = struct{}{}
-	}
-	for i := range scopedAIds {
-		allIds[i] = struct{}{}
+	evenFilter := func(b *machineidv1.BotInstance) bool {
+		id := b.GetSpec().GetInstanceId()
+		return (id[len(id)-1]-'0')%2 == 0
 	}
 
-	// Listing with no bot filter should return all instances, unscoped and
-	// scoped.
-	allInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-		FilterBotName: "",
-	})
-	require.Len(t, allInstances, 9)
-	for _, ins := range allInstances {
-		require.Contains(t, allIds, ins.GetSpec().GetInstanceId())
+	tests := []struct {
+		name      string
+		instances []listInstanceSpec
+		opts      *services.ListBotInstancesRequestOptions
+		want      []string
+		wantErr   string
+	}{
+		{
+			name:      "no filter spans both ranges, unscoped instances first",
+			instances: botFilterInstances,
+			want:      []string{"db-a", "web-a", "web-b", "web-c"},
+		},
+		{
+			name:      "bot name filter matches only the unscoped bot of that name",
+			instances: botFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{FilterBotName: "web"},
+			want:      []string{"web-a", "web-b"},
+		},
+		{
+			name:      "bot name and scope filter matches the scoped bot",
+			instances: botFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{FilterBotName: "web", FilterBotScope: "/prod"},
+			want:      []string{"web-c"},
+		},
+		{
+			// A bot scope only qualifies a bot name; standalone scope
+			// selection is ScopeFilter.
+			name:      "bot scope without a bot name filter is rejected",
+			instances: botFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{FilterBotScope: "/prod"},
+			wantErr:   "bot scope filter requires a bot name filter",
+		},
+		{
+			name:      "scope filter mode ALL matches every scope",
+			instances: scopeFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()},
+			want:      []string{"u", "bar", "foo", "foo-sub"},
+		},
+		{
+			// Unscoped is orthogonal to every scoped value, not the root.
+			name:      "scope filter mode UNSCOPED matches only unscoped instances",
+			instances: scopeFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build()},
+			want:      []string{"u"},
+		},
+		{
+			name:      "scope filter mode EXACT matches one scope",
+			instances: scopeFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build()},
+			want:      []string{"foo"},
+		},
+		{
+			name:      "scope filter mode DESCENDANTS includes the scope and below",
+			instances: scopeFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build()},
+			want:      []string{"foo", "foo-sub"},
+		},
+		{
+			name:      "scope filter mode ANCESTORS includes the scope and above",
+			instances: scopeFilterInstances,
+			opts:      &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ANCESTORS, Scope: "/foo/sub"}.Build()},
+			want:      []string{"foo", "foo-sub"},
+		},
+		{
+			name:      "malformed scope filter is rejected",
+			instances: scopeFilterInstances,
+			// EXACT requires a scope.
+			opts:    &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build()},
+			wantErr: "requires a non-empty scope",
+		},
+		{
+			name:      "scope filter with a bot filter is rejected",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				FilterBotName:  "f",
+				FilterBotScope: "/foo",
+				ScopeFilter:    scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			},
+			wantErr: "scope filter cannot be combined with a bot name filter",
+		},
+		{
+			// Rejected even though it would be harmless as a predicate, so the
+			// rule is one a caller can state without knowing the modes.
+			name:      "scope filter mode ALL with a bot filter is rejected",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				FilterBotName:  "f",
+				FilterBotScope: "/foo",
+				ScopeFilter:    scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			},
+			wantErr: "scope filter cannot be combined with a bot name filter",
+		},
+		{
+			name: "search matches bot name",
+			instances: []listInstanceSpec{
+				{botName: "this-is-nicks-test-bot", id: "match"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "nick"},
+			want: []string{"match"},
+		},
+		{
+			name: "search matches instance id",
+			instances: []listInstanceSpec{
+				{botName: "test-bot", id: "cb2c3523-01f6-4258-966b-ace9f38f9862"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "CB2C352"},
+			want: []string{"cb2c3523-01f6-4258-966b-ace9f38f9862"},
+		},
+		{
+			name: "search matches join method",
+			instances: []listInstanceSpec{
+				{botName: "test-bot", id: "match", joinMethod: "kubernetes"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "uber"},
+			want: []string{"match"},
+		},
+		{
+			name: "search matches version",
+			instances: []listInstanceSpec{
+				{botName: "test-bot", id: "match", version: "1.0.0-dev-a2g3hd"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "1.0.0"},
+			want: []string{"match"},
+		},
+		{
+			name: "search matches version with v prefix",
+			instances: []listInstanceSpec{
+				{botName: "test-bot", id: "match", version: "1.0.0-dev-a2g3hd"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "v1.0.0"},
+			want: []string{"match"},
+		},
+		{
+			name: "search matches hostname",
+			instances: []listInstanceSpec{
+				{botName: "test-bot", id: "match", hostname: "svr-eu-tel-123-a"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "tel-123"},
+			want: []string{"match"},
+		},
+		{
+			name: "search matches across scopes",
+			instances: []listInstanceSpec{
+				{botName: "runner", id: "r1", hostname: "host-match"},
+				{scope: "/foo", botName: "runner", id: "r2", hostname: "host-match"},
+				{botName: "runner", id: "r3", hostname: "host-other"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterSearchTerm: "host-match"},
+			want: []string{"r1", "r2"},
+		},
+		{
+			name: "predicate query matches",
+			instances: []listInstanceSpec{
+				{botName: "test-bot", id: "match", hostname: "svr-eu-tel-123-a"},
+				{botName: "bot-not-matched", id: "decoy"},
+			},
+			opts: &services.ListBotInstancesRequestOptions{FilterQuery: `status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`},
+			want: []string{"match"},
+		},
+		{
+			name:    "unsupported sort field is rejected",
+			opts:    &services.ListBotInstancesRequestOptions{SortField: "test_field"},
+			wantErr: `unsupported sort, only bot_name field is supported, but got "test_field"`,
+		},
+		{
+			name:    "descending sort is rejected",
+			opts:    &services.ListBotInstancesRequestOptions{SortField: "bot_name", SortDesc: true},
+			wantErr: "unsupported sort, only ascending order is supported",
+		},
+		{
+			name:      "filter fn spans both ranges",
+			instances: filterFnInstances,
+			opts:      &services.ListBotInstancesRequestOptions{FilterFn: evenFilter},
+			want:      []string{"i-0", "i-2"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			clock := clockwork.NewFakeClock()
+
+			mem, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clock,
+			})
+			require.NoError(t, err)
+
+			service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+			require.NoError(t, err)
+
+			for _, s := range tc.instances {
+				_, err := service.CreateBotInstance(ctx, s.build())
+				require.NoError(t, err)
+			}
+
+			got, _, err := service.ListBotInstances(ctx, 0, "", tc.opts)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, botInstanceIDs(got))
+
+			// Page-size-1 pagination must agree with the single-page listing;
+			// cursors that don't line up across the unscoped/scoped ranges
+			// would skip entries.
+			var paged []*machineidv1.BotInstance
+			var token string
+			for {
+				page, next, err := service.ListBotInstances(ctx, 1, token, tc.opts)
+				require.NoError(t, err)
+				paged = append(paged, page...)
+				if next == "" {
+					break
+				}
+				token = next
+			}
+			require.Equal(t, tc.want, botInstanceIDs(paged))
+		})
 	}
 }
 
@@ -518,185 +724,4 @@ func TestBotInstanceScopedCoexistence(t *testing.T) {
 	require.NoError(t, service.DeleteAllBotInstances(ctx))
 	remaining := listInstances(t, ctx, service, nil)
 	require.Empty(t, remaining)
-}
-
-// TestBotInstanceListWithSearchFilter verifies list and filtering with search
-// term functionality for bot instances.
-func TestBotInstanceListWithSearchFilter(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-
-	tcs := []struct {
-		name       string
-		searchTerm string
-		instance   *machineidv1.BotInstance
-	}{
-		{
-			name:       "match on bot name",
-			searchTerm: "nick",
-			instance:   newBotInstance("this-is-nicks-test-bot"),
-		},
-		{
-			name:       "match on instance id",
-			searchTerm: "CB2C352",
-			instance:   newBotInstance("test-bot", withBotInstanceId("cb2c3523-01f6-4258-966b-ace9f38f9862")),
-		},
-		{
-			name:       "match on join method",
-			searchTerm: "uber",
-			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatJoinMethod("kubernetes")),
-		},
-		{
-			name:       "match on version",
-			searchTerm: "1.0.0",
-			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatVersion("1.0.0-dev-a2g3hd")),
-		},
-		{
-			name:       "match on version (with v)",
-			searchTerm: "v1.0.0",
-			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatVersion("1.0.0-dev-a2g3hd")),
-		},
-		{
-			name:       "match on hostname",
-			searchTerm: "tel-123",
-			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a")),
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := t.Context()
-
-			mem, err := memory.New(memory.Config{
-				Context: ctx,
-				Clock:   clock,
-			})
-			require.NoError(t, err)
-
-			service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
-			require.NoError(t, err)
-
-			_, err = service.CreateBotInstance(ctx, tc.instance)
-			require.NoError(t, err)
-			_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
-			require.NoError(t, err)
-
-			instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-				FilterSearchTerm: tc.searchTerm,
-			})
-
-			require.Len(t, instances, 1)
-			require.Equal(t, tc.instance.GetSpec().GetInstanceId(), instances[0].GetSpec().GetInstanceId())
-		})
-	}
-}
-
-// TestBotInstanceListWithQuery verifies list and filtering with query
-// functionality for bot instances.
-func TestBotInstanceListWithQuery(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-	ctx := t.Context()
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	instance := newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a"))
-	_, err = service.CreateBotInstance(ctx, instance)
-	require.NoError(t, err)
-	_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
-	require.NoError(t, err)
-
-	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-		FilterQuery: `status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`,
-	})
-
-	require.Len(t, instances, 1)
-	require.Equal(t, instance.GetSpec().GetInstanceId(), instances[0].GetSpec().GetInstanceId())
-}
-
-// TestBotInstanceListWithSort verifies sorting returns a not-implemented error.
-func TestBotInstanceListWithSort(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-
-	ctx := t.Context()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		SortField: "test_field",
-		SortDesc:  false,
-	})
-	require.Error(t, err)
-	require.ErrorContains(t, err, "unsupported sort, only bot_name field is supported, but got \"test_field\"")
-
-	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		SortField: "bot_name",
-		SortDesc:  true,
-	})
-	require.Error(t, err)
-	require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
-
-	_, _, err = service.ListBotInstances(ctx, 0, "", nil)
-	require.NoError(t, err)
-}
-
-func TestBotInstanceListWithFilterFn(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	clock := clockwork.NewFakeClock()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	// Create 10 instances for "test-bot".
-	var created []*machineidv1.BotInstance
-	for range 10 {
-		bi := newBotInstance("test-bot")
-		_, err := service.CreateBotInstance(ctx, bi)
-		require.NoError(t, err)
-		created = append(created, bi)
-	}
-
-	// Use a FilterFn that only accepts even-indexed instances.
-	accepted := map[string]struct{}{}
-	for i, bi := range created {
-		if i%2 == 0 {
-			accepted[bi.GetSpec().GetInstanceId()] = struct{}{}
-		}
-	}
-
-	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
-		FilterFn: func(bi *machineidv1.BotInstance) bool {
-			_, ok := accepted[bi.GetSpec().GetInstanceId()]
-			return ok
-		},
-	})
-
-	require.Len(t, instances, len(accepted))
-	for _, bi := range instances {
-		require.Contains(t, accepted, bi.GetSpec().GetInstanceId())
-	}
 }

@@ -24,9 +24,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/go-querystring/query"
 	"github.com/gravitational/trace"
@@ -49,13 +49,13 @@ const (
 )
 
 var incidentBodyTemplate = template.Must(template.New("incident body").Parse(
-	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.CreatedTime}}.
+	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
 {{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
 {{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
 `,
 ))
 var reviewNoteTemplate = template.Must(template.New("review note").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -411,12 +411,12 @@ func (p Pagerduty) buildIncidentBody(reqID string, reqData RequestData) (string,
 	var builder strings.Builder
 	err := incidentBodyTemplate.Execute(&builder, struct {
 		ID          string
-		CreatedTime string
+		TimeFormat  string
 		RequestLink string
 		RequestData
 	}{
 		reqID,
-		reqData.Created.Format(time.RFC822),
+		time.RFC822,
 		requestLink,
 		reqData,
 	})
@@ -431,11 +431,11 @@ func (p Pagerduty) buildReviewNoteBody(review types.AccessReview) (string, error
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
 		ProposedState string
-		CreatedTime   string
+		TimeFormat    string
 	}{
 		review,
 		review.ProposedState.String(),
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

@@ -37,10 +37,10 @@ type botClient struct {
 }
 
 // Get gets the Teleport bot of a given name
-func (l botClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*machineidv1.Bot, error) {
+func (l botClient) Get(ctx context.Context, name string) (*machineidv1.Bot, error) {
 	resp, err := l.teleportClient.
 		BotServiceClient().
-		GetBot(ctx, machineidv1.GetBotRequest_builder{BotName: key.Name}.Build())
+		GetBot(ctx, &machineidv1.GetBotRequest{BotName: name})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -51,7 +51,7 @@ func (l botClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*machi
 func (l botClient) Create(ctx context.Context, resource *machineidv1.Bot) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		CreateBot(ctx, machineidv1.CreateBotRequest_builder{Bot: resource}.Build())
+		CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: resource})
 	return trace.Wrap(err)
 }
 
@@ -59,15 +59,15 @@ func (l botClient) Create(ctx context.Context, resource *machineidv1.Bot) error 
 func (l botClient) Update(ctx context.Context, resource *machineidv1.Bot) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		UpsertBot(ctx, machineidv1.UpsertBotRequest_builder{Bot: resource}.Build())
+		UpsertBot(ctx, &machineidv1.UpsertBotRequest{Bot: resource})
 	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport bot
-func (l botClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+func (l botClient) Delete(ctx context.Context, name string) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		DeleteBot(ctx, machineidv1.DeleteBotRequest_builder{BotName: key.Name}.Build())
+		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: name})
 	return trace.Wrap(err)
 }
 
@@ -83,9 +83,6 @@ func NewBotV1Reconciler(client kclient.Client, tClient *client.Client) (controll
 	](
 		client,
 		botClient,
-		reconcilers.Config{
-			Scoped: true,
-		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

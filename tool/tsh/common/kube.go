@@ -730,7 +730,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
+	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
 	k, err := tc.LocalAgent().GetKeyRing(c.teleportCluster, client.WithKubeCerts{})
 	span.End()
@@ -741,14 +741,14 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(ctx, "tsh.kubeCredentials/KubeX509Cert")
+		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
 		crt, err := k.KubeX509Cert(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(ctx, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
 
 			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
@@ -756,7 +756,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		// a new one.
 	}
 
-	logger.DebugContext(ctx, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+	logger.DebugContext(cf.Context, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
 	var unlockKubeCred func(bool)
 	deleteKubeCredsLock := false
 	defer func() {
@@ -765,7 +765,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 	}()
 
-	ctx, span = tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
+	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(
 		ctx,
 		tc,
@@ -803,7 +803,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if proxy == "" {
 					proxy = tc.WebProxyAddr
 				}
-				unlockKubeCred, err = takeKubeCredLock(ctx, cf.HomePath, proxy, lockTimeout)
+				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),
@@ -1118,6 +1118,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		errors   []error
 	)
 	for _, cluster := range clusters {
+		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -1256,7 +1257,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
 	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&c.disableAccessRequest)
+	c.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&c.disableAccessRequest)
 
 	return c
 }

@@ -40,6 +40,8 @@ import (
 // identityAccessPath pins the AG path so a generated-client drift fails the test.
 const identityAccessPath = accessGraphAPIPath + "graph/access/v1"
 
+func ptr[T any](v T) *T { return &v }
+
 func TestBuildAccessReviewOutput(t *testing.T) {
 	idID := uuid.New()
 	resID := uuid.New()
@@ -48,10 +50,10 @@ func TestBuildAccessReviewOutput(t *testing.T) {
 	lastAccess := time.Date(2026, 6, 12, 9, 0, 0, 0, time.UTC)
 
 	nodes := []accessgraph.IdentityAccessNode{
-		{Id: idID, Name: "alice@corp", Kind: "identity", SubKind: new("user")},
-		{Id: resID, Name: "prod-db", Kind: "resource", SubKind: new("db"), Alias: new("Production DB")},
-		{Id: grStanding, Name: "admins", Kind: "identity_group", SubKind: new("role")},
-		{Id: grRequest, Name: "oncall", Kind: "identity_group", SubKind: new("access_request"), Temporary: new(true)},
+		{Id: idID, Name: "alice@corp", Kind: "identity", SubKind: ptr("user")},
+		{Id: resID, Name: "prod-db", Kind: "resource", SubKind: ptr("db"), Alias: ptr("Production DB")},
+		{Id: grStanding, Name: "admins", Kind: "identity_group", SubKind: ptr("role")},
+		{Id: grRequest, Name: "oncall", Kind: "identity_group", SubKind: ptr("access_request"), Temporary: ptr(true)},
 	}
 	resp := &accessgraph.IdentityAccessResponse{
 		Nodes: nodes,
@@ -61,7 +63,7 @@ func TestBuildAccessReviewOutput(t *testing.T) {
 				Resource: resID,
 				AccessInfo: accessgraph.IdentityAccessDecision{
 					Level:         accessgraph.IdentityAccessDecisionLevelStanding,
-					Temporary:     new(true),
+					Temporary:     ptr(true),
 					GrantorCounts: accessgraph.IdentityAccessGrantorCounts{Standing: 1, Request: 1},
 					Grantors: []accessgraph.IdentityAccessGrantor{
 						{Id: grRequest, Level: accessgraph.IdentityAccessGrantorLevelRequest},
@@ -357,8 +359,8 @@ func TestFetchIdentityAccess(t *testing.T) {
 	t.Run("walks the cursor across pages and dedups nodes", func(t *testing.T) {
 		shared := accessgraph.IdentityAccessNode{Id: uuid.New(), Name: "shared", Kind: "identity"}
 		h, iters := accessPageHandler(t, []accessgraph.IdentityAccessResponse{
-			{Data: []accessgraph.IdentityAccessRow{row()}, Nodes: []accessgraph.IdentityAccessNode{shared}, NextCursor: new("c1")},
-			{Data: []accessgraph.IdentityAccessRow{row()}, Nodes: []accessgraph.IdentityAccessNode{shared}, NextCursor: new("c2")},
+			{Data: []accessgraph.IdentityAccessRow{row()}, Nodes: []accessgraph.IdentityAccessNode{shared}, NextCursor: ptr("c1")},
+			{Data: []accessgraph.IdentityAccessRow{row()}, Nodes: []accessgraph.IdentityAccessNode{shared}, NextCursor: ptr("c2")},
 			{Data: []accessgraph.IdentityAccessRow{row()}},
 		})
 		c := newAccessGraphTestClient(t, h)
@@ -372,7 +374,7 @@ func TestFetchIdentityAccess(t *testing.T) {
 
 	t.Run("truncates at maxResults", func(t *testing.T) {
 		h, _ := accessPageHandler(t, []accessgraph.IdentityAccessResponse{
-			{Data: []accessgraph.IdentityAccessRow{row(), row(), row()}, NextCursor: new("more")},
+			{Data: []accessgraph.IdentityAccessRow{row(), row(), row()}, NextCursor: ptr("more")},
 		})
 		c := newAccessGraphTestClient(t, h)
 		resp, truncated, err := fetchIdentityAccess(context.Background(), c, baseParams, 2)
@@ -383,8 +385,8 @@ func TestFetchIdentityAccess(t *testing.T) {
 
 	t.Run("non-advancing cursor stops pagination", func(t *testing.T) {
 		h, _ := accessPageHandler(t, []accessgraph.IdentityAccessResponse{
-			{Data: []accessgraph.IdentityAccessRow{row()}, NextCursor: new("stuck")},
-			{Data: []accessgraph.IdentityAccessRow{row()}, NextCursor: new("stuck")},
+			{Data: []accessgraph.IdentityAccessRow{row()}, NextCursor: ptr("stuck")},
+			{Data: []accessgraph.IdentityAccessRow{row()}, NextCursor: ptr("stuck")},
 		})
 		c := newAccessGraphTestClient(t, h)
 		resp, truncated, err := fetchIdentityAccess(context.Background(), c, baseParams, 100)
@@ -395,7 +397,7 @@ func TestFetchIdentityAccess(t *testing.T) {
 
 	t.Run("iac_error propagated", func(t *testing.T) {
 		h, _ := accessPageHandler(t, []accessgraph.IdentityAccessResponse{
-			{Data: []accessgraph.IdentityAccessRow{row()}, IacError: new("activity center down")},
+			{Data: []accessgraph.IdentityAccessRow{row()}, IacError: ptr("activity center down")},
 		})
 		c := newAccessGraphTestClient(t, h)
 		resp, _, err := fetchIdentityAccess(context.Background(), c, baseParams, 100)
@@ -519,14 +521,14 @@ func TestAccessReviewSurfacesWarnings(t *testing.T) {
 		args := base
 		args.limit = 1
 		out := run(t, []accessgraph.IdentityAccessResponse{
-			{Data: []accessgraph.IdentityAccessRow{{Identity: uuid.New()}, {Identity: uuid.New()}}, NextCursor: new("more")},
+			{Data: []accessgraph.IdentityAccessRow{{Identity: uuid.New()}, {Identity: uuid.New()}}, NextCursor: ptr("more")},
 		}, args)
 		require.Contains(t, out, "truncated at 1 identities")
 	})
 
 	t.Run("iac_error is a note and hides activity columns", func(t *testing.T) {
 		out := run(t, []accessgraph.IdentityAccessResponse{
-			{Data: []accessgraph.IdentityAccessRow{{Identity: uuid.New()}}, IacError: new("activity center down")},
+			{Data: []accessgraph.IdentityAccessRow{{Identity: uuid.New()}}, IacError: ptr("activity center down")},
 		}, base)
 		// The backend message surfaces verbatim under a "Note:" prefix, not a "Warning:".
 		require.Contains(t, out, "Note: activity center down")

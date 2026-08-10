@@ -214,72 +214,11 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 	require.NoError(t, stream.Complete(ctx))
 }
 
-// makeBodyChunkEvent builds an AppSessionHTTPResponseBodyChunk event carrying
-// dataSize bytes of recognizable, non-repeating-block data so that a
-// round-tripped event can be checked for byte-for-byte equality.
-func makeBodyChunkEvent(dataSize int) *apievents.AppSessionHTTPResponseBodyChunk {
-	data := make([]byte, dataSize)
-	for i := range data {
-		data[i] = byte(i % 251)
-	}
-	return &apievents.AppSessionHTTPResponseBodyChunk{
-		Metadata: apievents.Metadata{
-			Type:  events.AppSessionHTTPResponseBodyChunkEvent,
-			Code:  events.AppSessionHTTPResponseBodyChunkCode,
-			Index: 0,
-			Time:  time.Now().UTC(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: "1",
-		},
-		RequestId:  "req-1",
-		ChunkIndex: 0,
-		IsLast:     true,
-		Data:       data,
-	}
-}
-
-// TestProtoStreamDefaultCapTrimsLargeEvent documents that a streamer trims
-// large events down to the 64KB cap (constants.MaxProtoMessageSizeBytes).
-func TestProtoStreamDefaultCapTrimsLargeEvent(t *testing.T) {
-	ctx := context.Background()
-	uploader := eventstest.NewMemoryUploader()
-
-	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: uploader,
-	})
-	require.NoError(t, err)
-
-	sid := session.ID("default-cap-session")
-	stream, err := streamer.CreateAuditStream(ctx, sid)
-	require.NoError(t, err)
-
-	const dataSize = 200 * 1024 // 200KB, > default 64KB cap
-	event := makeBodyChunkEvent(dataSize)
-
-	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
-	require.NoError(t, stream.Complete(ctx))
-
-	rc, err := uploader.StreamSessionRecording(ctx, sid)
-	require.NoError(t, err)
-	defer rc.Close()
-
-	reader := events.NewProtoReader(rc, nil)
-	defer reader.Close()
-
-	got, err := reader.Read(ctx)
-	require.NoError(t, err)
-
-	chunk, ok := got.(*apievents.AppSessionHTTPResponseBodyChunk)
-	require.True(t, ok, "expected *apievents.AppSessionHTTPResponseBodyChunk, got %T", got)
-	require.Less(t, len(chunk.Data), dataSize, "data should have been trimmed down from the original size")
-	require.LessOrEqual(t, chunk.Size(), constants.MaxProtoMessageSizeBytes, "trimmed event must fit within the default cap")
-}
-
 // TestReadCorruptedRecording tests that the streamer can successfully decode the kind of corrupted
 // recordings that some older bugged versions of teleport might end up producing when under heavy load/throttling.
 func TestReadCorruptedRecording(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	f, err := os.Open("testdata/corrupted-session")
 	require.NoError(t, err)
@@ -293,147 +232,6 @@ func TestReadCorruptedRecording(t *testing.T) {
 
 	// verify that the expected number of events are extracted
 	require.Len(t, events, 12)
-}
-
-func TestPartHeader(t *testing.T) {
-	cases := []struct {
-		name               string
-		partHeader         events.PartHeader
-		expectedErr        error
-		expectedPartHeader *events.PartHeader // if different than starting part
-	}{
-		{
-			name: "v1 part header",
-			partHeader: events.PartHeader{
-				ProtoVersion: events.ProtoStreamV1,
-				PartSize:     1234,
-				PaddingSize:  4321,
-				Flags:        events.ProtoStreamFlagEncrypted,
-			},
-			expectedErr: nil,
-			expectedPartHeader: &events.PartHeader{
-				ProtoVersion: events.ProtoStreamV1,
-				PartSize:     1234,
-				PaddingSize:  4321,
-				// no flags
-			},
-		},
-		{
-			name: "v2 part header encrypted",
-			partHeader: events.PartHeader{
-				ProtoVersion: events.ProtoStreamV2,
-				PartSize:     1234,
-				PaddingSize:  4321,
-				Flags:        events.ProtoStreamFlagEncrypted,
-			},
-			expectedErr:        nil,
-			expectedPartHeader: nil,
-		},
-		{
-			name: "v2 part header unencrypted",
-			partHeader: events.PartHeader{
-				ProtoVersion: events.ProtoStreamV2,
-				PartSize:     1234,
-				PaddingSize:  4321,
-			},
-			expectedErr:        nil,
-			expectedPartHeader: nil,
-		},
-		{
-			name: "invalid version",
-			partHeader: events.PartHeader{
-				ProtoVersion: 3,
-				PartSize:     1234,
-				PaddingSize:  4321,
-				Flags:        events.ProtoStreamFlagEncrypted,
-			},
-			expectedErr:        trace.BadParameter("unsupported protocol version %v", 3),
-			expectedPartHeader: nil,
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			buf := bytes.NewBuffer(c.partHeader.Bytes())
-			switch c.partHeader.ProtoVersion {
-			case events.ProtoStreamV1:
-				require.Equal(t, events.ProtoStreamV1PartHeaderSize, buf.Len())
-			case events.ProtoStreamV2:
-				require.Equal(t, events.ProtoStreamV2PartHeaderSize, buf.Len())
-			}
-
-			header, err := events.ParsePartHeader(buf)
-			if c.expectedErr != nil {
-				require.ErrorIs(t, err, c.expectedErr)
-				return
-			}
-			expected := c.partHeader
-			if c.expectedPartHeader != nil {
-				expected = *c.expectedPartHeader
-			}
-			require.Equal(t, expected, header)
-		})
-	}
-}
-
-func TestEncryptedRecordingIO(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-
-	uploader := eventstest.NewMemoryUploader()
-	encryptedIO := &fakeEncryptedIO{}
-	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader:  uploader,
-		Encrypter: encryptedIO,
-	})
-	require.NoError(t, err)
-
-	const eventCount = 10
-	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: eventCount})
-	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
-	stream, err := streamer.CreateAuditStream(ctx, sid)
-	require.NoError(t, err)
-
-	preparer, err := events.NewPreparer(events.PreparerConfig{
-		SessionID:   sid,
-		Namespace:   apidefaults.Namespace,
-		ClusterName: "cluster",
-	})
-	require.NoError(t, err)
-
-	for _, evt := range evts {
-		preparedEvent, err := preparer.PrepareSessionEvent(evt)
-		require.NoError(t, err)
-
-		err = stream.RecordEvent(ctx, preparedEvent)
-		require.NoError(t, err)
-	}
-
-	err = stream.Complete(ctx)
-	require.NoError(t, err)
-
-	doneC := make(chan struct{})
-	go func() {
-		defer close(doneC)
-		stream.Complete(ctx)
-		stream.Close(ctx)
-	}()
-
-	select {
-	case <-ctx.Done():
-		t.Fatal("Timeout waiting for emitter to complete")
-	case <-doneC:
-	}
-
-	rc, err := uploader.StreamSessionRecording(ctx, sid)
-	require.NoError(t, err)
-	defer rc.Close()
-
-	reader := events.NewProtoReader(rc, encryptedIO)
-
-	decryptedEvents, err := reader.ReadAll(ctx)
-	require.NoError(t, err)
-	require.Len(t, decryptedEvents, eventCount+2)
 }
 
 func TestSummarization_SSH(t *testing.T) {
@@ -679,6 +477,149 @@ func TestSummarization_Unknown(t *testing.T) {
 	}
 }
 
+func TestPartHeader(t *testing.T) {
+	cases := []struct {
+		name               string
+		partHeader         events.PartHeader
+		expectedErr        error
+		expectedPartHeader *events.PartHeader // if different than starting part
+	}{
+		{
+			name: "v1 part header",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV1,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr: nil,
+			expectedPartHeader: &events.PartHeader{
+				ProtoVersion: events.ProtoStreamV1,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				// no flags
+			},
+		},
+		{
+			name: "v2 part header encrypted",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV2,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr:        nil,
+			expectedPartHeader: nil,
+		},
+		{
+			name: "v2 part header unencrypted",
+			partHeader: events.PartHeader{
+				ProtoVersion: events.ProtoStreamV2,
+				PartSize:     1234,
+				PaddingSize:  4321,
+			},
+			expectedErr:        nil,
+			expectedPartHeader: nil,
+		},
+		{
+			name: "invalid version",
+			partHeader: events.PartHeader{
+				ProtoVersion: 3,
+				PartSize:     1234,
+				PaddingSize:  4321,
+				Flags:        events.ProtoStreamFlagEncrypted,
+			},
+			expectedErr:        trace.BadParameter("unsupported protocol version %v", 3),
+			expectedPartHeader: nil,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(c.partHeader.Bytes())
+			switch c.partHeader.ProtoVersion {
+			case events.ProtoStreamV1:
+				require.Equal(t, events.ProtoStreamV1PartHeaderSize, buf.Len())
+			case events.ProtoStreamV2:
+				require.Equal(t, events.ProtoStreamV2PartHeaderSize, buf.Len())
+			}
+
+			header, err := events.ParsePartHeader(buf)
+			if c.expectedErr != nil {
+				require.ErrorIs(t, err, c.expectedErr)
+				return
+			}
+			expected := c.partHeader
+			if c.expectedPartHeader != nil {
+				expected = *c.expectedPartHeader
+			}
+			require.Equal(t, expected, header)
+		})
+	}
+}
+
+func TestEncryptedRecordingIO(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	uploader := eventstest.NewMemoryUploader()
+	encryptedIO := &fakeEncryptedIO{}
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:  uploader,
+		Encrypter: encryptedIO,
+	})
+	require.NoError(t, err)
+
+	const eventCount = 10
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: eventCount})
+	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+	require.NoError(t, err)
+
+	for _, evt := range evts {
+		preparedEvent, err := preparer.PrepareSessionEvent(evt)
+		require.NoError(t, err)
+
+		err = stream.RecordEvent(ctx, preparedEvent)
+		require.NoError(t, err)
+	}
+
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+
+	doneC := make(chan struct{})
+	go func() {
+		defer close(doneC)
+		stream.Complete(ctx)
+		stream.Close(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("Timeout waiting for emitter to complete")
+	case <-doneC:
+	}
+
+	out := fakeWriterAt{
+		buf: &bytes.Buffer{},
+	}
+	err = uploader.Download(ctx, sid, out)
+	require.NoError(t, err)
+
+	reader := events.NewProtoReader(out.buf, encryptedIO)
+
+	decryptedEvents, err := reader.ReadAll(ctx)
+	require.NoError(t, err)
+	require.Len(t, decryptedEvents, eventCount+2)
+}
+
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
 	return &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
@@ -697,6 +638,30 @@ func makeAccessRequestEvent(id string, in string) *apievents.AccessRequestDelete
 		},
 		RequestID: in,
 	}
+}
+
+type MockSummarizer struct {
+	mock.Mock
+}
+
+func (m *MockSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
+	args := m.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
+	args := m.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (m *MockSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	args := m.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
+	args := m.Called(ctx, sessionID)
+	return args.Error(0)
 }
 
 // encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
@@ -731,28 +696,16 @@ func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) 
 	return hex.NewDecoder(reader), f.err
 }
 
-type MockSummarizer struct {
-	mock.Mock
+type fakeWriterAt struct {
+	buf *bytes.Buffer
 }
 
-func (m *MockSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
-	args := m.Called(ctx, sessionEndEvent)
-	return args.Error(0)
+func (f fakeWriterAt) Write(p []byte) (int, error) {
+	return f.buf.Write(p)
 }
 
-func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
-	args := m.Called(ctx, sessionEndEvent)
-	return args.Error(0)
-}
-
-func (m *MockSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
-	args := m.Called(ctx, sessionEndEvent)
-	return args.Error(0)
-}
-
-func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
-	args := m.Called(ctx, sessionID)
-	return args.Error(0)
+func (f fakeWriterAt) WriteAt(p []byte, offset int64) (int, error) {
+	return f.Write(p)
 }
 
 // TestOnUploadComplete_MissingSessionEnd verifies that when a stream is

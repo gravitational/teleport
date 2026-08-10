@@ -45,6 +45,82 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestWorkloadIdentityIssue(t *testing.T) {
+	ctx := context.Background()
+
+	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			SPIFFE: []*types.SPIFFERoleCondition{
+				{
+					Path:    "/*",
+					IPSANs:  []string{"0.0.0.0/0"},
+					DNSSANs: []string{"*"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	s := newTestSuite(t, withRootConfigFunc(func(cfg *servicecfg.Config) {
+		// reconfig the user to use the new role instead of the default ones
+		// User is the second bootstrap resource.
+		user, ok := cfg.Auth.BootstrapResources[1].(types.User)
+		require.True(t, ok)
+		user.AddRole(role.GetName())
+		cfg.Auth.BootstrapResources[1] = user
+		cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
+	}),
+	)
+
+	homeDir, _ := mustLoginLegacy(t, s)
+	temp := t.TempDir()
+	err = Run(
+		ctx,
+		[]string{
+			"svid",
+			"issue",
+			"--insecure",
+			"--output", temp,
+			"--svid-ttl", "10m",
+			"--dns-san", "example.com",
+			"--dns-san", "foo.example.com",
+			"--ip-san", "10.0.0.1",
+			"--ip-san", "10.1.0.1",
+			"/foo/bar",
+		},
+		setHomePath(homeDir),
+	)
+	require.NoError(t, err)
+
+	certPEM, err := os.ReadFile(filepath.Join(temp, "svid.pem"))
+	require.NoError(t, err)
+	certBlock, _ := pem.Decode(certPEM)
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	require.NoError(t, err)
+	require.Equal(t, "example.com", cert.DNSNames[0])
+	require.Equal(t, "foo.example.com", cert.DNSNames[1])
+	require.Equal(t, net.IP{10, 0, 0, 1}, cert.IPAddresses[0])
+	require.Equal(t, net.IP{10, 1, 0, 1}, cert.IPAddresses[1])
+	require.Equal(t, "spiffe://root/foo/bar", cert.URIs[0].String())
+	// Sanity check we generated an ECDSA public key (test suite uses
+	// balanced-v1 algorithm suite).
+	require.IsType(t, &ecdsa.PublicKey{}, cert.PublicKey)
+
+	keyPEM, err := os.ReadFile(filepath.Join(temp, "svid_key.pem"))
+	require.NoError(t, err)
+	keyBlock, _ := pem.Decode(keyPEM)
+	privateKey, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
+	require.NoError(t, err)
+	// Sanity check private key matches x509 cert subject.
+	require.Implements(t, (*crypto.Signer)(nil), privateKey)
+	require.Equal(t, cert.PublicKey, privateKey.(crypto.Signer).Public())
+
+	bundlePEM, err := os.ReadFile(filepath.Join(temp, "svid_bundle.pem"))
+	require.NoError(t, err)
+	bundleBlock, _ := pem.Decode(bundlePEM)
+	_, err = x509.ParseCertificate(bundleBlock.Bytes)
+	require.NoError(t, err)
+}
+
 func TestWorkloadIdentityIssueX509(t *testing.T) {
 	ctx := context.Background()
 
@@ -73,24 +149,24 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 
 	_, err = s.root.GetAuthServer().Services.UpsertWorkloadIdentity(
 		ctx,
-		workloadidentityv1pb.WorkloadIdentity_builder{
+		&workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name:   "my-workload-identity",
 				Labels: map[string]string{},
-			}.Build(),
-			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 					Id: "/test",
-				}.Build(),
-			}.Build(),
-		}.Build(),
+				},
+			},
+		},
 	)
 	require.NoError(t, err)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "my-workload-identity"}.Build())
-		require.NoError(t, err)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{Name: "my-workload-identity"})
+		require.NoError(collect, err)
 	}, time.Second*5, 100*time.Millisecond)
 
 	homeDir, _ := mustLoginLegacy(t, s)
@@ -167,19 +243,19 @@ func TestWorkloadIdentityIssueJWT(t *testing.T) {
 
 	_, err = s.root.GetAuthServer().Services.UpsertWorkloadIdentity(
 		ctx,
-		workloadidentityv1pb.WorkloadIdentity_builder{
+		&workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name:   "my-workload-identity",
 				Labels: map[string]string{},
-			}.Build(),
-			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 					Id: "/test",
-				}.Build(),
-			}.Build(),
-		}.Build(),
+				},
+			},
+		},
 	)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

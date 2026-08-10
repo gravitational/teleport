@@ -296,7 +296,7 @@ func (f *fakeHTTPSIDP) issueToken(
 func (f *fakeHTTPSIDP) rotateCA(t *testing.T) (caPEM string) {
 	t.Helper()
 
-	creds, err := cert.GenerateSelfSignedCert(nil, []string{"127.0.0.1"}, nil, time.Now)
+	creds, err := cert.GenerateSelfSignedCert(nil, []string{"127.0.0.1"})
 	require.NoError(t, err)
 
 	tlsCert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)

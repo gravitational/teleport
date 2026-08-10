@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter } from 'react-router-dom';
 
 import { WelcomeWrapper } from 'teleport/components/Onboard';
 import cfg from 'teleport/config';

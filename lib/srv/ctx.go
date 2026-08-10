@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -206,10 +207,6 @@ type Server interface {
 	// ChildLogConfig returns the log configuration for handling logs from
 	// child processes.
 	ChildLogConfig() ChildLogConfig
-
-	// GetPresenceMaxDuration returns the max duration that a moderated session
-	// can continue between presence verifications.
-	GetPresenceMaxDuration() time.Duration
 }
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
@@ -314,9 +311,6 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
-
-	// BeamID is the identifier of the Beam this session was created for.
-	BeamID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -356,9 +350,8 @@ type ServerContext struct {
 	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
-	// party holds the active party (if there's an active one). This party should have
-	// already passed basic authz checks (e.g. joining permissions).
-	party *party
+	// session holds the active session (if there's an active one).
+	session *session
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -429,6 +422,29 @@ type ServerContext struct {
 	// set this field directly, use (Get|Set)SSHRequest instead.
 	sshRequest *ssh.Request
 
+	// cmd{r,w} are used to send the command from the parent process to the
+	// child process.
+	cmdr *os.File
+	cmdw *os.File
+
+	// logw is used to send logs from the child process to the parent process.
+	logw *os.File
+
+	// cont{r,w} is used to send the continue signal from the parent process
+	// to the child process.
+	contr *os.File
+	contw *os.File
+
+	// ready{r,w} is used to send the ready signal from the child process
+	// to the parent process.
+	readyr *os.File
+	readyw *os.File
+
+	// killShell{r,w} are used to send kill signal to the child process
+	// to terminate the shell.
+	killShellr *os.File
+	killShellw *os.File
+
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ExecType string
@@ -477,10 +493,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	)
 	switch {
 	case identityContext.AccessPermit != nil:
-		clientIdleTimeout = identityContext.AccessPermit.GetClientIdleTimeout().AsDuration()
-		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.GetDisconnectExpiredCert())
-		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.GetLockTargets())
-		lockingMode = constants.LockingMode(identityContext.AccessPermit.GetLockingMode())
+		clientIdleTimeout = identityContext.AccessPermit.ClientIdleTimeout.AsDuration()
+		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.DisconnectExpiredCert)
+		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.LockTargets)
+		lockingMode = constants.LockingMode(identityContext.AccessPermit.LockingMode)
 
 	case identityContext.ProxyingPermit != nil:
 		clientIdleTimeout = identityContext.ProxyingPermit.ClientIdleTimeout
@@ -565,21 +581,70 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, trace.NewAggregate(err, childErr)
 	}
 
+	// Create pipe used to send command to child process.
+	child.cmdr, child.cmdw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.cmdr)
+	child.AddCloser(child.cmdw)
+
+	// Create pipe used to signal continue to child process.
+	child.contr, child.contw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.contr)
+	child.AddCloser(child.contw)
+
+	// Create pipe used to signal continue to parent process.
+	child.readyr, child.readyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.readyr)
+	child.AddCloser(child.readyw)
+
+	child.killShellr, child.killShellw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.killShellr)
+	child.AddCloser(child.killShellw)
+
+	// If the log writer is a file, we can pass it directly to the child
+	// process to write to. Otherwise, we need to create a pipe to the child
+	// process and stream the logs to the log writer.
+	logCfg := child.srv.ChildLogConfig()
+	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
+		child.logw = fileWriter
+	} else {
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, w, err := os.Pipe()
+		if err != nil {
+			childErr := child.Close()
+			return nil, trace.NewAggregate(err, childErr)
+		}
+
+		child.logw = w
+		child.AddCloser(r)
+		child.AddCloser(w)
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
+			}
+		}()
+	}
+
 	return child, nil
-}
-
-func (c *ServerContext) ConfigureCommand(extraFiles map[reexec.FileFD]*os.File) (*reexec.CommandExecutor, error) {
-	command, err := c.ExecCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	executor, err := reexec.ConfigureCommand(c.CancelContext(), c.Logger, c.srv.ChildLogConfig().Writer, command, c.ExecType, extraFiles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.AddCloser(executor)
-	return executor, nil
 }
 
 // Parent grants access to the connection-level context of which this
@@ -598,9 +663,13 @@ func (c *ServerContext) ID() int {
 //
 // This value is not set until during and after the "shell" / "exec" channel request.
 func (c *ServerContext) SessionID() string {
-	if session := c.getSession(); session != nil {
-		return string(session.id)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session != nil {
+		return string(c.session.id)
 	}
+
 	return ""
 }
 
@@ -703,32 +772,23 @@ func (c *ServerContext) GetNewSessionID() rsession.ID {
 	return c.newSessionID
 }
 
-// setParty sets the context's party to an active session.
-func (c *ServerContext) setParty(p *party) error {
+// setSession sets the context's session
+func (c *ServerContext) setSession(ctx context.Context, sess *session) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.party != nil {
-		return trace.BadParameter("already party to another session")
-	}
-	c.party = p
-	c.closers = append(c.closers, p)
-	return nil
+	c.session = sess
 }
 
-// getParty returns the context's party to an active session, if there is one.
-func (c *ServerContext) getParty() *party {
+// getSession returns the context's session
+//
+// The associated session is not set in the server context until a
+// shell / exec channel has been initiated for the session, so out-of-band
+// session requests that can occur before these channel requests should
+// consider fallback mechanisms.
+func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.party
-}
-
-// getSession returns the session the context's party belongs to, if there is
-// an active party. Callers that don't need the party itself should prefer this.
-func (c *ServerContext) getSession() *session {
-	if p := c.getParty(); p != nil {
-		return p.s
-	}
-	return nil
+	return c.session
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {
@@ -744,7 +804,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	}
 
 	// check if ssh access permit is defined and authorizes file copying
-	if permit := c.Identity.AccessPermit; permit != nil && permit.GetSshFileCopy() {
+	if permit := c.Identity.AccessPermit; permit != nil && permit.SshFileCopy {
 		return nil
 	}
 
@@ -881,7 +941,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 
 // When the ServerContext (connection) is closed, emit "session.data" event
 // containing how much data was transmitted and received over the net.Conn.
-func (c *ServerContext) reportStats(conn *utils.TrackingConn) {
+func (c *ServerContext) reportStats(conn utils.Stater) {
 	// We may not want to record session data for this connection context, e.g. if this is
 	// for a networking subprocess tied to a shell process.
 	if c.SessionRecordingConfig.GetMode() == types.RecordOff {
@@ -1043,7 +1103,7 @@ func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 	environment := make(map[string]string)
 	environment["TELEPORT_USERNAME"] = c.Identity.TeleportUser
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
-	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.GetMappedRoles(), " ")
+	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.MappedRoles, " ")
 	if localPAMConfig.Environment != nil {
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
@@ -1116,7 +1176,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 	var mappedRoles []string
 	switch {
 	case c.Identity.AccessPermit != nil:
-		mappedRoles = c.Identity.AccessPermit.GetMappedRoles()
+		mappedRoles = c.Identity.AccessPermit.MappedRoles
 	case c.Identity.ProxyingPermit != nil:
 		mappedRoles = c.Identity.ProxyingPermit.MappedRoles
 	default:
@@ -1143,19 +1203,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 		TestLoginShell:        c.TestLoginShell,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
-		RecordWithBPF:         c.recordWithBPF(),
 	}, nil
-}
-
-func (c *ServerContext) recordWithBPF() bool {
-	if !c.srv.GetBPF().Enabled() || c.Identity.AccessPermit == nil {
-		return false
-	}
-
-	// BPF programs will only be monitoring this session if Enhanced
-	// Session Recording is enabled on the server and the access permit
-	// enables at least one ESR event.
-	return len(eventsMapFromSSHAccessPermit(c.Identity.AccessPermit)) > 0
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
@@ -1168,10 +1216,8 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	// not support trusted clusters, the scope pin should always be available
 	// on the unmapped identity for all scoped identities.
 	var scopePin *scopesv1.Pin
-	var beamID string
 	if id.UnmappedIdentity != nil {
 		scopePin = id.UnmappedIdentity.ScopePin
-		beamID = id.UnmappedIdentity.BeamID
 	}
 
 	return apievents.UserMetadata{
@@ -1188,7 +1234,6 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserRoles:        slices.Clone(id.MappedRoles),
 		UserTraits:       id.Traits.Clone(),
 		ScopePin:         pinning.ToEventsPin(scopePin),
-		BeamID:           beamID,
 	}
 }
 
@@ -1348,25 +1393,6 @@ func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents
 	}
 }
 
-func (c *ServerContext) GetAgentForwardEvent() *apievents.AgentForward {
-	sconn := c.ConnectionContext.ServerConn
-	return &apievents.AgentForward{
-		Metadata: apievents.Metadata{
-			Type: events.AgentForwardEvent,
-			Code: events.AgentForwardCode,
-		},
-		UserMetadata: c.Identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  sconn.LocalAddr().String(),
-			RemoteAddr: sconn.RemoteAddr().String(),
-		},
-		ServerMetadata: c.ServerMetadata(),
-		Status: apievents.Status{
-			Success: true,
-		},
-	}
-}
-
 func (c *ServerContext) setApprovedFileTransferRequest(req *reexecsftp.FileTransferRequest) {
 	c.mu.Lock()
 	c.approvedFileReq = req
@@ -1387,25 +1413,32 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *reexecsftp.FileTra
 	return req
 }
 
-// ServerMetadata returns ServerMetadata for this server context.
-func (c *ServerContext) ServerMetadata() apievents.ServerMetadata {
-	return c.GetServer().EventMetadata()
-}
+// The child does not signal until completing PAM setup, which can take an arbitrary
+// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+const childReadyWaitTimeout = 3 * time.Minute
 
-// UserMetadata returns UserMetadata for this server context.
-func (c *ServerContext) UserMetadata() apievents.UserMetadata {
-	return c.Identity.GetUserMetadata()
-}
+// WaitForChild waits for the child process to signal ready through the named pipe.
+func (c *ServerContext) WaitForChild(ctx context.Context) error {
+	bpfService := c.srv.GetBPF()
+	pam := c.srv.GetPAM()
 
-// ConnectionMetadata returns ConnectionMetadata for this server context.
-func (c *ServerContext) ConnectionMetadata() apievents.ConnectionMetadata {
-	return apievents.ConnectionMetadata{
-		RemoteAddr: c.ServerConn.RemoteAddr().String(),
-		LocalAddr:  c.ServerConn.LocalAddr().String(),
+	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
+	// because PAM might inadvertently move the child process to another cgroup
+	// by invoking systemd. If this happens, then the cgroup filter used by BPF
+	// will be looking for events in the wrong cgroup and no events will be captured.
+	// However, unconditionally waiting for the child to be ready results in PAM
+	// deadlocking because stdin/stdout/stderr which it uses to relay details from
+	// PAM auth modules are not properly copied until _after_ the shell request is
+	// replied to.
+	var waitErr error
+	if bpfService.Enabled() && pam.Enabled {
+		if waitErr = reexec.WaitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
+		}
 	}
-}
 
-// EmitAuditEvent emits a single audit event.
-func (c *ServerContext) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return c.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), event)
+	closeErr := c.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	c.readyr = nil
+	return trace.NewAggregate(waitErr, closeErr)
 }

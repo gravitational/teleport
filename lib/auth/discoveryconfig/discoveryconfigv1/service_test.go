@@ -48,7 +48,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...any) {
+		return func(tt require.TestingT, err error, i ...interface{}) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -87,9 +87,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.GetDiscoveryConfig(ctx, discoveryconfigpb.GetDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.GetDiscoveryConfig(ctx, &discoveryconfigpb.GetDiscoveryConfigRequest{
 					Name: dcName,
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -98,9 +98,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			Name: "no access to read discovery configs",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.GetDiscoveryConfig(ctx, discoveryconfigpb.GetDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.GetDiscoveryConfig(ctx, &discoveryconfigpb.GetDiscoveryConfigRequest{
 					Name: dcName,
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -114,9 +114,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.GetDiscoveryConfig(ctx, discoveryconfigpb.GetDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.GetDiscoveryConfig(ctx, &discoveryconfigpb.GetDiscoveryConfigRequest{
 					Name: dcName,
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -132,16 +132,16 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.ListDiscoveryConfigs(ctx, discoveryconfigpb.ListDiscoveryConfigsRequest_builder{
+				_, err := resourceSvc.ListDiscoveryConfigs(ctx, &discoveryconfigpb.ListDiscoveryConfigsRequest{
 					PageSize:  0,
 					NextToken: "",
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -155,10 +155,10 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.ListDiscoveryConfigs(ctx, discoveryconfigpb.ListDiscoveryConfigsRequest_builder{
+				_, err := resourceSvc.ListDiscoveryConfigs(ctx, &discoveryconfigpb.ListDiscoveryConfigsRequest{
 					PageSize:  0,
 					NextToken: "",
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -170,9 +170,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
 				dc := sampleDiscoveryConfigFn(t, dcName)
-				_, err := resourceSvc.CreateDiscoveryConfig(ctx, discoveryconfigpb.CreateDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.CreateDiscoveryConfig(ctx, &discoveryconfigpb.CreateDiscoveryConfigRequest{
 					DiscoveryConfig: convert.ToProto(dc),
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -187,9 +187,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
 				dc := sampleDiscoveryConfigFn(t, dcName)
-				_, err := resourceSvc.CreateDiscoveryConfig(ctx, discoveryconfigpb.CreateDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.CreateDiscoveryConfig(ctx, &discoveryconfigpb.CreateDiscoveryConfigRequest{
 					DiscoveryConfig: convert.ToProto(dc),
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -201,9 +201,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
 				dc := sampleDiscoveryConfigFn(t, dcName)
-				_, err := resourceSvc.UpdateDiscoveryConfig(ctx, discoveryconfigpb.UpdateDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.UpdateDiscoveryConfig(ctx, &discoveryconfigpb.UpdateDiscoveryConfigRequest{
 					DiscoveryConfig: convert.ToProto(dc),
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -222,9 +222,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
 				dc := sampleDiscoveryConfigFn(t, dcName)
-				_, err := resourceSvc.UpdateDiscoveryConfig(ctx, discoveryconfigpb.UpdateDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.UpdateDiscoveryConfig(ctx, &discoveryconfigpb.UpdateDiscoveryConfigRequest{
 					DiscoveryConfig: convert.ToProto(dc),
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -241,9 +241,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
 				dc := sampleDiscoveryConfigFn(t, dcName)
-				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, discoveryconfigpb.UpsertDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
 					DiscoveryConfig: convert.ToProto(dc),
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -259,9 +259,9 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			Setup: func(t *testing.T, dcName string) {},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
 				dc := sampleDiscoveryConfigFn(t, dcName)
-				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, discoveryconfigpb.UpsertDiscoveryConfigRequest_builder{
+				_, err := resourceSvc.UpsertDiscoveryConfig(ctx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
 					DiscoveryConfig: convert.ToProto(dc),
-				}.Build())
+				})
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -272,7 +272,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 			Name: "no access to delete discovery config",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.DeleteDiscoveryConfig(ctx, discoveryconfigpb.DeleteDiscoveryConfigRequest_builder{Name: "x"}.Build())
+				_, err := resourceSvc.DeleteDiscoveryConfig(ctx, &discoveryconfigpb.DeleteDiscoveryConfigRequest{Name: "x"})
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -290,7 +290,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.DeleteDiscoveryConfig(ctx, discoveryconfigpb.DeleteDiscoveryConfigRequest_builder{Name: dcName}.Build())
+				_, err := resourceSvc.DeleteDiscoveryConfig(ctx, &discoveryconfigpb.DeleteDiscoveryConfigRequest{Name: dcName})
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -315,7 +315,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -329,6 +329,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 
@@ -347,7 +348,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...any) {
+		return func(tt require.TestingT, err error, i ...interface{}) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -376,9 +377,9 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 			name:       "no access to update discovery config status",
 			systemRole: types.RoleNode,
 			test: func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, discoveryconfigpb.UpdateDiscoveryConfigStatusRequest_builder{
+				_, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigpb.UpdateDiscoveryConfigStatusRequest{
 					Name: dcName,
-				}.Build())
+				})
 				return err
 			},
 			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -387,9 +388,9 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 			name:       "discovery config doesn't exist",
 			systemRole: types.RoleDiscovery,
 			test: func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, discoveryconfigpb.UpdateDiscoveryConfigStatusRequest_builder{
+				_, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigpb.UpdateDiscoveryConfigStatusRequest{
 					Name: dcName,
-				}.Build())
+				})
 				return err
 			},
 			errAssertion: requireTraceErrorFn(trace.IsNotFound),
@@ -404,17 +405,17 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 			test: func(t *testing.T, ctx context.Context, resourceSvc *Service, dcName string) error {
 				now := time.Now()
 				msg := "error message"
-				status := discoveryconfigpb.DiscoveryConfigStatus_builder{
+				status := &discoveryconfigpb.DiscoveryConfigStatus{
 					State:               discoveryconfigpb.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING,
 					ErrorMessage:        &msg,
 					DiscoveredResources: 42,
 					LastSyncTime:        timestamppb.New(now),
-				}.Build()
+				}
 
-				out, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, discoveryconfigpb.UpdateDiscoveryConfigStatusRequest_builder{
+				out, err := resourceSvc.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigpb.UpdateDiscoveryConfigStatusRequest{
 					Name:   dcName,
 					Status: status,
-				}.Build())
+				})
 				require.NoError(t, err)
 				dc := sampleDiscoveryConfigFn(t, dcName)
 				dc.Status = convert.StatusFromProto(status)
@@ -430,6 +431,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 		},
 	}
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			localCtx := authorizerForSystemRole(ctx, string(tc.systemRole))
 

@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
@@ -50,7 +49,6 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 
 	baseReqFn := func() DeployDatabaseServiceRequest {
 		return DeployDatabaseServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: "mycluster",
 			Region:              "r",
 			TaskRoleARN:         "arn",
@@ -83,15 +81,6 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 			req: func() DeployDatabaseServiceRequest {
 				r := baseReqFn()
 				r.TeleportClusterName = ""
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing teleport build type",
-			req: func() DeployDatabaseServiceRequest {
-				r := baseReqFn()
-				r.TeleportBuildType = ""
 				return r
 			},
 			errCheck: isBadParamErrFn,
@@ -165,7 +154,6 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 			errCheck: require.NoError,
 			expected: &DeployDatabaseServiceRequest{
 				TeleportClusterName: "mycluster",
-				TeleportBuildType:   modules.BuildOSS,
 				TeleportVersionTag:  teleport.Version,
 				Region:              "r",
 				TaskRoleARN:         "arn",
@@ -411,7 +399,6 @@ func TestDeployDatabaseService(t *testing.T) {
 	ctx := context.Background()
 	t.Run("fails to get account id", func(t *testing.T) {
 		_, err := DeployDatabaseService(ctx, &mockDeployServiceClient{}, DeployDatabaseServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			Region:              "us-east-1",
 			TaskRoleARN:         "my-role",
 			TeleportClusterName: "cluster-name",
@@ -437,7 +424,6 @@ func TestDeployDatabaseService(t *testing.T) {
 		resp, err := DeployDatabaseService(ctx,
 			mockClient,
 			DeployDatabaseServiceRequest{
-				TeleportBuildType:       modules.BuildOSS,
 				Region:                  "us-east-1",
 				TaskRoleARN:             "my-role",
 				TeleportClusterName:     "cluster-name",
@@ -471,7 +457,6 @@ func TestDeployDatabaseService(t *testing.T) {
 		resp, err := DeployDatabaseService(ctx,
 			mockClient,
 			DeployDatabaseServiceRequest{
-				TeleportBuildType:       modules.BuildOSS,
 				Region:                  "us-east-1",
 				TaskRoleARN:             "my-role",
 				TeleportClusterName:     "cluster-name",
@@ -550,7 +535,6 @@ func TestDeployDatabaseService(t *testing.T) {
 				iamTokenMissing: true,
 			},
 			DeployDatabaseServiceRequest{
-				TeleportBuildType:       modules.BuildOSS,
 				Region:                  "us-east-1",
 				TaskRoleARN:             "my-role",
 				TeleportClusterName:     "cluster-name",

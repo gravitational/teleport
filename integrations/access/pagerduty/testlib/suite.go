@@ -436,23 +436,23 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: v1.Metadata_builder{
+			Metadata: &v1.Metadata{
 				Name: ruleName,
-			}.Build(),
-			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: accessmonitoringrulesv1.Notification_builder{
+				Notification: &accessmonitoringrulesv1.Notification{
 					Name: "pagerduty",
 					Recipients: []string{
 						NotifyServiceName2,
 					},
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 	require.NoError(t, err)
 
 	// Incident creation may happen before plugins Access Monitoring Rule cache
@@ -751,7 +751,7 @@ func (s *PagerdutySuiteEnterprise) TestRace() {
 	s.raceNumber = 1
 	fmt.Printf("Race number: %d\n", s.raceNumber)
 	process := lib.NewProcess(ctx)
-	for i := range s.raceNumber {
+	for i := 0; i < s.raceNumber; i++ {
 		userName := integration.Requester1UserName
 		var proposedState types.RequestState
 		switch i % 2 {
@@ -807,7 +807,7 @@ func (s *PagerdutySuiteEnterprise) TestRace() {
 			}
 
 			review := types.AccessReview{ProposedState: proposedState, Reason: "reviewed"}
-			for j := range reviewsNumber {
+			for j := 0; j < reviewsNumber; j++ {
 				if j == 0 {
 					review.Author = integration.Reviewer1UserName
 				} else {
@@ -831,7 +831,7 @@ func (s *PagerdutySuiteEnterprise) TestRace() {
 			return nil
 		})
 	}
-	for range 3 * s.raceNumber {
+	for i := 0; i < 3*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			note, err := s.fakePagerduty.CheckNewIncidentNote(ctx)
 			if err := trace.Wrap(err); err != nil {
@@ -874,14 +874,14 @@ func (s *PagerdutySuiteEnterprise) TestRace() {
 	<-process.Done()
 	require.NoError(t, raceErr)
 
-	pendingRequests.Range(func(key, _ any) bool {
+	pendingRequests.Range(func(key, _ interface{}) bool {
 		_, ok := resolvedRequests.LoadAndDelete(key)
 		return assert.True(t, ok)
 	})
 
 	assert.Equal(t, int32(s.raceNumber), resolvedRequestsCount)
 
-	incidentIDs.Range(func(key, _ any) bool {
+	incidentIDs.Range(func(key, _ interface{}) bool {
 		next := true
 
 		val, ok := incidentNoteCounters.LoadAndDelete(key)

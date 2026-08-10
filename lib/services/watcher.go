@@ -248,7 +248,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Logger.Log(p.ctx, logutils.TraceLevel, "Starting watch.")
+		p.Logger.DebugContext(p.ctx, "Starting watch.")
 		err := p.watch()
 
 		select {
@@ -570,16 +570,17 @@ func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
 		const databaseServerMaxStaleness = time.Minute
 		cfg.MaxStaleness = databaseServerMaxStaleness
 	}
-
 	if cfg.DatabaseServersGetter == nil {
 		getter, ok := cfg.Client.(DatabaseServersGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
 		}
 		cfg.DatabaseServersGetter = getter
+		const appServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = appServerMaxStaleness
 	}
-
 	return nil
+
 }
 
 func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
@@ -748,10 +749,6 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
-	// ResourceFilter is an optional filter that is applied on the backend when
-	// watching for resources. Only resources matching the filter will be sent
-	// to the watcher.
-	ResourceFilter map[string]string
 	// ScopeFilter is an optional scope filter applied to the watch. A nil filter
 	// yields the caller's default scope behavior (unscoped-only for unscoped
 	// callers, current-scope-only for scoped callers). Watchers that run on the
@@ -905,7 +902,6 @@ func (g *genericCollector[T, R]) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{
 		Kind:        g.ResourceKind,
 		LoadSecrets: g.LoadSecrets,
-		Filter:      g.ResourceFilter,
 		ScopeFilter: g.ScopeFilter,
 	}}
 }
@@ -1014,7 +1010,7 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			// Always broadcast when a resource is deleted.
 			updated = true
 		case types.OpPut:
-			resource, err := types.ConvertResource[T](event.Resource)
+			resource, err := convertResource[T](event.Resource)
 			if err != nil {
 				g.Logger.WarnContext(ctx, "Failed to convert event resource",
 					"resource", event.Resource.GetKind(),
@@ -1576,7 +1572,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && authority.IsEqual(ca) {
+			if ok && CertAuthoritiesEquivalent(authority, ca) {
 				continue
 			}
 

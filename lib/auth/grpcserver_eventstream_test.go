@@ -30,14 +30,10 @@ import (
 )
 
 func TestWatchEvents_enterpriseOnlyKinds(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
 
-	ossTestServer := newTestTLSServer(t)
-	entTestServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
-
-	ossClient, err := ossTestServer.NewClient(authtest.TestAdmin())
-	require.NoError(t, err)
-	entClient, err := entTestServer.NewClient(authtest.TestAdmin())
+	testServer := newTestTLSServer(t)
+	adminClient, err := testServer.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	// kindOther is a watch kind we expect to always work.
@@ -77,10 +73,12 @@ func TestWatchEvents_enterpriseOnlyKinds(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			t.Parallel()
+			// Don't t.Parallel, uses modulestest.SetTestModules.
+
+			modulestest.SetTestModules(t, *modulestest.OSSModules())
 
 			t.Run("OSS fails", func(t *testing.T) {
-				watcher, err := ossClient.NewWatcher(t.Context(), types.Watch{
+				watcher, err := adminClient.NewWatcher(t.Context(), types.Watch{
 					Name: "oss",
 					Kinds: []types.WatchKind{
 						{Kind: test.kind},
@@ -100,7 +98,7 @@ func TestWatchEvents_enterpriseOnlyKinds(t *testing.T) {
 			})
 
 			t.Run("OSS with allow partial succeeds", func(t *testing.T) {
-				watcher, err := ossClient.NewWatcher(t.Context(), types.Watch{
+				watcher, err := adminClient.NewWatcher(t.Context(), types.Watch{
 					Name: "oss-allow-partial",
 					Kinds: []types.WatchKind{
 						{Kind: kindOther},
@@ -115,8 +113,10 @@ func TestWatchEvents_enterpriseOnlyKinds(t *testing.T) {
 				assert.NoError(t, watcher.Error(), "Watcher has unexpected error")
 			})
 
+			modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
+
 			t.Run("Ent succeeds", func(t *testing.T) {
-				watcher, err := entClient.NewWatcher(t.Context(), types.Watch{
+				watcher, err := adminClient.NewWatcher(t.Context(), types.Watch{
 					Name: "ent-allow-partial",
 					Kinds: []types.WatchKind{
 						{Kind: kindOther},

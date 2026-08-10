@@ -217,7 +217,22 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	// Otherwise the session cookie won't be sent and the user will
 	// get redirected to the application launcher.
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
-	setAppSessionCookies(w, ws, 0)
+	http.SetCookie(w, &http.Cookie{
+		Name:     CookieName,
+		Value:    req.CookieValue,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     SubjectCookieName,
+		Value:    ws.GetBearerToken(),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
 
 	// Set DBSC registration header to trigger device-bound session credentials.
 	// The browser will generate a key pair and POST to the registration endpoint.
@@ -304,26 +319,6 @@ func clearAuthStateCookie(w http.ResponseWriter, cookieID string) {
 	})
 }
 
-func setAppSessionCookies(w http.ResponseWriter, ws types.WebSession, maxAge time.Duration) {
-	setCookie := func(name, value string) {
-		cookie := &http.Cookie{
-			Name:     name,
-			Value:    value,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteNoneMode,
-		}
-		if maxAge > 0 {
-			cookie.MaxAge = int(maxAge.Seconds())
-		}
-		http.SetCookie(w, cookie)
-	}
-
-	setCookie(CookieName, ws.GetName())
-	setCookie(SubjectCookieName, ws.GetBearerToken())
-}
-
 func getAuthStateCookieName(cookieID string) string {
 	return fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID)
 }
@@ -358,4 +353,24 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
 		},
 	})
+}
+
+func setAppSessionCookies(w http.ResponseWriter, ws types.WebSession, maxAge time.Duration) {
+	setCookie := func(name, value string) {
+		cookie := &http.Cookie{
+			Name:     name,
+			Value:    value,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		if maxAge > 0 {
+			cookie.MaxAge = int(maxAge.Seconds())
+		}
+		http.SetCookie(w, cookie)
+	}
+
+	setCookie(CookieName, ws.GetName())
+	setCookie(SubjectCookieName, ws.GetBearerToken())
 }

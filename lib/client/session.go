@@ -236,7 +236,9 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 		}
 	}
 	// pass environment variables set by client
-	maps.Copy(envs, ns.env)
+	for key, val := range ns.env {
+		envs[key] = val
+	}
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
 		log.WarnContext(ctx, "Failed to set environment variables", "error", err)

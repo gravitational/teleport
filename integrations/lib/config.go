@@ -132,15 +132,12 @@ func NewIdentityFileWatcher(ctx context.Context, path string, interval time.Dura
 		for {
 			select {
 			case <-ctx.Done():
-				slog.DebugContext(ctx, "Stopping identity file watcher", "error", ctx.Err())
 				return
 			case <-timer.C:
 			}
 
 			if err := dynamicCred.Reload(); err != nil {
 				slog.ErrorContext(ctx, "Failed to reload identity file from disk", "error", err)
-			} else if expiry, ok := dynamicCred.Expiry(); ok {
-				slog.DebugContext(ctx, "Reloaded identity file from disk", "path", path, "expires", expiry)
 			}
 			timer.Reset(interval)
 		}
@@ -185,12 +182,9 @@ func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error)
 		slog.InfoContext(ctx, "At least one non-expired credential has been found, continuing startup")
 	}
 
-	dialCtx, cancel := context.WithTimeout(ctx, initTimeout)
-	defer cancel()
-
 	bk := grpcbackoff.DefaultConfig
 	bk.MaxDelay = grpcBackoffMaxDelay
-	clt, err := client.New(dialCtx, client.Config{
+	clt, err := client.New(ctx, client.Config{
 		Addrs:       []string{addr},
 		Credentials: creds,
 		DialOpts: []grpc.DialOption{

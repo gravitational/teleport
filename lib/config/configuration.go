@@ -47,7 +47,6 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
-	"golang.org/x/net/idna"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -55,14 +54,17 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -70,8 +72,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/parse"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -667,12 +667,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.AuthConnectionConfig = *authConnectionConfig
 
-	auditQueue, err := fc.AuditQueue.Parse()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cfg.AuditQueue = auditQueue
-
 	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
@@ -721,7 +715,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
-		&cfg.Apps.Limiter,
 		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
@@ -2073,19 +2066,6 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Enable the "Teleport Demo" MCP server if requested.
 	cfg.Apps.MCPDemoServer = fc.Apps.MCPDemoServer
 
-	if len(fc.Apps.AllowedHosts) != 0 && len(fc.Apps.DeniedHosts) != 0 {
-		return trace.BadParameter("app_service.allowed_hosts and app_service.denied_hosts are mutually exclusive")
-	}
-	var err error
-	cfg.Apps.AllowedHosts, err = servicecfg.ParseTargetHostPrefixes(fc.Apps.AllowedHosts)
-	if err != nil {
-		return trace.Wrap(err, "parsing app_service.allowed_hosts")
-	}
-	cfg.Apps.DeniedHosts, err = servicecfg.ParseTargetHostPrefixes(fc.Apps.DeniedHosts)
-	if err != nil {
-		return trace.Wrap(err, "parsing app_service.denied_hosts")
-	}
-
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
 		if matcher.AWS.AssumeRoleARN != "" {
@@ -2217,102 +2197,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
-	// Reject literal duplicates: at registration two entries with the
-	// same name would write to the same backend key (host_id + name)
-	// and the second would silently overwrite the first.
-	seenNames := make(map[string]struct{}, len(cfg.Apps.Apps))
-	for _, app := range cfg.Apps.Apps {
-		if _, ok := seenNames[app.Name]; ok {
-			return trace.BadParameter("duplicate application name %q in static config", app.Name)
-		}
-		seenNames[app.Name] = struct{}{}
-	}
-
-	// Reject apps with the same effective routing FQDN; otherwise
-	// duplicates route non-deterministically. Mirror FindPublicAddr's
-	// fallback: use the proxy public_addr host as-is (IPs included),
-	// fall back to cluster_name when unset.
-	seenProxyHosts := map[string]struct{}{}
-	proxyHosts := make([]string, 0, len(cfg.Proxy.PublicAddrs))
-	clusterNameFallback := ""
-	if fc.Proxy.Enabled() {
-		for _, addr := range cfg.Proxy.PublicAddrs {
-			host, err := normalizeFQDN(addr.Host())
-			if err != nil {
-				// A malformed proxy public_addr that no app
-				// depends on should not block app_service startup.
-				slog.WarnContext(context.Background(), "skipping malformed proxy public_addr in app FQDN dedupe",
-					"proxy_public_addr", addr.String(),
-					"error", err,
-				)
-				continue
-			}
-			if host == "" {
-				continue
-			}
-			if _, ok := seenProxyHosts[host]; ok {
-				continue
-			}
-			seenProxyHosts[host] = struct{}{}
-			proxyHosts = append(proxyHosts, host)
-		}
-		if cfg.Auth.ClusterName != nil {
-			host, err := normalizeFQDN(cfg.Auth.ClusterName.GetClusterName())
-			if err != nil {
-				// A malformed cluster_name that no app falls back
-				// to should not block app_service startup.
-				slog.WarnContext(context.Background(), "skipping malformed cluster_name in app FQDN dedupe",
-					"cluster_name", cfg.Auth.ClusterName.GetClusterName(),
-					"error", err,
-				)
-			} else {
-				clusterNameFallback = host
-			}
-		}
-	}
-	// CheckAndSetDefaults validates app.Name and app.PublicAddr as
-	// DNS-1123 forms, so they are already lowercase ASCII without a
-	// trailing dot; only proxy public_addr and cluster_name need
-	// normalizeFQDN.
-	seenFQDNs := map[string]string{}
-	for _, app := range cfg.Apps.Apps {
-		// Dedupe per-app: one app contributing both public_addr and
-		// <name>.<proxy> is not a self-conflict.
-		appFQDNs := map[string]struct{}{}
-		if app.PublicAddr != "" {
-			appFQDNs[app.PublicAddr] = struct{}{}
-		}
-		if app.PublicAddr == "" || app.UseAnyProxyPublicAddr {
-			switch {
-			case len(proxyHosts) > 0:
-				for _, host := range proxyHosts {
-					appFQDNs[utils.DefaultAppFQDN(app.Name, host, "")] = struct{}{}
-				}
-			case clusterNameFallback != "":
-				appFQDNs[utils.DefaultAppFQDN(app.Name, "", clusterNameFallback)] = struct{}{}
-			}
-		}
-		// Map order is random; sort for a stable error message.
-		for _, fqdn := range slices.Sorted(maps.Keys(appFQDNs)) {
-			if seenAppName, ok := seenFQDNs[fqdn]; ok {
-				return trace.BadParameter("apps %q and %q route to the same FQDN %q in static config", seenAppName, app.Name, fqdn)
-			}
-			seenFQDNs[fqdn] = app.Name
-		}
-	}
-
 	return nil
-}
-
-// normalizeFQDN returns host as ASCII, lowercase, with any trailing
-// dot stripped, so IDN, case, and trailing-dot variants collapse to
-// one dedupe key.
-func normalizeFQDN(host string) (string, error) {
-	asciiHost, err := idna.ToASCII(strings.TrimRight(host, "."))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return strings.ToLower(asciiHost), nil
 }
 
 // applyMetricsConfig applies file configuration for the "metrics_service" section.
@@ -2504,6 +2389,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
+		if len(pemCerts) == 0 {
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
+		}
 		certs = pemCerts
 	}
 
@@ -2687,6 +2575,9 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2813,7 +2704,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		var sessionTags map[string]string
 		if clf.DatabaseAWSSessionTags != "" {
 			var err error
-			sessionTags, err = parse.LabelSelectorSpec(clf.DatabaseAWSSessionTags)
+			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2886,20 +2777,19 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
-		//
-		err = libslices.ContainsAll(defaults.FIPSCipherSuites, cfg.CipherSuites)
+		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSCiphers, cfg.Ciphers)
+		err = utils.StringSliceSubset(defaults.FIPSCiphers, cfg.Ciphers)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
+		err = utils.StringSliceSubset(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
+		err = utils.StringSliceSubset(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}
@@ -2921,7 +2811,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 
-			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, cfg.Modules.Features().Cloud); err != nil {
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2935,7 +2825,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
 			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
-			Cloud:         cfg.Modules.Features().Cloud,
+			Cloud:         modules.GetModules().Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -3094,16 +2984,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
-	// pass the value of --insecure flag to the runtime
-	if clf.InsecureMode {
-		cfg.InsecureMode = true
-	}
-
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
 	// Apply command line --debug flag to override logger severity.
 	level := slog.LevelError
 	if clf.Debug {
@@ -3144,13 +3032,13 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.Hostname = hostname
 	cfg.OpenSSH.InstanceAddr = clf.Address
 	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
-	for principal := range strings.SplitSeq(clf.AdditionalPrincipals, ",") {
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
 		if principal == "" {
 			continue
 		}
 		cfg.OpenSSH.AdditionalPrincipals = append(cfg.OpenSSH.AdditionalPrincipals, principal)
 	}
-	cfg.OpenSSH.Labels, err = parse.LabelSelectorSpec(clf.Labels)
+	cfg.OpenSSH.Labels, err = client.ParseLabelSpec(clf.Labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3162,10 +3050,6 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
-	// pass the value of --insecure flag to the runtime
-	if clf.InsecureMode {
-		cfg.InsecureMode = true
-	}
 	return nil
 }
 
@@ -3173,7 +3057,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 // dynamic labels.
 func parseLabels(spec string) (map[string]string, services.CommandLabels, error) {
 	// Base syntax parsing, the spec must be in the form of 'key=value,more="better"'.
-	lmap, err := parse.LabelSelectorSpec(spec)
+	lmap, err := client.ParseLabelSpec(spec)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

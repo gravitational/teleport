@@ -19,7 +19,6 @@ This Terraform module creates the Azure and Teleport cluster resources necessary
 ## Examples
 
 - [Discover VMs in a single Azure subscription](./examples/single-subscription.mdx)
-- [Discover VMs in an Azure management group](./examples/management-group.mdx)
 
 ## How to get help
 

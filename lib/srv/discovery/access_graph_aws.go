@@ -131,7 +131,7 @@ func (s *Server) reconcileAccessGraph(
 	errs := make([]error, 0, len(allFetchers))
 	// Collect the results from all fetchers.
 	// Each fetcher can return an error and a result.
-	for range allFetchers {
+	for i := 0; i < len(allFetchers); i++ {
 		fetcherResult := <-resultsC
 		fetcher, result, err := fetcherResult.fetcher, fetcherResult.result, fetcherResult.err
 		if err != nil {
@@ -147,8 +147,8 @@ func (s *Server) reconcileAccessGraph(
 			continue
 		}
 		for _, cluster := range result.EKSClusters {
-			clusterTags := make(map[string]string, len(cluster.GetTags()))
-			for _, tag := range cluster.GetTags() {
+			clusterTags := make(map[string]string, len(cluster.Tags))
+			for _, tag := range cluster.Tags {
 				clusterTags[tag.GetKey()] = tag.GetValue().GetValue()
 			}
 			match, _, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
@@ -246,14 +246,19 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(upsert.GetResources()); i += batchSize {
-		end := min(i+batchSize, len(upsert.GetResources()))
+	for i := 0; i < len(upsert.Resources); i += batchSize {
+		end := i + batchSize
+		if end > len(upsert.Resources) {
+			end = len(upsert.Resources)
+		}
 		err := client.Send(
-			accessgraphv1alpha.AWSEventsStreamRequest_builder{
-				Upsert: accessgraphv1alpha.AWSResourceList_builder{
-					Resources: upsert.GetResources()[i:end],
-				}.Build(),
-			}.Build(),
+			&accessgraphv1alpha.AWSEventsStreamRequest{
+				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Upsert{
+					Upsert: &accessgraphv1alpha.AWSResourceList{
+						Resources: upsert.Resources[i:end],
+					},
+				},
+			},
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -266,14 +271,19 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(toDel.GetResources()); i += batchSize {
-		end := min(i+batchSize, len(toDel.GetResources()))
+	for i := 0; i < len(toDel.Resources); i += batchSize {
+		end := i + batchSize
+		if end > len(toDel.Resources) {
+			end = len(toDel.Resources)
+		}
 		err := client.Send(
-			accessgraphv1alpha.AWSEventsStreamRequest_builder{
-				Delete: accessgraphv1alpha.AWSResourceList_builder{
-					Resources: toDel.GetResources()[i:end],
-				}.Build(),
-			}.Build(),
+			&accessgraphv1alpha.AWSEventsStreamRequest{
+				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
+					Delete: &accessgraphv1alpha.AWSResourceList{
+						Resources: toDel.Resources[i:end],
+					},
+				},
+			},
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -296,9 +306,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		accessgraphv1alpha.AWSEventsStreamRequest_builder{
-			Sync: &accessgraphv1alpha.AWSSyncOperation{},
-		}.Build(),
+		&accessgraphv1alpha.AWSEventsStreamRequest{
+			Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Sync{},
+		},
 	)
 	return trace.Wrap(err)
 }
@@ -333,15 +343,6 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 // in the cluster features.
 var errTAGFeatureNotEnabled = errors.New("TAG feature is not enabled")
 
-func accessGraphEntitlementEnabled(features *proto.Features) bool {
-	return features.GetAccessGraph() ||
-		modules.GetProtoEntitlement(features, entitlements.AccessGraph).Enabled
-}
-
-func activityCenterEntitlementEnabled(features *proto.Features) bool {
-	return modules.GetProtoEntitlement(features, entitlements.ActivityCenter).Enabled
-}
-
 // initializeAndWatchAccessGraph creates a new access graph service client and
 // watches the connection state. If the connection is closed, it will
 // automatically try to reconnect.
@@ -352,7 +353,8 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	if !accessGraphEntitlementEnabled(&clusterFeatures) {
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
@@ -653,7 +655,8 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	const semaphoreName = "access_graph_aws_cloudtrail_sync"
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	if !activityCenterEntitlementEnabled(&clusterFeatures) {
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
@@ -723,9 +726,11 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		return trace.Wrap(err)
 	}
 	err = stream.Send(
-		accessgraphv1alpha.AWSCloudTrailStreamRequest_builder{
-			Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
-		}.Build(),
+		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
+				Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
+			},
+		},
 	)
 	if err != nil {
 		err = consumeTillErr(stream)
@@ -804,9 +809,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			}
 			return matchersMap
 		},
-		CompareResources: func(aga1, aga2 *types.AccessGraphAWSSync) int {
-			return services.EqualFromBool(aga1.IsEqual(aga2))
-		},
+		// Compare allows custom comparators without having to implement IsEqual.
+		// Defaults to `CompareResources[T]` if not specified.
+		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
 		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
 			spawnMatcher(ctx, disc)
 			return nil
@@ -845,12 +850,14 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			continue
 		case file := <-filePayload:
 			err := stream.Send(
-				accessgraphv1alpha.AWSCloudTrailStreamRequest_builder{
-					EventsFile: accessgraphv1alpha.AWSCloudTrailEventsFile_builder{
-						Payload:      file.payload,
-						AwsAccountId: file.accountID,
-					}.Build(),
-				}.Build(),
+				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_EventsFile{
+						EventsFile: &accessgraphv1alpha.AWSCloudTrailEventsFile{
+							Payload:      file.payload,
+							AwsAccountId: file.accountID,
+						},
+					},
+				},
 			)
 			if err != nil {
 				err = consumeTillErr(stream)
@@ -964,7 +971,7 @@ func (s *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 ) error {
 	parallelDownloads := make(chan struct{}, 60)
 	errG, ctx := errgroup.WithContext(ctx)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		errG.Go(
 			s.processMessagesWorker(
 				ctx,

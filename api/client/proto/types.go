@@ -123,6 +123,5 @@ func (u *DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}
 
 // AllowsMFAReuse returns true if the MFA response provided allows reuse.
 func (r *UserCertsRequest) AllowsMFAReuse() bool {
-	return r.RequesterName == UserCertsRequest_TSH_DB_EXEC ||
-		r.RequesterName == UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI
+	return r.RequesterName == UserCertsRequest_TSH_DB_EXEC
 }

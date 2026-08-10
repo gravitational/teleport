@@ -106,10 +106,10 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 		return nil, trace.Wrap(err, "getting process")
 	}
 
-	att := workloadidentityv1pb.WorkloadAttrsUnix_builder{
+	att := &workloadidentityv1pb.WorkloadAttrsUnix{
 		Attested: true,
 		Pid:      int32(pid),
-	}.Build()
+	}
 	// On Linux:
 	// Real, effective, saved, and file system GIDs
 	// On Darwin:
@@ -125,10 +125,10 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 		return nil, trace.BadParameter("no gids returned")
 	case 1:
 		// Only one GID - this is unusual but let's take it.
-		att.SetGid(gids[0])
+		att.Gid = gids[0]
 	default:
 		// Take the index 1 entry as this is effective
-		att.SetGid(gids[1])
+		att.Gid = gids[1]
 	}
 
 	// On Linux:
@@ -146,10 +146,10 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 		return nil, trace.BadParameter("no uids returned")
 	case 1:
 		// Only one UID, we expect this on Darwin to be the Effective UID
-		att.SetUid(uids[0])
+		att.Uid = uids[0]
 	default:
 		// Take the index 1 entry as this is Effective UID on Linux
-		att.SetUid(uids[1])
+		att.Uid = uids[1]
 	}
 
 	path, err := a.os.ExePath(ctx, p)
@@ -159,11 +159,11 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 	case err != nil:
 		a.log.ErrorContext(ctx, "Failed to find workload executable", "error", err)
 	default:
-		att.SetBinaryPath(path)
+		att.BinaryPath = &path
 	}
 
 	if hash := a.hashBinary(ctx, p); hash != "" {
-		att.SetBinaryHash(hash)
+		att.BinaryHash = &hash
 	}
 
 	return att, nil

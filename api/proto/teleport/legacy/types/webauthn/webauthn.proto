@@ -37,12 +37,6 @@ option go_package = "github.com/gravitational/teleport/api/types/webauthn;webaut
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-// A partial, non-gogoproto copy of this package is defined in
-// teleport/webauthn/v2/webauthn.proto. Only a subset of this legacy WebAuthn
-// package is defined there (namely, assertion messages.) Messages that are
-// present in both packages must be kept in sync. Registration messages and any
-// other absent WebAuthn messages may be copied over lazily, if necessary.
-
 // -----------------------------------------------------------------------------
 // Assertion (aka login).
 // -----------------------------------------------------------------------------

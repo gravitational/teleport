@@ -48,26 +48,24 @@ import (
 )
 
 func TestJoinTPM(t *testing.T) {
-	testModules := modulestest.OSSModules()
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Modules: testModules,
+			Dir: t.TempDir(),
 		},
 	})
 	require.NoError(t, err)
 
 	adminClient, err := server.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), machineidv1.CreateBotRequest_builder{
-		Bot: machineidv1.Bot_builder{
-			Metadata: headerv1.Metadata_builder{
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1.CreateBotRequest{
+		Bot: &machineidv1.Bot{
+			Metadata: &headerv1.Metadata{
 				Name: "testbot",
-			}.Build(),
+			},
 			Kind: types.KindBot,
 			Spec: &machineidv1.BotSpec{},
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	nopClient, err := server.NewClient(authtest.TestNop())
@@ -295,9 +293,7 @@ func TestJoinTPM(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			if !tc.oss {
-				testModules.TestBuildType = modules.BuildEnterprise
-			} else {
-				testModules.TestBuildType = modules.BuildOSS
+				modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 			}
 
 			token, err := types.NewProvisionTokenFromSpec("mytoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
@@ -334,12 +330,12 @@ func TestJoinTPM(t *testing.T) {
 
 				id, err := tlsca.FromSubject(botCert.Subject, botCert.NotAfter)
 				require.NoError(t, err)
-				tpmAttrs := id.JoinAttributes.GetTpm()
+				tpmAttrs := id.JoinAttributes.Tpm
 				require.NotNil(t, tpmAttrs)
 				gotAttrs := verifiedAttrs{
-					ekPubHash:      tpmAttrs.GetEkPubHash(),
-					ekCertSerial:   tpmAttrs.GetEkCertSerial(),
-					ekCertVerified: tpmAttrs.GetEkCertVerified(),
+					ekPubHash:      tpmAttrs.EkPubHash,
+					ekCertSerial:   tpmAttrs.EkCertSerial,
+					ekCertVerified: tpmAttrs.EkCertVerified,
 				}
 				assert.Equal(t, tc.expectJoinAttrs, gotAttrs)
 			}

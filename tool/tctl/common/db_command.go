@@ -21,8 +21,8 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -34,7 +34,6 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -92,7 +91,7 @@ func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncli
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
 func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) error {
-	labels, err := parse.LabelSelectorSpec(c.labels)
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -115,9 +114,9 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) e
 	case teleport.Text:
 		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(coll.WriteJSON(os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(coll.WriteYAML(os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

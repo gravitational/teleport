@@ -358,23 +358,23 @@ func TestBeamCache_ListFallback(t *testing.T) {
 
 func newBeamResource(name, alias string, expires time.Time) *beamsv1.Beam {
 	ts := timestamppb.New(expires)
-	return beamsv1.Beam_builder{
+	return &beamsv1.Beam{
 		Kind:    types.KindBeam,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:    name,
 			Expires: ts,
-		}.Build(),
-		Spec: beamsv1.BeamSpec_builder{
+		},
+		Spec: &beamsv1.BeamSpec{
 			Egress:         beamsv1.EgressMode_EGRESS_MODE_RESTRICTED,
 			AllowedDomains: []string{"example.com."},
-			Publish: beamsv1.PublishSpec_builder{
+			Publish: &beamsv1.PublishSpec{
 				Port:     8080,
 				Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
-			}.Build(),
+			},
 			Expires: ts,
-		}.Build(),
-		Status: beamsv1.BeamStatus_builder{
+		},
+		Status: &beamsv1.BeamStatus{
 			User:                 "alice",
 			Alias:                alias,
 			BotName:              uuid.NewString(),
@@ -382,13 +382,13 @@ func newBeamResource(name, alias string, expires time.Time) *beamsv1.Beam {
 			DelegationSessionId:  uuid.NewString(),
 			WorkloadIdentityName: uuid.NewString(),
 			ComputeStatus:        beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING,
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 func newBeamResourceWithUser(name, alias, user string, expires time.Time) *beamsv1.Beam {
 	beam := newBeamResource(name, alias, expires)
-	beam.GetStatus().SetUser(user)
+	beam.Status.User = user
 	return beam
 }
 

@@ -211,14 +211,18 @@ func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p
 			return nil, trace.BadParameter("sync role and sync profile ARNs must be provided when trust anchor ARN is provided")
 		}
 
-		pingRequest.SetCustom(integrationv1.AWSRolesAnywherePingRequestWithoutIntegration_builder{
-			TrustAnchorArn: req.TrustAnchorARN,
-			RoleArn:        req.SyncRoleARN,
-			ProfileArn:     req.SyncProfileARN,
-		}.Build())
+		pingRequest.Mode = &integrationv1.AWSRolesAnywherePingRequest_Custom{
+			Custom: &integrationv1.AWSRolesAnywherePingRequestWithoutIntegration{
+				TrustAnchorArn: req.TrustAnchorARN,
+				RoleArn:        req.SyncRoleARN,
+				ProfileArn:     req.SyncProfileARN,
+			},
+		}
 
 	default:
-		pingRequest.SetIntegration(integrationName)
+		pingRequest.Mode = &integrationv1.AWSRolesAnywherePingRequest_Integration{
+			Integration: integrationName,
+		}
 	}
 
 	pingResp, err := clt.IntegrationAWSRolesAnywhereClient().AWSRolesAnywherePing(ctx, pingRequest)
@@ -256,18 +260,18 @@ func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Re
 	allProfiles := &integrationv1.ListRolesAnywhereProfilesResponse{}
 	var startKey string
 	for {
-		listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, integrationv1.ListRolesAnywhereProfilesRequest_builder{
+		listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
 			Integration:        integrationName,
 			NextPageToken:      startKey,
 			ProfileNameFilters: req.Filters,
-		}.Build())
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		allProfiles.SetProfiles(append(allProfiles.GetProfiles(), listResp.GetProfiles()...))
+		allProfiles.Profiles = append(allProfiles.Profiles, listResp.Profiles...)
 
-		startKey = listResp.GetNextPageToken()
+		startKey = listResp.NextPageToken
 		if startKey == "" {
 			break
 		}

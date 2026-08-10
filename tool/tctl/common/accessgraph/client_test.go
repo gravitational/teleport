@@ -42,7 +42,7 @@ import (
 // newClientTestKeyRing builds a KeyRing with a self-signed cert for access graph client testing.
 func newClientTestKeyRing(t *testing.T, proxyHost string) *client.KeyRing {
 	t.Helper()
-	creds, err := cert.GenerateSelfSignedCert([]string{proxyHost}, nil, nil, nil)
+	creds, err := cert.GenerateSelfSignedCert([]string{proxyHost}, nil)
 	require.NoError(t, err)
 	priv, err := keys.ParsePrivateKey(creds.PrivateKey)
 	require.NoError(t, err)

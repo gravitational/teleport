@@ -60,13 +60,11 @@ func newBeamsCommands(app *kingpin.Application) beamsCommands {
 
 func formatBeam(beam *beamsv1.Beam, proxyAddr string) formattedBeam {
 	return formattedBeam{
-		ID:              beam.GetStatus().GetAlias(),
-		UUID:            beam.GetMetadata().GetName(),
-		Owner:           beam.GetStatus().GetUser(),
-		Expires:         beam.GetSpec().GetExpires().AsTime(),
-		URL:             beamPublishURL(beam, proxyAddr),
-		RequestedRegion: beam.GetSpec().GetRequestedRegion(),
-		Region:          beam.GetStatus().GetRegion(),
+		ID:      beam.GetStatus().GetAlias(),
+		UUID:    beam.GetMetadata().GetName(),
+		Owner:   beam.GetStatus().GetUser(),
+		Expires: beam.GetSpec().GetExpires().AsTime(),
+		URL:     beamPublishURL(beam, proxyAddr),
 	}
 }
 
@@ -125,12 +123,6 @@ type formattedBeam struct {
 	// this address can only be dialed via VNet, otherwise you'll need to start
 	// a local proxy.
 	URL string `json:"url,omitempty"`
-
-	// RequestedRegion is the region the client requested the Beam to be created in.
-	RequestedRegion string `json:"requested_region,omitempty"`
-
-	// Region is the region the Beam was provisioned in.
-	Region string `json:"region,omitempty"`
 }
 
 // getBeam reads a beam by UUID or human-friendly name depending on the format
@@ -138,9 +130,9 @@ type formattedBeam struct {
 func getBeam(ctx context.Context, client authclient.ClientI, ref string) (*beamsv1.Beam, error) {
 	req := &beamsv1.GetBeamRequest{}
 	if _, err := uuid.Parse(ref); err == nil {
-		req.SetName(ref)
+		req.Id = &beamsv1.GetBeamRequest_Name{Name: ref}
 	} else {
-		req.SetAlias(ref)
+		req.Id = &beamsv1.GetBeamRequest_Alias{Alias: ref}
 	}
 
 	rsp, err := client.

@@ -19,11 +19,9 @@
 package common
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -55,11 +53,12 @@ func onRequestList(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	cf.Username = cmp.Or(cf.Username, tc.Username)
+	if cf.Username == "" {
+		cf.Username = tc.Username
+	}
 
 	var reqs []types.AccessRequest
 
-	// TODO: consider using the AccessRequestFilter below to filter server side rather than client side.
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
@@ -67,32 +66,51 @@ func onRequestList(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// NOTE: It probably makes sense for --reviewable, --suggested, and --my-requests
-	// to be mutually exclusive, but the original implementation of request filtering
-	// applied the filters in this order. We retain that behavior now for compatibility.
-
 	if cf.ReviewableRequests {
-		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
-			// Requests made by the same user or requests the user already reviewed are not reviewable.
-			return ar.GetUser() == cf.Username ||
-				slices.ContainsFunc(ar.GetReviews(), func(review types.AccessReview) bool { return review.Author == cf.Username })
-		})
+		filtered := reqs[:0]
+	Reviewable:
+		for _, req := range reqs {
+			if req.GetUser() == cf.Username {
+				continue Reviewable
+			}
+			for _, rev := range req.GetReviews() {
+				if rev.Author == cf.Username {
+					continue Reviewable
+				}
+			}
+			filtered = append(filtered, req)
+		}
+		reqs = filtered
 	}
 	if cf.SuggestedRequests {
-		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
-			// Requests made by the same author, requests already reviewed, or requests that do not contain
-			// this user as a suggested reviewer get filtered out.
-			return ar.GetUser() == cf.Username ||
-				slices.ContainsFunc(ar.GetReviews(), func(review types.AccessReview) bool { return review.Author == cf.Username }) ||
-				!slices.ContainsFunc(ar.GetSuggestedReviewers(), func(suggestion string) bool { return suggestion == cf.Username })
-		})
+		filtered := reqs[:0]
+	Suggested:
+		for _, req := range reqs {
+			if req.GetUser() == cf.Username {
+				continue Suggested
+			}
+			for _, rev := range req.GetReviews() {
+				if rev.Author == cf.Username {
+					continue Suggested
+				}
+			}
+			for _, reviewer := range req.GetSuggestedReviewers() {
+				if reviewer == cf.Username {
+					filtered = append(filtered, req)
+					continue Suggested
+				}
+			}
+		}
+		reqs = filtered
 	}
 	if cf.MyRequests {
-		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
-			// Filter out requests made by other users.
-			return ar.GetUser() != cf.Username
-		})
+		filtered := reqs[:0]
+		for _, req := range reqs {
+			if req.GetUser() == cf.Username {
+				filtered = append(filtered, req)
+			}
+		}
+		reqs = filtered
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -444,10 +462,10 @@ func searchRequestableRoles(cf *CLIConf) error {
 	var allRoles []*proto.ListRequestableRolesResponse_RequestableRole
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*proto.ListRequestableRolesResponse_RequestableRole, string, error) {
-			req := proto.ListRequestableRolesRequest_builder{
+			req := &proto.ListRequestableRolesRequest{
 				PageSize:  int32(pageSize),
 				PageToken: pageToken,
-			}.Build()
+			}
 
 			resp, err := clt.ListRequestableRoles(ctx, req)
 			return resp.GetRoles(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -464,8 +482,8 @@ func searchRequestableRoles(cf *CLIConf) error {
 	rows := make([]requestableRoleRow, 0, len(allRoles))
 	for _, r := range allRoles {
 		rows = append(rows, requestableRoleRow{
-			Role:        r.GetName(),
-			Description: r.GetDescription(),
+			Role:        r.Name,
+			Description: r.Description,
 		})
 	}
 
@@ -540,7 +558,7 @@ func searchRequestableResources(cf *CLIConf) error {
 		if cf.kubeAPIGroup != "" {
 			resourceType = resourceType + "." + cf.kubeAPIGroup
 		}
-		req := kubeproto.ListKubernetesResourcesRequest_builder{
+		req := kubeproto.ListKubernetesResourcesRequest{
 			ResourceType:        resourceType,
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
@@ -549,9 +567,9 @@ func searchRequestableResources(cf *CLIConf) error {
 			KubernetesCluster:   cf.KubernetesCluster,
 			KubernetesNamespace: cf.kubeNamespace,
 			TeleportCluster:     tc.SiteName,
-		}.Build()
+		}
 
-		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
+		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

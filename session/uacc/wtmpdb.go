@@ -23,8 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
+	"github.com/mattn/go-sqlite3"
 )
 
 // defaultWtmpdbPath is the default location of the wtmpdb db file.
@@ -46,7 +45,7 @@ func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
 	if !fileExists(dbPath) {
 		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
 	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,11 +62,8 @@ func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time
 	defer stmt.Close()
 	result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, hostFromAddr(remote))
 	if err != nil {
-		var e *sqlite.Error
-		if ok := errors.As(err, &e); ok {
-			if e.Code() == sqlite3.SQLITE_READONLY {
-				return 0, trace.AccessDenied("cannot write to wtmpdb file, is Teleport running as root?")
-			}
+		if errors.Is(err, sqlite3.ErrReadonly) {
+			return 0, trace.AccessDenied("cannot write to wtmpdb file, is Teleport running as root?")
 		}
 		return 0, trace.Wrap(err)
 	}

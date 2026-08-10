@@ -134,15 +134,15 @@ func TestUpdateUserTask(t *testing.T) {
 	obj, err := service.GetUserTask(ctx, getUserTaskObject(t, 0).GetMetadata().GetName())
 	require.NoError(t, err)
 	// update the expiry time
-	obj.GetMetadata().SetExpires(expiry)
+	obj.Metadata.Expires = expiry
 
 	objUpdated, err := service.UpdateUserTask(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
+	require.Equal(t, expiry, objUpdated.Metadata.Expires)
 
-	objFresh, err := service.GetUserTask(ctx, obj.GetMetadata().GetName())
+	objFresh, err := service.GetUserTask(ctx, obj.Metadata.Name)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
+	require.Equal(t, expiry, objFresh.Metadata.Expires)
 }
 
 func TestUpdateUserTaskMissingRevision(t *testing.T) {
@@ -155,7 +155,7 @@ func TestUpdateUserTaskMissingRevision(t *testing.T) {
 	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getUserTaskObject(t, 0)
-	obj.GetMetadata().SetExpires(expiry)
+	obj.Metadata.Expires = expiry
 
 	// Update should be rejected as the revision is missing.
 	_, err := service.UpdateUserTask(ctx, obj)
@@ -209,7 +209,7 @@ func TestListUserTask(t *testing.T) {
 		protocmp.Transform(),
 	}
 	sortUserTasksFn := func(a *usertasksv1.UserTask, b *usertasksv1.UserTask) int {
-		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
+		return strings.Compare(a.Metadata.GetName(), b.Metadata.GetName())
 	}
 	counts := []int{0, 1, 5, 10}
 	for _, count := range counts {
@@ -218,7 +218,7 @@ func TestListUserTask(t *testing.T) {
 			prepopulateUserTask(t, service, count)
 
 			expectedElements := make([]*usertasksv1.UserTask, 0, count)
-			for i := range count {
+			for i := 0; i < count; i++ {
 				expectedElements = append(expectedElements, getUserTaskObject(t, i))
 			}
 			slices.SortFunc(expectedElements, sortUserTasksFn)
@@ -272,31 +272,31 @@ func getUserTasksService(t *testing.T) services.UserTasks {
 func getUserTaskObject(t *testing.T, index int) *usertasksv1.UserTask {
 	integrationName := fmt.Sprintf("integration-%d", index)
 
-	obj, err := usertasks.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
+	obj, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 		Integration: integrationName,
 		TaskType:    "discover-ec2",
 		IssueType:   "ec2-ssm-agent-not-registered",
 		State:       "OPEN",
-		DiscoverEc2: usertasksv1.DiscoverEC2_builder{
+		DiscoverEc2: &usertasksv1.DiscoverEC2{
 			AccountId: "123456789012",
 			Region:    "us-east-1",
 			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-123": usertasksv1.DiscoverEC2Instance_builder{
+				"i-123": {
 					InstanceId:      "i-123",
 					Name:            "my-instance",
 					DiscoveryConfig: "dc01",
 					DiscoveryGroup:  "dg01",
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	return obj
 }
 
 func prepopulateUserTask(t *testing.T, service services.UserTasks, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateUserTask(context.Background(), getUserTaskObject(t, i))
 		require.NoError(t, err)
 	}

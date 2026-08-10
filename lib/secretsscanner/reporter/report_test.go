@@ -82,6 +82,7 @@ func TestReporter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			e := setup(
@@ -143,20 +144,20 @@ func TestReporter(t *testing.T) {
 
 func sortPrivateKeys(keys []*accessgraphsecretsv1pb.PrivateKey) {
 	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].GetMetadata().GetName() < keys[j].GetMetadata().GetName()
+		return keys[i].Metadata.Name < keys[j].Metadata.Name
 	})
 }
 
 func newPrivateKeys(t *testing.T, deviceID string) []*accessgraphsecretsv1pb.PrivateKey {
 	t.Helper()
 	var pks []*accessgraphsecretsv1pb.PrivateKey
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		pk, err := accessgraph.NewPrivateKey(
-			accessgraphsecretsv1pb.PrivateKeySpec_builder{
+			&accessgraphsecretsv1pb.PrivateKeySpec{
 				PublicKeyFingerprint: "key" + strconv.Itoa(i),
 				DeviceId:             deviceID,
 				PublicKeyMode:        accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED,
-			}.Build(),
+			},
 		)
 		require.NoError(t, err)
 		pks = append(pks, pk)

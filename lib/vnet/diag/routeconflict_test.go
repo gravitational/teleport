@@ -38,10 +38,10 @@ func TestRouteConflictDiag(t *testing.T) {
 	singleRouteConflict := func(t *testing.T, dests []RouteDest, rcs []*diagv1.RouteConflict) {
 		require.Len(t, rcs, 1)
 		rc := rcs[0]
-		require.Equal(t, dests[0].String(), rc.GetDest())
-		require.Equal(t, dests[1].String(), rc.GetVnetDest())
-		require.Equal(t, quuxIface, rc.GetInterfaceName())
-		require.Equal(t, "foobar", rc.GetInterfaceApp())
+		require.Equal(t, dests[0].String(), rc.Dest)
+		require.Equal(t, dests[1].String(), rc.VnetDest)
+		require.Equal(t, quuxIface, rc.InterfaceName)
+		require.Equal(t, "foobar", rc.InterfaceApp)
 	}
 
 	tests := map[string]struct {
@@ -94,16 +94,16 @@ func TestRouteConflictDiag(t *testing.T) {
 				require.Len(t, rcs, 2)
 
 				rc1 := rcs[0]
-				require.Equal(t, "1.2.3.4", rc1.GetDest())
-				require.Equal(t, "0.0.0.0/1", rc1.GetVnetDest())
-				require.Equal(t, quuxIface, rc1.GetInterfaceName())
-				require.Equal(t, "foobar", rc1.GetInterfaceApp())
+				require.Equal(t, "1.2.3.4", rc1.Dest)
+				require.Equal(t, "0.0.0.0/1", rc1.VnetDest)
+				require.Equal(t, quuxIface, rc1.InterfaceName)
+				require.Equal(t, "foobar", rc1.InterfaceApp)
 
 				rc2 := rcs[1]
-				require.Equal(t, "1.2.3.0/24", rc2.GetDest())
-				require.Equal(t, "0.0.0.0/1", rc2.GetVnetDest())
-				require.Equal(t, quuxIface, rc2.GetInterfaceName())
-				require.Equal(t, "foobar", rc2.GetInterfaceApp())
+				require.Equal(t, "1.2.3.0/24", rc2.Dest)
+				require.Equal(t, "0.0.0.0/1", rc2.VnetDest)
+				require.Equal(t, quuxIface, rc2.InterfaceName)
+				require.Equal(t, "foobar", rc2.InterfaceApp)
 			},
 		},
 		"default dests are ignored": {
@@ -135,7 +135,7 @@ func TestRouteConflictDiag(t *testing.T) {
 			require.NoError(t, err)
 			report, err := routeConflictDiag.Run(context.Background())
 			require.NoError(t, err)
-			rcs := report.GetRouteConflictReport().GetRouteConflicts()
+			rcs := report.GetRouteConflictReport().RouteConflicts
 
 			test.checkResult(t, test.dests, rcs)
 			require.Equal(t, 1, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
@@ -204,7 +204,7 @@ func TestRouteConflictDiag_RetriesOnNoVnetRouteDestinations(t *testing.T) {
 	require.NoError(t, err)
 	report, err := routeConflictDiag.Run(context.Background())
 	require.NoError(t, err)
-	require.Empty(t, report.GetRouteConflictReport().GetRouteConflicts())
+	require.Empty(t, report.GetRouteConflictReport().RouteConflicts)
 
 	require.Equal(t, 3, routing.getRouteDestinationsCallCount, "Unexpected number of calls to Routing.GetRouteDestinations")
 }

@@ -149,10 +149,16 @@ func TestFormatAWSProfileName(t *testing.T) {
 			expected:    "teleport-awsic-123456789012-readonly",
 		},
 		{
+			desc:        "Account and Role with special characters",
+			accountName: "Finance#Dept",
+			roleName:    "Admin@Work",
+			expected:    "teleport-awsic-finance_x23dept-admin_x40work",
+		},
+		{
 			desc:        "Malicious INI injection characters",
 			accountName: "malicious \n[profile default]\n",
 			roleName:    "admin [!]",
-			expected:    "teleport-awsic-malicious-profile-default-admin-",
+			expected:    "teleport-awsic-malicious-_xa_x5bprofile-default_x5d_xa-admin-_x5b_x21_x5d",
 		},
 	}
 

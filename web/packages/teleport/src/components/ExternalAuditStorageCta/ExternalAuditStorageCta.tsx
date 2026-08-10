@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Box, { type BoxProps } from 'design/Box';
@@ -38,7 +38,7 @@ import { ButtonLockedFeature } from '../ButtonLockedFeature';
 export const ExternalAuditStorageCta = (props: BoxProps) => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
-  const featureEnabled = cfg.entitlements.ExternalAuditStorage.enabled;
+  const featureEnabled = cfg.externalAuditStorage;
   const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {

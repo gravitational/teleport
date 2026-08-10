@@ -33,6 +33,10 @@ const (
 	resourceKindAzureVM = "Azure VM"
 )
 
+func ptrTo[T any](v T) *T {
+	return &v
+}
+
 func newDiscoverySummary(configs []*discoveryconfig.DiscoveryConfig, cloudProviders cloudProviderConfig) discoverySummary {
 	out := make(discoverySummary, 0, len(configs))
 	for _, dc := range configs {
@@ -46,7 +50,7 @@ func newDiscoverySummary(configs []*discoveryconfig.DiscoveryConfig, cloudProvid
 			summary.ErrorMessage = *dc.Status.ErrorMessage
 		}
 		if !dc.Status.LastSyncTime.IsZero() {
-			summary.LastSyncTime = new(dc.Status.LastSyncTime)
+			summary.LastSyncTime = ptrTo(dc.Status.LastSyncTime)
 		}
 
 		out = append(out, summary)
@@ -69,7 +73,7 @@ func buildServerSummaries(status map[string]*discoveryconfig.DiscoveryStatusServ
 				server.PollInterval = pollInterval.AsDuration().String()
 			}
 			if lastUpdate := serverStatus.GetLastUpdate(); lastUpdate != nil {
-				server.LastUpdate = new(lastUpdate.AsTime())
+				server.LastUpdate = ptrTo(lastUpdate.AsTime())
 			}
 			server.Integrations = buildIntegrationSummaries(serverStatus.GetIntegrationSummaries(), cloudProviders)
 		}
@@ -126,10 +130,10 @@ func newResourceResult(kind string, summary *discoveryconfigv1.ResourcesDiscover
 		Failed:   summary.GetFailed(),
 	}
 	if syncStart := summary.GetSyncStart(); syncStart != nil {
-		result.SyncStart = new(syncStart.AsTime())
+		result.SyncStart = ptrTo(syncStart.AsTime())
 	}
 	if syncEnd := summary.GetSyncEnd(); syncEnd != nil {
-		result.SyncEnd = new(syncEnd.AsTime())
+		result.SyncEnd = ptrTo(syncEnd.AsTime())
 	}
 	return result
 }

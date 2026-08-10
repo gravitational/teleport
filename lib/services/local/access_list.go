@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -43,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -390,15 +391,9 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
-	return a.ListMatchingAccessLists(ctx, req)
-}
-
-// ListMatchingAccessLists returns a filtered and sorted paginated list of access lists.
-// Search term matchers are evaluated in order for terms that do not match stored access list fields.
-func (a *AccessListService) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, searchTermMatchers ...services.AccessListSearchTermMatcherFunc) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
-	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc) {
+	if req.GetSortBy() != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc) {
 		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
@@ -408,7 +403,7 @@ func (a *AccessListService) ListMatchingAccessLists(ctx context.Context, req *ac
 	}
 
 	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, req.GetFilter(), searchTermMatchers...) && scopes.MatchScope(scopeFilter, item.GetScope())
+		return services.MatchAccessList(item, req.GetFilter()) && scopes.MatchScope(scopeFilter, item.GetScope())
 	})
 }
 
@@ -1268,7 +1263,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 				newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 				// Compare members and update if necessary.
-				if !newMember.IsEqual(existingMember) {
+				if !cmp.Equal(newMember, existingMember) {
 					// Update the member.
 					upserted, err := memberService.upsert(ctx, newMember)
 					if err != nil {
@@ -1402,14 +1397,14 @@ func (a *AccessListService) checkScopesFeatures(existingList, newList *accesslis
 		return nil
 	}
 
-	var existingListGrants set.Set[accesslist.ScopedRoleGrant]
+	var existingListGrants utils.Set[accesslist.ScopedRoleGrant]
 	if existingList != nil {
-		existingListGrants = set.New(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
+		existingListGrants = utils.NewSet(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
 	}
-	newListGrants := set.New(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
+	newListGrants := utils.NewSet(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
 	addedGrants := newListGrants.Subtract(existingListGrants)
 
-	if addedGrants.Len() == 0 {
+	if len(addedGrants) == 0 {
 		// The new list does not grant any scoped roles at scopes not already
 		// granted by the existing list.
 		return nil
@@ -1768,11 +1763,6 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	}
 }
 
-// ListUserAccessLists is not implemented in the local service.
-func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
-	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
-}
-
 func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx context.Context, accessListName accesslists.NormalizedSQN, members []*accesslist.AccessListMember) error {
 	if err := a.insertMembers(ctx, accessListName, members); err != nil {
 		return trace.Wrap(err)
@@ -2080,6 +2070,11 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 			}
 		}
 	}
+}
+
+// ListUserAccessLists is not implemented in the local service.
+func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
 }
 
 // InsertScopedAccessListCollection inserts a complete collection of access lists and their members from a single

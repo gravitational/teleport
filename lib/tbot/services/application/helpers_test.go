@@ -125,18 +125,18 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 	ctx := t.Context()
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
-		Bot: machineidv1pb.Bot_builder{
+	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: name,
-			}.Build(),
-			Spec: machineidv1pb.BotSpec_builder{
+			},
+			Spec: &machineidv1pb.BotSpec{
 				Roles: roles,
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -146,7 +146,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		time.Now().Add(10*time.Minute),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.GetMetadata().GetName(),
+			BotName: b.Metadata.Name,
 		})
 	require.NoError(t, err)
 	err = client.CreateToken(ctx, tok)
@@ -160,8 +160,10 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 
 func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) error {
-		testenv.WithClusterName("root")(o)
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
+		if err := testenv.WithClusterName("root")(o); err != nil {
+			return err
+		}
+		if err := testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
@@ -169,8 +171,9 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
-		})(o)
-
+		})(o); err != nil {
+			return err
+		}
 		return nil
 	}
 }

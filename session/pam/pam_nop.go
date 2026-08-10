@@ -26,7 +26,8 @@ var buildHasPAM, systemHasPAM bool
 
 // PAM is used to create a PAM context and initiate PAM transactions to checks
 // the users account and open/close a session.
-type PAM struct{}
+type PAM struct {
+}
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
@@ -42,8 +43,8 @@ func (p *PAM) Close() error {
 
 // Environment returns the PAM environment variables associated with a PAM
 // handle.
-func (p *PAM) Environment() ([]string, error) {
-	return nil, nil
+func (p *PAM) Environment() []string {
+	return nil
 }
 
 // BuildHasPAM returns true if the binary was build with support for PAM

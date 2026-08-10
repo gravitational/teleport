@@ -55,13 +55,13 @@ func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*col
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *usertasksv1.UserTask {
-			return usertasksv1.UserTask_builder{
+			return &usertasksv1.UserTask{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil
@@ -81,7 +81,7 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, pageToken str
 			return out, next, trace.Wrap(err)
 		},
 		nextToken: func(t *usertasksv1.UserTask) string {
-			return t.GetMetadata().GetName()
+			return t.GetMetadata().Name
 		},
 		filter: func(ut *usertasksv1.UserTask) bool {
 			return services.MatchUserTask(ut, filters)

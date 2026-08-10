@@ -5,32 +5,32 @@ adds services listing permission if discovery is enabled:
     metadata:
       name: RELEASE-NAME
     rules:
-      - apiGroups:
-          - ""
-        resources:
-          - users
-          - groups
-          - serviceaccounts
-        verbs:
-          - impersonate
-      - apiGroups:
-          - ""
-        resources:
-          - services
-        verbs:
-          - list
-      - apiGroups:
-          - ""
-        resources:
-          - pods
-        verbs:
-          - get
-      - apiGroups:
-          - authorization.k8s.io
-        resources:
-          - selfsubjectaccessreviews
-        verbs:
-          - create
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - services
+      verbs:
+      - list
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create
 creates a ClusterRole:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -38,26 +38,26 @@ creates a ClusterRole:
     metadata:
       name: RELEASE-NAME
     rules:
-      - apiGroups:
-          - ""
-        resources:
-          - users
-          - groups
-          - serviceaccounts
-        verbs:
-          - impersonate
-      - apiGroups:
-          - ""
-        resources:
-          - pods
-        verbs:
-          - get
-      - apiGroups:
-          - authorization.k8s.io
-        resources:
-          - selfsubjectaccessreviews
-        verbs:
-          - create
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create
 does not add services listing permission if discovery is disabled:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -65,26 +65,26 @@ does not add services listing permission if discovery is disabled:
     metadata:
       name: RELEASE-NAME
     rules:
-      - apiGroups:
-          - ""
-        resources:
-          - users
-          - groups
-          - serviceaccounts
-        verbs:
-          - impersonate
-      - apiGroups:
-          - ""
-        resources:
-          - pods
-        verbs:
-          - get
-      - apiGroups:
-          - authorization.k8s.io
-        resources:
-          - selfsubjectaccessreviews
-        verbs:
-          - create
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create
 sets ClusterRole labels when specified:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -95,23 +95,23 @@ sets ClusterRole labels when specified:
         resource: clusterrole
       name: RELEASE-NAME
     rules:
-      - apiGroups:
-          - ""
-        resources:
-          - users
-          - groups
-          - serviceaccounts
-        verbs:
-          - impersonate
-      - apiGroups:
-          - ""
-        resources:
-          - pods
-        verbs:
-          - get
-      - apiGroups:
-          - authorization.k8s.io
-        resources:
-          - selfsubjectaccessreviews
-        verbs:
-          - create
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create

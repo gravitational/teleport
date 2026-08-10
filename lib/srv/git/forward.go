@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -34,12 +33,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -244,15 +241,14 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like
 	// CreateIdentityContext and UserKeyAuth to a common package.
 	s.auth, err = srv.NewAuthHandlers(&srv.AuthHandlerConfig{
-		Server:                        s,
-		Component:                     teleport.ComponentForwardingGit,
-		Emitter:                       s.cfg.Emitter,
-		AccessPoint:                   cfg.AccessPoint,
-		TargetServer:                  cfg.TargetServer,
-		FIPS:                          cfg.FIPS,
-		Clock:                         cfg.Clock,
-		OnRBACFailure:                 s.onRBACFailure,
-		ValidatedMFAChallengeVerifier: s.cfg.AuthClient.MFAServiceClientV2(),
+		Server:        s,
+		Component:     teleport.ComponentForwardingGit,
+		Emitter:       s.cfg.Emitter,
+		AccessPoint:   cfg.AccessPoint,
+		TargetServer:  cfg.TargetServer,
+		FIPS:          cfg.FIPS,
+		Clock:         cfg.Clock,
+		OnRBACFailure: s.onRBACFailure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -271,8 +267,7 @@ func (s *ForwardServer) Serve() {
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{
-			PublicKey:         s.userKeyAuth,
-			VerifiedPublicKey: s.auth.VerifiedPublicKeyCallback,
+			PublicKey: s.userKeyAuth,
 		},
 		sshutils.SetFIPS(s.cfg.FIPS),
 		sshutils.SetCiphers(s.cfg.Ciphers),
@@ -324,9 +319,9 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.PublicKeyCallback to verify user cert is signed by UserCA and to evaluate
+	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
 	// RBAC permissions.
-	permissions, err := s.auth.PublicKeyCallback(conn, key)
+	permissions, err := s.auth.UserKeyAuth(conn, key)
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
@@ -352,7 +347,6 @@ func (s *ForwardServer) onRBACFailure(conn ssh.ConnMetadata, ident *sshca.Identi
 			Login:         gitUser,
 			User:          ident.Username,
 			TrustedDevice: ident.GetDeviceMetadata(),
-			BeamID:        ident.BeamID,
 		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  conn.LocalAddr().String(),
@@ -627,21 +621,19 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clientConfig := apissh.ClientConfig{
+	clientConfig := &ssh.ClientConfig{
 		User: gitUser,
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{signer}, nil
-			},
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(signer),
 		},
 		HostKeyCallback: s.verifyRemoteHost,
 		Timeout:         netConfig.GetSSHDialTimeout(),
 	}
-	clientConfig.SSHConfig.Ciphers = s.cfg.Ciphers
-	clientConfig.SSHConfig.KeyExchanges = s.cfg.KEXAlgorithms
-	clientConfig.SSHConfig.MACs = s.cfg.MACAlgorithms
+	clientConfig.Ciphers = s.cfg.Ciphers
+	clientConfig.KeyExchanges = s.cfg.KEXAlgorithms
+	clientConfig.MACs = s.cfg.MACAlgorithms
 
-	s.remoteClient, err = apissh.NewClient(
+	s.remoteClient, err = tracessh.NewClientWithTimeout(
 		s.cfg.ParentContext,
 		s.cfg.TargetConn,
 		s.cfg.DstAddr.String(),
@@ -678,7 +670,6 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-
 func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
@@ -689,39 +680,30 @@ func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 		ServerSubKind:   s.cfg.TargetServer.GetSubKind(),
 	}
 }
-
 func (s *ForwardServer) GetInfo() types.Server {
 	return s.cfg.TargetServer
 }
-
 func (s *ForwardServer) ID() string {
 	return s.id
 }
-
 func (s *ForwardServer) HostUUID() string {
 	return s.cfg.HostUUID
 }
-
 func (s *ForwardServer) GetNamespace() string {
 	return s.cfg.TargetServer.GetNamespace()
 }
-
 func (s *ForwardServer) AdvertiseAddr() string {
 	return s.clientConn.RemoteAddr().String()
 }
-
 func (s *ForwardServer) Component() string {
 	return teleport.ComponentForwardingGit
 }
-
 func (s *ForwardServer) PermitUserEnvironment() bool {
 	return false
 }
-
 func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 	return s.cfg.AccessPoint
 }
-
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
@@ -729,39 +711,30 @@ func (s *ForwardServer) GetDataDir() string {
 func (s *ForwardServer) GetPAM() *pamcfg.PAMConfig {
 	return &pamcfg.PAMConfig{Enabled: false}
 }
-
 func (s *ForwardServer) GetClock() clockwork.Clock {
 	return s.cfg.Clock
 }
-
 func (s *ForwardServer) UseTunnel() bool {
 	return false
 }
-
 func (s *ForwardServer) GetBPF() bpf.BPF {
 	return nil
 }
-
 func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
 	return
 }
-
 func (s *ForwardServer) GetLockWatcher() *services.LockWatcher {
 	return s.cfg.LockWatcher
 }
-
 func (s *ForwardServer) GetCreateHostUser() bool {
 	return false
 }
-
 func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 	return nil
 }
-
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
 }
-
 func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
 }
@@ -770,15 +743,11 @@ func (s *ForwardServer) GetSELinuxEnabled() bool {
 // does not spawn child processes.
 func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: reexec.ExecLogConfig{},
-		Writer:        io.Discard,
+		ExecLogConfig: reexec.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
 	}
-}
-
-// GetPresenceMaxDuration returns the max duration that a moderated session
-// can continue between presence verifications.
-func (s *ForwardServer) GetPresenceMaxDuration() time.Duration {
-	return client.DefaultPresenceMaxDuration
 }
 
 type serverContextKey struct{}

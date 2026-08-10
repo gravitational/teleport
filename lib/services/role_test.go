@@ -43,7 +43,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1204,7 +1203,6 @@ func TestValidateRole(t *testing.T) {
 				Allow: types.RoleConditions{
 					Logins:               []string{"{{email.localz(external.email)}}"},
 					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
-					LinuxDesktopLogins:   []string{"{{email.localz(external.email)}}"},
 					AWSRoleARNs:          []string{"{{email.localz(external.email)}}"},
 					AzureIdentities:      []string{"{{email.localz(external.email)}}"},
 					GCPServiceAccounts:   []string{"{{email.localz(external.email)}}"},
@@ -1230,7 +1228,6 @@ func TestValidateRole(t *testing.T) {
 				Deny: types.RoleConditions{
 					Logins:               []string{"{{email.localz(external.email)}}"},
 					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
-					LinuxDesktopLogins:   []string{"{{email.localz(external.email)}}"},
 					AWSRoleARNs:          []string{"{{email.localz(external.email)}}"},
 					AzureIdentities:      []string{"{{email.localz(external.email)}}"},
 					GCPServiceAccounts:   []string{"{{email.localz(external.email)}}"},
@@ -1252,7 +1249,6 @@ func TestValidateRole(t *testing.T) {
 				"parsing options.cert_extensions[0].value expression",
 				"parsing allow.logins expression",
 				"parsing allow.windows_desktop_logins expression",
-				"parsing allow.linux_desktop_logins expression",
 				"parsing allow.aws_role_arns expression",
 				"parsing allow.azure_identities expression",
 				"parsing allow.gcp_service_accounts expression",
@@ -1270,7 +1266,6 @@ func TestValidateRole(t *testing.T) {
 				`parsing allow.mcp.tools[0] "{{email.localz(external.email)}}"`,
 				"parsing deny.logins expression",
 				"parsing deny.windows_desktop_logins expression",
-				"parsing deny.linux_desktop_logins expression",
 				"parsing deny.aws_role_arns expression",
 				"parsing deny.azure_identities expression",
 				"parsing deny.gcp_service_accounts expression",
@@ -4869,7 +4864,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
+				err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -5082,7 +5077,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -6202,7 +6197,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
+				err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -6308,7 +6303,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
-				_, err := test.roles.checkAccess(
+				err := test.roles.checkAccess(
 					app,
 					"",
 					wrappers.Traits{},
@@ -6411,7 +6406,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -6509,7 +6504,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -6644,7 +6639,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			name:        "no access role",
 			overrideTTL: true,
 			roles:       RoleSet{roleNoAccess},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
 			},
 		},
@@ -6661,7 +6656,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			overrideTTL: false,
 			ttl:         sessionLong,
 			roles:       RoleSet{roleReadOnly},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot access Azure API for 3h0m0s")
 			},
 		},
@@ -6698,7 +6693,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			overrideTTL:    true,
 			roles:          RoleSet{roleFullAccess, roleDenyAll},
 			wantIdentities: nil,
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
 			},
 		},
@@ -6834,7 +6829,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			name:        "no access role",
 			overrideTTL: true,
 			roles:       RoleSet{roleNoAccess},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
 			},
 		},
@@ -6851,7 +6846,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			overrideTTL: false,
 			ttl:         sessionLong,
 			roles:       RoleSet{roleReadOnly},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access for 3h0m0s")
 			},
 		},
@@ -6888,7 +6883,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			overrideTTL:  true,
 			roles:        RoleSet{roleFullAccess, roleDenyAll},
 			wantAccounts: nil,
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
 			},
 		},
@@ -6964,7 +6959,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 			name:                "no roles",
 			roles:               RoleSet{},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "No roles assigned to user")
 			},
 		},
@@ -7035,7 +7030,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				}),
 			},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
 			},
 		},
@@ -7054,7 +7049,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				}),
 			},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
 			},
 		},
@@ -7068,7 +7063,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				}),
 			},
 			authPrefSamlEnabled: false,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("SAML IdP is disabled at the cluster level"))
 			},
 		},
@@ -7092,7 +7087,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				}),
 			},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7labelsNotMatched"))
 			},
 		},
@@ -7154,7 +7149,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredAlways,
 				MFAVerified: true,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "User does not have permissions")
 			},
 		},
@@ -7174,7 +7169,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredPerRole,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -7210,7 +7205,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredAlways,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -7246,7 +7241,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredPerRole,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -7279,7 +7274,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				MFARequired: MFARequiredAlways,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
@@ -7846,7 +7841,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7953,7 +7948,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
+				err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7965,8 +7960,8 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 	}
 }
 
-// BenchmarkCheckConditionalAccessToServer tests how long it takes to run
-// CheckConditionalAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
+// BenchmarkCheckAccessToServer tests how long it takes to run
+// CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
 // To run benchmark:
 //
@@ -7985,14 +7980,14 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 //
 //	go tool pprof --pdf cpu.prof > cpu.pdf
 //	go tool pprof --pdf mem.prof > mem.pdf
-func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
+func BenchmarkCheckAccessToServer(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	servers := make([]*types.ServerV2, 0, 4000)
 
 	// Create 4,000 servers with random IDs.
-	for range 4000 {
+	for i := 0; i < 4000; i++ {
 		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
@@ -8011,7 +8006,7 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 	// Create RoleSet with four generic roles that have five logins
 	// each and only have access to the a:b label.
 	var set RoleSet
-	for i := range 4 {
+	for i := 0; i < 4; i++ {
 		set = append(set, &types.RoleV6{
 			Kind:    types.KindRole,
 			Version: types.V3,
@@ -8039,11 +8034,11 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 
 	// Check access to all 4,000 nodes.
 	for b.Loop() {
-		for i := range 4000 {
+		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark
 				// is testing the performance of failed RBAC checks
-				_, _ = set.checkAccess(
+				_ = set.checkAccess(
 					servers[i],
 					"",
 					userTraits,
@@ -8911,9 +8906,9 @@ func TestHostUsers_getGroups(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			hu, err := accessChecker.HostUsers(tc.server)
+			info, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.ElementsMatch(t, tc.groups, hu.Info.GetGroups())
+			require.ElementsMatch(t, tc.groups, info.Groups)
 		})
 	}
 }
@@ -9341,7 +9336,6 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
-				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -9393,15 +9387,10 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			hu, err := accessChecker.HostUsers(tc.server)
-			require.NoError(t, err)
+			info, err := accessChecker.HostUsers(tc.server)
+			require.Equal(t, tc.canCreate, err == nil && info != nil)
 			if tc.canCreate {
-				require.NotEmpty(t, hu.AllowedBy)
-				require.Empty(t, hu.DeniedBy)
-				require.Equal(t, convertHostUserMode(tc.expectedMode), hu.Info.GetMode())
-			} else {
-				require.NotEmpty(t, hu.DeniedBy)
-				require.Nil(t, hu.Info)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), info.Mode)
 			}
 		})
 	}
@@ -9644,6 +9633,7 @@ func TestRoleSet_GetAccessState(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -10210,20 +10200,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
 		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
-		types.Resource153ToResourceWithLabels(beamsv1.Beam_builder{
+		types.Resource153ToResourceWithLabels(&beamsv1.Beam{
 			Kind:    types.KindBeam,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Labels: map[string]string{},
-			}.Build(),
-		}.Build()),
-		types.Resource153ToResourceWithLabels(linuxdesktopv1.LinuxDesktop_builder{
-			Kind:    types.KindLinuxDesktop,
-			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
-				Labels: map[string]string{},
-			}.Build(),
-		}.Build()),
+			},
+		}),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
@@ -10304,6 +10287,7 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 	}
 
 	for _, resource := range resources {
+		resource := resource
 		t.Run(resource.GetKind(), func(t *testing.T) {
 			t.Parallel()
 			for _, tc := range testcases {

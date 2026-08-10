@@ -48,12 +48,12 @@ func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli Virtua
 			fetchErrs = append(fetchErrs, trace.BadParameter("empty values on AzureVirtualMachine object: %v", vm))
 			continue
 		}
-		pbVm := accessgraphv1alpha.AzureVirtualMachine_builder{
+		pbVm := accessgraphv1alpha.AzureVirtualMachine{
 			Id:             vm.ID,
 			SubscriptionId: subscriptionID,
 			Name:           vm.Name,
-		}.Build()
-		pbVms = append(pbVms, pbVm)
+		}
+		pbVms = append(pbVms, &pbVm)
 	}
 	return pbVms, trace.NewAggregate(fetchErrs...)
 }

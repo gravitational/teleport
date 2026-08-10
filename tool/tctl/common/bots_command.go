@@ -21,6 +21,7 @@ package common
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,9 +31,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
@@ -45,17 +46,16 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -68,26 +68,13 @@ type BotsCommand struct {
 	lockExpires string
 	lockTTL     time.Duration
 
-	botName            string
-	botRoles           string
-	tokenID            string
-	tokenTTL           time.Duration
-	addRoles           string
-	instanceID         string
-	maxSessionTTL      time.Duration
-	legacy             bool
-	initialPublicKey   string
-	recoveryMode       string
-	recoveryLimit      uint32
-	registrationSecret string
-
-	// testStaticToken is a static token name for use in tests and cannot be set
-	// as a CLI flag.
-	testStaticToken string
-
-	// testMutateTemplateData modifies data before a template is rendered. Only
-	// useful in tests.
-	testMutateTemplateData func(data map[string]any)
+	botName       scopes.QualifiedName
+	botRoles      string
+	tokenID       string
+	tokenTTL      time.Duration
+	addRoles      string
+	instanceID    string
+	maxSessionTTL time.Duration
 
 	allowedLogins []string
 	addLogins     string
@@ -112,70 +99,33 @@ type BotsCommand struct {
 	stdout io.Writer
 }
 
-// initSharedBotTokenFlags initializes flags shared between `bots add` and
-// `bot instances add`
-func (c *BotsCommand) initSharedBotTokenFlags(cmd *kingpin.CmdClause) {
-	cmd.Flag("token", "The token to use, if any. If unset, a new single-use token will be created.").StringVar(&c.tokenID)
-	cmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
-
-	// TODO(timothyb89): Remove in v20 (optional)
-	cmd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
-	cmd.Flag(
-		"ttl",
-		"TTL for the bot join token. For standard bound keypair tokens, this "+
-			"sets must_register_before; for legacy tokens, this sets the "+
-			"resource TTL.",
-	).Default(defaults.DefaultBotJoinTTL.String()).DurationVar(&c.tokenTTL)
-	cmd.Flag(
-		"initial-public-key",
-		"If set, use the given initial public key in SSH authorized_keys "+
-			"format, instead of generating a registration secret. The value "+
-			"must be quoted. Not compatible with --token or --legacy.",
-	).StringVar(&c.initialPublicKey)
-	cmd.Flag(
-		"recovery-mode",
-		"If set, overrides the recovery mode for the bound keypair token. No "+
-			"effect if --token or --legacy is set.",
-	).Default(string(boundkeypair.RecoveryModeStandard)).EnumVar(&c.recoveryMode, boundkeypair.RecoveryModeStrings()...)
-	cmd.Flag(
-		"recovery-limit",
-		"Overrides the recovery limit (default: 1) for the bound keypair "+
-			"token. No effect if --token or --legacy is set, or if "+
-			"--recovery-mode is not standard. Must be greater than 1.",
-	).Uint32Var(&c.recoveryLimit)
-	cmd.Flag(
-		"registration-secret",
-		"Sets a registration secret for the bound keypair token. If not set, "+
-			"one will be randomly generated. No effect if "+
-			"--initial-public-key, --token, or --legacy is set. ",
-	).StringVar(&c.registrationSecret)
-}
-
 // Initialize sets up the "tctl bots" command.
 func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	bots := app.Command("bots", "Manage Machine & Workload Identity bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
-	c.botsList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.botsList.Flag("format", "Output format.").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
-	c.botsAdd = bots.Command("add", "Add a new bot to the cluster.")
-	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
+	c.botsAdd = bots.Command("add", "Add a new certificate renewal bot to the cluster.")
+	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().SetValue(&c.botName)
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").StringVar(&c.botRoles)
+	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
+	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
+	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
 	c.botsAdd.Flag("max-session-ttl", "Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.").DurationVar(&c.maxSessionTTL)
-	c.initSharedBotTokenFlags(c.botsAdd)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
-	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
+	c.botsRemove.Arg("name", "Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().SetValue(&c.botName)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
-	c.botsLock.Arg("name", "Name of an existing bot to lock.").Required().StringVar(&c.botName)
+	c.botsLock.Arg("name", "Name of an existing bot to lock. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().SetValue(&c.botName)
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
 
 	c.botsUpdate = bots.Command("update", "Update an existing bot.")
-	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
+	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().SetValue(&c.botName)
 	c.botsUpdate.Flag("set-roles", "Sets the bot's roles to the given comma-separated list, replacing any existing roles.").StringVar(&c.botRoles)
 	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
 	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
@@ -185,19 +135,20 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
 	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance.").Alias("get").Alias("describe")
-	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
+	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]. For an instance of a scoped bot, prefix the ID with the bot's scope: [scope]::[bot name]/[uuid].").Required().StringVar(&c.instanceID)
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
-	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
-	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form [scope]::[name]. If unset, lists instances from all bots.").SetValue(&c.botName)
+	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
 	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
 	c.botsInstancesList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("ascending").StringVar(&c.sortOrder)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
-	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
-	c.initSharedBotTokenFlags(c.botsInstancesAdd)
+	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().SetValue(&c.botName)
+	c.botsInstancesAdd.Flag("token", "The token to use, if any. If unset, a new one-time-use token will be created.").StringVar(&c.tokenID)
+	c.botsInstancesAdd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -231,7 +182,6 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-
 	err = commandFunc(ctx, client)
 	closeFn(ctx)
 
@@ -242,7 +192,6 @@ type botsCommandClient interface {
 	BotServiceClient() machineidv1pb.BotServiceClient
 	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
-	CreateToken(ctx context.Context, token types.ProvisionToken) error
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
@@ -267,41 +216,35 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 			return trace.Wrap(err)
 		}
 
-		bots = append(bots, resp.GetBots()...)
-		if resp.GetNextPageToken() == "" {
+		bots = append(bots, resp.Bots...)
+		if resp.NextPageToken == "" {
 			break
 		}
-		req.SetPageToken(resp.GetNextPageToken())
+		req.PageToken = resp.NextPageToken
 	}
 
-	switch c.format {
-	case teleport.Text:
+	if c.format == teleport.Text {
 		if len(bots) == 0 {
 			fmt.Fprintln(c.stdout, "No bots found")
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
 		for _, u := range bots {
+			// Same-named bots in different scopes would otherwise be identical rows.
+			name := scopes.QualifiedName{Scope: u.GetScope(), Name: u.GetMetadata().GetName()}.String()
 			t.AddRow([]string{
-				u.GetMetadata().GetName(), u.GetStatus().GetUserName(), strings.Join(u.GetSpec().GetRoles(), ","),
+				name, u.Status.UserName, strings.Join(u.Spec.GetRoles(), ","),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
 
 		executableFileName := filepath.Base(os.Args[0])
 		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", executableFileName)
-	case teleport.JSON:
+	} else {
 		err := utils.WriteJSONArray(c.stdout, bots)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal bots")
 		}
-	case teleport.YAML:
-		err := utils.WriteYAML(c.stdout, bots)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal bots")
-		}
-	default:
-		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -313,9 +256,7 @@ func bold(text string) string {
 
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
-}).Parse(`
-The bot token: {{.token}}{{if .minutes}}{{ if .join_uri }}
-The joining URI: {{ .join_uri }}{{ end }}
+}).Parse(`The bot token: {{.token}}{{if .minutes}}
 This token will expire in {{.minutes}} minutes.{{end}}
 
 Optionally, if running the bot under an isolated user account, first initialize
@@ -350,97 +291,12 @@ Please note:
     https://goteleport.com/docs/enroll-resources/machine-id/deployment/{{end}}
 `))
 
-var startMessageTemplateV2 = template.Must(template.New(
-	"bot",
-).Parse(`The bot joining URI: {{ .join_uri }}{{ if and (.minutes) (eq .join_method "bound_keypair") }}
-This token must be used within {{ .minutes }} minutes after which it must be recreated.{{ else if .minutes }}
-This token will expire in {{ .minutes }} minutes.{{ end }}
-
-To start a new tbot running the identity service, run:
-
-> tbot start identity \
-   --join-uri={{ .join_uri }} \
-   --destination=./destination
-
-Alternatively, if you'd like to generate a tbot.yaml config file, you can
-instead run:
-
-> tbot configure identity \
-  --join-uri={{ .join_uri }} \
-  --destination=./destination > tbot.yaml
-
-Then, run tbot with:
-
-> tbot start -c tbot.yaml
-
-Advanced parameters:
-{{ .param_table }}
-Please note:
-  - The ./destination destination directory can be changed as desired.
-  - /var/lib/teleport/bot must be accessible to the bot user, or --storage
-    must point to another accessible directory to store internal bot data.
-  - This example shows only use of the 'identity' service. See our documentation
-    for all supported service types:
-    https://goteleport.com/docs/reference/cli/tbot/{{ if eq .join_method "bound_keypair" }}
-  - This token will be permanently bound to a single 'tbot' instance upon first
-    join. For scalable alternatives, see our documentation on other supported
-    join methods:
-    https://goteleport.com/docs/enroll-resources/machine-id/deployment/{{ else if eq .join_method "token" }}
-  - This is a single-token that will be consumed upon usage. For scalable
-    alternatives, see our documentation on other supported join methods:
-    https://goteleport.com/docs/enroll-resources/machine-id/deployment/{{end}}
-`))
-
-func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client botsCommandClient) (types.ProvisionToken, error) {
-	initialPublicKey := c.initialPublicKey
-	if initialPublicKey != "" {
-		_, err := sshutils.CryptoPublicKey([]byte(initialPublicKey))
-		if err != nil {
-			return nil, trace.Wrap(err, "--initial-public-key must contain a valid public key in SSH authorized_keys format")
-		}
-	}
-
-	// For bound keypair tokens, the TTL applies to MustRegisterBefore
-	// rather than the resource TTL. The token itself should live
-	// indefinitely.
-	var mustRegisterBefore *time.Time
-	if c.tokenTTL > 0 {
-		t := time.Now().Add(c.tokenTTL)
-		mustRegisterBefore = &t
-	}
-
-	var recoveryLimit uint32 = 1
-	if c.recoveryLimit > 0 {
-		recoveryLimit = c.recoveryLimit
-	}
-
-	spec := types.ProvisionTokenSpecV2{
-		Roles:      types.SystemRoles{types.RoleBot},
-		JoinMethod: types.JoinMethodBoundKeypair,
-		BotName:    c.botName,
-		BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
-			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
-				InitialPublicKey:   initialPublicKey,
-				MustRegisterBefore: mustRegisterBefore,
-				RegistrationSecret: c.registrationSecret,
-			},
-			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
-				Mode:  c.recoveryMode,
-				Limit: recoveryLimit,
-			},
-		},
-	}
-
-	token, err := c.createUniqueBotToken(ctx, client, 0, spec)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating join token")
-	}
-
-	return token, nil
-}
-
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) error {
+	if c.botName.Scope != "" {
+		return trace.Wrap(errScopedBotTokenUnsupported(c.botName, "creating"))
+	}
+
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -454,22 +310,11 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		slog.WarnContext(ctx, "No roles specified - the bot will not be able to produce outputs until a role is added to the bot")
 	}
 	var token types.ProvisionToken
-	switch {
-	case c.tokenID == "" && !c.legacy:
-		token, err = c.createBoundKeypairBotToken(ctx, client)
+	if c.tokenID == "" {
+		// If there's no token specified, generate one
+		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-	case c.tokenID == "" && c.legacy:
-		// If there's no token specified, generate one
-		var tokenName string
-		if c.testStaticToken != "" {
-			tokenName = c.testStaticToken
-		} else {
-			tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 		}
 		ttl := c.tokenTTL
 		if ttl == 0 {
@@ -478,7 +323,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		tokenSpec := types.ProvisionTokenSpecV2{
 			Roles:      types.SystemRoles{types.RoleBot},
 			JoinMethod: types.JoinMethodToken,
-			BotName:    c.botName,
+			BotName:    c.botName.Name,
 		}
 		token, err = types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 		if err != nil {
@@ -487,7 +332,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		if err := client.UpsertToken(ctx, token); err != nil {
 			return trace.Wrap(err)
 		}
-	default:
+	} else {
 		// If there is, check the token matches the potential bot
 		token, err = client.GetToken(ctx, c.tokenID)
 		if err != nil {
@@ -501,11 +346,8 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 			return trace.BadParameter("token %q is not valid for role %q",
 				c.tokenID, types.RoleBot)
 		}
-		// TODO(strideynet): When bots become scope namespaced, ensure this
-		// call site reflects scopedness.
-		if tokenBotName, _ := token.GetBot(); tokenBotName != c.botName {
-			return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				c.tokenID, tokenBotName, c.botName)
+		if err := checkTokenBot(c.tokenID, token, c.botName); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -514,38 +356,39 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		maxSessionTTL = durationpb.New(c.maxSessionTTL)
 	}
 
-	bot := machineidv1pb.Bot_builder{
+	bot := &machineidv1pb.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
-			Name: c.botName,
-		}.Build(),
-		Spec: machineidv1pb.BotSpec_builder{
+		Metadata: &headerv1.Metadata{
+			Name: c.botName.Name,
+		},
+		Spec: &machineidv1pb.BotSpec{
 			Roles: roles,
 			Traits: []*machineidv1pb.Trait{
-				machineidv1pb.Trait_builder{
+				{
 					Name:   constants.TraitLogins,
 					Values: flattenSlice(c.allowedLogins),
-				}.Build(),
+				},
 			},
 			MaxSessionTtl: maxSessionTTL,
-		}.Build(),
-	}.Build()
+		},
+	}
 
-	bot, err = client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+	bot, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: bot,
-	}.Build())
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.outputToken(ctx, client, bot, token))
+	return trace.Wrap(outputToken(ctx, c.stdout, c.format, client, bot, token))
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
-	_, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
-		BotName: c.botName,
-	}.Build())
+	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		BotName: c.botName.Name,
+		Scope:   c.botName.Scope,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -561,7 +404,12 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(ctx, machineidv1.BotResourceName(c.botName), false)
+	resourceName, err := services.BotResourceName(c.botName)
+	if err != nil {
+		return trace.Wrap(err, "building bot resource name")
+	}
+
+	user, err := client.GetUser(ctx, resourceName, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -572,8 +420,10 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.BadParameter("User %q is not a bot user; use `tctl lock` directly to lock this user", user.GetName())
 	}
 
-	if botName != c.botName {
-		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), c.botName, botName)
+	// The name label alone is ambiguous now the same name may exist in many scopes.
+	found := scopes.QualifiedName{Scope: meta.Labels[types.BotScopeLabel], Name: botName}
+	if found != c.botName {
+		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), c.botName, found)
 	}
 
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
@@ -600,8 +450,8 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 // updating the field mask if any updates were made.
 func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	traits := map[string][]string{}
-	for _, t := range bot.GetSpec().GetTraits() {
-		traits[t.GetName()] = t.GetValues()
+	for _, t := range bot.Spec.GetTraits() {
+		traits[t.Name] = t.Values
 	}
 
 	currentLogins := set.New[string]()
@@ -639,13 +489,13 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 
 	traitsArray := []*machineidv1pb.Trait{}
 	for k, v := range traits {
-		traitsArray = append(traitsArray, machineidv1pb.Trait_builder{
+		traitsArray = append(traitsArray, &machineidv1pb.Trait{
 			Name:   k,
 			Values: v,
-		}.Build())
+		})
 	}
 
-	bot.GetSpec().SetTraits(traitsArray)
+	bot.Spec.Traits = traitsArray
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
 }
@@ -653,7 +503,7 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClient, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := set.New[string](bot.GetSpec().GetRoles()...)
+	currentRoles := set.New[string](bot.Spec.Roles...)
 
 	var desiredRoles set.Set[string]
 	if c.botRoles != "" {
@@ -682,16 +532,25 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClie
 		}
 	}
 
-	bot.GetSpec().SetRoles(desiredRolesArray)
+	bot.Spec.Roles = desiredRolesArray
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
 func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) error {
-	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
-		BotName: c.botName,
-	}.Build())
+	if c.botName.Scope != "" {
+		// Nothing this command can set is settable on a scoped bot, so the RPC
+		// would refuse the request anyway.
+		return trace.BadParameter(
+			"cannot update scoped bot %q: scoped bots have no updatable fields "+
+				"(roles are granted with scoped role assignments)", c.botName,
+		)
+	}
+
+	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+		BotName: c.botName.Name,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -714,7 +573,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 	}
 
 	if c.maxSessionTTL > 0 {
-		bot.GetSpec().SetMaxSessionTtl(durationpb.New(c.maxSessionTTL))
+		bot.Spec.MaxSessionTtl = durationpb.New(c.maxSessionTTL)
 		if err := fieldMask.Append(&machineidv1pb.Bot{}, "spec.max_session_ttl"); err != nil {
 			return trace.Wrap(err)
 		}
@@ -725,33 +584,43 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 		return nil
 	}
 
-	_, err = client.BotServiceClient().UpdateBot(ctx, machineidv1pb.UpdateBotRequest_builder{
+	_, err = client.BotServiceClient().UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
 		Bot:        bot,
 		UpdateMask: fieldMask,
-	}.Build())
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName)
+	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName.Name)
 
 	return nil
 }
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandClient) error {
+	botName, botScope := c.botName.Name, c.botName.Scope
+
+	// Exhaustive view, per the scope_filter field docs.
+	var scopeFilter *scopesv1.Filter
+	if botName == "" {
+		scopeFilter = &scopesv1.Filter{Mode: scopesv1.Mode_MODE_ALL}
+	}
+
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
-		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
+		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
 			PageSize:  int32(pageSize),
 			PageToken: pageToken,
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
-			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
-				BotName:    c.botName,
-				SearchTerm: c.search,
-				Query:      c.query,
-			}.Build(),
-		}.Build())
+			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
+				BotName:     botName,
+				BotScope:    botScope,
+				SearchTerm:  c.search,
+				Query:       c.query,
+				ScopeFilter: scopeFilter,
+			},
+		})
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}
 
@@ -759,11 +628,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		if c.query != "" {
 			return nil, trace.NotImplemented("fallback not supported for requests with a query")
 		}
+		if botScope != "" {
+			return nil, trace.NotImplemented("fallback not supported for requests with a bot scope")
+		}
 		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 			// Needed for backwards compatibility
 			//nolint:staticcheck // SA1019
-			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, machineidv1pb.ListBotInstancesRequest_builder{
-				FilterBotName:    c.botName,
+			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+				FilterBotName:    botName,
 				PageSize:         int32(pageSize),
 				PageToken:        pageToken,
 				FilterSearchTerm: c.search,
@@ -771,7 +643,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 					Field:  c.sortIndex,
 					IsDesc: c.sortOrder == "descending",
 				},
-			}.Build())
+			})
 			return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 		}
 		return stream.Collect(clientutils.Resources(ctx, fallbackPageFunc))
@@ -782,8 +654,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		return trace.Wrap(err)
 	}
 
-	switch c.format {
-	case teleport.JSON, teleport.YAML:
+	if c.format == teleport.JSON {
 		// Wrap resource type so the correct protojson marshaling is used for
 		// timestamp fields.
 		wrappedInstances := make([]types.Resource, 0, len(instances))
@@ -792,26 +663,16 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 				wrappedInstances, types.ProtoResource153ToLegacy(instance),
 			)
 		}
-		if c.format == teleport.JSON {
-			err := utils.WriteJSONArray(c.stdout, wrappedInstances)
-			if err != nil {
-				return trace.Wrap(err, "failed to marshal bot instances")
-			}
-		} else {
-			err := utils.WriteYAML(c.stdout, wrappedInstances)
-			if err != nil {
-				return trace.Wrap(err, "failed to marshal bot instances")
-			}
+		err := utils.WriteJSONArray(c.stdout, wrappedInstances)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal bot instances")
 		}
 
 		return nil
-	case teleport.Text:
-	default:
-		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if len(instances) == 0 {
-		if c.botName == "" {
+		if c.botName.Name == "" {
 			fmt.Fprintln(c.stdout, "No bot instances found.")
 		} else {
 			fmt.Fprintf(c.stdout, "No bot instances found with name %q.\n", c.botName)
@@ -872,8 +733,15 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			healthStatus = formatStatus(status, false) // Disable color, it messes with the table layout
 		}
 
+		// Instances of scoped bots are identified by the bot's scope-qualified
+		// name; instances of unscoped bots by the bot's bare name.
+		id := scopes.QualifiedName{
+			Scope: i.GetScope(),
+			Name:  i.GetSpec().GetBotName() + "/" + i.GetSpec().GetInstanceId(),
+		}.String()
+
 		t.AddRow([]string{
-			fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId()), joinMethod,
+			id, joinMethod,
 			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
@@ -882,7 +750,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
 
-	if c.botName != "" {
+	// 'bots instances add' refuses scoped bots, so don't advertise it for one.
+	if c.botName.Name != "" && c.botName.Scope == "" {
 		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, c.botName)
 	}
 
@@ -894,29 +763,20 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 	// A bit of a misnomer but makes the terminology a bit more consistent. This
 	// doesn't directly create a bot instance, but creates token that allows a
 	// bot to join, which creates a new instance.
-	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
-	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
-	if err == nil {
-		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-		return trace.Wrap(err)
+	if c.botName.Scope != "" {
+		return trace.Wrap(errScopedBotTokenUnsupported(c.botName, "onboarding an instance of"))
 	}
 
-	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
-		BotName: c.botName,
-	}.Build())
+	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+		BotName: c.botName.Name,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if c.tokenID == "" && !c.legacy {
-		token, err := c.createBoundKeypairBotToken(ctx, client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	var token types.ProvisionToken
 
-		return trace.Wrap(c.outputToken(ctx, client, bot, token))
-	} else if c.tokenID == "" && c.legacy {
+	if c.tokenID == "" {
 		// If there's no token specified, generate one
 		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
@@ -926,9 +786,9 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		tokenSpec := types.ProvisionTokenSpecV2{
 			Roles:      types.SystemRoles{types.RoleBot},
 			JoinMethod: types.JoinMethodToken,
-			BotName:    c.botName,
+			BotName:    c.botName.Name,
 		}
-		token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
+		token, err = types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -936,7 +796,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(c.outputToken(ctx, client, bot, token))
+		return trace.Wrap(outputToken(ctx, c.stdout, c.format, client, bot, token))
 	}
 
 	// There's not much to do in this case, but we can validate the token.
@@ -944,7 +804,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 	// print joining instructions.
 
 	// If there is, check the token matches the potential bot
-	token, err := client.GetToken(ctx, c.tokenID)
+	token, err = client.GetToken(ctx, c.tokenID)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
@@ -956,20 +816,43 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		return trace.BadParameter("token %q is not valid for role %q",
 			c.tokenID, types.RoleBot)
 	}
-	// TODO(strideynet): When bots become scope namespaced, ensure this call
-	// site reflects scopedness.
-	if tokenBotName, _ := token.GetBot(); tokenBotName != c.botName {
-		return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-			c.tokenID, tokenBotName, c.botName)
+	if err := checkTokenBot(c.tokenID, token, c.botName); err != nil {
+		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.outputToken(ctx, client, bot, token))
+	return trace.Wrap(outputToken(ctx, c.stdout, c.format, client, bot, token))
+}
+
+// checkTokenBot verifies that the join token references the bot the caller
+// named, scope included.
+func checkTokenBot(tokenID string, token types.ProvisionToken, ref scopes.QualifiedName) error {
+	name, scope := token.GetBot()
+	if tokenBot := (scopes.QualifiedName{Scope: scope, Name: name}); tokenBot != ref {
+		return trace.BadParameter("token %q is valid for bot %q, not %q",
+			tokenID, tokenBot, ref)
+	}
+	return nil
+}
+
+// errScopedBotTokenUnsupported explains that the token-minting `tctl bots`
+// subcommands cannot serve a scoped bot: classic provision tokens can only
+// reference unscoped bots, and this command does not create scoped_tokens.
+func errScopedBotTokenUnsupported(ref scopes.QualifiedName, verb string) error {
+	return trace.BadParameter(
+		"%s a scoped bot is not supported by this command (got %q)\n"+
+			"hint: a scoped bot joins with a scoped token, which this command cannot create.\n"+
+			"  Apply one with 'tctl create -f': a scoped_token in scope %q with spec.bot: %q,\n"+
+			"  spec.usage_mode: bot, spec.roles: [Bot] and spec.join_method: bound_keypair.\n"+
+			"  The bot also needs a scoped role assignment applicable to its scope before it can join.",
+		verb, ref, ref.Scope, ref,
+	)
 }
 
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
 	"bold": bold,
 }).Parse(`Bot:    {{.instance.Spec.BotName}}
-ID:     {{.instance.Spec.InstanceId}}
+{{if .scope}}Scope:  {{.scope}}
+{{end}}ID:     {{.instance.Spec.InstanceId}}
 Status: {{.health_status}}
 
 Initial Authentication: {{.initial_authentication_table}}
@@ -984,23 +867,24 @@ Services:
 To view a full, machine-readable record including past heartbeats and
 authentication records, run:
 
-> {{.executable}} get bot_instance/{{.instance.Spec.BotName}}/{{.instance.Spec.InstanceId}}
-
+> {{.executable}} get {{.get_ref}}
+{{if .can_add_instance}}
 To onboard a new instance for this bot, run:
 
 > {{.executable}} bots instances add {{.instance.Spec.BotName}}
-`))
+{{end}}`))
 
 func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandClient) error {
-	botName, instanceID, err := parseInstanceID(c.instanceID)
+	botScope, botName, instanceID, err := parseInstanceID(c.instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
+	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
 		BotName:    botName,
 		InstanceId: instanceID,
-	}.Build())
+		BotScope:   botScope,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1008,16 +892,16 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 	initialAuthenticationTable := formatBotInstanceAuthentication(instance.GetStatus().GetInitialAuthentication())
 
 	var latestAuthenticationTable string
-	if len(instance.GetStatus().GetLatestAuthentications()) > 0 {
-		latest := instance.GetStatus().GetLatestAuthentications()[len(instance.GetStatus().GetLatestAuthentications())-1]
+	if latestAuthentications := instance.GetStatus().GetLatestAuthentications(); len(latestAuthentications) > 0 {
+		latest := latestAuthentications[len(latestAuthentications)-1]
 		latestAuthenticationTable = formatBotInstanceAuthentication(latest)
 	} else {
 		latestAuthenticationTable = "No authentication records."
 	}
 
 	var heartbeatTable string
-	if len(instance.GetStatus().GetLatestHeartbeats()) > 0 {
-		latest := instance.GetStatus().GetLatestHeartbeats()[len(instance.GetStatus().GetLatestHeartbeats())-1]
+	if latestHeartbeats := instance.GetStatus().GetLatestHeartbeats(); len(latestHeartbeats) > 0 {
+		latest := latestHeartbeats[len(latestHeartbeats)-1]
 		heartbeatTable = formatBotInstanceHeartbeat(latest)
 	} else {
 		heartbeatTable = "No heartbeat records."
@@ -1033,9 +917,22 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
 	}
 
+	// Only the two-argument form of 'tctl get' can carry a scope, so use it for
+	// scoped and unscoped alike rather than changing shape between them.
+	instanceRef := instance.GetSpec().GetBotName() + "/" + instance.GetSpec().GetInstanceId()
+	if scope := instance.GetScope(); scope != "" {
+		instanceRef = scopes.QualifiedName{Scope: scope, Name: instanceRef}.String()
+	}
+	getRef := types.KindBotInstance + " " + instanceRef
+
 	templateData := map[string]any{
-		"executable":                   os.Args[0],
-		"instance":                     instance,
+		"executable": os.Args[0],
+		"instance":   instance,
+		"scope":      instance.GetScope(),
+		"get_ref":    getRef,
+		// A bare name in the 'instances add' hint would target the same-named
+		// unscoped bot, and that command can't onboard a scoped bot anyway.
+		"can_add_instance":             instance.GetScope() == "",
 		"initial_authentication_table": initialAuthenticationTable,
 		"latest_authentication_table":  latestAuthenticationTable,
 		"heartbeat_table":              heartbeatTable,
@@ -1043,27 +940,43 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		"services_table":               servicesTable,
 	}
 
-	return trace.Wrap(showMessageTemplate.Execute(os.Stdout, templateData))
+	return trace.Wrap(showMessageTemplate.Execute(c.stdout, templateData))
 }
 
-// botJSONResponse is a structured response generated by the `tctl bots add`
-// family of commands when the format is `json` or `yaml`.
+// botJSONResponse is a response generated by the `tctl bots add` family of
+// commands when the format is `json`
 type botJSONResponse struct {
-	UserName           string        `json:"user_name"`
-	RoleName           string        `json:"role_name"`
-	TokenID            string        `json:"token_id"`
-	TokenTTL           time.Duration `json:"token_ttl"`
-	JoinURI            string        `json:"join_uri"`
-	RegistrationSecret string        `json:"registration_secret,omitempty"`
+	UserName string        `json:"user_name"`
+	RoleName string        `json:"role_name"`
+	TokenID  string        `json:"token_id"`
+	TokenTTL time.Duration `json:"token_ttl"`
 }
 
 // outputToken writes token information to stdout, depending on the token format.
-func (c *BotsCommand) outputToken(
-	ctx context.Context,
-	client botsCommandClient,
-	bot *machineidv1pb.Bot,
-	token types.ProvisionToken,
-) error {
+func outputToken(ctx context.Context, wr io.Writer, format string, client botsCommandClient, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
+	if format == teleport.JSON {
+		tokenTTL := time.Duration(0)
+		if exp := token.Expiry(); !exp.IsZero() {
+			tokenTTL = time.Until(exp)
+		}
+		// This struct is equivalent to a legacy bit of JSON we used to output
+		// when we called an older RPC. We've preserved it here to avoid
+		// breaking customer scripts.
+		response := botJSONResponse{
+			UserName: bot.Status.UserName,
+			RoleName: bot.Status.RoleName,
+			TokenID:  token.GetName(),
+			TokenTTL: tokenTTL,
+		}
+		out, err := json.MarshalIndent(response, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal CreateBot response")
+		}
+
+		fmt.Fprintln(wr, string(out))
+		return nil
+	}
+
 	proxies, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		return client.GetProxies()
@@ -1076,133 +989,27 @@ func (c *BotsCommand) outputToken(
 	}
 	addr := cmp.Or(proxies[0].GetPublicAddr(), proxies[0].GetAddr())
 
-	uri, err := joinuri.FromProvisionToken(token, addr)
-	if err != nil {
-		return trace.Wrap(err, "generating joining URI")
-	}
-
-	secret, _ := uri.ToURL().User.Password()
-
-	switch c.format {
-	case teleport.JSON, teleport.YAML:
-		tokenTTL := time.Duration(0)
-		if exp := token.Expiry(); !exp.IsZero() {
-			tokenTTL = time.Until(exp)
-		} else if deadline := getBoundKeypairRegistrationDeadline(token); deadline != nil {
-			tokenTTL = time.Until(*deadline)
-		}
-		// This struct is equivalent to a legacy bit of JSON we used to output
-		// when we called an older RPC. We've preserved it here to avoid
-		// breaking customer scripts.
-		response := botJSONResponse{
-			UserName: bot.GetStatus().GetUserName(),
-			RoleName: bot.GetStatus().GetRoleName(),
-			TokenID:  token.GetName(),
-			TokenTTL: tokenTTL,
-			JoinURI:  uri.String(),
-		}
-
-		// Only set registration_secret if the type is explicitly bound keypair.
-		// We don't currently have other values in the password field, but it is
-		// not exclusively reserved for registration secrets and may not have
-		// the same semantics for other methods in the future.
-		if token.GetJoinMethod() == types.JoinMethodBoundKeypair && secret != "" {
-			response.RegistrationSecret = secret
-		}
-
-		if c.format == teleport.JSON {
-			return trace.Wrap(utils.WriteJSON(c.stdout, response), "failed to marshal CreateBot response")
-		}
-		return trace.Wrap(utils.WriteYAML(c.stdout, response), "failed to marshal CreateBot response")
-	case teleport.Text:
-	default:
-		return trace.BadParameter("unknown format %q", c.format)
-	}
-
-	if c.legacy {
-		joinMethod := token.GetJoinMethod()
-		if joinMethod == types.JoinMethodUnspecified {
-			joinMethod = types.JoinMethodToken
-		}
-
-		templateData := map[string]any{
-			"token":       token.GetName(),
-			"addr":        addr,
-			"join_method": joinMethod,
-			"join_uri":    uri.String(),
-		}
-		if !token.Expiry().IsZero() {
-			templateData["minutes"] = int(time.Until(token.Expiry()).Minutes())
-		} else if deadline := getBoundKeypairRegistrationDeadline(token); deadline != nil {
-			templateData["minutes"] = int(time.Until(*deadline).Minutes())
-		}
-
-		if c.testMutateTemplateData != nil {
-			c.testMutateTemplateData(templateData)
-		}
-
-		return startMessageTemplate.Execute(c.stdout, templateData)
-	}
-
 	joinMethod := token.GetJoinMethod()
 	if joinMethod == types.JoinMethodUnspecified {
-		joinMethod = types.JoinMethodBoundKeypair
+		joinMethod = types.JoinMethodToken
 	}
 
-	paramTable := asciitable.MakeHeadlessTable(2)
-	paramTable.AddRow([]string{"Proxy:", addr})
-	paramTable.AddRow([]string{"Token:", token.GetName()})
-	paramTable.AddRow([]string{"Join Method:", string(joinMethod)})
-	if secret != "" {
-		paramTable.AddRow([]string{"Registration Secret:", secret})
-	}
-
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
+		"token":       token.GetName(),
+		"addr":        addr,
 		"join_method": joinMethod,
-		"join_uri":    uri.String(),
-		"param_table": indentString(paramTable.AsBuffer().String(), "  "),
 	}
 	if !token.Expiry().IsZero() {
 		templateData["minutes"] = int(time.Until(token.Expiry()).Minutes())
-	} else if deadline := getBoundKeypairRegistrationDeadline(token); deadline != nil {
-		templateData["minutes"] = int(time.Until(*deadline).Minutes())
 	}
-
-	if c.testMutateTemplateData != nil {
-		c.testMutateTemplateData(templateData)
-	}
-
-	return startMessageTemplateV2.Execute(c.stdout, templateData)
-}
-
-func getBoundKeypairRegistrationDeadline(token types.ProvisionToken) *time.Time {
-	ptv2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil
-	}
-
-	spec := ptv2.Spec.BoundKeypair
-	if spec == nil {
-		return nil
-	}
-
-	onboarding := spec.Onboarding
-	if onboarding == nil {
-		return nil
-	}
-
-	if onboarding.MustRegisterBefore == nil {
-		return nil
-	}
-
-	return onboarding.MustRegisterBefore
+	return startMessageTemplate.Execute(wr, templateData)
 }
 
 // splitEntries splits a comma separated string into an array of entries,
 // ignoring empty or whitespace-only elements.
 func splitEntries(flag string) []string {
 	var roles []string
-	for s := range strings.SplitSeq(flag, ",") {
+	for _, s := range strings.Split(flag, ",") {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue
@@ -1310,14 +1117,25 @@ func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) s
 }
 
 // parseInstanceID converts an instance ID string in the form of
-// '[bot name]/[uuid]' to separate bot name and UUID strings.
-func parseInstanceID(s string) (name string, uuid string, err error) {
-	name, uuid, ok := strings.Cut(s, "/")
-	if !ok {
-		return "", "", trace.BadParameter("invalid bot instance syntax, must be: [bot name]/[uuid]")
+// [scope::][bot name]/[uuid] into its component parts. The scope prefix
+// addresses an instance of a scoped bot; scope is empty when the prefix is
+// absent.
+func parseInstanceID(s string) (scope string, name string, uuid string, err error) {
+	if before, after, ok := strings.Cut(s, scopes.QualifiedNameSeparator); ok {
+		if err := scopes.StrongValidate(before); err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+		scope, s = before, after
+	} else if scopes.MaybeSQN(s) {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
 	}
 
-	return
+	name, uuid, ok := strings.Cut(s, "/")
+	if !ok {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
+	}
+
+	return scope, name, uuid, nil
 }
 
 // indentString prefixes each line (ending with \n) with the provided prefix.
@@ -1365,59 +1183,4 @@ func aggregateServiceHealth(services []*machineidv1pb.BotInstanceServiceHealth) 
 	}
 
 	return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
-}
-
-// createUniqueBotToken attempts to create a new uniquely-named bot join token.
-// It generates randomly-named tokens of the form `bot-$name-$suffix`, where
-// `$name` is the bot name, and `$suffix` is a random hex string. It makes up to
-// 2 retry attempts if the token name is already in use. If staticTokenName is
-// set, that name will be used instead of a random name; this is only suitable
-// for ensuring deterministic tests.
-func (c *BotsCommand) createUniqueBotToken(
-	ctx context.Context,
-	client botsCommandClient,
-	ttl time.Duration,
-	spec types.ProvisionTokenSpecV2,
-) (types.ProvisionToken, error) {
-	for i := 0; i < 3; i++ {
-		name := c.testStaticToken
-		if name == "" {
-			suffix, err := utils.CryptoRandomHex(4)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			name = fmt.Sprintf("bot-%s-%s", spec.BotName, suffix)
-		}
-
-		token, err := types.NewProvisionTokenFromSpec(name, time.Now().Add(ttl), spec)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Ugly hack, but there's no other way to unset Expires or construct a
-		// token with a nil value.
-		if ttl == 0 {
-			meta := token.GetMetadata()
-			meta.Expires = nil
-			token.SetMetadata(meta)
-		}
-
-		err = client.CreateToken(ctx, token)
-		if trace.IsAlreadyExists(err) {
-			slog.DebugContext(ctx, "Token already exists, will try again with new random name", "token", name)
-			continue
-		} else if err != nil {
-			return nil, trace.Wrap(err, "creating token")
-		}
-
-		created, err := client.GetToken(ctx, name)
-		if err != nil {
-			return nil, trace.Wrap(err, "fetching created token")
-		}
-
-		return created, nil
-	}
-
-	return nil, trace.AlreadyExists("unable to create a new unique join token")
 }

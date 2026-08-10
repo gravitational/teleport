@@ -52,13 +52,13 @@ func newStaticScopedTokensCollection(upstream services.StaticScopedTokenService,
 			return []*joiningv1.StaticScopedTokens{tokens}, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *joiningv1.StaticScopedTokens {
-			return joiningv1.StaticScopedTokens_builder{
+			return &joiningv1.StaticScopedTokens{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: types.MetaNameStaticScopedTokens,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil

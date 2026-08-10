@@ -19,6 +19,8 @@ package joining
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"iter"
 	"log/slog"
 	"time"
@@ -151,10 +153,9 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	}
 
 	// fetch the token so we can determine the resource scope
-	preAuthzRes, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
-		Name:  req.GetName(),
-		Scope: req.GetScope(),
-	}.Build())
+	preAuthzRes, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+		Name: req.GetName(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,32 +214,29 @@ func makeCursor(token *scopedjoiningv1.ScopedToken) string {
 	if token == nil {
 		return ""
 	}
-	return scopes.MakeResourceCursor(token.GetScope(), token.GetMetadata().GetName())
+	hash := sha256.Sum256([]byte(token.GetMetadata().GetName()))
+	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
 func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListScopedTokensRequest) iter.Seq2[*scopedjoiningv1.ScopedToken, error] {
 	return func(yield func(token *scopedjoiningv1.ScopedToken, err error) bool) {
 		iterReq := proto.CloneOf(req)
-		iterReq.SetLimit(s.maxPageSize)
+		iterReq.Limit = s.maxPageSize
 
-		// Public cursors identify the last token returned. Backend cursors are
-		// inclusive, so skip that token once if it is still present.
-		cursor := req.GetCursor()
+		var cursorFound bool
 		for {
 			res, err := s.backend.ListScopedTokens(ctx, iterReq)
 			if err != nil {
-				yield(nil, trace.Wrap(err))
-				return
+				if !yield(nil, trace.Wrap(err)) {
+					return
+				}
 			}
 
 			for _, tok := range res.GetTokens() {
-				if cursor != "" {
-					if makeCursor(tok) == cursor {
-						cursor = ""
-						continue
-					}
-					cursor = ""
+				if !cursorFound && req.GetCursor() != "" && makeCursor(tok) != req.GetCursor() {
+					continue
 				}
+				cursorFound = true
 				if !yield(tok, nil) {
 					return
 				}
@@ -248,7 +246,7 @@ func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListS
 			if res.GetCursor() == "" {
 				return
 			}
-			iterReq.SetCursor(res.GetCursor())
+			iterReq.Cursor = res.GetCursor()
 		}
 	}
 }
@@ -301,10 +299,10 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 	if len(authorizedTokens) >= limit {
 		lastToken = authorizedTokens[len(authorizedTokens)-1]
 	}
-	return scopedjoiningv1.ListScopedTokensResponse_builder{
+	return &scopedjoiningv1.ListScopedTokensResponse{
 		Tokens: authorizedTokens,
 		Cursor: makeCursor(lastToken),
-	}.Build(), nil
+	}, nil
 }
 
 // UpsertScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -358,10 +356,9 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 		return nil, trace.Wrap(err)
 	}
 
-	extant, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
-		Name:  req.GetToken().GetMetadata().GetName(),
-		Scope: req.GetToken().GetScope(),
-	}.Build())
+	extant, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+		Name: req.GetToken().GetMetadata().GetName(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

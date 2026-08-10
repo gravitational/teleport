@@ -70,7 +70,6 @@ import (
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -170,8 +169,6 @@ type suiteConfig struct {
 	OverrideCAs []types.CertAuthority
 	// InsecureMode sets service to insecure mode.
 	InsecureMode bool
-	// TargetHostPolicy restricts application target dials by resolved IP.
-	TargetHostPolicy common.TargetHostPolicy
 }
 
 type fakeConnMonitor struct{}
@@ -273,10 +270,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 			err = ws.WriteMessage(websocket.TextMessage, []byte(s.message))
 			require.NoError(t, err)
-
-			// Close the upstream websocket once the message has been written so
-			// the backend->client copy direction reaches EOF promptly.
-			require.NoError(t, ws.Close())
 		} else {
 			fmt.Fprintln(w, s.message)
 		}
@@ -399,7 +392,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		CipherSuites:      utils.DefaultCipherSuites(),
 		ServiceComponent:  teleport.ComponentApp,
 		InsecureMode:      config.InsecureMode,
-		TargetHostPolicy:  config.TargetHostPolicy,
 		AWSConfigOptions: []awsconfig.OptionsFn{
 			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
 				return &mocks.STSClient{}
@@ -410,31 +402,30 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello_builder{
+			return &proto.UpstreamInventoryHello{
 				ServerID: s.hostUUID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
 				Hostname: "test",
-			}.Build(), nil
+			}, nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:                s.clock,
-		AccessPoint:          s.authClient,
-		AuthClient:           s.authClient,
-		HostID:               s.hostUUID,
-		Hostname:             "test",
-		GetRotation:          testRotationGetter,
-		Apps:                 apps,
-		OnHeartbeat:          func(err error) {},
-		ResourceMatchers:     config.ResourceMatchers,
-		OnReconcile:          config.OnReconcile,
-		CloudLabels:          config.CloudImporter,
-		ConnectionsHandler:   connectionsHandler,
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		Clock:              s.clock,
+		AccessPoint:        s.authClient,
+		AuthClient:         s.authClient,
+		HostID:             s.hostUUID,
+		Hostname:           "test",
+		GetRotation:        testRotationGetter,
+		Apps:               apps,
+		OnHeartbeat:        func(err error) {},
+		ResourceMatchers:   config.ResourceMatchers,
+		OnReconcile:        config.OnReconcile,
+		CloudLabels:        config.CloudImporter,
+		ConnectionsHandler: connectionsHandler,
+		InventoryHandle:    inventoryHandle,
 	})
 	require.NoError(t, err)
 
@@ -459,9 +450,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		case sender := <-inventoryHandle.Sender():
 			appServer, err := s.appServer.getServerInfo(app)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat_builder{
+			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
 				AppServer: appServer,
-			}.Build()))
+			}))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")
 		}
@@ -586,6 +577,7 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

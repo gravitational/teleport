@@ -22,10 +22,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	accesslistapi "github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/lib/accesslists/preset"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 const (
@@ -47,7 +47,7 @@ type applyAccessFlagsToRole func(allow *types.RoleConditions) error
 func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) error {
 	// Nodes
 	if c.nodeLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.nodeLabels)
+		labels, err := client.MultiValueLabelSelectorSpec(c.nodeLabels)
 		if err != nil {
 			return trace.Wrap(err, "--node-labels")
 		}
@@ -59,7 +59,7 @@ func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) er
 
 	// Dbs
 	if c.dbLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.dbLabels)
+		labels, err := client.MultiValueLabelSelectorSpec(c.dbLabels)
 		if err != nil {
 			return trace.Wrap(err, "--db-labels")
 		}
@@ -74,7 +74,7 @@ func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) er
 
 	// Kubes
 	if c.kubeLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.kubeLabels)
+		labels, err := client.MultiValueLabelSelectorSpec(c.kubeLabels)
 		if err != nil {
 			return trace.Wrap(err, "--kubernetes-labels")
 		}
@@ -89,7 +89,7 @@ func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) er
 
 	// Apps
 	if c.appLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.appLabels)
+		labels, err := client.MultiValueLabelSelectorSpec(c.appLabels)
 		if err != nil {
 			return trace.Wrap(err, "--app-labels")
 		}
@@ -115,7 +115,7 @@ func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) er
 
 	// Windows
 	if c.windowsLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.windowsLabels)
+		labels, err := client.MultiValueLabelSelectorSpec(c.windowsLabels)
 		if err != nil {
 			return trace.Wrap(err, "--windows-labels")
 		}
@@ -190,11 +190,11 @@ func buildRole(roleName string, allow types.RoleConditions) (*types.RoleV6, erro
 }
 
 // accessType maps the backend value into the user facing accessType value.
-func accessType(preset string) string {
-	switch preset {
-	case string(accesslistapi.LongTermPresetType):
+func accessType(presetType string) string {
+	switch presetType {
+	case string(preset.LongTermPresetType):
 		return accessTypeLongTerm
-	case string(accesslistapi.ShortTermPresetType):
+	case string(preset.ShortTermPresetType):
 		return accessTypeShortTerm
 	}
 	return ""
@@ -204,9 +204,9 @@ func accessType(preset string) string {
 func presetType(accessType string) string {
 	switch accessType {
 	case accessTypeLongTerm:
-		return string(accesslistapi.LongTermPresetType)
+		return string(preset.LongTermPresetType)
 	case accessTypeShortTerm:
-		return string(accesslistapi.ShortTermPresetType)
+		return string(preset.ShortTermPresetType)
 	}
 	return ""
 }

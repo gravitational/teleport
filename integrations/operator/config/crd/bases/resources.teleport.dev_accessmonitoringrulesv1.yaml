@@ -1,8 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  annotations:
-    resources.teleport.dev/scoped: "false"
   name: teleportaccessmonitoringrulesv1.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -120,7 +118,8 @@ spec:
                       type: object
                   type: object
                 description: schedules specifies a map of schedules that can be used
-                  to configure the access monitoring rule conditions.
+                  to configure the access monitoring rule conditions.  Available in
+                  Teleport v18.2.8 or higher.
                 nullable: true
                 type: object
               states:

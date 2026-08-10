@@ -166,8 +166,8 @@ func TestRunForkAuthenticate(t *testing.T) {
 		})
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			require.Equal(t, "stdout: hello\n", stdout.String())
-			require.Equal(t, "stderr: hello\n", stderr.String())
+			assert.Equal(t, "stdout: hello\n", stdout.String())
+			assert.Equal(t, "stderr: hello\n", stderr.String())
 		}, 10*time.Second, 100*time.Millisecond)
 
 		cancel()

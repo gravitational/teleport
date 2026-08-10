@@ -18,7 +18,6 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -195,7 +194,7 @@ function makeWrapper(opts?: {
           <ConfiguredThemeProvider theme={theme}>
             <TrackingProvider disabled={disableTracking}>
               <GitHubK8sFlowProvider intitialState={initialState}>
-                <MemoryRouter>{children}</MemoryRouter>
+                {children}
               </GitHubK8sFlowProvider>
             </TrackingProvider>
           </ConfiguredThemeProvider>

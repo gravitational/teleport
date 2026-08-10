@@ -62,16 +62,16 @@ type TeleportRetrievalModelV1List struct {
 // the Kubernetes CR name, because RetrievalModel is a singleton that can only
 // exist under that fixed name.
 func (l *TeleportRetrievalModelV1) ToTeleport() *summarizerv1.RetrievalModel {
-	resource := summarizerv1.RetrievalModel_builder{
+	resource := &summarizerv1.RetrievalModel{
 		Kind:    types.KindRetrievalModel,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        types.MetaNameRetrievalModel,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		}.Build(),
+		},
 		Spec: (*summarizerv1.RetrievalModelSpec)(l.Spec),
-	}.Build()
+	}
 	return resource
 }
 

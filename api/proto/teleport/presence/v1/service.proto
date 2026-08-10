@@ -51,13 +51,11 @@ service PresenceService {
 
   // ListAuthServers returns a page of Auth servers.
   rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
-
   // ListProxyServers returns a page of Proxy servers.
   rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
-  // UpsertProxyServer upserts a Proxy server heartbeat.
-  rpc UpsertProxyServer(UpsertProxyServerRequest) returns (UpsertProxyServerResponse);
-  // DeleteProxyServer removes an existing Proxy server heartbeat by name.
-  rpc DeleteProxyServer(DeleteProxyServerRequest) returns (DeleteProxyServerResponse);
+
+  // Deletes a specific scoped or unscoped application server.
+  rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
 
   // Fetches a kube cluster resource from the backend.
   rpc GetKubeCluster(GetKubeClusterRequest) returns (GetKubeClusterResponse);
@@ -68,9 +66,6 @@ service PresenceService {
 
   // Deletes a specific scoped or unscoped kube server from the backend.
   rpc DeleteKubeServer(DeleteKubeServerRequest) returns (DeleteKubeServerResponse);
-
-  // Deletes a specific scoped or unscoped application server.
-  rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -222,26 +217,19 @@ message ListProxyServersResponse {
   string next_page_token = 2;
 }
 
-// Request message for the PresenceService.UpsertProxyServer rpc.
-message UpsertProxyServerRequest {
-  // Server is the Proxy server heartbeat to upsert.
-  types.ServerV2 server = 1;
+// The request to delete a specific scoped or unscoped application server.
+message DeleteAppServerRequest {
+  // HostId is the app server host uuid.
+  string host_id = 1;
+  // Name is the name of the application to delete.
+  string name = 2;
+  // Scope is the scope of the application to delete. Empty for unscoped
+  // applications.
+  string scope = 3;
 }
 
-// Response message for the PresenceService.UpsertProxyServer rpc.
-message UpsertProxyServerResponse {
-  // Server is the upserted Proxy server.
-  types.ServerV2 server = 1;
-}
-
-// Request message for the PresenceService.DeleteProxyServer rpc.
-message DeleteProxyServerRequest {
-  // Name is the name (host UUID) of the Proxy server to delete.
-  string name = 1;
-}
-
-// Response message for the PresenceService.DeleteProxyServer rpc.
-message DeleteProxyServerResponse {}
+// The response for deleting an application server.
+message DeleteAppServerResponse {}
 
 // The request for fetching a specific scoped or unscoped kube cluster resource.
 message GetKubeClusterRequest {
@@ -302,17 +290,3 @@ message DeleteKubeServerRequest {
 
 // The response for deleting a kube server.
 message DeleteKubeServerResponse {}
-
-// The request to delete a specific scoped or unscoped application server.
-message DeleteAppServerRequest {
-  // HostId is the app server host uuid.
-  string host_id = 1;
-  // Name is the name of the application to delete.
-  string name = 2;
-  // Scope is the scope of the application to delete. Empty for unscoped
-  // applications.
-  string scope = 3;
-}
-
-// The response for deleting an application server.
-message DeleteAppServerResponse {}

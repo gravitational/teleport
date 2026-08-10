@@ -55,7 +55,7 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 		}
 
 		// If the agent group matches, we keep it.
-		if handle.Hello().GetUpdaterInfo().UpdateGroup == groupName {
+		if handle.Hello().UpdaterInfo.UpdateGroup == groupName {
 			// No need to check for UpdaterInfo being nil, it would have been filtered
 			// out by filterHandler().
 			return true
@@ -67,7 +67,7 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 		}
 
 		// This is the catch-call group, it matches agents from every group not in groups.
-		_, ok := groupSet[handle.Hello().GetUpdaterInfo().UpdateGroup]
+		_, ok := groupSet[handle.Hello().UpdaterInfo.UpdateGroup]
 		// If the agent group is not in the group list, it falls into the catch-all.
 		return !ok
 	}
@@ -80,16 +80,16 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 	canaries := make([]*autoupdatev1pb.Canary, 0, len(sampled))
 	for _, h := range sampled {
 		hello := h.Hello()
-		updaterID, err := uuid.FromBytes(hello.GetUpdaterInfo().UpdateUUID)
+		updaterID, err := uuid.FromBytes(hello.UpdaterInfo.UpdateUUID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		canaries = append(canaries, autoupdatev1pb.Canary_builder{
+		canaries = append(canaries, &autoupdatev1pb.Canary{
 			UpdaterId: updaterID.String(),
-			HostId:    hello.GetServerID(),
-			Hostname:  hello.GetHostname(),
+			HostId:    hello.ServerID,
+			Hostname:  hello.Hostname,
 			Success:   false,
-		}.Build())
+		})
 	}
 	return canaries, nil
 }

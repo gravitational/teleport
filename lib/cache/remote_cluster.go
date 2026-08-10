@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -49,7 +48,7 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.TunnelConnection, error) {
-			out, err := upstream.GetAllTunnelConnections(ctx)
+			out, err := upstream.GetAllTunnelConnections()
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.TunnelConnection {
@@ -69,8 +68,8 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 }
 
 // GetTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTunnelConnections")
+func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
@@ -80,7 +79,7 @@ func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tunnels, err := c.Config.Trust.GetTunnelConnections(ctx, clusterName)
+		tunnels, err := c.Config.Trust.GetTunnelConnections(clusterName, opts...)
 		return tunnels, trace.Wrap(err)
 	}
 
@@ -95,8 +94,8 @@ func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([
 }
 
 // GetAllTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.TunnelConnection, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAllTunnelConnections")
+func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
@@ -106,7 +105,7 @@ func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.Tunn
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tunnels, err := c.Config.Trust.GetAllTunnelConnections(ctx)
+		tunnels, err := c.Config.Trust.GetAllTunnelConnections(opts...)
 		return tunnels, trace.Wrap(err)
 	}
 
@@ -116,38 +115,6 @@ func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.Tunn
 	}
 
 	return tunnels, nil
-}
-
-// ListTunnelConnections returns a page of tunnel connections matching the
-// given filter.
-func (c *Cache) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListTunnelConnections")
-	defer span.End()
-
-	lister := genericLister[types.TunnelConnection, tunnelConnectionIndex]{
-		cache:      c,
-		collection: c.collections.tunnelConnections,
-		index:      tunnelConnectionNameIndex,
-		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.TunnelConnection, string, error) {
-			return c.Config.Trust.ListTunnelConnections(ctx, pageSize, pageToken, filter)
-		},
-		nextToken: func(tc types.TunnelConnection) string {
-			return tc.GetClusterName() + "/" + tc.GetName()
-		},
-	}
-
-	if clusterName := filter.GetClusterName(); clusterName != "" {
-		startToken := clusterName + "/"
-		if pageToken != "" {
-			startToken = pageToken
-		}
-		endToken := sortcache.NextKey(clusterName + "/")
-		out, next, err := lister.listRange(ctx, pageSize, startToken, endToken)
-		return out, next, trace.Wrap(err)
-	}
-
-	out, next, err := lister.list(ctx, pageSize, pageToken)
-	return out, next, trace.Wrap(err)
 }
 
 type remoteClusterIndex string
@@ -273,7 +240,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 
 // ListRemoteClusters returns a page of remote clusters.
 func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
+	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
 	defer span.End()
 
 	lister := genericLister[types.RemoteCluster, remoteClusterIndex]{

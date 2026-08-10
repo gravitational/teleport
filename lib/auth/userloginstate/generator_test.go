@@ -37,8 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -50,7 +52,6 @@ const ownerUser = "owner"
 var emptyGrants = accesslist.Grants{}
 
 func TestAccessLists(t *testing.T) {
-	t.Parallel()
 	owner, err := types.NewUser(ownerUser)
 	require.NoError(t, err)
 	owner.SetRoles([]string{"orole1"})
@@ -595,8 +596,18 @@ func TestAccessLists(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: test.cloud,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.Identity: {Enabled: true},
+					},
+				},
+			})
+
 			ctx := context.Background()
-			svc, backendSvc, err := initGeneratorSvc(test.cloud)
+			svc, backendSvc, err := initGeneratorSvc()
 			require.NoError(t, err)
 
 			for _, accessList := range test.accessLists {
@@ -649,9 +660,8 @@ func TestAccessLists(t *testing.T) {
 }
 
 func TestGitHubIdentity(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
-	svc, backendSvc, err := initGeneratorSvc(false)
+	svc, backendSvc, err := initGeneratorSvc()
 	require.NoError(t, err)
 
 	noGitHubIdentity, err := types.NewUser("alice")
@@ -735,7 +745,7 @@ func (s *svc) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventR
 	return nil
 }
 
-func initGeneratorSvc(cloud bool) (*Generator, *svc, error) {
+func initGeneratorSvc() (*Generator, *svc, error) {
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Clock: clock,
@@ -772,7 +782,6 @@ func initGeneratorSvc(cloud bool) (*Generator, *svc, error) {
 		UsageEvents: svc,
 		Clock:       clock,
 		Emitter:     emitter,
-		Cloud:       cloud,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

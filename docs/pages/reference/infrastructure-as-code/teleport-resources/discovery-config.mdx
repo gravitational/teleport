@@ -523,7 +523,6 @@ aws_ec2: # [...]
 aws_rds: # [...]
 aws_eks: # [...]
 azure_vms: # [...]
-azure_aks: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -531,7 +530,6 @@ azure_aks: # [...]
 |aws_ec2|AWSEC2 contains the summary for the AWS EC2 discovered instances.|[Resource Summary](#resource-summary)|
 |aws_eks|AWSEKS contains the summary for the AWS EKS discovered clusters.|[Resource Summary](#resource-summary)|
 |aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resource Summary](#resource-summary)|
-|azure_aks|The summary for the Azure AKS discovered clusters.|[Resource Summary](#resource-summary)|
 |azure_vms|The summary for the Azure VM discovered instances.|[Resource Summary](#resource-summary)|
 
 ## Discovery Status Server
@@ -643,7 +641,7 @@ http_proxy_settings: # [...]
 |Field Name|Description|Type|
 |---|---|---|
 |azure|The set of Azure-specific installation parameters.|[Azure Installer Params](#azure-installer-params)|
-|enroll_mode|Indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)|[Install Param Enroll Mode](#install-param-enroll-mode)|
+|enroll_mode|Indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode|[Install Param Enroll Mode](#install-param-enroll-mode)|
 |http_proxy_settings|Defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.|[HTTP Proxy Settings](#http-proxy-settings)|
 |install_teleport|Disables agentless discovery|Boolean|
 |join_method|The method to use when joining the cluster|[Join Method](#join-method)|
@@ -666,7 +664,6 @@ aws_ec2: # [...]
 aws_rds: # [...]
 aws_eks: # [...]
 azure_vms: # [...]
-azure_aks: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -674,7 +671,6 @@ azure_aks: # [...]
 |aws_ec2|AWSEC2 contains the summary for the AWS EC2 discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
 |aws_eks|AWSEKS contains the summary for the AWS EKS discovered clusters.|[Resources Discovered Summary](#resources-discovered-summary)|
 |aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resources Discovered Summary](#resources-discovered-summary)|
-|azure_aks|The summary for the Azure AKS discovered clusters.|[Resources Discovered Summary](#resources-discovered-summary)|
 |azure_vms|The summary for the Azure VM discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
 
 ## Join Method

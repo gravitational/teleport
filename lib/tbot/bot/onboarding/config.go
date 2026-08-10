@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -250,12 +249,12 @@ type Config struct {
 	// BoundKeypair holds configuration relevant to the `bound_keypair` join method.
 	BoundKeypair BoundKeypairOnboardingConfig `yaml:"bound_keypair,omitempty"`
 
-	// Kubernetes holds the configuration relevant to the `kubernetes` join method.
-	Kubernetes KubernetesOnboardingConfig `yaml:"kubernetes,omitempty"`
-
 	// GenericOIDC contains configuration relevant to the `generic_oidc` join
 	// method.
 	GenericOIDC GenericOIDCOnboardingConfig `yaml:"generic_oidc,omitempty"`
+
+	// Kubernetes holds the configuration relevant to the `kubernetes` join method.
+	Kubernetes KubernetesOnboardingConfig `yaml:"kubernetes,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -283,14 +282,6 @@ func (conf *Config) SetToken(token string) {
 func (conf *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(conf.TokenValue)
 	if err != nil {
-		// A scoped token with a Scope Qualified Name looks like a file path
-		// and will result in file not found errors. If the provided token is
-		// a SQN, then the request is rejected. Scoped tokens can only be used
-		// in the new join service.
-		if _, err := scopes.ParseQualifiedName(conf.TokenValue); err == nil {
-			return conf.TokenValue, nil
-		}
-
 		return "", trace.Wrap(err)
 	}
 

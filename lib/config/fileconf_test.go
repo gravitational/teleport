@@ -41,7 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events/auditqueue"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -66,7 +67,7 @@ discovery_service:
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
 // representation of a parsed YAML file.
-type cfgMap map[any]any
+type cfgMap map[interface{}]interface{}
 
 // editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
@@ -85,8 +86,8 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -242,8 +243,8 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "u2f",
 					"u2f": cfgMap{
 						"app_id": "https://graviton:3080",
-						"facets": []any{"https://graviton:3080"},
-						"device_attestation_cas": []any{
+						"facets": []interface{}{"https://graviton:3080"},
+						"device_attestation_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
 						},
@@ -272,11 +273,11 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "webauthn",
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
-						"attestation_allowed_cas": []any{
+						"attestation_allowed_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
 						},
-						"attestation_denied_cas": []any{
+						"attestation_denied_cas": []interface{}{
 							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
 							"testdata/u2f_attestation_ca.pam",
 						},
@@ -306,7 +307,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "on",
 					"u2f": cfgMap{
 						"app_id": "https://example.com",
-						"facets": []any{
+						"facets": []interface{}{
 							"https://example.com",
 						},
 					},
@@ -463,7 +464,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"signature_algorithm_suite": "balanced-v0",
 				}
 			},
-			expectError: func(t require.TestingT, err error, msgAndArgs ...any) {
+			expectError: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.ErrorContains(t, err, "invalid value: balanced-v0")
 			},
 		}, {
@@ -675,28 +676,28 @@ teleport:
 `,
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				joiningv1.ScopedToken_builder{
+				{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: headerv1.Metadata_builder{
+					Metadata: &headerv1.Metadata{
 						Name: "fully_defined_token",
-					}.Build(),
+					},
 					Scope: "/",
-					Spec: joiningv1.ScopedTokenSpec_builder{
+					Spec: &joiningv1.ScopedTokenSpec{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-						ImmutableLabels: joiningv1.ImmutableLabels_builder{
+						ImmutableLabels: &joiningv1.ImmutableLabels{
 							Ssh: map[string]string{
 								"hello": "world",
 							},
-						}.Build(),
-					}.Build(),
-					Status: joiningv1.ScopedTokenStatus_builder{
+						},
+					},
+					Status: &joiningv1.ScopedTokenStatus{
 						Secret: "secret_token_value",
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 		},
 		{
@@ -710,23 +711,23 @@ teleport:
 `, tokenFilePath),
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				joiningv1.ScopedToken_builder{
+				{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: headerv1.Metadata_builder{
+					Metadata: &headerv1.Metadata{
 						Name: "file_scoped_token",
-					}.Build(),
+					},
 					Scope: "/",
-					Spec: joiningv1.ScopedTokenSpec_builder{
+					Spec: &joiningv1.ScopedTokenSpec{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					}.Build(),
-					Status: joiningv1.ScopedTokenStatus_builder{
+					},
+					Status: &joiningv1.ScopedTokenStatus{
 						Secret: "secret_token_value",
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 		},
 		{
@@ -759,40 +760,40 @@ teleport:
 `, tokenFilePath),
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				joiningv1.ScopedToken_builder{
+				{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: headerv1.Metadata_builder{
+					Metadata: &headerv1.Metadata{
 						Name: "fully_defined_token",
-					}.Build(),
+					},
 					Scope: "/",
-					Spec: joiningv1.ScopedTokenSpec_builder{
+					Spec: &joiningv1.ScopedTokenSpec{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					}.Build(),
-					Status: joiningv1.ScopedTokenStatus_builder{
+					},
+					Status: &joiningv1.ScopedTokenStatus{
 						Secret: "secret_token_value",
-					}.Build(),
-				}.Build(),
-				joiningv1.ScopedToken_builder{
+					},
+				},
+				{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: headerv1.Metadata_builder{
+					Metadata: &headerv1.Metadata{
 						Name: "file_scoped_token",
-					}.Build(),
+					},
 					Scope: "/",
-					Spec: joiningv1.ScopedTokenSpec_builder{
+					Spec: &joiningv1.ScopedTokenSpec{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					}.Build(),
-					Status: joiningv1.ScopedTokenStatus_builder{
+					},
+					Status: &joiningv1.ScopedTokenStatus{
 						Secret: "secret_token_value",
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 		},
 	}
@@ -832,11 +833,6 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 			wantRoles: []types.SystemRole{
 				types.RoleAuth, types.RoleNode, types.RoleProxy,
 			},
-		},
-		{
-			desc:      "reject bot role",
-			input:     "Bot:some-literal-token",
-			wantError: "role \"Bot\" is not allowed in static token configuration",
 		},
 	}
 	for _, tt := range tests {
@@ -995,7 +991,11 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
-	t.Parallel()
+	// Device trust mode=required is an Enterprise feature.
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
 	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
 	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
 	require.NoError(t, err)
@@ -1277,7 +1277,7 @@ func TestHardwareKeyConfig(t *testing.T) {
 					},
 				}
 			},
-			expectParseError: func(t require.TestingT, err error, i ...any) {
+			expectParseError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1454,7 +1454,7 @@ func TestX11Config(t *testing.T) {
 					"max_display":    100,
 				}
 			},
-			expectConfigError: func(t require.TestingT, err error, i ...any) {
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1933,85 +1933,4 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb", "sha256:7e12c17c20d9cb"}, fc.CAPin)
 	})
-}
-
-func TestAuditQueueConfig_Parse(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		desc      string
-		cfg       AuditQueueConfig
-		want      servicecfg.AuditQueueConfig
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			desc: "empty",
-			cfg:  AuditQueueConfig{},
-			want: servicecfg.AuditQueueConfig{
-				Synchronous: auditqueue.SynchronousNormal,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			desc: "valid fields",
-			cfg: AuditQueueConfig{
-				SoftLimit:               "100MiB",
-				HardLimit:               "1GiB",
-				MaxAttempts:             5,
-				DeadLetterTTL:           types.Duration(24 * time.Hour),
-				DeadLetterSweepInterval: types.Duration(5 * time.Minute),
-				OrphanScanInterval:      types.Duration(10 * time.Minute),
-				Backend:                 []string{"sqlite_disk", "sqlite_memory"},
-			},
-			want: servicecfg.AuditQueueConfig{
-				SoftLimit:               100 * 1024 * 1024,
-				MaxBytes:                1024 * 1024 * 1024,
-				MaxAttempts:             5,
-				DeadLetterTTL:           24 * time.Hour,
-				DeadLetterSweepInterval: 5 * time.Minute,
-				OrphanScanInterval:      10 * time.Minute,
-				Backends:                []string{"sqlite_disk", "sqlite_memory"},
-				Synchronous:             auditqueue.SynchronousNormal,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			desc: "synchronous FULL",
-			cfg:  AuditQueueConfig{Synchronous: "FULL"},
-			want: servicecfg.AuditQueueConfig{
-				Synchronous: auditqueue.SynchronousFull,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			desc: "invalid soft_limit",
-			cfg:  AuditQueueConfig{SoftLimit: "not-a-size"},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.True(t, trace.IsBadParameter(err))
-			},
-		},
-		{
-			desc: "invalid hard_limit",
-			cfg:  AuditQueueConfig{HardLimit: "not-a-size"},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.True(t, trace.IsBadParameter(err))
-			},
-		},
-		{
-			desc: "invalid synchronous",
-			cfg:  AuditQueueConfig{Synchronous: "OFF"},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.True(t, trace.IsBadParameter(err))
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
-			got, err := tt.cfg.Parse()
-			tt.assertErr(t, err)
-			if err == nil {
-				require.Equal(t, tt.want, got)
-			}
-		})
-	}
 }

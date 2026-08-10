@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type * as PropTypes from 'prop-types';
 import 'styled-system';
+import type * as PropTypes from 'prop-types';
 
 declare module 'styled-system' {
   export function style(args: LowLevelStylefunctionArguments): styleFn;

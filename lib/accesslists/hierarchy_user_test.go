@@ -37,7 +37,9 @@ import (
 )
 
 func TestGetHierarchyForUser(t *testing.T) {
-	t.Parallel()
+	testModules := modulestest.EnterpriseModules()
+
+	modulestest.SetTestModules(t, *testModules)
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
@@ -391,7 +393,7 @@ func TestGetHierarchyForUser(t *testing.T) {
 			require.NoError(t, err)
 			svc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 				Backend: bk,
-				Modules: modulestest.EnterpriseModules(),
+				Modules: testModules,
 			})
 			require.NoError(t, err)
 

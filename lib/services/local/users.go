@@ -106,9 +106,9 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 
 // ListUsers returns a page of users.
 func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.GetPageToken()))
+	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.PageToken))
 	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
-	pageSize := req.GetPageSize()
+	pageSize := req.PageSize
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
@@ -118,15 +118,15 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
 
 	var userStream iter.Seq2[*types.UserV2, error]
-	if req.GetWithSecrets() {
+	if req.WithSecrets {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
 		userStream = s.streamUsersWithoutSecrets(itemStream)
 	}
 
-	if req.HasFilter() {
+	if req.Filter != nil {
 		userStream = stream.FilterMap(userStream, func(user *types.UserV2) (*types.UserV2, bool) {
-			if !req.GetFilter().Match(user) {
+			if !req.Filter.Match(user) {
 				return nil, false
 			}
 
@@ -140,12 +140,12 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 			return nil, trace.Wrap(err)
 		}
 
-		if len(resp.GetUsers()) >= int(pageSize) {
-			resp.SetNextPageToken(nextUserToken(resp.GetUsers()[len(resp.GetUsers())-1]))
+		if len(resp.Users) >= int(pageSize) {
+			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
 			return &resp, nil
 		}
 
-		resp.SetUsers(append(resp.GetUsers(), user))
+		resp.Users = append(resp.Users, user)
 	}
 	return &resp, nil
 }
@@ -200,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -552,7 +551,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -562,7 +561,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
+		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 
@@ -1143,7 +1142,10 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := max(l.scopeCount[scope]+n, 0)
+	v := l.scopeCount[scope] + n
+	if v < 0 {
+		v = 0
+	}
 	l.scopeCount[scope] = v
 	return v
 }
@@ -1234,6 +1236,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1667,7 +1670,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1704,7 +1706,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1886,7 +1887,6 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -2072,12 +2072,11 @@ func (s *IdentityService) DeleteMFASessionData(ctx context.Context, sessionID st
 	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
 }
 
-// Deprecated: use UpsertMFASessionData.
+// TODO(danielashare): Remove these aliased functions once `e` no longer references them
 func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
 	return trace.Wrap(s.UpsertMFASessionData(ctx, sd))
 }
 
-// Deprecated: use GetMFASessionData.
 func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
 	sd, err := s.GetMFASessionData(ctx, sessionID)
 	if err != nil {
@@ -2184,7 +2183,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2219,7 +2217,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.

@@ -29,14 +29,14 @@ import (
 // NewCrownJewel creates a new CrownJewel object.
 // It validates the object before returning it.
 func NewCrownJewel(name string, spec *crownjewelv1.CrownJewelSpec) (*crownjewelv1.CrownJewel, error) {
-	cj := crownjewelv1.CrownJewel_builder{
+	cj := &crownjewelv1.CrownJewel{
 		Kind:    types.KindCrownJewel,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
+		},
 		Spec: spec,
-	}.Build()
+	}
 
 	if err := ValidateCrownJewel(cj); err != nil {
 		return nil, trace.Wrap(err)
@@ -54,18 +54,18 @@ func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 	switch {
 	case jewel == nil:
 		return trace.BadParameter("crown jewel is nil")
-	case !jewel.HasMetadata():
+	case jewel.Metadata == nil:
 		return trace.BadParameter("crown jewel metadata is nil")
-	case jewel.GetMetadata().GetName() == "":
+	case jewel.Metadata.Name == "":
 		return trace.BadParameter("crown jewel name is empty")
-	case !jewel.HasSpec():
+	case jewel.Spec == nil:
 		return trace.BadParameter("crown jewel spec is nil")
-	case len(jewel.GetSpec().GetTeleportMatchers()) == 0 && len(jewel.GetSpec().GetAwsMatchers()) == 0 && jewel.GetSpec().GetQuery() == "":
+	case len(jewel.Spec.TeleportMatchers) == 0 && len(jewel.Spec.AwsMatchers) == 0 && jewel.Spec.Query == "":
 		return trace.BadParameter("crown jewel must have at least one matcher")
 	}
 
-	if len(jewel.GetSpec().GetTeleportMatchers()) > 0 {
-		for _, matcher := range jewel.GetSpec().GetTeleportMatchers() {
+	if len(jewel.Spec.TeleportMatchers) > 0 {
+		for _, matcher := range jewel.Spec.TeleportMatchers {
 			if len(matcher.GetKinds()) == 0 {
 				return trace.BadParameter("teleport matcher kinds must be set")
 			}
@@ -74,20 +74,20 @@ func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 				return trace.Wrap(err)
 			}
 
-			if len(matcher.GetNames()) == 0 && len(matcher.GetLabels()) == 0 {
+			if len(matcher.Names) == 0 && len(matcher.GetLabels()) == 0 {
 				return trace.BadParameter("teleport matcher names or labels must be set")
 			}
 
 			for _, label := range matcher.GetLabels() {
-				if label.GetName() == "" || len(label.GetValues()) == 0 {
+				if label.Name == "" || len(label.Values) == 0 {
 					return trace.BadParameter("teleport matcher label name or value is empty")
 				}
 			}
 		}
 	}
 
-	if len(jewel.GetSpec().GetAwsMatchers()) > 0 {
-		for _, matcher := range jewel.GetSpec().GetAwsMatchers() {
+	if len(jewel.Spec.AwsMatchers) > 0 {
+		for _, matcher := range jewel.Spec.AwsMatchers {
 			if len(matcher.GetTypes()) == 0 {
 				return trace.BadParameter("aws matcher type must be set")
 			}
@@ -97,7 +97,7 @@ func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 			}
 
 			for _, label := range matcher.GetTags() {
-				if label.GetKey() == "" || len(label.GetValues()) == 0 {
+				if label.Key == "" || len(label.Values) == 0 {
 					return trace.BadParameter("aws matcher tag key or value is empty")
 				}
 			}

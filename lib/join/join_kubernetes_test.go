@@ -62,6 +62,7 @@ func newFakeIDP(t *testing.T) *fakeissuer.IDP {
 }
 
 func TestJoinKubernetes(t *testing.T) {
+	t.Parallel()
 	// Test setup
 
 	// Creating an auth server with mock Kubernetes token validator
@@ -288,18 +289,18 @@ func TestJoinKubernetes(t *testing.T) {
 	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT, oidcPT, wildcardInClusterPT, wildcardStaticJWKSPT, wildcardOIDCPT, exactInClusterPT, namespaceOnlyInClusterPT, combinedInClusterPT, combinedStrictInClusterPT} {
 		ptv2, ok := pt.(*types.ProvisionTokenV2)
 		require.True(t, ok, "expected provision token to be types.ProvisionTokenSpecV2")
-		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, joiningv1.ScopedToken_builder{
+		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
 			Scope: "/test",
-			Metadata: headerv1.Metadata_builder{
-				Name: pt.GetName(),
-			}.Build(),
-			Spec: joiningv1.ScopedTokenSpec_builder{
+			Metadata: &headerv1.Metadata{
+				Name: "scoped_" + pt.GetName(),
+			},
+			Spec: &joiningv1.ScopedTokenSpec{
 				AssignedScope: "/test/one",
 				UsageMode:     string(joining.TokenUsageModeUnlimited),
-			}.Build(),
-		}.Build())
+			},
+		})
 		require.NoError(t, err)
-		_, err = auth.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{Token: scoped}.Build())
+		_, err = auth.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: scoped})
 		require.NoError(t, err)
 	}
 
@@ -535,11 +536,9 @@ func TestJoinKubernetes(t *testing.T) {
 			})
 
 			t.Run("scoped join", func(t *testing.T) {
-				secret, _ := tt.provisionToken.GetSecret()
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: tt.provisionToken.GetScope(), Name: tt.provisionToken.GetName()}.String(),
-					TokenSecret: secret,
-					JoinMethod:  types.JoinMethodKubernetes,
+					Token:      "scoped_" + tt.provisionToken.GetName(),
+					JoinMethod: types.JoinMethodKubernetes,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
 						NodeName: "testnode",

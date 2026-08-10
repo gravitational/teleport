@@ -35,14 +35,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -67,10 +65,7 @@ type transportConfig struct {
 	accessPoint  authclient.AppsAccessPoint
 	authClient   authclient.ClientI
 	// getUserCertFunc is the function used to retrieve session user certificate.
-	getUserCertFunc  func() ([]byte, error)
-	emitter          apievents.Emitter
-	identity         *tlsca.Identity
-	targetHostPolicy common.TargetHostPolicy
+	getUserCertFunc func() ([]byte, error)
 }
 
 // Check validates configuration.
@@ -137,16 +132,6 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	}
 
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
-	if c.targetHostPolicy.Enabled() {
-		dialer := common.NewTargetDialer(c.targetHostPolicy, common.TargetHostAuditConfig{
-			Emitter:  c.emitter,
-			Logger:   c.log,
-			ServerID: c.hostID,
-			Identity: c.identity,
-			App:      c.app,
-		})
-		tr.DialContext = dialer.DialContext
-	}
 
 	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
 		Logger:                       c.log,
@@ -344,9 +329,9 @@ func host(addr string) string {
 // charWrap wraps a line to about 80 characters to make it easier to read.
 func charWrap(message string) string {
 	var sb strings.Builder
-	for line := range strings.SplitSeq(message, "\n") {
+	for _, line := range strings.Split(message, "\n") {
 		var n int
-		for word := range strings.FieldsSeq(line) {
+		for _, word := range strings.Fields(line) {
 			sb.WriteString(word)
 			sb.WriteString(" ")
 

@@ -22,8 +22,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // mockAuthServer is a mock implementation of AuthServer for testing MFA challenges.
@@ -35,31 +37,41 @@ type mockAuthServer struct {
 }
 
 // NewMockAuthServer creates a new instance of mockAuthServer.
-func NewMockAuthServer(cfg authtest.ServerConfig) (*mockAuthServer, error) {
+func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*mockAuthServer, error) {
+	// The authtest.AuthServer implementation currently does not support SSO MFA devices like it does for TOTP and
+	// Webauthn. We work around this by wrapping the Identity service with our mock that returns the provided SSO MFA
+	// devices after merging with any registered devices during the test. Additionally, this mock AuthServer that wraps
+	// authtest.AuthServer overrides the SSO MFA challenge methods to provide mock implementations. Support for SSO MFA
+	// devices will be added in https://github.com/gravitational/teleport/issues/62271.
+	// TODO(cthach): Remove this workaround once authtest.AuthServer supports SSO MFA devices.
 	authServer, err := authtest.NewTestServer(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Wrap the Identity service to allow mocking MFA devices.
+	authServer.Auth().IdentityInternal = &mockAuthServerIdentity{IdentityInternal: authServer.Auth().IdentityInternal, devices: devices}
 
 	return &mockAuthServer{Server: authServer}, nil
 }
 
 // CompleteBrowserMFAChallenge mocks the completion of a browser MFA challenge.
 func (m *mockAuthServer) CompleteBrowserMFAChallenge(
-	_ context.Context,
+	ctx context.Context,
 	requestID string,
-	_ *webauthnpb.CredentialAssertionResponse,
+	webauthnResponse *webauthnpb.CredentialAssertionResponse,
 ) (string, error) {
-	if !m.validRequestID(requestID) {
+	_, ok := m.requestIDs.Load(requestID)
+	if !ok {
 		return "", trace.NotFound("invalid browser MFA challenge request ID %q", requestID)
 	}
 
-	// Return a mock redirect URL for testing.
+	// Return a mock redirect URL for testing
 	return "http://127.0.0.1:62972/callback?response=mock-encrypted-response", nil
 }
 
-// validRequestID checks if a request ID was previously stored.
-func (m *mockAuthServer) validRequestID(requestID string) bool {
-	_, ok := m.requestIDs.Load(requestID)
-	return ok
+type mockAuthServerIdentity struct {
+	services.IdentityInternal
+
+	devices []*types.MFADevice
 }

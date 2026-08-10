@@ -24,8 +24,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -100,16 +100,16 @@ func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Requ
 	}
 
 	// Bot resource.
-	bot := machineidv1.Bot_builder{
+	bot := &machineidv1.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: namePrefix,
-		}.Build(),
-		Spec: machineidv1.BotSpec_builder{
+		},
+		Spec: &machineidv1.BotSpec{
 			Roles: []string{role.GetName()},
-		}.Build(),
-	}.Build()
+		},
+	}
 	botOpts := []tfgen.GenerateOpt{
 		tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
 	}

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@testing-library/jest-dom';
 import {
   createThemeSystem,
   TELEPORT_THEME,
@@ -34,12 +33,13 @@ import {
   waitForElementToBeRemoved,
   within,
 } from '@testing-library/react';
-import 'jest-styled-components';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter as Router } from 'react-router-dom';
+import '@testing-library/jest-dom';
+import 'jest-styled-components';
 
 import { darkTheme, resolveTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -93,32 +93,6 @@ type RenderOptions = {
   wrapper?: React.FC<PropsWithChildren>;
   container?: HTMLElement;
 };
-
-type CurrentPathProps = {
-  testId?: string;
-};
-
-export function CurrentPath({ testId = 'current-path' }: CurrentPathProps) {
-  const location = useLocation();
-  return <span data-testid={testId}>{location.pathname}</span>;
-}
-
-type CurrentLocationProps = {
-  testId?: string;
-};
-
-export function CurrentLocation({
-  testId = 'location-display',
-}: CurrentLocationProps) {
-  const location = useLocation();
-  return (
-    <span data-testid={testId}>
-      {location.pathname}
-      {location.search}
-      {location.hash}
-    </span>
-  );
-}
 
 /**
  * createDeferredResponse is a utility function to create a deferred response
@@ -237,7 +211,7 @@ export {
   prettyDOM,
   waitFor,
   getByTestId,
-  MemoryRouter as Router,
+  Router,
   userEvent,
   waitForElementToBeRemoved,
   within,

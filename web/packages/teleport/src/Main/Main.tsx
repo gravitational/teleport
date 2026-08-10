@@ -26,7 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, useLocation } from 'react-router';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -38,7 +38,6 @@ import {
 import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { useStore } from 'shared/libs/stores';
 
 import { BannerList } from 'teleport/components/BannerList';
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
@@ -55,8 +54,6 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
-import history from 'teleport/services/history/history';
-import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
@@ -74,8 +71,7 @@ export interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const storeUser = useStore(ctx.storeUser);
-  const location = useLocation();
+  const history = useHistory();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -92,27 +88,24 @@ export function Main(props: MainProps) {
 
   const featureFlags = ctx.getFeatureFlags();
 
-  const scope = storeUser?.getScope();
   const features = useMemo(
     () =>
-      props.features.filter(
-        feature =>
-          canShowFeature(feature, featureFlags) &&
-          supportsCurrentScope(feature, scope)
-      ),
-    [featureFlags, props.features, scope]
+      props.features.filter(feature => canShowFeature(feature, featureFlags)),
+    [featureFlags, props.features]
   );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
   useEffect(() => {
     if (
-      ctx.redirectUrl &&
-      matchPath({ path: ctx.redirectUrl, end: true }, location.pathname)
+      matchPath(history.location.pathname, {
+        path: ctx.redirectUrl,
+        exact: true,
+      })
     ) {
       ctx.redirectUrl = null;
     }
-  }, [ctx, location.pathname]);
+  }, [ctx, history.location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -126,28 +119,10 @@ export function Main(props: MainProps) {
     );
   }
 
-  const availableScopes = ctx.storeUser.getAvailableScopes();
-  const isScopePickerRoute = !!matchPath(
-    { path: cfg.routes.scopePicker, end: true },
-    location.pathname
-  );
-
-  // TODO(bl-nero): Don't redirect once the user picks a scope.
-  // For now, as the scope picker is not fully operational, we only enable it
-  // if a local storage flag is on.
-  if (storageService.getUseLoginScopePicker()) {
-    if (
-      cfg.scopesEnabled &&
-      availableScopes.length > 0 &&
-      !isScopePickerRoute &&
-      !storageService.getScopeSelected()
-    ) {
-      return <Redirect to={history.getScopePickerUrl()} />;
-    }
-  }
-
   // redirect to the default feature when hitting the root /web URL
-  if (matchPath(cfg.routes.root, location.pathname)) {
+  if (
+    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
+  ) {
     if (ctx.redirectUrl) {
       return <Redirect to={ctx.redirectUrl} />;
     }
@@ -183,10 +158,7 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar
-        CustomLogo={props.CustomLogo}
-        scopePickerMode={isScopePickerRoute}
-      />
+      <TopBar CustomLogo={props.CustomLogo} />
       <Wrapper>
         <MainContainer>
           <Navigation showPoweredByLogo={!!props.CustomLogo} />
@@ -266,13 +238,6 @@ function renderRoutes(
   }
 
   return routes;
-}
-
-function supportsCurrentScope(
-  feature: TeleportFeature,
-  scope: string
-): boolean {
-  return !scope || feature.supportsScopes;
 }
 
 function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {

@@ -37,32 +37,32 @@ type retrievalModelClient struct {
 	teleportClient *client.Client
 }
 
-// Get gets the Teleport RetrievalModel singleton. The key parameter is ignored.
-func (r retrievalModelClient) Get(ctx context.Context, _ reconcilers.ResourceKey) (*summarizerv1.RetrievalModel, error) {
+// Get gets the Teleport RetrievalModel singleton. The name parameter is ignored.
+func (r retrievalModelClient) Get(ctx context.Context, _ string) (*summarizerv1.RetrievalModel, error) {
 	resp, err := r.teleportClient.SummarizerServiceClient().
 		GetRetrievalModel(ctx, &summarizerv1.GetRetrievalModelRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.GetModel(), nil
+	return resp.Model, nil
 }
 
 // Create creates the Teleport RetrievalModel singleton.
 func (r retrievalModelClient) Create(ctx context.Context, resource *summarizerv1.RetrievalModel) error {
 	_, err := r.teleportClient.SummarizerServiceClient().
-		CreateRetrievalModel(ctx, summarizerv1.CreateRetrievalModelRequest_builder{Model: resource}.Build())
+		CreateRetrievalModel(ctx, &summarizerv1.CreateRetrievalModelRequest{Model: resource})
 	return trace.Wrap(err)
 }
 
 // Update upserts the Teleport RetrievalModel singleton.
 func (r retrievalModelClient) Update(ctx context.Context, resource *summarizerv1.RetrievalModel) error {
 	_, err := r.teleportClient.SummarizerServiceClient().
-		UpsertRetrievalModel(ctx, summarizerv1.UpsertRetrievalModelRequest_builder{Model: resource}.Build())
+		UpsertRetrievalModel(ctx, &summarizerv1.UpsertRetrievalModelRequest{Model: resource})
 	return trace.Wrap(err)
 }
 
-// Delete deletes the Teleport RetrievalModel singleton. The key parameter is ignored.
-func (r retrievalModelClient) Delete(ctx context.Context, _ reconcilers.ResourceKey) error {
+// Delete deletes the Teleport RetrievalModel singleton. The name parameter is ignored.
+func (r retrievalModelClient) Delete(ctx context.Context, _ string) error {
 	_, err := r.teleportClient.SummarizerServiceClient().
 		DeleteRetrievalModel(ctx, &summarizerv1.DeleteRetrievalModelRequest{})
 	return trace.Wrap(err)
@@ -93,9 +93,6 @@ func NewRetrievalModelV1Reconciler(client kclient.Client, tClient *client.Client
 	](
 		client,
 		rmClient,
-		reconcilers.Config{
-			CheckFeatures: controllers.RequireSessionSummaries,
-		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -22,8 +22,6 @@ import makeUserContext from 'teleport/services/user/makeUserContext';
 export const userContext = makeUserContext({
   authType: 'sso',
   userName: 'Sam',
-  displayPrimary: '',
-  displaySecondary: '',
   accessCapabilities: {
     suggestedReviewers: ['george_washington@gmail.com', 'chad'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],

@@ -20,8 +20,6 @@ import { formatDistanceStrict } from 'date-fns';
 
 import { pluralize } from 'shared/utils/text';
 
-import { osTypeLabel } from 'teleport/DeviceTrust/types';
-
 import {
   Event,
   EventCode,
@@ -138,15 +136,8 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state, RequestedResourceAccessIDs }) => {
-      if (RequestedResourceAccessIDs?.length) {
-        const resources = RequestedResourceAccessIDs.map(
-          r => `${r.id.kind}/${r.id.name}`
-        ).join(', ');
-        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
-      }
-      return `Access request [${id}] has been created and is ${state}`;
-    },
+    format: ({ id, state }) =>
+      `Access request [${id}] has been created and is ${state}`,
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
@@ -636,54 +627,6 @@ export const formatters: Formatters = {
     format: event => {
       const { user, app_name } = event;
       return `User [${user}] has disconnected from application [${app_name}]`;
-    },
-  },
-  [eventCodes.APP_SESSION_HTTP_REQUEST]: {
-    type: 'http.request',
-    desc: 'App HTTP Request',
-    format: ({ method, url }) => `HTTP request recorded: ${method} ${url}`,
-  },
-  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: {
-    type: 'http.request.body_chunk',
-    desc: 'App HTTP Request Body',
-    format: () => 'HTTP request body chunk recorded',
-  },
-  [eventCodes.APP_SESSION_HTTP_RESPONSE]: {
-    type: 'http.response',
-    desc: 'App HTTP Response',
-    format: ({ status_code }) => `HTTP response recorded: ${status_code}`,
-  },
-  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: {
-    type: 'http.response.body_chunk',
-    desc: 'App HTTP Response Body',
-    format: () => 'HTTP response body chunk recorded',
-  },
-  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: {
-    type: 'app.session.target.dial.denied',
-    desc: 'App Target Dial Denied',
-    format: event => {
-      const {
-        user,
-        app_name,
-        target_host,
-        target_port,
-        policy,
-        blocked_ip,
-        blocked_prefix,
-      } = event;
-      let target = target_host;
-      if (target_port) {
-        target += `:${target_port}`;
-      }
-
-      let message = `User [${user}] was blocked from connecting to target [${target}] for application [${app_name}] by [${policy}]`;
-      if (blocked_ip) {
-        message += `, blocked IP: [${blocked_ip}]`;
-      }
-      if (blocked_prefix) {
-        message += `, matched prefix: [${blocked_prefix}]`;
-      }
-      return message;
     },
   },
   [eventCodes.APP_SESSION_CHUNK]: {
@@ -1493,20 +1436,6 @@ export const formatters: Formatters = {
         ? `User [${user}] has confirmed device web authentication`
         : `User [${user}] has failed to confirm device web authentication`,
   },
-  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST]: {
-    type: 'device.enroll_pairing.request',
-    desc: 'Device Enroll Pairing Requested',
-    format: ({ user, device }) =>
-      `Device enrollment was requested for user [${user}]${formatDevice(device)}`,
-  },
-  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE]: {
-    type: 'device.enroll_pairing.request',
-    desc: 'Device Enroll Pairing Request Failed',
-    format: ({ device, error }) =>
-      error
-        ? `Device enrollment request failed${formatDevice(device)}: ${error}`
-        : `Device enrollment request failed${formatDevice(device)}`,
-  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1518,18 +1447,6 @@ export const formatters: Formatters = {
     desc: 'X11 Forwarding Request Failed',
     format: ({ user }) =>
       `User [${user}] was denied x11 forwarding for a session`,
-  },
-  [eventCodes.AGENT_FORWARD]: {
-    type: 'agent-forward',
-    desc: 'Agent Forwarding Requested',
-    format: ({ user }) =>
-      `User [${user}] has requested SSH agent forwarding for a session`,
-  },
-  [eventCodes.AGENT_FORWARD_FAILURE]: {
-    type: 'agent-forward',
-    desc: 'Agent Forwarding Request Failed',
-    format: ({ user }) =>
-      `User [${user}] was denied SSH agent forwarding for a session`,
   },
   [eventCodes.SESSION_CONNECT]: {
     type: 'session.connect',
@@ -2061,11 +1978,6 @@ export const formatters: Formatters = {
     }) =>
       `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
   },
-  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: {
-    type: 'access_graph_settings.update',
-    desc: 'Access Graph Settings Updated',
-    format: ({ user }) => `User [${user}] updated the access graph settings`,
-  },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
     desc: 'Spanner RPC',
@@ -2585,41 +2497,6 @@ export const formatters: Formatters = {
         ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
         : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
-  [eventCodes.APPAUTHCONFIG_CREATE]: {
-    type: 'app_auth_config.create',
-    desc: 'App Auth Config created',
-    format: ({ user, name }) => {
-      return `User [${user}] created the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_UPDATE]: {
-    type: 'app_auth_config.update',
-    desc: 'App Auth Config updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_DELETE]: {
-    type: 'app_auth_config.delete',
-    desc: 'App Auth Config deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
-    type: 'app_auth_config.verify.success',
-    desc: 'App authentication succeeded',
-    format: ({ user, app_name, app_auth_config }) => {
-      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
-    type: 'app_auth_config.verify.failure',
-    desc: 'App authentication failed',
-    format: ({ error, app_auth_config }) => {
-      return `App authentication using [${app_auth_config}] failed: ${error}`;
-    },
-  },
   [eventCodes.VNET_CONFIG_CREATE]: {
     type: 'vnet.config.create',
     desc: 'VNet config created',
@@ -2770,39 +2647,6 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Retrieval Model [${name}] was deleted by [${user}]`,
   },
-  [eventCodes.CLASSIFIER_CREATE]: {
-    type: 'classifier.create',
-    desc: 'Classifier Created',
-    format: ({ name, user }) => `Classifier [${name}] was created by [${user}]`,
-  },
-  [eventCodes.CLASSIFIER_CREATE_FAILURE]: {
-    type: 'classifier.create',
-    desc: 'Classifier Creation Failed',
-    format: ({ name, user }) =>
-      `Classifier [${name}] failed to be created by [${user}]`,
-  },
-  [eventCodes.CLASSIFIER_UPDATE]: {
-    type: 'classifier.update',
-    desc: 'Classifier Updated',
-    format: ({ name, user }) => `Classifier [${name}] was updated by [${user}]`,
-  },
-  [eventCodes.CLASSIFIER_UPDATE_FAILURE]: {
-    type: 'classifier.update',
-    desc: 'Classifier Update Failed',
-    format: ({ name, user }) =>
-      `Classifier [${name}] failed to be updated by [${user}]`,
-  },
-  [eventCodes.CLASSIFIER_DELETE]: {
-    type: 'classifier.delete',
-    desc: 'Classifier Deleted',
-    format: ({ name, user }) => `Classifier [${name}] was deleted by [${user}]`,
-  },
-  [eventCodes.CLASSIFIER_DELETE_FAILURE]: {
-    type: 'classifier.delete',
-    desc: 'Classifier Deletion Failed',
-    format: ({ name, user }) =>
-      `Classifier [${name}] failed to be deleted by [${user}]`,
-  },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',
     desc: 'Session Summarized',
@@ -2912,35 +2756,9 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
-// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
-const mfaFlowTypeLabels: Record<number, string> = {
-  0: 'UNSPECIFIED',
-  1: 'PER_SESSION_CERTIFICATE',
-  2: 'IN_BAND',
-};
-
-// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
-function formatRawEventForUI(json: any): any {
-  // For MFA events, convert the flow_type from a number to a human readable string.
-  if (
-    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
-    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
-  ) {
-    return {
-      ...json,
-      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
-    };
-  }
-
-  return json;
-}
-
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
-
-  const raw = formatRawEventForUI(json);
-
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2949,9 +2767,10 @@ export default function makeEvent(json: any): Event {
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
+    eventIndex: json.ei,
     user: json.user,
     time: new Date(json.time),
-    raw: raw,
+    raw: json,
   };
 }
 
@@ -3005,22 +2824,3 @@ export function formatSqn({
   }
   return `${scope}::${name}`;
 }
-
-// formatDevice renders the OS type and serial number (carried as asset_tag) of a device audit
-// event's device metadata, e.g. " (OS [iOS], serial number [ABC123])". Returns an empty string when
-// neither is present.
-const formatDevice = (device?: {
-  asset_tag?: string;
-  os_type?: number;
-}): string => {
-  const parts: string[] = [];
-  // Account for os_type possibly being 0 (UNSPECIFIED) with os_type != null.
-  const os = device?.os_type != null ? osTypeLabel(device.os_type) : undefined;
-  if (os) {
-    parts.push(`OS [${os}]`);
-  }
-  if (device?.asset_tag) {
-    parts.push(`serial number [${device.asset_tag}]`);
-  }
-  return parts.length ? ` (${parts.join(', ')})` : '';
-};

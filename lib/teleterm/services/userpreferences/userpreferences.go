@@ -55,10 +55,10 @@ func Get(ctx context.Context, rootClient Client, leafClient Client) (*api.UserPr
 		clusterPreferences = leafPreferencesResponse.GetPreferences().GetClusterPreferences()
 	}
 
-	return api.UserPreferences_builder{
+	return &api.UserPreferences{
 		UnifiedResourcePreferences: rootPreferences.GetUnifiedResourcePreferences(),
 		ClusterPreferences:         clusterPreferences,
-	}.Build(), nil
+	}, nil
 }
 
 // Update updates the preferences for a given user.
@@ -120,39 +120,39 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 	hasRootUpdate := false
 	// Unified resource preferences. Only updated in the root cluster.
 	if newPreferences.GetUnifiedResourcePreferences() != nil {
-		rootPreferences.SetUnifiedResourcePreferences(updateUnifiedResourcePreferences(
+		rootPreferences.UnifiedResourcePreferences = updateUnifiedResourcePreferences(
 			rootPreferences.GetUnifiedResourcePreferences(),
 			newPreferences.GetUnifiedResourcePreferences(),
-		))
+		)
 		hasRootUpdate = true
 	}
 
 	// Cluster preferences. Updated in the root cluster if set.
 	if newPreferences.GetClusterPreferences() != nil && leafPreferences == nil {
-		rootPreferences.SetClusterPreferences(updateClusterPreferences(
+		rootPreferences.ClusterPreferences = updateClusterPreferences(
 			rootPreferences.GetClusterPreferences(),
 			newPreferences.GetClusterPreferences(),
-		))
+		)
 		hasRootUpdate = true
 	}
 
 	if hasRootUpdate {
 		upsertGroup.Go(func() error {
-			err := rootClient.UpsertUserPreferences(ctx, userpreferencesv1.UpsertUserPreferencesRequest_builder{
+			err := rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: rootPreferences,
-			}.Build())
+			})
 			return trace.Wrap(err)
 		})
 	}
 
 	// Cluster preferences. Updated in the leaf cluster if set.
 	if newPreferences.GetClusterPreferences() != nil && leafPreferences != nil {
-		leafPreferences.SetClusterPreferences(updateClusterPreferences(leafPreferences.GetClusterPreferences(), newPreferences.GetClusterPreferences()))
+		leafPreferences.ClusterPreferences = updateClusterPreferences(leafPreferences.GetClusterPreferences(), newPreferences.GetClusterPreferences())
 
 		upsertGroup.Go(func() error {
-			err := leafClient.UpsertUserPreferences(ctx, userpreferencesv1.UpsertUserPreferencesRequest_builder{
+			err := leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: leafPreferences,
-			}.Build())
+			})
 			return trace.Wrap(err)
 		})
 	}
@@ -161,12 +161,12 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 		return nil, trace.Wrap(err)
 	}
 
-	updatedPreferences := api.UserPreferences_builder{
+	updatedPreferences := &api.UserPreferences{
 		ClusterPreferences:         rootPreferences.GetClusterPreferences(),
 		UnifiedResourcePreferences: rootPreferences.GetUnifiedResourcePreferences(),
-	}.Build()
+	}
 	if leafPreferences != nil {
-		updatedPreferences.SetClusterPreferences(leafPreferences.GetClusterPreferences())
+		updatedPreferences.ClusterPreferences = leafPreferences.GetClusterPreferences()
 	}
 
 	return updatedPreferences, nil
@@ -184,10 +184,10 @@ func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedR
 		oldPreferences = &userpreferencesv1.UnifiedResourcePreferences{}
 	}
 
-	oldPreferences.SetDefaultTab(newPreferences.GetDefaultTab())
-	oldPreferences.SetViewMode(newPreferences.GetViewMode())
-	oldPreferences.SetLabelsViewMode(newPreferences.GetLabelsViewMode())
-	oldPreferences.SetAvailableResourceMode(newPreferences.GetAvailableResourceMode())
+	oldPreferences.DefaultTab = newPreferences.GetDefaultTab()
+	oldPreferences.ViewMode = newPreferences.GetViewMode()
+	oldPreferences.LabelsViewMode = newPreferences.GetLabelsViewMode()
+	oldPreferences.AvailableResourceMode = newPreferences.GetAvailableResourceMode()
 
 	return oldPreferences
 }
@@ -203,10 +203,10 @@ func updateClusterPreferences(oldPreferences *userpreferencesv1.ClusterUserPrefe
 		oldPreferences = &userpreferencesv1.ClusterUserPreferences{}
 	}
 	if oldPreferences.GetPinnedResources() == nil {
-		oldPreferences.SetPinnedResources(&userpreferencesv1.PinnedResourcesUserPreferences{})
+		oldPreferences.PinnedResources = &userpreferencesv1.PinnedResourcesUserPreferences{}
 	}
 
-	oldPreferences.GetPinnedResources().SetResourceIds(newPreferences.GetPinnedResources().GetResourceIds())
+	oldPreferences.PinnedResources.ResourceIds = newPreferences.GetPinnedResources().GetResourceIds()
 
 	return oldPreferences
 }

@@ -21,7 +21,6 @@ package discovery
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"testing"
 	"testing/synctest"
 
@@ -49,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -174,7 +174,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = testAuthServer.AuthServer.UpsertProxyServer(t.Context(), proxy)
+	err = testAuthServer.AuthServer.UpsertProxy(t.Context(), proxy)
 	require.NoError(t, err)
 
 	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
@@ -212,8 +212,8 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		},
 	}
 
-	getDc := func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-		dc, err := discoveryconfig.NewDiscoveryConfig(
+	getDc := func() *discoveryconfig.DiscoveryConfig {
+		dc, _ := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: uuid.NewString()},
 			discoveryconfig.Spec{
 				DiscoveryGroup: mainDiscoveryGroup,
@@ -226,7 +226,6 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				},
 			},
 		)
-		require.NoError(t, err)
 		return dc
 	}
 
@@ -240,13 +239,13 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	}
 	clusterUpserter := func(ctx context.Context, authServer *auth.Server, request *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
 		response := &integrationpb.EnrollEKSClustersResponse{}
-		for _, c := range request.GetEksClusterNames() {
+		for _, c := range request.EksClusterNames {
 			eksCluster := clusterFinder(c)
 			if eksCluster == nil {
-				response.SetResults(append(response.GetResults(), integrationpb.EnrollEKSClusterResult_builder{
+				response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
 					EksClusterName: c,
 					Error:          "not found",
-				}.Build()))
+				})
 				continue
 			}
 
@@ -258,10 +257,10 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			}
 			assert.NoError(t, err)
 
-			response.SetResults(append(response.GetResults(), integrationpb.EnrollEKSClusterResult_builder{
+			response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
 				EksClusterName: c,
 				ResourceId:     "resourceID",
-			}.Build()))
+			})
 		}
 		return response, nil
 	}
@@ -278,7 +277,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		{
 			name: "no clusters in auth server, discover two clusters from EKS",
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -307,13 +306,13 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one cluster in auth server, discover one cluster from EKS and ignore another one",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[0], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-						assert.Len(t, request.GetEksClusterNames(), 1)
+						assert.Len(t, request.EksClusterNames, 1)
 
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)
@@ -338,13 +337,13 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one non-matching cluster in auth server, discover two cluster from EKS",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[2], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-						assert.Len(t, request.GetEksClusterNames(), 2)
+						assert.Len(t, request.EksClusterNames, 2)
 
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)
@@ -465,7 +464,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				k1 := types.KubeServers(kubeServers).ToMap()
 				k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
 				for k := range k1 {
-					require.True(t, k1[k].IsEqual(k2[k]), "kube server in auth server does not match expected")
+					require.Equal(t, services.Equal, services.CompareResources(k1[k], k2[k]), "kube server in auth server does not match expected")
 				}
 			})
 		})
@@ -489,7 +488,9 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, re
 
 func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
 	eksTags := make(map[string]string, len(eksCluster.Tags))
-	maps.Copy(eksTags, eksCluster.Tags)
+	for k, v := range eksCluster.Tags {
+		eksTags[k] = v
+	}
 	eksTags[types.OriginLabel] = types.OriginCloud
 	eksTags[types.InternalResourceIDLabel] = resourceID
 

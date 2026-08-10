@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -48,11 +49,11 @@ func (t *testResource153) GetMetadata() *headerv1.Metadata {
 
 func newTestResource153(name string) *testResource153 {
 	tr := &testResource153{
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
+		},
 	}
-	tr.Metadata.SetExpires(timestamppb.New(time.Now().AddDate(0, 0, 3)))
+	tr.Metadata.Expires = timestamppb.New(time.Now().AddDate(0, 0, 3))
 	return tr
 }
 
@@ -81,10 +82,10 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 	}
 
 	if cfg.Revision != "" {
-		r.Metadata.SetRevision(cfg.Revision)
+		r.Metadata.Revision = cfg.Revision
 	}
 	if !cfg.Expires.IsZero() {
-		r.Metadata.SetExpires(timestamppb.New(cfg.Expires))
+		r.Metadata.Expires = timestamppb.New(cfg.Expires)
 	}
 	return &r, nil
 }
@@ -92,6 +93,12 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 // TestGenericWrapperCRUD tests backend operations with the generic service.
 func TestGenericWrapperCRUD(t *testing.T) {
 	ctx := context.Background()
+
+	ignoreUnexported := cmp.Options{
+		cmpopts.IgnoreUnexported(testResource153{}),
+		cmpopts.IgnoreUnexported(headerv1.Metadata{}),
+		cmpopts.IgnoreUnexported(timestamppb.Timestamp{}),
+	}
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -157,6 +164,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 			break
 		}
 	}
+
 	require.Equal(t, 2, numPages)
 	require.Equal(t, []*testResource153{r1, r2}, paginatedOut)
 
@@ -206,23 +214,20 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a resource.
-	r1.Metadata.SetLabels(map[string]string{"newlabel": "newvalue"})
+	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
 	r1, err = service.UnconditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(r1, r,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-		protocmp.Transform(),
-	))
+	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"), ignoreUnexported))
 
 	// Conditionally updating a resource fails if revisions do not match
-	r.Metadata.SetRevision("fake")
+	r.Metadata.Revision = "fake"
 	_, err = service.ConditionalUpdateResource(ctx, r)
 	require.True(t, trace.IsCompareFailed(err))
 
 	// Conditionally updating a resource is allowed when revisions match
-	r.Metadata.SetRevision(r1.Metadata.GetRevision())
+	r.Metadata.Revision = r1.Metadata.Revision
 	r1, err = service.ConditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 
@@ -246,21 +251,19 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-		protocmp.Transform(),
-	))
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		ignoreUnexported))
 
 	// Upsert a resource (update).
-	r1.Metadata.SetLabels(map[string]string{"newerlabel": "newervalue"})
+	r1.Metadata.Labels = map[string]string{"newerlabel": "newervalue"}
 	r1, err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-		protocmp.Transform(),
-	))
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		ignoreUnexported))
 
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")

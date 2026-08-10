@@ -165,11 +165,6 @@ func compareServers(a, b types.Server) int {
 	if a.GetScope() != b.GetScope() {
 		return Different
 	}
-
-	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
-		return Different
-	}
-
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -209,9 +204,6 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if a.GetScope() != b.GetScope() {
 		return Different
 	}
-	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
-		return Different
-	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -239,10 +231,6 @@ func compareDatabaseServices(a, b types.DatabaseService) int {
 		}) {
 		return Different
 	}
-	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
-		return Different
-	}
-	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
@@ -279,9 +267,6 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 		return Different
 	}
 	if a.GetScope() != b.GetScope() {
-		return Different
-	}
-	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -323,9 +308,6 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if a.GetScope() != b.GetScope() {
 		return Different
 	}
-	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
-		return Different
-	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -353,9 +335,6 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 		return Different
 	}
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
-		return Different
-	}
-	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.

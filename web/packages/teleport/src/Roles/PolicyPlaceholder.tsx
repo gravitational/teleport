@@ -72,8 +72,7 @@ export function PolicyPlaceholder({
 
   // roleDiffProps can be undefined if not cloud and not role tester
   // enabled.
-  const hideSalesButton =
-    (cfg.entitlements.AccessGraph.enabled || cfg.isCloud) && roleDiffProps;
+  const hideSalesButton = (cfg.isPolicyEnabled || cfg.isCloud) && roleDiffProps;
 
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
@@ -91,7 +90,7 @@ export function PolicyPlaceholder({
         </Box>
         <Flex flex="0 0 auto" alignItems="start">
           {canUpdateAccessGraphSettings &&
-            !cfg.entitlements.AccessGraph.enabled &&
+            !cfg.isPolicyEnabled &&
             cfg.isCloud &&
             enableDemoMode && ( // cloud can enable a demo mode so show that button
               <ButtonPrimary

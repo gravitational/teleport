@@ -49,7 +49,7 @@ jobs:
       playwright-version: ${{ steps.playwright-version.outputs.version }}
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout OSS
@@ -102,23 +102,10 @@ jobs:
             exit 1
           fi
 
-      - name: Restore Rust output cache
-        id: rust-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: |
-            web/packages/shared/libs/ironrdp/pkg
-            target/x86_64-unknown-linux-gnu/release/librdp_client.a
-            lib/srv/desktop/rdp/rdpclient/librdpclient.h
-          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
-            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
-            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
-
       - name: Build Teleport, tctl, and tsh
         run: ${{ inputs.build-command }}
         env:
-          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
-          RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+          RDPCLIENT_SKIP_BUILD: 1
 
       - name: Print build logs
         if: failure()
@@ -134,8 +121,6 @@ jobs:
 
       - name: Build Connect
         run: pnpm --filter=@gravitational/teleterm build
-        env:
-          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
 
       - name: Upload binaries
         uses: actions/upload-artifact@v7
@@ -155,18 +140,6 @@ jobs:
         with:
           path: ${{ steps.cache-paths.outputs.go-mod }}
           key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
-
-      - name: Save Rust output cache
-        if: github.event_name == 'push' && steps.rust-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: |
-            web/packages/shared/libs/ironrdp/pkg
-            target/x86_64-unknown-linux-gnu/release/librdp_client.a
-            lib/srv/desktop/rdp/rdpclient/librdpclient.h
-          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
-            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
-            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
   test:
     name: E2E Tests

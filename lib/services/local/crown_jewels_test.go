@@ -44,14 +44,14 @@ func TestCreateCrownJewel(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := crownjewel.NewCrownJewel("obj", crownjewelv1.CrownJewelSpec_builder{
+	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-			crownjewelv1.TeleportMatcher_builder{
+			{
 				Kinds: []string{"node"},
 				Names: []string{"test"},
-			}.Build(),
+			},
 		},
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	// first attempt should succeed
@@ -70,14 +70,14 @@ func TestUpsertCrownJewel(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := crownjewel.NewCrownJewel("obj", crownjewelv1.CrownJewelSpec_builder{
+	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-			crownjewelv1.TeleportMatcher_builder{
+			{
 				Kinds: []string{"node"},
 				Names: []string{"test"},
-			}.Build(),
+			},
 		},
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	// the first attempt should succeed
@@ -150,15 +150,15 @@ func TestUpdateCrownJewel(t *testing.T) {
 	obj, err := service.GetCrownJewel(ctx, getObject(t, 0).GetMetadata().GetName())
 	require.NoError(t, err)
 	// update the expiry time
-	obj.GetMetadata().SetExpires(expiry)
+	obj.Metadata.Expires = expiry
 
 	objUpdated, err := service.UpdateCrownJewel(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
+	require.Equal(t, expiry, objUpdated.Metadata.Expires)
 
-	objFresh, err := service.GetCrownJewel(ctx, obj.GetMetadata().GetName())
+	objFresh, err := service.GetCrownJewel(ctx, obj.Metadata.Name)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
+	require.Equal(t, expiry, objFresh.Metadata.Expires)
 }
 
 func TestUpdateCrownJewelMissingRevision(t *testing.T) {
@@ -171,7 +171,7 @@ func TestUpdateCrownJewelMissingRevision(t *testing.T) {
 	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getObject(t, 0)
-	obj.GetMetadata().SetExpires(expiry)
+	obj.Metadata.Expires = expiry
 
 	// Update should be rejected as the revision is missing.
 	_, err := service.UpdateCrownJewel(ctx, obj)
@@ -233,7 +233,7 @@ func TestListCrownJewel(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -257,7 +257,7 @@ func TestListCrownJewel(t *testing.T) {
 					}
 				}
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -283,21 +283,21 @@ func getService(t *testing.T) services.CrownJewels {
 
 func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 	name := fmt.Sprintf("obj%v", index)
-	obj, err := crownjewel.NewCrownJewel(name, crownjewelv1.CrownJewelSpec_builder{
+	obj, err := crownjewel.NewCrownJewel(name, &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-			crownjewelv1.TeleportMatcher_builder{
+			{
 				Kinds: []string{"node"},
 				Names: []string{"test"},
-			}.Build(),
+			},
 		},
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	return obj
 }
 
 func prepopulate(t *testing.T, service services.CrownJewels, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateCrownJewel(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}

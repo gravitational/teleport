@@ -20,7 +20,6 @@ import { watch, type WatchEventType } from 'node:fs';
 import { access } from 'node:fs/promises';
 
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { isErrnoException } from 'shared/utils/error';
 import { debounce } from 'shared/utils/highbar';
 import { wait } from 'shared/utils/wait';
 
@@ -130,7 +129,7 @@ export async function* watchProfiles({
       if (
         isTshdRpcError(error, 'NOT_FOUND') ||
         error instanceof FileSystemEventsOverflowError ||
-        isErrnoException(error, 'EPERM')
+        error?.code === 'EPERM'
       ) {
         const ok = await pathExists(tshDirectory);
         if (!ok) {
@@ -162,7 +161,7 @@ async function pathExists(dirPath: string): Promise<boolean> {
     await access(dirPath);
     return true;
   } catch (error) {
-    if (isErrnoException(error, 'ENOENT')) {
+    if (error.code === 'ENOENT') {
       return false;
     }
     throw error;

@@ -63,8 +63,8 @@ func (s *Server) startKubeWatchers() error {
 				return utils.FromSlice(newResources, types.KubeCluster.GetName)
 			},
 			CompareResources: func(newCluster, oldCluster types.KubeCluster) int {
-				if !newCluster.IsEqual(oldCluster) {
-					return services.Different
+				if res := services.CompareResources(newCluster, oldCluster); res != services.Equal {
+					return res
 				}
 				if newCluster.GetStatus().IsEqual(oldCluster.GetStatus()) {
 					return services.Equal

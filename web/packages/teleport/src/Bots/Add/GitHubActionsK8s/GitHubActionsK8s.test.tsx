@@ -17,8 +17,9 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryHistory } from 'history';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Router } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -66,9 +67,10 @@ describe('GitHubActionsK8s', () => {
   test('complete flow: minimal', async () => {
     const tracking = trackingTester();
 
-    const { user, mockNavigate, unmount } = renderComponent({
+    const { user, history, unmount } = renderComponent({
       trackingEventId: 'test-tracking-event-id',
     });
+    const replaceMock = jest.spyOn(history, 'replace');
 
     tracking.assertStart('test-tracking-event-id');
 
@@ -168,9 +170,7 @@ describe('GitHubActionsK8s', () => {
       'INTEGRATION_ENROLL_STATUS_CODE_SUCCESS'
     );
 
-    expect(mockNavigate).toHaveBeenLastCalledWith('/web/bots', {
-      replace: true,
-    });
+    expect(replaceMock).toHaveBeenLastCalledWith('/web/bots');
 
     unmount();
 
@@ -178,29 +178,28 @@ describe('GitHubActionsK8s', () => {
   });
 });
 
-const mockNavigate = jest.fn();
-jest.mock('react-router', () => ({
-  ...jest.requireActual('react-router'),
-  useNavigate: () => mockNavigate,
-}));
-
 function renderComponent(opts?: { trackingEventId?: string }) {
   const { trackingEventId } = opts ?? {};
   const user = userEvent.setup({
     advanceTimers: t => jest.advanceTimersByTime(t),
   });
-  mockNavigate.mockClear();
+  const history = createMemoryHistory({
+    initialEntries: [cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh)],
+  });
   return {
     ...render(<GitHubActionsK8sWithoutTracking />, {
-      wrapper: makeWrapper({ trackingEventId }),
+      wrapper: makeWrapper({ history, trackingEventId }),
     }),
     user,
-    mockNavigate,
+    history,
   };
 }
 
-function makeWrapper(opts: { trackingEventId?: string }) {
-  const { trackingEventId } = opts;
+function makeWrapper(opts: {
+  history: ReturnType<typeof createMemoryHistory>;
+  trackingEventId?: string;
+}) {
+  const { history, trackingEventId } = opts;
   const ctx = createTeleportContext();
 
   return ({ children }: PropsWithChildren) => {
@@ -211,15 +210,7 @@ function makeWrapper(opts: { trackingEventId?: string }) {
             <InfoGuidePanelProvider>
               <ContentMinWidth>
                 <TrackingProvider initialEventId={trackingEventId}>
-                  <MemoryRouter
-                    initialEntries={[
-                      cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh),
-                    ]}
-                  >
-                    <Routes>
-                      <Route path="*" element={children} />
-                    </Routes>
-                  </MemoryRouter>
+                  <Router history={history}>{children}</Router>
                 </TrackingProvider>
               </ContentMinWidth>
             </InfoGuidePanelProvider>

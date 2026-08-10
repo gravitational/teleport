@@ -59,15 +59,6 @@ export default {
         disableSort: true,
         defaultOrder: 'DESC',
       },
-      {
-        key: 'no-label-key',
-        label: '',
-      },
-      {
-        key: 'hidden',
-        label: 'Should be invisible',
-        hidden: true,
-      },
     ],
     selectedKey: 'name',
     selectedOrder: 'ASC',

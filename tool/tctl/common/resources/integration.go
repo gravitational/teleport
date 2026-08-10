@@ -59,8 +59,6 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 		switch ig.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
-		case types.IntegrationSubKindGitHub:
-			specProps = append(specProps, fmt.Sprintf("Organization=%s", ig.GetGitHubIntegrationSpec().Organization))
 		}
 		rows = append(rows, []string{
 			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
@@ -78,8 +76,9 @@ func integrationHandler() Handler {
 		updateHandler: updateIntegration,
 		deleteHandler: deleteIntegration,
 		singleton:     false,
-		mfaRequired:   true,
-		description:   "An integration with an external service such as AWS, GitHub, or Azure.",
+		// TODO(greedy52) add admin action MFA for integrations.
+		mfaRequired: false,
+		description: "An integration with an external service such as AWS, GitHub, or Azure.",
 	}
 }
 
@@ -152,11 +151,7 @@ func updateExistingIntegration(ctx context.Context, client *authclient.Client, e
 		existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 	case types.IntegrationSubKindGitHub:
 		existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		if creds := integration.GetCredentials(); creds != nil {
-			if err := existingIntegration.SetCredentials(creds); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		// TODO(greedy52) allow overwriting credentials.
 	case types.IntegrationSubKindAWSRolesAnywhere:
 		existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
 	case types.IntegrationSubKindAzureOIDC:

@@ -38,21 +38,21 @@ type inferenceSecretClient struct {
 }
 
 // Get gets an inference secret with a given name from Teleport.
-func (c inferenceSecretClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*summarizerv1.InferenceSecret, error) {
+func (c inferenceSecretClient) Get(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceSecret(
-		ctx, summarizerv1.GetInferenceSecretRequest_builder{Name: key.Name}.Build(),
+		ctx, &summarizerv1.GetInferenceSecretRequest{Name: name},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.GetSecret(), nil
+	return resp.Secret, nil
 }
 
 // Create creates an inference secret in Teleport.
 func (c inferenceSecretClient) Create(ctx context.Context, secret *summarizerv1.InferenceSecret) error {
 	_, err := c.teleportClient.SummarizerServiceClient().CreateInferenceSecret(
-		ctx, summarizerv1.CreateInferenceSecretRequest_builder{Secret: secret}.Build(),
+		ctx, &summarizerv1.CreateInferenceSecretRequest{Secret: secret},
 	)
 	return trace.Wrap(err)
 }
@@ -60,15 +60,15 @@ func (c inferenceSecretClient) Create(ctx context.Context, secret *summarizerv1.
 // Update updates an existing inference secret in Teleport.
 func (c inferenceSecretClient) Update(ctx context.Context, secret *summarizerv1.InferenceSecret) error {
 	_, err := c.teleportClient.SummarizerServiceClient().UpdateInferenceSecret(
-		ctx, summarizerv1.UpdateInferenceSecretRequest_builder{Secret: secret}.Build(),
+		ctx, &summarizerv1.UpdateInferenceSecretRequest{Secret: secret},
 	)
 	return trace.Wrap(err)
 }
 
 // Delete deletes an inference secret with a given name from Teleport.
-func (c inferenceSecretClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+func (c inferenceSecretClient) Delete(ctx context.Context, name string) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceSecret(
-		ctx, summarizerv1.DeleteInferenceSecretRequest_builder{Name: key.Name}.Build(),
+		ctx, &summarizerv1.DeleteInferenceSecretRequest{Name: name},
 	)
 	return trace.Wrap(err)
 }
@@ -81,7 +81,7 @@ func (c inferenceSecretClient) Mutate(ctx context.Context, new, _ *summarizerv1.
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		new.GetSpec().SetValue(resolvedSecret)
+		new.Spec.Value = resolvedSecret
 	}
 	return nil
 }
@@ -101,9 +101,6 @@ func NewInferenceSecretReconciler(
 	](
 		client,
 		secretClient,
-		reconcilers.Config{
-			CheckFeatures: controllers.RequireSessionSummaries,
-		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)

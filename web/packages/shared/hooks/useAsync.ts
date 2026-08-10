@@ -18,8 +18,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getErrorMessage } from 'shared/utils/error';
-
 /**
  * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
  *
@@ -211,7 +209,7 @@ export type Attempt<T> =
       status: 'error';
       data: null;
       statusText: string;
-      error: unknown;
+      error: any;
     };
 
 export function hasFinished<T>(attempt: Attempt<T>): boolean {
@@ -242,12 +240,12 @@ export function makeProcessingAttempt<T>(): Attempt<T> {
   };
 }
 
-export function makeErrorAttempt<T>(error: unknown): Attempt<T> {
+export function makeErrorAttempt<T>(error: Error): Attempt<T> {
   return {
     data: null,
     status: 'error',
     error: error,
-    statusText: getErrorMessage(error),
+    statusText: error.message,
   };
 }
 

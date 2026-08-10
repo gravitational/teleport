@@ -17,16 +17,16 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import styled from 'styled-components';
 
 import { Flex, Text } from 'design';
 
 import { UserDisplayName } from './UserDisplayName';
 
-const meta = {
+const meta: Meta<typeof UserDisplayName> = {
   title: 'Shared/UserDisplayName',
-  component: Wrapper,
+  component: UserDisplayName,
   args: {
     username: 'alice@example.com',
     primaryText: 'Alice Jones',
@@ -46,15 +46,11 @@ const meta = {
       </Flex>
     ),
   ],
-} satisfies Meta<typeof Wrapper>;
+};
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
-
-function Wrapper(props: ComponentProps<typeof UserDisplayName>) {
-  return <UserDisplayName {...props} />;
-}
+type Story = StoryObj<typeof UserDisplayName>;
 
 export const Playground: Story = {};
 
@@ -68,7 +64,7 @@ export const LayoutVariants: Story = {
     >
       <LayoutExample
         value="inline"
-        description="Username and secondary render inside the parenthetical group."
+        description="Primary, secondary, and username stay on one line."
       >
         <UserDisplayName
           username="alice@example.com"
@@ -79,7 +75,7 @@ export const LayoutVariants: Story = {
       </LayoutExample>
       <LayoutExample
         value="stacked"
-        description="Username and secondary share the supporting line."
+        description="Primary stays first, with supporting values below it."
       >
         <UserDisplayName
           username="alice@example.com"
@@ -113,7 +109,7 @@ export const LayoutVariantsWithoutSecondary: Story = {
     >
       <LayoutExample
         value="inline"
-        description="Username renders inside the parenthetical group."
+        description="Primary and username stay on one line."
       >
         <UserDisplayName
           username="alice@example.com"
@@ -123,7 +119,7 @@ export const LayoutVariantsWithoutSecondary: Story = {
       </LayoutExample>
       <LayoutExample
         value="stacked"
-        description="Username renders on the supporting line."
+        description="Primary stays first, with username below it."
       >
         <UserDisplayName
           username="alice@example.com"
@@ -215,7 +211,7 @@ export const LongValues: Story = {
     <Flex alignItems="stretch" flexDirection="column" gap={3} width="240px">
       <LayoutExample
         value="inline"
-        description="Grouped values are truncated within a narrow container."
+        description="Long values are truncated within a narrow container."
       >
         <UserDisplayName
           username="alice.jones.engineering@very-long-example-domain.com"
@@ -226,7 +222,7 @@ export const LongValues: Story = {
       </LayoutExample>
       <LayoutExample
         value="stacked"
-        description="Each stacked value line truncates independently."
+        description="Each stacked line truncates independently."
       >
         <UserDisplayName
           username="alice.jones.engineering@very-long-example-domain.com"

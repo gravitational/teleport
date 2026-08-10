@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/entitlements"
 )
 
 // SetClusterFeatures sets the flags for supported and unsupported features.
@@ -31,6 +32,7 @@ func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
 
+	entitlements.BackfillFeatures(&features)
 	h.clusterFeatures = features
 }
 

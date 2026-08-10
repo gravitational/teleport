@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/decision"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -258,12 +259,12 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	var pinSourceIP bool
 	switch {
 	case identity.AccessPermit != nil:
-		lockingMode = constants.LockingMode(identity.AccessPermit.GetLockingMode())
-		lockTargets = decision.LockTargetsFromProto(identity.AccessPermit.GetLockTargets())
-		requiredPolicy = keys.PrivateKeyPolicy(identity.AccessPermit.GetPrivateKeyPolicy())
-		maxConnections = identity.AccessPermit.GetMaxConnections()
-		pinSourceIP = slices.ContainsFunc(identity.AccessPermit.GetPreconditions(), func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP
+		lockingMode = constants.LockingMode(identity.AccessPermit.LockingMode)
+		lockTargets = decision.LockTargetsFromProto(identity.AccessPermit.LockTargets)
+		requiredPolicy = keys.PrivateKeyPolicy(identity.AccessPermit.PrivateKeyPolicy)
+		maxConnections = identity.AccessPermit.MaxConnections
+		pinSourceIP = slices.ContainsFunc(identity.AccessPermit.Preconditions, func(p *decisionpb.Precondition) bool {
+			return p.Kind == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP
 		})
 	case identity.ProxyingPermit != nil:
 		lockingMode = identity.ProxyingPermit.LockingMode
@@ -306,7 +307,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	ctx, err = s.EnforceConnectionLimits(
 		ctx,
-		ConnectionIdentity{
+		auth.ConnectionIdentity{
 			Username:       identity.TeleportUser,
 			MaxConnections: maxConnections,
 			LocalAddr:      localAddr,
@@ -318,25 +319,10 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	return ctx, trace.Wrap(err)
 }
 
-// ConnectionIdentity contains the identifying properties of a
-// client connection required to enforce connection limits.
-type ConnectionIdentity struct {
-	// Username is the name of the user
-	Username string
-	// MaxConnections the upper limit to number of open connections for a user
-	MaxConnections int64
-	// LocalAddr is the local address for the connection
-	LocalAddr string
-	// RemoteAddr is the remote address for the connection
-	RemoteAddr string
-	// UserMetadata contains metadata for a user
-	UserMetadata apievents.UserMetadata
-}
-
 // EnforceConnectionLimits retrieves a semaphore lock to ensure that connection limits
 // for the identity are enforced. If the lock is closed for any reason prior to the connection
 // being terminated any of the provided closers will be closed.
-func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
+func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity auth.ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
 	maxConnections := identity.MaxConnections
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing

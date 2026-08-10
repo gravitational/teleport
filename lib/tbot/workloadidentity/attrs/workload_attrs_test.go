@@ -27,17 +27,17 @@ import (
 )
 
 func TestWorkloadAttrs(t *testing.T) {
-	attrs := attrs.FromWorkloadAttrs(workloadidentityv1.WorkloadAttrs_builder{
-		Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
+	attrs := attrs.FromWorkloadAttrs(&workloadidentityv1.WorkloadAttrs{
+		Podman: &workloadidentityv1.WorkloadAttrsPodman{
 			Attested: true,
-		}.Build(),
-		Sigstore: workloadidentityv1.WorkloadAttrsSigstore_builder{
+		},
+		Sigstore: &workloadidentityv1.WorkloadAttrsSigstore{
 			Payloads: []*workloadidentityv1.SigstoreVerificationPayload{
-				workloadidentityv1.SigstoreVerificationPayload_builder{Bundle: []byte(`BUNDLE`)}.Build(),
-				workloadidentityv1.SigstoreVerificationPayload_builder{Bundle: []byte(`BUNDLE`)}.Build(),
+				{Bundle: []byte(`BUNDLE`)},
+				{Bundle: []byte(`BUNDLE`)},
 			},
-		}.Build(),
-	}.Build())
+		},
+	})
 
 	output := attrs.LogValue().String()
 	require.Contains(t, output, "sigstore:{payloads:{count:2}}")

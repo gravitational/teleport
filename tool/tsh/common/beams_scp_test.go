@@ -109,11 +109,10 @@ func TestBeamsSCPCommandRun(t *testing.T) {
 						"11111111-1111-1111-1111-111111111111",
 						"alice",
 						name+"-app",
-						"",
 						time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
 						nil,
 					)
-					beam.GetStatus().SetNodeId(nodeID)
+					beam.Status.NodeId = nodeID
 					return beam, nil
 				},
 				withClusterFn: func(_ context.Context, _ *client.TeleportClient, fn func(authclient.ClientI) error) error {

@@ -51,9 +51,6 @@ func (s *Server) startDatabaseWatchers() error {
 		services.ReconcilerConfig[types.Database]{
 			Matcher:             func(database types.Database) bool { return true },
 			GetCurrentResources: s.getCurrentDatabases,
-			CompareResources: func(d1, d2 types.Database) int {
-				return services.EqualFromBool(d1.IsEqual(d2))
-			},
 			GetNewResources: func() map[string]types.Database {
 				mu.RLock()
 				defer mu.RUnlock()
@@ -166,14 +163,14 @@ func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, dis
 			accountID:   db.GetAWS().AccountID,
 			region:      db.GetAWS().Region,
 		},
-		usertasksv1.DiscoverRDSDatabase_builder{
+		&usertasksv1.DiscoverRDSDatabase{
 			DiscoveryConfig: discoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(s.clock.Now()),
 			Name:            databaseIdentifier,
 			IsCluster:       isCluster,
 			Engine:          engine,
-		}.Build(),
+		},
 	)
 }
 

@@ -63,9 +63,9 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	}
 
 	for i, rule := range kube.GetAllow() {
-		serviceAccountSet := rule.GetServiceAccount() != ""
-		serviceAccountNameSet := rule.GetServiceAccountName() != ""
-		serviceAccountNamespaceSet := rule.GetServiceAccountNamespace() != ""
+		serviceAccountSet := rule.ServiceAccount != ""
+		serviceAccountNameSet := rule.ServiceAccountName != ""
+		serviceAccountNamespaceSet := rule.ServiceAccountNamespace != ""
 
 		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
 			return trace.BadParameter(
@@ -75,12 +75,12 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 		}
 
 		if serviceAccountSet {
-			parts := strings.Split(rule.GetServiceAccount(), ":")
+			parts := strings.Split(rule.ServiceAccount, ":")
 			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 				return trace.BadParameter(
 					"allow[%d].service_account should be in format \"namespace:service_account\", got %q instead",
 					i,
-					rule.GetServiceAccount(),
+					rule.ServiceAccount,
 				)
 			}
 		}
@@ -348,6 +348,43 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	return nil
 }
 
+// validateGithub validates the GitHub-specific scoped token configuration.
+// It checks that the token usage mode is compatible, that enterprise_server_host
+// does not contain a scheme or path, that enterprise_server_host and enterprise_slug
+// are mutually exclusive, and that at least one allow rule with a non-empty
+// field is set.
+func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error {
+	if spec == nil {
+		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
+	}
+	if tokenUsageMode == TokenUsageModeSingle {
+		return trace.BadParameter("usage mode %q is not supported for github join method", TokenUsageModeSingle)
+	}
+	if strings.Contains(spec.GetEnterpriseServerHost(), "/") {
+		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
+	}
+	if spec.GetEnterpriseServerHost() != "" && spec.GetEnterpriseSlug() != "" {
+		return trace.BadParameter("'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("the github join method requires at least one token allow rule")
+	}
+
+	for _, rule := range spec.GetAllow() {
+		repoSet := rule.GetRepository() != ""
+		ownerSet := rule.GetRepositoryOwner() != ""
+		subSet := rule.GetSub() != ""
+		enterpriseSet := rule.GetEnterprise() != ""
+		enterpriseIDSet := rule.GetEnterpriseId() != ""
+		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
+			return trace.BadParameter(`allow rule for github must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`)
+		}
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -373,6 +410,10 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		// Bound keypair tokens are always valid
 	case types.JoinMethodGenericOIDC:
 		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
+	case types.JoinMethodGitHub:
+		if err := validateGithub(token.GetSpec().GetGithub(), TokenUsageMode(token.GetSpec().GetUsageMode())); err != nil {
+			return trace.Wrap(err, "github join method")
+		}
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -410,11 +451,11 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 		return trace.BadParameter("scoped token bot scope must be a descendant of or equivalent to its resource scope")
 	}
 
-	if spec.GetAssignedScope() != "" {
+	if spec.AssignedScope != "" {
 		return trace.BadParameter("scoped tokens for bots cannot have an assigned_scope")
 	}
 
-	if spec.GetJoinMethod() == string(types.JoinMethodToken) {
+	if spec.JoinMethod == string(types.JoinMethodToken) {
 		return trace.BadParameter("scoped bot tokens do not support the `token` join method, `bound_keypair` should be used instead")
 	}
 
@@ -434,11 +475,11 @@ func validateNonBotToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("usage_mode cannot be 'bot' for a non-bot token")
 	}
 
-	if err := scopes.StrongValidate(spec.GetAssignedScope()); err != nil {
+	if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
 		return trace.Wrap(err, "validating scoped token assigned scope")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetAssignedScope()) {
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
 		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
@@ -513,11 +554,11 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("scoped token mode is not supported")
 	}
 
-	if len(spec.GetRoles()) == 0 {
+	if len(spec.Roles) == 0 {
 		return trace.BadParameter("scoped token must have at least one role")
 	}
 
-	roles, err := types.NewTeleportRoles(spec.GetRoles())
+	roles, err := types.NewTeleportRoles(spec.Roles)
 	if err != nil {
 		return trace.Wrap(err, "validating scoped token roles")
 	}
@@ -614,7 +655,6 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken, features scopes.Features)
 			return trace.Wrap(ErrTokenExhausted)
 		}
 	}
-
 	// if agent scope pins are enabled, all system roles are allowed to join
 	// with a scoped token
 	if features.AgentPinEnabled {
@@ -1003,6 +1043,33 @@ func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 		MustMatchFields: globalMatchers,
 		AllowAny:        allow,
 	}, nil
+}
+
+func (t *Token) GetGithub() *types.ProvisionTokenSpecV2GitHub {
+	spec := t.scoped.GetSpec().GetGithub()
+
+	allow := make([]*types.ProvisionTokenSpecV2GitHub_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GitHub_Rule{
+			Sub:             rule.GetSub(),
+			Repository:      rule.GetRepository(),
+			RepositoryOwner: rule.GetRepositoryOwner(),
+			Workflow:        rule.GetWorkflow(),
+			Environment:     rule.GetEnvironment(),
+			Actor:           rule.GetActor(),
+			Ref:             rule.GetRef(),
+			RefType:         rule.GetRefType(),
+			Enterprise:      rule.GetEnterprise(),
+			EnterpriseID:    rule.GetEnterpriseId(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GitHub{
+		EnterpriseServerHost: spec.GetEnterpriseServerHost(),
+		EnterpriseSlug:       spec.GetEnterpriseSlug(),
+		StaticJWKS:           spec.GetStaticJwks(),
+		Allow:                allow,
+	}
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].

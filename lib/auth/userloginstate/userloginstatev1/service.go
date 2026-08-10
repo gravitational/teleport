@@ -83,8 +83,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // GetUserLoginStates returns a list of all user login states.
-// deprecated: Use paginated version ListUserLoginStates
-// TODO(smallinsky) Remove in v21.0.0
 func (s *Service) GetUserLoginStates(ctx context.Context, _ *userloginstatev1.GetUserLoginStatesRequest) (*userloginstatev1.GetUserLoginStatesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -105,9 +103,9 @@ func (s *Service) GetUserLoginStates(ctx context.Context, _ *userloginstatev1.Ge
 		ulsList[i] = conv.ToProto(r)
 	}
 
-	return userloginstatev1.GetUserLoginStatesResponse_builder{
+	return &userloginstatev1.GetUserLoginStatesResponse{
 		UserLoginStates: ulsList,
-	}.Build(), nil
+	}, nil
 }
 
 // GetUserLoginState returns the specified user login state resource.

@@ -104,6 +104,8 @@ func getKubeCluster(ctx context.Context, client *authclient.Client, ref services
 		}.Build())
 	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+	// TODO (eriktate): remove in v20
+	//nolint:staticcheck // SA1019
 	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -158,6 +160,8 @@ func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref servi
 		}.Build())
 	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+	// TODO (eriktate): remove in v20
+	//nolint:staticcheck // SA1019
 	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return trace.Wrap(err)

@@ -36,25 +36,27 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
-var workloadIdentitySpec = workloadidentityv1.WorkloadIdentitySpec_builder{
-	Rules: workloadidentityv1.WorkloadIdentityRules_builder{
+var workloadIdentitySpec = &workloadidentityv1.WorkloadIdentitySpec{
+	Rules: &workloadidentityv1.WorkloadIdentityRules{
 		Allow: []*workloadidentityv1.WorkloadIdentityRule{
-			workloadidentityv1.WorkloadIdentityRule_builder{
+			{
 				Conditions: []*workloadidentityv1.WorkloadIdentityCondition{
-					workloadidentityv1.WorkloadIdentityCondition_builder{
+					{
 						Attribute: "user.name",
-						Eq: workloadidentityv1.WorkloadIdentityConditionEq_builder{
-							Value: "userA",
-						}.Build(),
-					}.Build(),
+						Operator: &workloadidentityv1.WorkloadIdentityCondition_Eq{
+							Eq: &workloadidentityv1.WorkloadIdentityConditionEq{
+								Value: "userA",
+							},
+						},
+					},
 				},
-			}.Build(),
+			},
 		},
-	}.Build(),
-	Spiffe: workloadidentityv1.WorkloadIdentitySPIFFE_builder{
+	},
+	Spiffe: &workloadidentityv1.WorkloadIdentitySPIFFE{
 		Id: "/test",
-	}.Build(),
-}.Build()
+	},
+}
 
 type workloadIdentityTestingPrimitives struct {
 	setup *testSetup
@@ -74,24 +76,24 @@ func (g *workloadIdentityTestingPrimitives) SetupTeleportFixtures(
 func (g *workloadIdentityTestingPrimitives) CreateTeleportResource(
 	ctx context.Context, name string,
 ) error {
-	resource := workloadidentityv1.WorkloadIdentity_builder{
+	resource := &workloadidentityv1.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		}.Build(),
+		},
 		Spec: workloadIdentitySpec,
-	}.Build()
+	}
 	_, err := g.setup.TeleportClient.
 		WorkloadIdentityResourceServiceClient().
 		CreateWorkloadIdentity(
 			ctx,
-			workloadidentityv1.CreateWorkloadIdentityRequest_builder{
+			&workloadidentityv1.CreateWorkloadIdentityRequest{
 				WorkloadIdentity: resource,
-			}.Build(),
+			},
 		)
 	return trace.Wrap(err)
 }
@@ -102,7 +104,7 @@ func (g *workloadIdentityTestingPrimitives) GetTeleportResource(
 	resp, err := g.setup.TeleportClient.
 		WorkloadIdentityResourceServiceClient().
 		GetWorkloadIdentity(
-			ctx, workloadidentityv1.GetWorkloadIdentityRequest_builder{Name: name}.Build(),
+			ctx, &workloadidentityv1.GetWorkloadIdentityRequest{Name: name},
 		)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -116,7 +118,7 @@ func (g *workloadIdentityTestingPrimitives) DeleteTeleportResource(
 	_, err := g.setup.TeleportClient.
 		WorkloadIdentityResourceServiceClient().
 		DeleteWorkloadIdentity(
-			ctx, workloadidentityv1.DeleteWorkloadIdentityRequest_builder{Name: name}.Build(),
+			ctx, &workloadidentityv1.DeleteWorkloadIdentityRequest{Name: name},
 		)
 	if err != nil {
 		return trace.Wrap(err)
@@ -168,7 +170,7 @@ func (g *workloadIdentityTestingPrimitives) ModifyKubernetesResource(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resource.Spec.Spiffe.SetId("/changed")
+	resource.Spec.Spiffe.Id = "/changed"
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, resource))
 }
 

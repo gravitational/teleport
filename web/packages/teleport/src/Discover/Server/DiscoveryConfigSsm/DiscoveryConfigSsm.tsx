@@ -38,7 +38,6 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 import cfg from 'teleport/config';
@@ -177,7 +176,7 @@ export function DiscoveryConfigSsm() {
           },
         });
       } catch (err) {
-        emitErrorEvent(getErrorMessage(err));
+        emitErrorEvent(err.message);
         throw err;
       }
     }

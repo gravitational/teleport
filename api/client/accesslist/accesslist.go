@@ -38,22 +38,6 @@ func NewClient(grpcClient accesslistv1.AccessListServiceClient) *Client {
 	}
 }
 
-func fromAccessListProto(accessList *accesslistv1.AccessList) (*accesslist.AccessList, error) {
-	return conv.FromProto(
-		accessList,
-		conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()),
-		conv.WithOwnerDisplaysField(accessList.GetStatus()),
-	)
-}
-
-func fromMemberProto(member *accesslistv1.Member) (*accesslist.AccessListMember, error) {
-	return conv.FromMemberProto(
-		member,
-		conv.WithMemberIneligibleStatusField(member),
-		conv.WithMemberStatusField(member),
-	)
-}
-
 // GetAccessLists returns a list of all access lists.
 func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -64,7 +48,9 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = fromAccessListProto(accessList)
+		accessLists[i], err = conv.FromProto(
+			accessList,
+			conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -74,7 +60,6 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 }
 
 // ListAccessLists returns a paginated list of access lists.
-// Deprecated: Use [Client.ListAccessListsV2] instead.
 // TODO (avatus): DELETE IN 21.0.0
 func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	//nolint:staticcheck // SA1019. ListAccessLists is deprecated but will
@@ -90,7 +75,7 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = fromAccessListProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -108,7 +93,7 @@ func (c *Client) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAc
 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
-		accessLists[i], err = fromAccessListProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -131,8 +116,8 @@ func (c *Client) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAcces
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := fromAccessListProto(resp)
-	return accessList, err
+	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return accessList, trace.Wrap(err)
 }
 
 // GetAccessListsToReview returns access lists that the user needs to review.
@@ -145,7 +130,7 @@ func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.Acce
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = fromAccessListProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -175,7 +160,7 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseAccessList, err := fromAccessListProto(resp)
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return responseAccessList, trace.Wrap(err)
 }
 
@@ -187,7 +172,7 @@ func (c *Client) UpdateAccessList(ctx context.Context, accessList *accesslist.Ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseAccessList, err := fromAccessListProto(resp)
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return responseAccessList, trace.Wrap(err)
 }
 
@@ -241,7 +226,7 @@ func (c *Client) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.
 	members = make([]*accesslist.AccessListMember, len(resp.Members))
 	for i, member := range resp.Members {
 		var err error
-		members[i], err = fromMemberProto(member)
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -268,7 +253,7 @@ func (c *Client) ListAllAccessListMembersV2(ctx context.Context, req *accesslist
 	members = make([]*accesslist.AccessListMember, len(resp.Members))
 	for i, member := range resp.Members {
 		var err error
-		members[i], err = fromMemberProto(member)
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -292,28 +277,22 @@ func (c *Client) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	member, err := fromMemberProto(resp)
+	member, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return member, trace.Wrap(err)
 }
 
 // GetStaticAccessListMember returns the specified access_list_member resource. If returns error if
 // the target access_list is not of type static.
 func (c *Client) GetStaticAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
-	return c.GetStaticAccessListMemberV2(ctx, accesslistv1.GetStaticAccessListMemberRequest_builder{
+	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, &accesslistv1.GetStaticAccessListMemberRequest{
 		AccessList: accessList,
 		MemberName: memberName,
-	}.Build())
-}
-
-// GetStaticAccessListMemberV2 returns the specified access_list_member resource. If returns error if
-// the target access_list is not of type static.
-func (c *Client) GetStaticAccessListMemberV2(ctx context.Context, req *accesslistv1.GetStaticAccessListMemberRequest) (*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, req)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	member, err := fromMemberProto(resp.Member)
+	member, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
 	return member, trace.Wrap(err)
 }
 
@@ -352,7 +331,7 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseMember, err := fromMemberProto(resp)
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return responseMember, trace.Wrap(err)
 }
 
@@ -365,7 +344,7 @@ func (c *Client) UpsertStaticAccessListMember(ctx context.Context, member *acces
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m, err := fromMemberProto(resp.Member)
+	m, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
 	return m, trace.Wrap(err)
 }
 
@@ -377,23 +356,17 @@ func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseMember, err := fromMemberProto(resp)
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return responseMember, trace.Wrap(err)
 }
 
 // DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error and
 // does nothing if the target access_list is not of static type.
 func (c *Client) DeleteStaticAccessListMember(ctx context.Context, accessList, memberName string) error {
-	return c.DeleteStaticAccessListMemberV2(ctx, accesslistv1.DeleteStaticAccessListMemberRequest_builder{
+	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, &accesslistv1.DeleteStaticAccessListMemberRequest{
 		AccessList: accessList,
 		MemberName: memberName,
-	}.Build())
-}
-
-// DeleteStaticAccessListMemberV2 hard deletes the specified access_list_member. It returns error and
-// does nothing if the target access_list is not of static type.
-func (c *Client) DeleteStaticAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteStaticAccessListMemberRequest) error {
-	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, req)
+	})
 	return trace.Wrap(err)
 }
 
@@ -436,7 +409,7 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessList, err := fromAccessListProto(resp.AccessList)
+	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -444,7 +417,7 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
 	for i, member := range resp.Members {
 		var err error
-		updatedMembers[i], err = fromMemberProto(member)
+		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -481,7 +454,7 @@ func (c *Client) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.
 	reviews = make([]*accesslist.Review, len(resp.Reviews))
 	for i, review := range resp.Reviews {
 		var err error
-		reviews[i], err = conv.FromReviewProto(review, conv.WithReviewStatus())
+		reviews[i], err = conv.FromReviewProto(review)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -556,7 +529,7 @@ func (c *Client) GetSuggestedAccessLists(ctx context.Context, accessRequestID st
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = fromAccessListProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -575,7 +548,7 @@ func (c *Client) ListUserAccessLists(ctx context.Context, req *accesslistv1.List
 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
-		accessLists[i], err = fromAccessListProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

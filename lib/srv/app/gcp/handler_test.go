@@ -128,7 +128,7 @@ func TestHandler_getToken(t *testing.T) {
 					},
 				}),
 			}),
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
 			},

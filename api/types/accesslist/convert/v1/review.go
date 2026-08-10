@@ -28,10 +28,8 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
-type ReviewOption func(msg *accesslistv1.Review, review *accesslist.Review)
-
 // FromReviewProto converts a v1 access list review into an internal access list review object.
-func FromReviewProto(msg *accesslistv1.Review, opts ...ReviewOption) (*accesslist.Review, error) {
+func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("access list review message is nil")
 	}
@@ -61,7 +59,7 @@ func FromReviewProto(msg *accesslistv1.Review, opts ...ReviewOption) (*accesslis
 		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.GetSpec().GetChanges().GetReviewDayOfMonthChanged())
 	}
 
-	review, err := accesslist.NewReviewWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.ReviewSpec{
+	member, err := accesslist.NewReviewWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.ReviewSpec{
 		AccessList: msg.GetSpec().GetAccessList(),
 		Reviewers:  msg.GetSpec().GetReviewers(),
 		ReviewDate: reviewDate,
@@ -72,11 +70,7 @@ func FromReviewProto(msg *accesslistv1.Review, opts ...ReviewOption) (*accesslis
 		return nil, trace.Wrap(err)
 	}
 
-	for _, opt := range opts {
-		opt(msg, review)
-	}
-
-	return review, nil
+	return member, nil
 }
 
 // ToReviewProto converts an internal access list review into a v1 access list review object.
@@ -129,31 +123,5 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 			Notes:      review.Spec.Notes,
 			Changes:    reviewChanges,
 		},
-		Status: toReviewStatusProto(review.Status),
-	}
-}
-
-func toReviewStatusProto(status *accesslist.ReviewStatus) *accesslistv1.ReviewStatus {
-	if status == nil {
-		return nil
-	}
-	return &accesslistv1.ReviewStatus{
-		ReviewerDisplays: ToUserDisplaysProto(status.ReviewerDisplays),
-	}
-}
-
-func fromReviewStatusProto(status *accesslistv1.ReviewStatus) *accesslist.ReviewStatus {
-	if status == nil {
-		return nil
-	}
-	return &accesslist.ReviewStatus{
-		ReviewerDisplays: FromUserDisplaysProto(status.GetReviewerDisplays()),
-	}
-}
-
-// WithReviewStatus copies the status field from the source proto message.
-func WithReviewStatus() ReviewOption {
-	return func(msg *accesslistv1.Review, review *accesslist.Review) {
-		review.Status = fromReviewStatusProto(msg.GetStatus())
 	}
 }

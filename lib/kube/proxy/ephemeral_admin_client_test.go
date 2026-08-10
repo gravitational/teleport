@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // TestGetPodForEphemeralPatch_UsesImpersonatedIdentity asserts that the pod GET
@@ -110,8 +109,8 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	authCtx := &authContext{
 		ScopedContext:   &authz.ScopedContext{User: teleportUser},
 		kubeClusterName: clusterName,
-		kubeUsers:       set.New(kubeUser),
-		kubeGroups:      set.New[string](),
+		kubeUsers:       map[string]struct{}{kubeUser: {}},
+		kubeGroups:      map[string]struct{}{},
 	}
 
 	_, err = fwd.getPodForEphemeralPatch(
@@ -197,8 +196,8 @@ func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
 		authContext: authContext{
 			ScopedContext:   &authz.ScopedContext{User: teleportUser},
 			kubeClusterName: clusterName,
-			kubeUsers:       set.New(chosenUser, alternateUsr),
-			kubeGroups:      set.New(chosenGroup),
+			kubeUsers:       map[string]struct{}{chosenUser: {}, alternateUsr: {}},
+			kubeGroups:      map[string]struct{}{chosenGroup: {}},
 		},
 		codecFactory: &globalKubeCodecs,
 	}

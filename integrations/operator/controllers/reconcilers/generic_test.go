@@ -58,10 +58,10 @@ type fakeTeleportResourceClient struct {
 }
 
 // Get implements the TeleportResourceClient interface.
-func (f *fakeTeleportResourceClient) Get(_ context.Context, id ResourceKey) (*fakeTeleportResource, error) {
-	metadata, ok := f.store[id.String()]
+func (f *fakeTeleportResourceClient) Get(_ context.Context, name string) (*fakeTeleportResource, error) {
+	metadata, ok := f.store[name]
 	if !ok {
-		return nil, trace.NotFound("%q not found", id.String())
+		return nil, trace.NotFound("%q not found", name)
 	}
 	return newFakeTeleportResource(metadata), nil
 }
@@ -96,12 +96,12 @@ func (f *fakeTeleportResourceClient) Update(_ context.Context, t *fakeTeleportRe
 }
 
 // Delete implements the TeleportResourceClient interface.
-func (f *fakeTeleportResourceClient) Delete(_ context.Context, id ResourceKey) error {
-	_, ok := f.store[id.String()]
+func (f *fakeTeleportResourceClient) Delete(_ context.Context, name string) error {
+	_, ok := f.store[name]
 	if !ok {
-		return trace.NotFound("%q not found", id.String())
+		return trace.NotFound("%q not found", name)
 	}
-	delete(f.store, id.String())
+	delete(f.store, name)
 	return nil
 
 }
@@ -190,7 +190,7 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 		{
 			name:  "delete non-existing Resource",
 			store: map[string]types.Metadata{},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 			resourceExists: false,

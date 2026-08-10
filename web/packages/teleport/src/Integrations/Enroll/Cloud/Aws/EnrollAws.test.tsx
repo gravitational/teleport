@@ -21,8 +21,8 @@ import { MemoryRouter } from 'react-router';
 
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { act, fireEvent, render, screen, waitFor } from 'design/utils/testing';
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import 'shared/components/TextEditor/TextEditor.mock';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';

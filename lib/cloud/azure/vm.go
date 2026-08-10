@@ -643,9 +643,11 @@ type vmStatus struct {
 	AgentIsReady bool
 }
 
+var expandInstanceView = armcompute.InstanceViewTypesInstanceView
+
 func (c *runCommandClient) regularVMStatus(ctx context.Context, req RunCommandRequest) (*vmStatus, error) {
 	getVMResp, err := c.virtualMachineAPI.Get(ctx, req.ResourceGroup, req.VMName, &armcompute.VirtualMachinesClientGetOptions{
-		Expand: new(armcompute.InstanceViewTypesInstanceView),
+		Expand: &expandInstanceView,
 	})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
@@ -661,7 +663,7 @@ func (c *runCommandClient) regularVMStatus(ctx context.Context, req RunCommandRe
 
 func (c *runCommandClient) vmssVMStatus(ctx context.Context, req RunCommandRequest) (*vmStatus, error) {
 	getVMResp, err := c.scaleSetVMsAPI.Get(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, &armcompute.VirtualMachineScaleSetVMsClientGetOptions{
-		Expand: new(armcompute.InstanceViewTypesInstanceView),
+		Expand: &expandInstanceView,
 	})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))

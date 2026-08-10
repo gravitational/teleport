@@ -39,11 +39,10 @@ func init() {
 // TeleportBotV1 holds the kubernetes custom resources for Bot
 type TeleportBotV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Scope  string             `json:"scope,omitempty"`
 	Spec   *TeleportBotV1Spec `json:"spec,omitempty"`
-	Status teleportcr.Status  `json:"status"`
+	Status teleportcr.Status  `json:"status,omitempty"`
 }
 
 // TeleportBotV1Spec defines the desired state of TeleportBotV1
@@ -54,7 +53,7 @@ type TeleportBotV1Spec machineidv1.BotSpec
 // TeleportBotV1List contains a list of TeleportBotV1
 type TeleportBotV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportBotV1 `json:"items"`
 }
 
@@ -62,17 +61,16 @@ type TeleportBotV1List struct {
 // [machineidv1.Bot] and implements the necessary interface methods used
 // by the TeleportResourceReconciler.
 func (l *TeleportBotV1) ToTeleport() *machineidv1.Bot {
-	resource := machineidv1.Bot_builder{
+	resource := &machineidv1.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		}.Build(),
-		Spec:  (*machineidv1.BotSpec)(l.Spec),
-		Scope: l.Scope,
-	}.Build()
+		},
+		Spec: (*machineidv1.BotSpec)(l.Spec),
+	}
 	return resource
 }
 

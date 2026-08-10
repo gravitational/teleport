@@ -37,10 +37,8 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -98,13 +96,13 @@ type mockScopedRoleGetter struct {
 
 func (m mockScopedRoleGetter) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 	for _, role := range m.scopedRoles {
-		if role.GetMetadata().GetName() == req.GetName() {
-			return scopedaccessv1.GetScopedRoleResponse_builder{
+		if role.Metadata.Name == req.Name {
+			return &scopedaccessv1.GetScopedRoleResponse{
 				Role: role,
-			}.Build(), nil
+			}, nil
 		}
 	}
-	return nil, trace.NotFound("scoped role %q not found", req.GetName())
+	return nil, trace.NotFound("scoped role %q not found", req.Name)
 }
 
 type mockLoginChecker struct {
@@ -129,9 +127,7 @@ func (m *mockGitForwardingChecker) evaluateGitForwarding(_ *sshca.Identity, _ ty
 	return nil, nil
 }
 
-type mockConnMetadata struct {
-	clientVersion []byte
-}
+type mockConnMetadata struct{}
 
 func (m mockConnMetadata) User() string {
 	return "testuser"
@@ -142,7 +138,7 @@ func (m mockConnMetadata) SessionID() []byte {
 }
 
 func (m mockConnMetadata) ClientVersion() []byte {
-	return m.clientVersion
+	return nil
 }
 
 func (m mockConnMetadata) ServerVersion() []byte {
@@ -166,7 +162,8 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	const nodeScope = "/test/scope"
 
@@ -302,28 +299,28 @@ func TestRBAC(t *testing.T) {
 	_, err = server.auth.CreateRole(ctx, nodeAccessRole)
 	require.NoError(t, err)
 
-	scopedRole := scopedaccessv1.ScopedRole_builder{
+	scopedRole := &scopedaccessv1.ScopedRole{
 		Kind:     scopedaccess.KindScopedRole,
-		Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
+		Metadata: &headerv1.Metadata{Name: "test"},
 		Scope:    nodeScope,
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{nodeScope},
-			Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+			Ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"testuser"},
 				Labels: []*labelv1.Label{
-					labelv1.Label_builder{Name: "test", Values: []string{"node"}}.Build(),
+					{Name: "test", Values: []string{"node"}},
 				},
-			}.Build(),
-		}.Build(),
+			},
+		},
 		Version: types.V1,
-	}.Build()
-	scopePin := scopesv1.Pin_builder{
+	}
+	scopePin := &scopesv1.Pin{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/test",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			nodeScope: {nodeScope: {scopes.QualifiedName{Scope: nodeScope, Name: scopedRole.GetMetadata().GetName()}.String()}},
 		}),
-	}.Build()
+	}
 
 	accessPoint := mockScopedRoleReaderGetter{
 		AccessPoint: mockCAandAuthPrefGetter{
@@ -339,12 +336,11 @@ func TestRBAC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &AuthHandlerConfig{
-				Server:                        server,
-				Component:                     tt.component,
-				Emitter:                       &eventstest.MockRecorderEmitter{},
-				AccessPoint:                   accessPoint,
-				TargetServer:                  tt.targetServer,
-				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+				Server:       server,
+				Component:    tt.component,
+				Emitter:      &eventstest.MockRecorderEmitter{},
+				AccessPoint:  accessPoint,
+				TargetServer: tt.targetServer,
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -383,7 +379,7 @@ func TestRBAC(t *testing.T) {
 			require.NoError(t, err)
 
 			// perform public key authentication
-			_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
+			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
 			require.NoError(t, err)
 
 			tt.loginRBACCheck(t, lc.rbacChecked)
@@ -406,120 +402,120 @@ func TestScopedRBAC(t *testing.T) {
 	serverV2.Scope = "/staging/west"
 
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		scopedaccessv1.ScopedRole_builder{
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "staging-west-red",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "team",
 							Values: []string{"red"},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "staging-west-blue",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "team",
 							Values: []string{"blue"},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "staging-east-red",
-			}.Build(),
+			},
 			Scope: "/staging/east",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/east"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "team",
 							Values: []string{"red"},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "prod-west-red",
-			}.Build(),
+			},
 			Scope: "/prod/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "team",
 							Values: []string{"red"},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "staging-west-no-labels",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "staging-west-wrong-login",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"wronguser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "team",
 							Values: []string{"red"},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
+		},
 	}
 
 	pack := newScopedAccessAuthzPack(t, serverV2, scopedRoles, types.DefaultClusterNetworkingConfig())
@@ -531,79 +527,79 @@ func TestScopedRBAC(t *testing.T) {
 	}{
 		{
 			name: "basic allow",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
 				}),
-			}.Build(),
+			},
 			allowed: true,
 		},
 		{
 			name: "too narrow scope",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/west/narrow",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
 				}),
-			}.Build(),
+			},
 			allowed: false,
 		},
 		{
 			name: "label mismatch",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::staging-west-blue"}},
 				}),
-			}.Build(),
+			},
 			allowed: false,
 		},
 		{
 			name: "scope permission mismatch",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/east": {"/staging/east": {"/staging/east::staging-east-red"}},
 				}),
-			}.Build(),
+			},
 			allowed: false,
 		},
 		{
 			name: "orthogonal scope",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/prod",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/prod/west": {"/prod/west": {"/prod/west::prod-west-red"}},
 				}),
-			}.Build(),
+			},
 			allowed: false,
 		},
 		{
 			name: "no labels",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::staging-west-no-labels"}},
 				}),
-			}.Build(),
+			},
 			allowed: false,
 		},
 		{
 			name: "wrong login",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::staging-west-wrong-login"}},
 				}),
-			}.Build(),
+			},
 			allowed: false,
 		},
 	}
@@ -624,7 +620,7 @@ func TestScopedRBAC(t *testing.T) {
 }
 
 // TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
-// during public key callback evaluation when the auth handler is running as a ForwardingGit component.
+// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
 func TestForwardingGitLocalOnly(t *testing.T) {
 	t.Parallel()
 
@@ -689,12 +685,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	}
 
 	config := &AuthHandlerConfig{
-		Server:                        server,
-		Component:                     teleport.ComponentForwardingGit,
-		Emitter:                       &eventstest.MockRecorderEmitter{},
-		AccessPoint:                   accessPoint,
-		TargetServer:                  gitServer,
-		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+		Server:       server,
+		Component:    teleport.ComponentForwardingGit,
+		Emitter:      &eventstest.MockRecorderEmitter{},
+		AccessPoint:  accessPoint,
+		TargetServer: gitServer,
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -740,11 +735,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that authentication succeeds for local cert but is rejected categorically for remote
-	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, localCert)
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
 	require.NoError(t, err)
 	require.True(t, gc.rbacChecked)
 
-	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, remoteCert)
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
@@ -762,7 +757,7 @@ func TestCheckAgentForward(t *testing.T) {
 		{
 			name:          "access permit allows agent forwarding",
 			component:     teleport.ComponentNode,
-			accessPermit:  decisionpb.SSHAccessPermit_builder{ForwardAgent: true}.Build(),
+			accessPermit:  &decisionpb.SSHAccessPermit{ForwardAgent: true},
 			expectAllowed: true,
 		},
 		{
@@ -826,7 +821,8 @@ func TestCheckAgentForward(t *testing.T) {
 func TestRBACJoinMFA(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	const clusterName = "localhost"
 	const username = "testuser"
@@ -868,10 +864,9 @@ func TestRBACJoinMFA(t *testing.T) {
 
 	// create auth handler and dummy node
 	config := &AuthHandlerConfig{
-		Server:                        server,
-		Emitter:                       &eventstest.MockRecorderEmitter{},
-		AccessPoint:                   accessPoint,
-		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+		Server:      server,
+		Emitter:     &eventstest.MockRecorderEmitter{},
+		AccessPoint: accessPoint,
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -1025,9 +1020,9 @@ func TestRBACJoinMFA(t *testing.T) {
 			permit, err := ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 			if err == nil && tt.expectPinSourceIP {
-				require.Contains(t, permit.GetPreconditions(), decisionpb.Precondition_builder{
+				require.Contains(t, permit.Preconditions, &decisionpb.Precondition{
 					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-				}.Build())
+				})
 			}
 		})
 	}
@@ -1142,12 +1137,11 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 
 	// create auth handler
 	config := &AuthHandlerConfig{
-		Server:                        server,
-		Component:                     teleport.ComponentNode,
-		Emitter:                       emitter,
-		AccessPoint:                   accessPoint,
-		TargetServer:                  node,
-		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+		Server:       server,
+		Component:    teleport.ComponentNode,
+		Emitter:      emitter,
+		AccessPoint:  accessPoint,
+		TargetServer: node,
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -1171,466 +1165,14 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	cert, err := sshutils.ParseCertificate(c)
 	require.NoError(t, err)
 
-	// perform public key authentication, should fail because no login checker is set
-	_, err = runPublicKeyCallbacks(ah, &mockConnMetadata{}, cert)
+	// perform public key authentication, should fail because no login checker set
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
 	require.Error(t, err)
 
 	// audit event (AuthAttempt) should include node's host id and hostname
 	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
 	require.Equal(t, node.GetName(), authEvent.ServerID)
 	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
-}
-
-func TestVerifiedPublicKeyCallback(t *testing.T) {
-	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-
-	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
-	require.NoError(t, err)
-
-	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-
-	const (
-		clusterName = "localhost"
-		username    = "testuser"
-	)
-
-	rawCert, err := testauthority.GenerateUserCert(
-		sshca.UserCertificateRequest{
-			CASigner:      caSigner,
-			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-			Identity: sshca.Identity{
-				Username:    username,
-				ClusterName: clusterName,
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	cert, err := sshutils.ParseCertificate(rawCert)
-	require.NoError(t, err)
-
-	rawMFACert, err := testauthority.GenerateUserCert(
-		sshca.UserCertificateRequest{
-			CASigner:      caSigner,
-			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-			Identity: sshca.Identity{
-				Username:                username,
-				ClusterName:             clusterName,
-				MFAVerified:             "verified",
-				PreviousIdentityExpires: time.Now().Add(time.Minute),
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	mfaCert, err := sshutils.ParseCertificate(rawMFACert)
-	require.NoError(t, err)
-
-	rawHeadlessCert, err := testauthority.GenerateUserCert(
-		sshca.UserCertificateRequest{
-			CASigner:      caSigner,
-			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-			Identity: sshca.Identity{
-				Username:                 username,
-				ClusterName:              clusterName,
-				HeadlessAuthenticationID: "some-headless-auth-id",
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	headlessCert, err := sshutils.ParseCertificate(rawHeadlessCert)
-	require.NoError(t, err)
-
-	rawHardwareKeyMFACert, err := testauthority.GenerateUserCert(
-		sshca.UserCertificateRequest{
-			CASigner:      caSigner,
-			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-			Identity: sshca.Identity{
-				Username:         username,
-				ClusterName:      clusterName,
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	hardwareKeyMFACert, err := sshutils.ParseCertificate(rawHardwareKeyMFACert)
-	require.NoError(t, err)
-
-	precondsPermitRaw, err := protojson.Marshal(
-		decisionpb.SSHAccessPermit_builder{
-			Preconditions: []*decisionpb.Precondition{
-				decisionpb.Precondition_builder{
-					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-				}.Build(),
-			},
-		}.Build(),
-	)
-	require.NoError(t, err)
-
-	ipPinningPrecondPermitRaw, err := protojson.Marshal(
-		decisionpb.SSHAccessPermit_builder{
-			Preconditions: []*decisionpb.Precondition{
-				decisionpb.Precondition_builder{
-					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-				}.Build(),
-			},
-		}.Build(),
-	)
-	require.NoError(t, err)
-
-	modernClientConn := &mockConnMetadata{clientVersion: []byte(apissh.ClientVersionWithFeatures(apissh.InBandMFAFeature))}
-	legacyClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-Go")}
-
-	t.Run("no access permit returns original permissions", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("invalid access permit fails", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: "{",
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
-		require.ErrorContains(t, err, "unexpected EOF")
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("certificate with invalid identity fails", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		invalidIdentityCert, err := sshutils.ParseCertificate(rawCert)
-		require.NoError(t, err)
-		invalidIdentityCert.Extensions[teleport.CertExtensionTeleportTraits] = "{"
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, invalidIdentityCert, inPerms, "")
-		require.ErrorContains(t, err, "failed to decode ssh identity from cert")
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("non-certificate key fails", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		nonCertKey := privateKey.SSHPublicKey()
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, nonCertKey, inPerms, "")
-		require.ErrorIs(t, err, trace.BadParameter("unsupported key type: %v %v", nonCertKey.Type(), ssh.FingerprintSHA256(nonCertKey)))
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with no MFA required preconditions allows auth", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: "{}",
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with pin source ip precondition allows auth without keyboard interactive", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(ipPinningPrecondPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with unsupported preconditions fails closed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		unsupportedPermitRaw, err := protojson.Marshal(
-			decisionpb.SSHAccessPermit_builder{
-				Preconditions: []*decisionpb.Precondition{
-					decisionpb.Precondition_builder{
-						Kind: decisionpb.PreconditionKind(999),
-					}.Build(),
-				},
-			}.Build(),
-		)
-		require.NoError(t, err)
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(unsupportedPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(&mockConnMetadata{}, cert, inPerms, "")
-		require.ErrorContains(t, err, "unexpected precondition type")
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and modern client requires additional auth", func(t *testing.T) {
-		ah := &AuthHandlers{
-			c: &AuthHandlerConfig{
-				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
-			},
-		}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(
-			modernClientConn,
-			cert,
-			inPerms,
-			"",
-		)
-		require.Error(t, err)
-		require.Nil(t, outPerms)
-
-		var partialSuccessErr *ssh.PartialSuccessError
-		require.ErrorAs(t, err, &partialSuccessErr)
-		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
-	})
-
-	t.Run("permit with MFA required preconditions and legacy client with regular cert is denied", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, cert, inPerms, "")
-		require.ErrorIs(t, err, services.ErrSessionMFARequired)
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and legacy client with per-session MFA cert is allowed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and modern client with per-session MFA cert is allowed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, mfaCert, inPerms, "")
-		var partialSuccessErr *ssh.PartialSuccessError
-		require.ErrorAs(t, err, &partialSuccessErr)
-		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and modern client with headless cert is allowed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, headlessCert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and legacy client with headless cert is allowed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, headlessCert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and legacy client with hardware-key MFA cert is allowed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, hardwareKeyMFACert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and modern client with hardware-key MFA cert is allowed", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and forced in-band MFA allows hardware-key MFA cert", func(t *testing.T) {
-		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
-
-	})
-
-	t.Run("permit with MFA required preconditions and invalid Teleport client version fails", func(t *testing.T) {
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		invalidTeleportClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-Teleport_\x01")}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(invalidTeleportClientConn, cert, inPerms, "")
-		require.ErrorContains(t, err, "SSH client version contains invalid characters")
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and forced in-band MFA denies legacy client", func(t *testing.T) {
-		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
-		require.ErrorContains(
-			t,
-			err,
-			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport SSH client to the latest version to connect.",
-		)
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and forced in-band MFA still requires additional auth for modern client", func(t *testing.T) {
-		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-		ah := &AuthHandlers{
-			c: &AuthHandlerConfig{
-				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
-			},
-		}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(
-			modernClientConn,
-			cert,
-			inPerms,
-			"",
-		)
-		require.Error(t, err)
-		require.Nil(t, outPerms)
-
-		var partialSuccessErr *ssh.PartialSuccessError
-		require.ErrorAs(t, err, &partialSuccessErr)
-		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
-	})
-}
-
-type mockMFAServiceClient struct {
-	mfav2.MFAServiceClient
-}
-
-// runPublicKeyCallbacks runs the auth handler's public key callbacks in sequence and returns the resulting permissions
-// or error. This emulates the flow of public key authentication in a real SSH server and allows tests to verify the
-// behavior of both the PublicKeyCallback and VerifiedPublicKeyCallback together.
-func runPublicKeyCallbacks(
-	ah *AuthHandlers,
-	conn ssh.ConnMetadata,
-	key ssh.PublicKey,
-) (*ssh.Permissions, error) {
-	perms, err := ah.PublicKeyCallback(conn, key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	perms, err = ah.VerifiedPublicKeyCallback(conn, key, perms, "")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return perms, nil
 }
 
 // scopedAccessAuthzPack is a helper intended to simplify testing scoped authz logic.
@@ -1697,12 +1239,11 @@ func newScopedAccessAuthzPack(t *testing.T, node *types.ServerV2, roles []*scope
 	}
 
 	config := &AuthHandlerConfig{
-		Server:                        server,
-		Component:                     teleport.ComponentNode,
-		Emitter:                       &eventstest.MockRecorderEmitter{},
-		AccessPoint:                   accessPoint,
-		TargetServer:                  node,
-		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+		Server:       server,
+		Component:    teleport.ComponentNode,
+		Emitter:      &eventstest.MockRecorderEmitter{},
+		AccessPoint:  accessPoint,
+		TargetServer: node,
 	}
 
 	return &scopedAccessAuthzPack{
@@ -1740,7 +1281,7 @@ func (h *scopedAccessAuthzPack) UserKeyAuthFromPin(t *testing.T, pin *scopesv1.P
 	require.NoError(t, err)
 
 	// perform public key authentication
-	perms, err := ah.PublicKeyCallback(&mockConnMetadata{}, cert)
+	perms, err := ah.UserKeyAuth(&mockConnMetadata{}, cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1777,194 +1318,194 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 	// set up various scoped roles with different scoping, labels, and logins. Note that this test relies on
 	// the each role, and the above cnc, using unique timeout values so that we can tell which policy "won".
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		scopedaccessv1.ScopedRole_builder{
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "no-timeout",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "10m-timeout",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "10m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "1h-timeout",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "1h",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "25m-timeout",
-			}.Build(),
+			},
 			Scope: "/staging",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "25m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "22m-timeout-general",
-			}.Build(),
+			},
 			Scope: "/staging",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "22m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "15m-timeout-specific",
-			}.Build(),
+			},
 			Scope: "/staging",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "15m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "12m-timeout-team-blue",
-			}.Build(),
+			},
 			Scope: "/staging",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "team",
 							Values: []string{"blue"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "12m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "16m-timeout",
-			}.Build(),
+			},
 			Scope: "/staging/west",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "16m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
-		scopedaccessv1.ScopedRole_builder{
+		},
+		{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "18m-timeout-wrong-login",
-			}.Build(),
+			},
 			Scope: "/staging",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"wronguser"},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   "env",
 							Values: []string{"test"},
-						}.Build(),
+						},
 					},
 					ClientIdleTimeout: "18m",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			Version: types.V1,
-		}.Build(),
+		},
 	}
 
 	pack := newScopedAccessAuthzPack(t, serverV2, scopedRoles, netConfig)
@@ -1977,52 +1518,52 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 	}{
 		{
 			name: "no role timeout uses global default",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::no-timeout"}},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 30 * time.Minute, // global default from cnc
 		},
 		{
 			name: "role timeout more restrictive than global",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 10 * time.Minute, // role timeout from the only applicable role
 		},
 		{
 			name: "role timeout less restrictive than global",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"/staging/west::1h-timeout"}},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 30 * time.Minute, // global default due to being more restrictive than role timeout
 		},
 		{
 			name: "winning role determines timeout (single-role evaluation)",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"/staging::25m-timeout"}},
 					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 25 * time.Minute, // role assigned *from* a more ancestral/authoritative scope of origin wins
 		},
 		{
 			name: "more specific scope of effect wins (same origin)",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -2031,31 +1572,31 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 						"/staging/west": {"/staging::15m-timeout-specific"},
 					},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 15 * time.Minute, // role assigned *to* a more specific scope of effect wins
 		},
 		{
 			name: "label selector mismatch causes fallback to next role",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"/staging::12m-timeout-team-blue"}},
 					"/staging/west": {"/staging/west": {"/staging/west::16m-timeout"}},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 16 * time.Minute, // role with child scope of origin wins due to label selector mismatch
 		},
 		{
 			name: "login mismatch causes fallback to next role",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"/staging::18m-timeout-wrong-login"}},
 					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
-			}.Build(),
+			},
 			expectTimeout: 10 * time.Minute, // role with child scope of origin wins due to login mismatch
 		},
 	}
@@ -2073,7 +1614,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, permit)
 
-			actualTimeout := permit.GetClientIdleTimeout().AsDuration()
+			actualTimeout := permit.ClientIdleTimeout.AsDuration()
 			require.Equal(t, tt.expectTimeout, actualTimeout,
 				"ClientIdleTimeout should be %v but got %v", tt.expectTimeout, actualTimeout)
 		})
@@ -2097,13 +1638,13 @@ func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole
 
 	// add standard logins and labels to each role so they match the test node
 	for _, role := range roles {
-		if role.GetSpec().GetSsh().GetLogins() == nil {
-			role.GetSpec().GetSsh().SetLogins([]string{"testuser"})
+		if role.Spec.Ssh.Logins == nil {
+			role.Spec.Ssh.Logins = []string{"testuser"}
 		}
-		if role.GetSpec().GetSsh().GetLabels() == nil {
-			role.GetSpec().GetSsh().SetLabels([]*labelv1.Label{
-				labelv1.Label_builder{Name: "env", Values: []string{"test"}}.Build(),
-			})
+		if role.Spec.Ssh.Labels == nil {
+			role.Spec.Ssh.Labels = []*labelv1.Label{
+				{Name: "env", Values: []string{"test"}},
+			}
 		}
 	}
 
@@ -2111,26 +1652,26 @@ func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole
 }
 
 func pinForRole(roleName string) *scopesv1.Pin {
-	return scopesv1.Pin_builder{
+	return &scopesv1.Pin{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			"/staging/west": {"/staging/west": {scopes.QualifiedName{Scope: "/staging/west", Name: roleName}.String()}},
 		}),
-	}.Build()
+	}
 }
 
 func baseScopedRoleForAuthz(name string) *scopedaccessv1.ScopedRole {
-	return scopedaccessv1.ScopedRole_builder{
+	return &scopedaccessv1.ScopedRole{
 		Kind:     scopedaccess.KindScopedRole,
-		Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+		Metadata: &headerv1.Metadata{Name: name},
 		Scope:    "/staging/west",
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/staging/west"},
 			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 }
 
 func TestScopedX11Forwarding(t *testing.T) {
@@ -2138,10 +1679,10 @@ func TestScopedX11Forwarding(t *testing.T) {
 	const x11disabled = "x11-disabled"
 	const x11unset = "x11-unset"
 	enabled := baseScopedRoleForAuthz(x11enabled)
-	enabled.GetSpec().GetSsh().SetPermitX11Forwarding(true)
+	enabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(true)
 
 	disabled := baseScopedRoleForAuthz(x11disabled)
-	disabled.GetSpec().GetSsh().SetPermitX11Forwarding(false)
+	disabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(false)
 
 	unset := baseScopedRoleForAuthz(x11unset)
 
@@ -2160,7 +1701,7 @@ func TestScopedX11Forwarding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.GetX11Forwarding())
+			require.Equal(t, tt.expect, permit.X11Forwarding)
 		})
 	}
 }
@@ -2171,10 +1712,10 @@ func TestScopedForwardAgent(t *testing.T) {
 	const agentUnset = "agent-unset"
 
 	enabled := baseScopedRoleForAuthz(agentEnabled)
-	enabled.GetSpec().GetSsh().SetForwardAgent(true)
+	enabled.Spec.Ssh.ForwardAgent = proto.Bool(true)
 
 	disabled := baseScopedRoleForAuthz(agentDisabled)
-	disabled.GetSpec().GetSsh().SetForwardAgent(false)
+	disabled.Spec.Ssh.ForwardAgent = proto.Bool(false)
 
 	unset := baseScopedRoleForAuthz(agentUnset)
 
@@ -2193,7 +1734,7 @@ func TestScopedForwardAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.GetForwardAgent())
+			require.Equal(t, tt.expect, permit.ForwardAgent)
 		})
 	}
 }
@@ -2204,10 +1745,10 @@ func TestScopedSSHFileCopy(t *testing.T) {
 	const copyUnset = "copy-unset"
 
 	enabled := baseScopedRoleForAuthz(copyEnabled)
-	enabled.GetSpec().GetSsh().SetFileCopy(true)
+	enabled.Spec.Ssh.FileCopy = proto.Bool(true)
 
 	disabled := baseScopedRoleForAuthz(copyDisabled)
-	disabled.GetSpec().GetSsh().SetFileCopy(false)
+	disabled.Spec.Ssh.FileCopy = proto.Bool(false)
 
 	unset := baseScopedRoleForAuthz(copyUnset)
 
@@ -2226,7 +1767,7 @@ func TestScopedSSHFileCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.GetSshFileCopy())
+			require.Equal(t, tt.expect, permit.SshFileCopy)
 		})
 	}
 }
@@ -2238,22 +1779,22 @@ func TestScopedSSHPortForwarding(t *testing.T) {
 	const pfUnset = "pf-unset"
 
 	bothOn := baseScopedRoleForAuthz(pfBothOn)
-	bothOn.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
-		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
-		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
-	}.Build())
+	bothOn.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+	}
 
 	bothOff := baseScopedRoleForAuthz(pfBothOff)
-	bothOff.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
-		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(false)}.Build(),
-		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(false)}.Build(),
-	}.Build())
+	bothOff.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
 
 	localOnly := baseScopedRoleForAuthz(pfLocalOnly)
-	localOnly.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
-		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
-		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(false)}.Build(),
-	}.Build())
+	localOnly.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
 
 	unset := baseScopedRoleForAuthz(pfUnset)
 	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{bothOn, bothOff, localOnly, unset})
@@ -2272,7 +1813,7 @@ func TestScopedSSHPortForwarding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.GetPortForwardMode())
+			require.Equal(t, tt.expect, permit.PortForwardMode)
 		})
 	}
 }
@@ -2283,10 +1824,10 @@ func TestScopedMaxSessions(t *testing.T) {
 	const sessionsUnset = "sessions-unset"
 
 	five := baseScopedRoleForAuthz(sessions5)
-	five.GetSpec().GetSsh().SetMaxSessions(5)
+	five.Spec.Ssh.MaxSessions = proto.Int64(5)
 
 	one := baseScopedRoleForAuthz(sessions1)
-	one.GetSpec().GetSsh().SetMaxSessions(1)
+	one.Spec.Ssh.MaxSessions = proto.Int64(1)
 
 	unset := baseScopedRoleForAuthz(sessionsUnset)
 
@@ -2305,7 +1846,7 @@ func TestScopedMaxSessions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.GetMaxSessions())
+			require.Equal(t, tt.expect, permit.MaxSessions)
 		})
 	}
 }
@@ -2316,16 +1857,16 @@ func TestScopedHostUserCreation(t *testing.T) {
 	const hostUserUnset = "host-user-unset"
 
 	keep := baseScopedRoleForAuthz(hostUserKeep)
-	keep.GetSpec().GetSsh().SetHostUserCreation(scopedaccessv1.CreateHostUser_builder{
+	keep.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
 		Mode:   "keep",
 		Groups: []string{"wheel"},
 		Shell:  "/bin/bash",
-	}.Build())
+	}
 
 	off := baseScopedRoleForAuthz(hostUserOff)
-	off.GetSpec().GetSsh().SetHostUserCreation(scopedaccessv1.CreateHostUser_builder{
+	off.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
 		Mode: "off",
-	}.Build())
+	}
 
 	unset := baseScopedRoleForAuthz(hostUserUnset)
 
@@ -2345,9 +1886,9 @@ func TestScopedHostUserCreation(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
 			if tt.expectNil {
-				require.Nil(t, permit.GetHostUsersInfo())
+				require.Nil(t, permit.HostUsersInfo)
 			} else {
-				require.NotNil(t, permit.GetHostUsersInfo())
+				require.NotNil(t, permit.HostUsersInfo)
 			}
 		})
 	}
@@ -2359,7 +1900,7 @@ func TestHostSudoers(t *testing.T) {
 
 	present := baseScopedRoleForAuthz(sudoersPresent)
 	expectedSudoers := []string{"ALL=(ALL) NOPASSWD:ALL"}
-	present.GetSpec().GetSsh().SetHostSudoers(expectedSudoers)
+	present.Spec.Ssh.HostSudoers = expectedSudoers
 	unset := baseScopedRoleForAuthz(sudoersUnset)
 
 	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{present, unset})
@@ -2376,7 +1917,7 @@ func TestHostSudoers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.GetHostSudoers())
+			require.Equal(t, tt.expect, permit.HostSudoers)
 		})
 	}
 }

@@ -85,7 +85,7 @@ func (f *fakeIDP) issuer() string {
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 	// mimic https://api.bitbucket.org/2.0/workspaces/$workspace/pipelines-config/identity/oidc/.well-known/openid-configuration
-	response := map[string]any{
+	response := map[string]interface{}{
 		"claims_supported": []string{
 			"sub",
 			"iss",
@@ -147,7 +147,7 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]any{
+	customClaims := map[string]interface{}{
 		"workspaceUuid":  workspaceUUID,
 		"repositoryUuid": repositoryUUID,
 		"stepUuid":       stepUUID,

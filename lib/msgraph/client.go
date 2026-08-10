@@ -148,7 +148,7 @@ func (cfg *Config) Validate() error {
 	if cfg.HTTPClient == nil {
 		return trace.BadParameter("HTTPClient must be set")
 	}
-	if err := types.ValidateMSGraphEndpoint(cfg.GraphEndpoint); err != nil {
+	if err := types.ValidateMSGraphEndpoints("", cfg.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

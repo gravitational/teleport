@@ -79,6 +79,7 @@ func TestSend(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			cmd, err := CreateCommand(tt.config)
@@ -171,6 +172,7 @@ func TestReceive(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			logger := logger.With("test", tt.desc)
 			t.Parallel()
@@ -360,6 +362,7 @@ func TestInvalidDir(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 

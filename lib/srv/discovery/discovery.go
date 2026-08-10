@@ -137,8 +137,6 @@ type Config struct {
 	GetAWSRegionsLister awsregions.ListerGetter
 	// GetAWSOrganizationsClient gets a client that is capable of listing AWS organizations.
 	GetAWSOrganizationsClient server.AWSOrganizationsGetter
-	// GetAWSSTSClient gets a client that is capable of resolving AWS caller identity.
-	GetAWSSTSClient server.AWSSTSGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
 	GetSSMClient func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
@@ -318,15 +316,6 @@ kubernetes matchers are present.`)
 				return nil, trace.Wrap(err)
 			}
 			return organizations.NewFromConfig(cfg), nil
-		}
-	}
-	if c.GetAWSSTSClient == nil {
-		c.GetAWSSTSClient = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.AWSSTSClient, error) {
-			cfg, err := c.getAWSConfig(ctx, region, opts...)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return stsutils.NewFromConfig(cfg), nil
 		}
 	}
 	if c.AWSFetchersClients == nil {
@@ -657,9 +646,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		EC2ClientGetter:        s.GetEC2Client,
 		RegionsListerGetter:    s.GetAWSRegionsLister,
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
-		AWSSTSGetter:           s.GetAWSSTSClient,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
-		Logger:                 s.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -741,7 +728,6 @@ func (s *Server) handleEC2WatcherError(err error) bool {
 			"integration", permErr.Integration,
 			"account_id", permErr.AccountID,
 			"region", permErr.Region,
-			"caller_arn", permErr.CallerARN,
 			"discovery_config", permErr.DiscoveryConfigName,
 			"error", permErr.Err,
 		)
@@ -765,7 +751,7 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
 		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
-			include := f.GetDiscoveryConfigName() != ""
+			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
 				integration:         f.IntegrationName(),
@@ -837,7 +823,6 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		EC2ClientGetter:        s.GetEC2Client,
 		RegionsListerGetter:    s.GetAWSRegionsLister,
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
-		AWSSTSGetter:           s.GetAWSSTSClient,
 		DiscoveryConfigName:    discoveryConfigName,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
 		Logger:                 s.Log,
@@ -855,42 +840,7 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	var allFetchers []server.Fetcher[*server.AzureInstances]
-	for _, matcher := range serverMatchers {
-		fetchers, err := server.MatcherToAzureInstanceFetchers(
-			s.ctx,
-			s.Log,
-			matcher,
-			s.getAzureClients,
-			discoveryConfigName,
-			s.getAzureSubscriptionList,
-		)
-		if err != nil {
-			s.Log.WarnContext(s.ctx, "Failed to resolve Azure subscription wildcard in discovery configuration",
-				"integration", matcher.Integration,
-				"discovery_config", discoveryConfigName,
-				"error", err,
-			)
-			s.handleAzureSubscriptionListError(matcher.Integration, err)
-			continue
-		}
-		allFetchers = append(allFetchers, fetchers...)
-	}
-	return allFetchers
-}
-
-func (s *Server) handleAzureSubscriptionListError(integration string, err error) {
-	issueType := classifyAzureSubscriptionListError(err)
-	if integration == "" || issueType == "" {
-		return
-	}
-
-	if err := s.taskUpdater().upsertAzureSubscriptionListTask(integration, issueType); err != nil {
-		s.Log.WarnContext(s.ctx, "Failed to upsert Azure subscription list permission User Task",
-			"integration", integration,
-			"error", err,
-		)
-	}
+	return server.MatchersToAzureInstanceFetchers(s.ctx, s.Log, serverMatchers, s.getAzureClients, discoveryConfigName, s.getAzureSubscriptionList)
 }
 
 func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {
@@ -1448,13 +1398,13 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 					ssmDocument:     req.DocumentName,
 					installerScript: req.InstallerScriptName(),
 				},
-				usertasksv1.DiscoverEC2Instance_builder{
+				&usertasksv1.DiscoverEC2Instance{
 					DiscoveryConfig: instances.DiscoveryConfigName,
 					DiscoveryGroup:  s.DiscoveryGroup,
 					InstanceId:      instance.InstanceID,
 					Name:            instance.InstanceName,
 					SyncTime:        timestamppb.New(s.clock.Now()),
-				}.Build(),
+				},
 			)
 		}
 		return trace.Wrap(err)
@@ -1900,7 +1850,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				resourceGroup:  instances.Metadata.ResourceGroup,
 				region:         instances.Metadata.Region,
 			},
-			usertasksv1.DiscoverAzureVMInstance_builder{
+			&usertasksv1.DiscoverAzureVMInstance{
 				VmId:            entry.vm.VMID,
 				ResourceId:      entry.vm.ID,
 				Name:            entry.vm.Name,
@@ -1910,7 +1860,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				LastAttemptTime: timestamppb.New(entry.lastAttemptAt),
 				RetryAfterTime:  timestamppb.New(entry.retryAfter),
 				Attempts:        entry.attempts,
-			}.Build(),
+			},
 		)
 	}
 

@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,7 +40,6 @@ type beamsAddCommand struct {
 	*kingpin.CmdClause
 	console             bool
 	format              string
-	region              string
 	isTerminalOverwrite func(io.Writer) bool
 }
 
@@ -51,7 +48,6 @@ func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
 		CmdClause: parent.Command("add", "Start a new beam, and optionally connect to it via SSH."),
 	}
 	cmd.Flag("console", "Connect to the beam via SSH after creation.").Default("true").BoolVar(&cmd.console)
-	cmd.Flag("region", "Region where the beam should live. If not specified, the closest region is selected.").StringVar(&cmd.region)
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
 		Short('f').
 		Default(teleport.Text).
@@ -64,10 +60,6 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	ctx := cf.Context
 
 	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	proxyRegion, err := c.discoverProxyRegion(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,11 +87,9 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		// Create the beam.
 		rsp, err := rootClient.
 			BeamServiceClient().
-			CreateBeam(ctx, beamsv1.CreateBeamRequest_builder{
-				Egress:         beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
-				ProxyRegion:    proxyRegion,
-				OverrideRegion: c.region,
-			}.Build())
+			CreateBeam(ctx, &beamsv1.CreateBeamRequest{
+				Egress: beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
+			})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -121,7 +111,11 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	case teleport.YAML:
 		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	default:
-		if err := c.printCreatedMessage(cf.Stdout(), beam, c.region); err != nil {
+		if _, err := fmt.Fprintf(
+			cf.Stdout(),
+			"Beam %q created.\n",
+			beam.GetStatus().GetAlias(),
+		); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -135,36 +129,6 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	}
 
 	return nil
-}
-
-func (c *beamsAddCommand) discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
-	resp, err := webclient.Find(&webclient.Config{
-		Context:      ctx,
-		ProxyAddr:    tc.WebProxyAddr,
-		Insecure:     tc.InsecureSkipVerify,
-		ExtraHeaders: tc.ExtraProxyHeaders,
-	})
-	if err != nil {
-		return "", trace.Wrap(err, "discovering proxy region")
-	}
-	return resp.Proxy.GroupID, nil
-}
-
-func (c *beamsAddCommand) printCreatedMessage(w io.Writer, beam *beamsv1.Beam, overrideRegion string) error {
-	region := beam.GetStatus().GetRegion()
-	alias := beam.GetStatus().GetAlias()
-
-	switch {
-	case overrideRegion != "" && region != "" && overrideRegion != region:
-		_, err := fmt.Fprintf(w, "Region %s not supported. Beam %q created in %s.\n", overrideRegion, alias, region)
-		return trace.Wrap(err)
-	case region != "":
-		_, err := fmt.Fprintf(w, "Beam %q created in %s.\n", alias, region)
-		return trace.Wrap(err)
-	default:
-		_, err := fmt.Fprintf(w, "Beam %q created.\n", alias)
-		return trace.Wrap(err)
-	}
 }
 
 func (c *beamsAddCommand) printReconnectMessage(w io.Writer, alias string) error {

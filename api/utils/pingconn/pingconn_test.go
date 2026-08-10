@@ -66,14 +66,14 @@ func TestPingConnection(t *testing.T) {
 					{desc: "Short", bufSize: len(dataWritten) / 2},
 				} {
 					t.Run(tt.desc, func(t *testing.T) {
-						r, w := connType.makeFunc(t)
+						r, w := makePingConn(t)
 
 						// Write routine
 						errChan := make(chan error, 2)
 						go func() {
 							defer w.Close()
 
-							for i := range nWrites {
+							for i := 0; i < nWrites; i++ {
 								// Eventually write some pings.
 								if i%2 == 0 {
 									err := w.WritePing()
@@ -99,7 +99,7 @@ func TestPingConnection(t *testing.T) {
 
 							buf := make([]byte, tt.bufSize)
 
-							for range nWrites {
+							for i := 0; i < nWrites; i++ {
 								var (
 									aggregator []byte
 									n          int
@@ -128,12 +128,13 @@ func TestPingConnection(t *testing.T) {
 						// Expect routines to finish.
 						timer := time.NewTimer(10 * time.Second)
 						defer timer.Stop()
-
-						select {
-						case err := <-errChan:
-							require.NoError(t, err)
-						case <-timer.C:
-							require.Fail(t, "routing didn't finished in time")
+						for i := 0; i < 1; i++ {
+							select {
+							case err := <-errChan:
+								require.NoError(t, err)
+							case <-timer.C:
+								require.Fail(t, "routing didn't finished in time")
+							}
 						}
 					})
 				}
@@ -172,7 +173,7 @@ func TestPingConnection(t *testing.T) {
 
 				// Write routine
 				go func() {
-					for range nWrites {
+					for i := 0; i < nWrites; i++ {
 						_, err := w.Write(dataWritten)
 						if err != nil {
 							return
@@ -181,7 +182,7 @@ func TestPingConnection(t *testing.T) {
 				}()
 
 				// Read routines.
-				for range nWrites / 2 {
+				for i := 0; i < nWrites/2; i++ {
 					go func() {
 						buf := make([]byte, readSize)
 						for {
@@ -213,8 +214,8 @@ func TestPingConnection(t *testing.T) {
 				}
 
 				var aggregator []byte
-				for range nWrites {
-					for range readNum {
+				for i := 0; i < nWrites; i++ {
+					for j := 0; j < readNum; j++ {
 						select {
 						case <-ctx.Done():
 							require.Fail(t, "Failed to read message (context timeout)")
@@ -249,9 +250,9 @@ func TestPingConnection(t *testing.T) {
 				writeChan := make(chan error)
 
 				// Start write routines.
-				for range nWrites / 2 {
+				for i := 0; i < nWrites/2; i++ {
 					go func() {
-						for range 2 {
+						for writes := 0; writes < 2; writes++ {
 							err := w.WritePing()
 							if err != nil {
 								writeChan <- err
@@ -270,7 +271,7 @@ func TestPingConnection(t *testing.T) {
 				}
 
 				// Expect all writes to succeed.
-				for range nWrites / 2 {
+				for i := 0; i < nWrites/2; i++ {
 					select {
 					case <-ctx.Done():
 						require.Fail(t, "timeout write")
@@ -281,7 +282,7 @@ func TestPingConnection(t *testing.T) {
 
 				// Read all messages.
 				buf := make([]byte, len(dataWritten))
-				for range nWrites {
+				for i := 0; i < nWrites; i++ {
 					n, err := r.Read(buf)
 					require.NoError(t, err)
 					require.Equal(t, dataWritten, buf[:n])
@@ -343,7 +344,7 @@ func makeBufferedPingConn(t *testing.T) (*PingConn, *PingConn) {
 	}()
 
 	connSlice := make([]net.Conn, 2)
-	for i := range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			require.Fail(t, "failed waiting for connections")
@@ -391,7 +392,7 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 	}()
 
 	tlsConnSlice := make([]*tls.Conn, 2)
-	for i := range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			server.Close()

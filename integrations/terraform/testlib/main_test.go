@@ -78,9 +78,6 @@ type TerraformSuiteOSSScopedResources struct {
 type TerraformSuiteEnterprise struct {
 	TerraformBaseSuite
 }
-type TerraformSuiteEnterpriseScopedResources struct {
-	TerraformBaseSuite
-}
 type TerraformSuiteEnterpriseWithCache struct {
 	TerraformBaseSuite
 }

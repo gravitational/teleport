@@ -205,8 +205,7 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
-     * Indicates origin of this user account. Only
-     * recorded for the user login event.
+     * Indicates origin of user account.
      *
      * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
      */
@@ -224,15 +223,13 @@ export interface UserActivityRecord {
      */
     accessRequestsReviewed: bigint;
     /**
-     * counter of Access Lists reviewed by this user.
+     * counter of Access List review.
      *
      * @generated from protobuf field: uint64 access_lists_reviewed = 22;
      */
     accessListsReviewed: bigint;
     /**
-     * counter of roles or traits granted to this user based on
-     * the Access List membership. The event is emitted during
-     * user login state calculation.
+     * counter of roles or traits grant event based on Access List membership.
      *
      * @generated from protobuf field: uint64 access_lists_grants = 23;
      */
@@ -756,7 +753,7 @@ export enum UserKind {
 /**
  * UserOrigin is the origin of a user account.
  * Keep the values in sync with UserOrigin enum defined in
- * Teleport OSS repository.
+ * API events and prehogv1alpha.
  *
  * @generated from protobuf enum prehog.v1.UserOrigin
  */

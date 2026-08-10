@@ -77,9 +77,9 @@ func (h *Handler) getSessionRecordingMetadata(
 		return nil, nil
 	}
 
-	stream, err := clt.RecordingMetadataServiceClient().GetMetadata(ctx, recordingmetadatav1.GetMetadataRequest_builder{
+	stream, err := clt.RecordingMetadataServiceClient().GetMetadata(ctx, &recordingmetadatav1.GetMetadataRequest{
 		SessionId: sessionID,
-	}.Build())
+	})
 	if err != nil {
 		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
 			Error: err.Error(),
@@ -156,9 +156,9 @@ func (h *Handler) getSessionRecordingThumbnail(
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := clt.RecordingMetadataServiceClient().GetThumbnail(r.Context(), recordingmetadatav1.GetThumbnailRequest_builder{
+	response, err := clt.RecordingMetadataServiceClient().GetThumbnail(r.Context(), &recordingmetadatav1.GetThumbnailRequest{
 		SessionId: sessionId,
-	}.Build())
+	})
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
@@ -166,7 +166,7 @@ func (h *Handler) getSessionRecordingThumbnail(
 		return nil, trace.Wrap(err)
 	}
 
-	if !response.HasThumbnail() {
+	if response.Thumbnail == nil {
 		return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
 	}
 
@@ -234,40 +234,40 @@ func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
 // to use.
 func encodeSessionRecordingMetadata(metadata *recordingmetadatav1.SessionRecordingMetadata) sessionRecordingMetadata {
 	result := sessionRecordingMetadata{
-		Duration:     convertDurationToMs(metadata.GetDuration()),
-		StartCols:    metadata.GetStartCols(),
-		StartRows:    metadata.GetStartRows(),
-		Events:       make([]sessionRecordingEvent, 0, len(metadata.GetEvents())),
-		StartTime:    metadata.GetStartTime().AsTime().Unix(),
-		EndTime:      metadata.GetEndTime().AsTime().Unix(),
-		ClusterName:  metadata.GetClusterName(),
-		ResourceName: metadata.GetResourceName(),
-		User:         metadata.GetUser(),
-		Type:         pbTypeToString(metadata.GetType()),
+		Duration:     convertDurationToMs(metadata.Duration),
+		StartCols:    metadata.StartCols,
+		StartRows:    metadata.StartRows,
+		Events:       make([]sessionRecordingEvent, 0, len(metadata.Events)),
+		StartTime:    metadata.StartTime.AsTime().Unix(),
+		EndTime:      metadata.EndTime.AsTime().Unix(),
+		ClusterName:  metadata.ClusterName,
+		ResourceName: metadata.ResourceName,
+		User:         metadata.User,
+		Type:         pbTypeToString(metadata.Type),
 	}
 
-	for _, event := range metadata.GetEvents() {
+	for _, event := range metadata.Events {
 		base := baseEvent{
-			StartOffset: convertDurationToMs(event.GetStartOffset()),
-			EndOffset:   convertDurationToMs(event.GetEndOffset()),
+			StartOffset: convertDurationToMs(event.StartOffset),
+			EndOffset:   convertDurationToMs(event.EndOffset),
 		}
 
-		switch event.WhichEvent() {
-		case recordingmetadatav1.SessionRecordingEvent_Inactivity_case:
+		switch e := event.Event.(type) {
+		case *recordingmetadatav1.SessionRecordingEvent_Inactivity:
 			base.Type = "inactivity"
 			result.Events = append(result.Events, inactivityEvent{baseEvent: base})
-		case recordingmetadatav1.SessionRecordingEvent_Join_case:
+		case *recordingmetadatav1.SessionRecordingEvent_Join:
 			base.Type = "join"
 			result.Events = append(result.Events, joinEvent{
 				baseEvent: base,
-				User:      event.GetJoin().GetUser(),
+				User:      e.Join.User,
 			})
-		case recordingmetadatav1.SessionRecordingEvent_Resize_case:
+		case *recordingmetadatav1.SessionRecordingEvent_Resize:
 			base.Type = "resize"
 			result.Events = append(result.Events, resizeEvent{
 				baseEvent: base,
-				Cols:      event.GetResize().GetCols(),
-				Rows:      event.GetResize().GetRows(),
+				Cols:      e.Resize.Cols,
+				Rows:      e.Resize.Rows,
 			})
 		}
 	}

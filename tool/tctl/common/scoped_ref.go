@@ -106,7 +106,7 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 	// the old format always treats token/token as kind/name, but if id was set then the second token
 	// is actually a subkind in the new format.
 	subKind := r.Name
-	if scopes.MaybeSQN(id) {
+	if strings.Contains(id, scopes.QualifiedNameSeparator) {
 		qn, err := scopes.ParseQualifiedName(id)
 		if err != nil {
 			return ScopedRef{}, trace.Wrap(err)
@@ -118,6 +118,24 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 		// that the colon in the SQN separator is not mistaken for the token/secret separator.
 		if r.Kind == types.KindScopedToken {
 			qn.Name, _, _ = strings.Cut(qn.Name, ":")
+		}
+
+		// A bot instance is identified by <bot_name>/<uuid> under the bot's scope,
+		// so for bot_instance refs the name component of the SQN may itself be a
+		// two-part identifier containing a '/'. Validate the parts individually
+		// since whole-name validation would reject the separator.
+		if r.Kind == types.KindBotInstance {
+			if botName, instanceID, ok := strings.Cut(qn.Name, "/"); ok {
+				if err := scopes.StrongValidate(qn.Scope); err != nil {
+					return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid scope: %v", qn, err)
+				}
+				for _, part := range []string{botName, instanceID} {
+					if err := scopes.StrongValidateResourceName(part); err != nil {
+						return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid name: %v", qn, err)
+					}
+				}
+				return ScopedRef{Kind: r.Kind, SubKind: subKind, Scope: qn.Scope, Name: qn.Name}, nil
+			}
 		}
 
 		if err := qn.StrongValidate(); err != nil {

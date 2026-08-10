@@ -8,8 +8,9 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
-page_type: how-to
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 Okta user sync imports Okta users as Teleport users via a continuous
 reconciliation loop. User sync works in tandem with the Teleport [SCIM
@@ -22,10 +23,8 @@ SCIM request does not reach your Teleport cluster, and works with Teleport
 clusters that are inaccessible over the public internet. User sync is required
 for application and group sync.
 
-In this guide, you will set up Okta user sync with the guided Okta integration
-enrollment flow.
-
-{/* lint ignore page-structure remark-lint */}
+This guide shows you how to set up Okta user sync with the guided Okta
+integration enrollment flow.
 
 ## Prerequisites
 
@@ -302,7 +301,3 @@ Application in order to make sure their status is updated in Teleport.
 After completing the guided enrollment flow for the Okta SCIM integration, you
 can proceed to the [Okta app and group sync
 integration](./app-and-group-sync.mdx).
-
-To learn how Teleport can use synced Okta profile name and email attributes in
-the Web UI, see [User Display
-Names](../../../reference/access-controls/user-display-names.mdx).

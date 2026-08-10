@@ -47,13 +47,11 @@ const (
 	PresenceService_DeleteRelayServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteRelayServer"
 	PresenceService_ListAuthServers_FullMethodName     = "/teleport.presence.v1.PresenceService/ListAuthServers"
 	PresenceService_ListProxyServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListProxyServers"
-	PresenceService_UpsertProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/UpsertProxyServer"
-	PresenceService_DeleteProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteProxyServer"
+	PresenceService_DeleteAppServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteAppServer"
 	PresenceService_GetKubeCluster_FullMethodName      = "/teleport.presence.v1.PresenceService/GetKubeCluster"
 	PresenceService_ListKubeClusters_FullMethodName    = "/teleport.presence.v1.PresenceService/ListKubeClusters"
 	PresenceService_DeleteKubeCluster_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteKubeCluster"
 	PresenceService_DeleteKubeServer_FullMethodName    = "/teleport.presence.v1.PresenceService/DeleteKubeServer"
-	PresenceService_DeleteAppServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteAppServer"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -86,10 +84,8 @@ type PresenceServiceClient interface {
 	ListAuthServers(ctx context.Context, in *ListAuthServersRequest, opts ...grpc.CallOption) (*ListAuthServersResponse, error)
 	// ListProxyServers returns a page of Proxy servers.
 	ListProxyServers(ctx context.Context, in *ListProxyServersRequest, opts ...grpc.CallOption) (*ListProxyServersResponse, error)
-	// UpsertProxyServer upserts a Proxy server heartbeat.
-	UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*UpsertProxyServerResponse, error)
-	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
-	DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*DeleteProxyServerResponse, error)
+	// Deletes a specific scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*DeleteAppServerResponse, error)
 	// Fetches a kube cluster resource from the backend.
 	GetKubeCluster(ctx context.Context, in *GetKubeClusterRequest, opts ...grpc.CallOption) (*GetKubeClusterResponse, error)
 	// Lists kube cluster resources within the backend.
@@ -98,8 +94,6 @@ type PresenceServiceClient interface {
 	DeleteKubeCluster(ctx context.Context, in *DeleteKubeClusterRequest, opts ...grpc.CallOption) (*DeleteKubeClusterResponse, error)
 	// Deletes a specific scoped or unscoped kube server from the backend.
 	DeleteKubeServer(ctx context.Context, in *DeleteKubeServerRequest, opts ...grpc.CallOption) (*DeleteKubeServerResponse, error)
-	// Deletes a specific scoped or unscoped application server.
-	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*DeleteAppServerResponse, error)
 }
 
 type presenceServiceClient struct {
@@ -230,20 +224,10 @@ func (c *presenceServiceClient) ListProxyServers(ctx context.Context, in *ListPr
 	return out, nil
 }
 
-func (c *presenceServiceClient) UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*UpsertProxyServerResponse, error) {
+func (c *presenceServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*DeleteAppServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpsertProxyServerResponse)
-	err := c.cc.Invoke(ctx, PresenceService_UpsertProxyServer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *presenceServiceClient) DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*DeleteProxyServerResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteProxyServerResponse)
-	err := c.cc.Invoke(ctx, PresenceService_DeleteProxyServer_FullMethodName, in, out, cOpts...)
+	out := new(DeleteAppServerResponse)
+	err := c.cc.Invoke(ctx, PresenceService_DeleteAppServer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -290,16 +274,6 @@ func (c *presenceServiceClient) DeleteKubeServer(ctx context.Context, in *Delete
 	return out, nil
 }
 
-func (c *presenceServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*DeleteAppServerResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteAppServerResponse)
-	err := c.cc.Invoke(ctx, PresenceService_DeleteAppServer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
 // for forward compatibility.
@@ -330,10 +304,8 @@ type PresenceServiceServer interface {
 	ListAuthServers(context.Context, *ListAuthServersRequest) (*ListAuthServersResponse, error)
 	// ListProxyServers returns a page of Proxy servers.
 	ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error)
-	// UpsertProxyServer upserts a Proxy server heartbeat.
-	UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*UpsertProxyServerResponse, error)
-	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
-	DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*DeleteProxyServerResponse, error)
+	// Deletes a specific scoped or unscoped application server.
+	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error)
 	// Fetches a kube cluster resource from the backend.
 	GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error)
 	// Lists kube cluster resources within the backend.
@@ -342,8 +314,6 @@ type PresenceServiceServer interface {
 	DeleteKubeCluster(context.Context, *DeleteKubeClusterRequest) (*DeleteKubeClusterResponse, error)
 	// Deletes a specific scoped or unscoped kube server from the backend.
 	DeleteKubeServer(context.Context, *DeleteKubeServerRequest) (*DeleteKubeServerResponse, error)
-	// Deletes a specific scoped or unscoped application server.
-	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -390,11 +360,8 @@ func (UnimplementedPresenceServiceServer) ListAuthServers(context.Context, *List
 func (UnimplementedPresenceServiceServer) ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProxyServers not implemented")
 }
-func (UnimplementedPresenceServiceServer) UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*UpsertProxyServerResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UpsertProxyServer not implemented")
-}
-func (UnimplementedPresenceServiceServer) DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*DeleteProxyServerResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteProxyServer not implemented")
+func (UnimplementedPresenceServiceServer) DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAppServer not implemented")
 }
 func (UnimplementedPresenceServiceServer) GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetKubeCluster not implemented")
@@ -407,9 +374,6 @@ func (UnimplementedPresenceServiceServer) DeleteKubeCluster(context.Context, *De
 }
 func (UnimplementedPresenceServiceServer) DeleteKubeServer(context.Context, *DeleteKubeServerRequest) (*DeleteKubeServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteKubeServer not implemented")
-}
-func (UnimplementedPresenceServiceServer) DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method DeleteAppServer not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -648,38 +612,20 @@ func _PresenceService_ListProxyServers_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PresenceService_UpsertProxyServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertProxyServerRequest)
+func _PresenceService_DeleteAppServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAppServerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PresenceServiceServer).UpsertProxyServer(ctx, in)
+		return srv.(PresenceServiceServer).DeleteAppServer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PresenceService_UpsertProxyServer_FullMethodName,
+		FullMethod: PresenceService_DeleteAppServer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PresenceServiceServer).UpsertProxyServer(ctx, req.(*UpsertProxyServerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _PresenceService_DeleteProxyServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteProxyServerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PresenceServiceServer).DeleteProxyServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PresenceService_DeleteProxyServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PresenceServiceServer).DeleteProxyServer(ctx, req.(*DeleteProxyServerRequest))
+		return srv.(PresenceServiceServer).DeleteAppServer(ctx, req.(*DeleteAppServerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -756,24 +702,6 @@ func _PresenceService_DeleteKubeServer_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PresenceService_DeleteAppServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAppServerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PresenceServiceServer).DeleteAppServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PresenceService_DeleteAppServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PresenceServiceServer).DeleteAppServer(ctx, req.(*DeleteAppServerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -830,12 +758,8 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PresenceService_ListProxyServers_Handler,
 		},
 		{
-			MethodName: "UpsertProxyServer",
-			Handler:    _PresenceService_UpsertProxyServer_Handler,
-		},
-		{
-			MethodName: "DeleteProxyServer",
-			Handler:    _PresenceService_DeleteProxyServer_Handler,
+			MethodName: "DeleteAppServer",
+			Handler:    _PresenceService_DeleteAppServer_Handler,
 		},
 		{
 			MethodName: "GetKubeCluster",
@@ -852,10 +776,6 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteKubeServer",
 			Handler:    _PresenceService_DeleteKubeServer_Handler,
-		},
-		{
-			MethodName: "DeleteAppServer",
-			Handler:    _PresenceService_DeleteAppServer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

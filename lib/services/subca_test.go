@@ -35,9 +35,9 @@ func TestMarshalCertAuthorityOverrideRoundtrip(t *testing.T) {
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.DatabaseClientCA),
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "zarquon",
-		}.Build(),
+		},
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
 	}.Build()
 

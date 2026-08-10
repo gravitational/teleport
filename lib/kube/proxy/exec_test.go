@@ -94,6 +94,10 @@ func wildcardLabel() []*labelv1.Label {
 }
 
 func testExecKubeService(t *testing.T, testCtx *TestContext) {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
 	userWithSingleKubeUser, _ := testCtx.CreateUserAndRole(
 		testCtx.Context,
@@ -868,6 +872,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -927,11 +932,11 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*accessv1.C
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, resp := range resps {
-			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
-				SubKind: resp.GetAssignment().GetSubKind(),
 				Scope:   resp.GetAssignment().GetScope(),
-			}.Build())
+				SubKind: resp.GetAssignment().GetSubKind(),
+			})
 			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)

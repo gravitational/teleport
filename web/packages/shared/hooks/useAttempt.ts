@@ -19,7 +19,6 @@
 import { useMemo, useState } from 'react';
 
 import Logger from 'shared/libs/logger';
-import { getErrorMessage } from 'shared/utils/error';
 
 const logger = Logger.create('shared/hooks/useAttempt');
 
@@ -57,13 +56,9 @@ function makeActions(setState) {
     setState({ ...defaultState });
   }
 
-  function error(err: unknown) {
+  function error(err: Error) {
     logger.error('attempt', err);
-    setState({
-      ...defaultState,
-      isFailed: true,
-      message: getErrorMessage(err),
-    });
+    setState({ ...defaultState, isFailed: true, message: err.message });
   }
 
   function run(fn: Callback) {

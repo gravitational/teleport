@@ -31,6 +31,8 @@ import styled from 'styled-components';
 import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
+
+import './unifiedStyles.css';
 import { HoverTooltip } from 'design/Tooltip';
 import {
   AvailableResourceMode,
@@ -63,7 +65,6 @@ import { ListView } from './ListView/ListView';
 import { ResourceTab } from './ResourceTab';
 import { getResourceId } from './shared/StatusInfo';
 import { mapResourceToViewItem } from './shared/viewItemsFactory';
-import './unifiedStyles.css';
 import {
   IncludedResourceMode,
   PinningSupport,
@@ -911,12 +912,8 @@ const ListFooter = styled.div`
  */
 export function getResourceAvailabilityFilter(
   availableResourceMode: AvailableResourceMode,
-  canRequestAllResources: boolean,
-  scopedSession: boolean = false
+  canRequestAllResources: boolean
 ): ResourceAvailabilityFilter {
-  if (scopedSession) {
-    return { mode: 'accessible', canRequestAll: false };
-  }
   switch (availableResourceMode) {
     case AvailableResourceMode.NONE:
       if (!canRequestAllResources) {

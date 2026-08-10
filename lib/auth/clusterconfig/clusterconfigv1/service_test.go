@@ -196,7 +196,7 @@ func TestUpdateAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			updated, err := env.UpdateAuthPreference(context.Background(), clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: pref.(*types.AuthPreferenceV2)}.Build())
+			updated, err := env.UpdateAuthPreference(context.Background(), &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -319,7 +319,7 @@ func TestUpsertAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			updated, err := env.UpsertAuthPreference(context.Background(), clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: pref.(*types.AuthPreferenceV2)}.Build())
+			updated, err := env.UpsertAuthPreference(context.Background(), &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -491,11 +491,11 @@ func TestCreateClusterNetworkingConfig(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			var opts []serviceOpt
 			if test.modules != nil {
-				opts = append(opts, withModules(test.modules))
+				modulestest.SetTestModules(t, *test.modules)
 			}
 
+			var opts []serviceOpt
 			if test.authorizer != nil {
 				opts = append(opts, withAuthorizer(test.authorizer))
 			}
@@ -575,7 +575,6 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 	cases := []struct {
 		name       string
 		config     func(p types.ClusterNetworkingConfig)
-		modules    *modulestest.Modules
 		authorizer authz.Authorizer
 		cnc        types.ClusterNetworkingConfig
 		assertion  func(t *testing.T, updated types.ClusterNetworkingConfig, err error)
@@ -670,17 +669,17 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
+				modulestest.SetTestModules(t, modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
 				p.SetTunnelStrategy(&types.TunnelStrategyV1{
 					Strategy: &types.TunnelStrategyV1_AgentMesh{
 						AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
 					},
 				})
-			},
-			modules: &modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: true,
-				},
 			},
 			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
 				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating tunnel strategy", err)
@@ -698,13 +697,13 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				}, nil
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
+				modulestest.SetTestModules(t, modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
 				p.SetWebIdleTimeout(time.Minute * 90)
-			},
-			modules: &modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: true,
-				},
 			},
 			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
 				require.NoError(t, err, "got (%v), expected cloud feature to allow updating web idle timeout", err)
@@ -731,6 +730,12 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
+				modulestest.SetTestModules(t, modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
 				p.SetTunnelStrategy(
 					&types.TunnelStrategyV1{Strategy: &types.TunnelStrategyV1_ProxyPeering{
 						ProxyPeering: &types.ProxyPeeringTunnelStrategy{
@@ -739,95 +744,8 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 					}},
 				)
 			},
-			modules: &modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: true,
-				},
-			},
 			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
 				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating agent connection count", err)
-			},
-		},
-		{
-			name: "cloud disconnect threshold count",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return &authz.Context{
-					Checker: fakeChecker{
-						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
-					},
-					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
-					Identity:             authz.RemoteUser{},
-				}, nil
-			}),
-			cnc: func() types.ClusterNetworkingConfig {
-				cnc := types.DefaultClusterNetworkingConfig()
-				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
-					Strategy: &types.TunnelStrategyV1_ProxyPeering{
-						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
-					},
-				})
-				return cnc
-			}(),
-			config: func(p types.ClusterNetworkingConfig) {
-				ts := p.GetProxyPeeringTunnelStrategy()
-				ts.DisconnectThresholdSeconds = 60
-				p.SetTunnelStrategy(&types.TunnelStrategyV1{
-					Strategy: &types.TunnelStrategyV1_ProxyPeering{
-						ProxyPeering: ts,
-					},
-				})
-			},
-			modules: &modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: true,
-				},
-			},
-			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
-				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating disconnect threshold", err)
-			},
-		},
-		{
-			name: "cloud preserve disconnect threshold",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return &authz.Context{
-					Checker: fakeChecker{
-						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
-					},
-					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
-					Identity:             authz.RemoteUser{},
-				}, nil
-			}),
-			cnc: func() types.ClusterNetworkingConfig {
-				cnc := types.DefaultClusterNetworkingConfig()
-				peering := types.DefaultProxyPeeringTunnelStrategy()
-				peering.DisconnectThresholdSeconds = 30
-				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
-					Strategy: &types.TunnelStrategyV1_ProxyPeering{
-						ProxyPeering: peering,
-					},
-				})
-				return cnc
-			}(),
-			config: func(p types.ClusterNetworkingConfig) {
-				ts := p.GetProxyPeeringTunnelStrategy()
-				ts.DisconnectThresholdSeconds = 0
-				p.SetTunnelStrategy(&types.TunnelStrategyV1{
-					Strategy: &types.TunnelStrategyV1_ProxyPeering{
-						ProxyPeering: ts,
-					},
-				})
-			},
-			modules: &modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: true,
-				},
-			},
-			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
-				require.NoError(t, err)
-				require.Equal(t, uint32(30), updated.GetProxyPeeringTunnelStrategy().DisconnectThresholdSeconds)
 			},
 		},
 	}
@@ -838,11 +756,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 			if cnc == nil {
 				cnc = types.DefaultClusterNetworkingConfig()
 			}
-			env, err := newTestEnv(
-				withAuthorizer(test.authorizer),
-				withDefaultClusterNetworkingConfig(cnc),
-				withModules(test.modules),
-			)
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(cnc))
 			require.NoError(t, err, "creating test service")
 
 			// Set revisions to allow the update to succeed.
@@ -851,7 +765,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpdateClusterNetworkingConfig(context.Background(), clusterconfigpb.UpdateClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)}.Build())
+			updated, err := env.UpdateClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -961,7 +875,7 @@ func TestUpsertClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpsertClusterNetworkingConfig(context.Background(), clusterconfigpb.UpsertClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)}.Build())
+			updated, err := env.UpsertClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1097,11 +1011,11 @@ func TestCreateSessionRecordingConfig(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			var opts []serviceOpt
 			if test.modules != nil {
-				opts = append(opts, withModules(test.modules))
+				modulestest.SetTestModules(t, *test.modules)
 			}
 
+			var opts []serviceOpt
 			if test.authorizer != nil {
 				opts = append(opts, withAuthorizer(test.authorizer))
 			}
@@ -1240,7 +1154,7 @@ func TestUpdateSessionRecordingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpdateSessionRecordingConfig(context.Background(), clusterconfigpb.UpdateSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)}.Build())
+			updated, err := env.UpdateSessionRecordingConfig(context.Background(), &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1329,7 +1243,7 @@ func TestUpsertSessionRecordingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpsertSessionRecordingConfig(context.Background(), clusterconfigpb.UpsertSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)}.Build())
+			updated, err := env.UpsertSessionRecordingConfig(context.Background(), &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1525,13 +1439,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 
 			p.SetLockingMode(constants.LockingModeStrict)
 
-			p, err = env.UpdateAuthPreference(ctx, clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: p}.Build())
+			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
 
-			_, err = env.UpsertAuthPreference(ctx, clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: p}.Build())
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1542,7 +1456,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 				RPID: "example.com",
 			}
 
-			p, err = env.UpdateAuthPreference(ctx, clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: p}.Build())
+			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1553,7 +1467,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 			// from the previous authPref setup
 			p.Spec.AllowCLIAuthViaBrowser = nil
 
-			_, err = env.UpsertAuthPreference(ctx, clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: p}.Build())
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1583,13 +1497,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 
 			cfg.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
 
-			cfg, err = env.UpdateClusterNetworkingConfig(ctx, clusterconfigpb.UpdateClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg}.Build())
+			cfg, err = env.UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertClusterNetworkingConfig(ctx, clusterconfigpb.UpsertClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg}.Build())
+			_, err = env.UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1619,13 +1533,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 
 			cfg.SetMode(types.RecordAtProxy)
 
-			cfg, err = env.UpdateSessionRecordingConfig(ctx, clusterconfigpb.UpdateSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg}.Build())
+			cfg, err = env.UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertSessionRecordingConfig(ctx, clusterconfigpb.UpsertSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg}.Build())
+			_, err = env.UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1679,13 +1593,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 			evt := <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpdateAuthPreference(ctx, clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)}.Build())
+			_, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)})
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertAuthPreference(ctx, clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)}.Build())
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)})
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
@@ -1715,13 +1629,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 			evt := <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpdateClusterNetworkingConfig(ctx, clusterconfigpb.UpdateClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)}.Build())
+			_, err = env.UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)})
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertClusterNetworkingConfig(ctx, clusterconfigpb.UpsertClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)}.Build())
+			_, err = env.UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)})
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
@@ -1751,13 +1665,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 			evt := <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpdateSessionRecordingConfig(ctx, clusterconfigpb.UpdateSessionRecordingConfigRequest_builder{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)}.Build())
+			_, err = env.UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)})
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertSessionRecordingConfig(ctx, clusterconfigpb.UpsertSessionRecordingConfigRequest_builder{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)}.Build())
+			_, err = env.UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)})
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
@@ -1795,7 +1709,6 @@ type envConfig struct {
 	accessGraphConfig          clusterconfigv1.AccessGraphConfig
 	defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
 	defaultClusterName         types.ClusterName
-	modules                    *modulestest.Modules
 }
 
 type serviceOpt = func(config *envConfig)
@@ -1860,16 +1773,6 @@ func (f scopedAuthorizerFunc) AuthorizeScoped(ctx context.Context) (*authz.Scope
 	return f(ctx)
 }
 
-func withModules(m *modulestest.Modules) serviceOpt {
-	return func(config *envConfig) {
-		if m == nil {
-			return
-		}
-
-		config.modules = m
-	}
-}
-
 type env struct {
 	*clusterconfigv1.Service
 	emitter                    *eventstest.ChannelEmitter
@@ -1897,7 +1800,6 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		service: struct {
 			services.ClusterConfigurationInternal
 		}{ClusterConfigurationInternal: storage},
-		modules: &modulestest.Modules{TestBuildType: modules.BuildOSS},
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -1921,7 +1823,6 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		ScopedAuthorizer: cfg.scopedAuthorizer,
 		Emitter:          cfg.emitter,
 		AccessGraph:      cfg.accessGraphConfig,
-		Modules:          cfg.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating users service")
@@ -1982,9 +1883,9 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 func TestGetAccessGraphConfig(t *testing.T) {
 
 	settings, err := clusterconfig.NewAccessGraphSettings(
-		clusterconfigpb.AccessGraphSettingsSpec_builder{
+		&clusterconfigpb.AccessGraphSettingsSpec{
 			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-		}.Build(),
+		},
 	)
 	require.NoError(t, err)
 
@@ -1998,95 +1899,107 @@ func TestGetAccessGraphConfig(t *testing.T) {
 		name                string
 		accessGraphConfig   clusterconfigv1.AccessGraphConfig
 		role                types.SystemRole
-		modules             *modulestest.Modules
+		testSetup           func(*testing.T)
 		errorAssertion      require.ErrorAssertionFunc
 		responseAssertion   *clusterconfigpb.GetClusterAccessGraphConfigResponse
 		accessGraphSettings *clusterconfigpb.AccessGraphSettings
 	}{
 		{
-			name:              "authorized proxy with non empty access graph config; Access Graph entitlement is disabled",
+			name:              "authorized proxy with non empty access graph config; Policy module is disabled",
 			role:              types.RoleProxy,
+			testSetup:         func(t *testing.T) {},
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
-			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
-				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
 					Enabled: false,
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 		{
-			name: "authorized proxy with non empty access graph config; Access Graph entitlement is enabled",
+			name: "authorized proxy with non empty access graph config; Policy module is enabled",
 			role: types.RoleProxy,
-			modules: &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.AccessGraph: {Enabled: true},
+			testSetup: func(t *testing.T) {
+				m := modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
 					},
-				},
+				}
+				modulestest.SetTestModules(t, m)
 			},
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
-			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
-				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
 					Enabled:           true,
 					Insecure:          true,
 					Address:           "address",
 					Ca:                []byte("ca"),
 					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 		{
-			name: "authorized discovery with non empty access graph config; Access Graph entitlement is enabled",
+			name: "authorized discovery with non empty access graph config; Policy module is enabled",
 			role: types.RoleDiscovery,
-			modules: &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.AccessGraph: {Enabled: true},
+			testSetup: func(t *testing.T) {
+				m := modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
 					},
-				},
+				}
+				modulestest.SetTestModules(t, m)
 			},
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
-			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
-				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
 					Enabled:           true,
 					Insecure:          true,
 					Address:           "address",
 					Ca:                []byte("ca"),
 					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 		{
-			name: "Access Graph entitlement is enabled with secrets scan option",
+			name: "Policy module is enabled with secrets scan option",
 			role: types.RoleDiscovery,
-			modules: &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.AccessGraph: {Enabled: true},
+			testSetup: func(t *testing.T) {
+				m := modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
 					},
-				},
+				}
+				modulestest.SetTestModules(t, m)
 			},
 			accessGraphConfig:   cfgEnabled,
 			accessGraphSettings: settings,
 			errorAssertion:      require.NoError,
-			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
-				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
+			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
+				AccessGraph: &clusterconfigpb.AccessGraphConfig{
 					Enabled:  true,
 					Insecure: true,
 					Address:  "address",
 					Ca:       []byte("ca"),
-					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfiguration_builder{
+					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
 						SshScanEnabled: true,
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
+			test.testSetup(t)
+
 			authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
 				Role:     test.role,
 				Username: string(test.role),
@@ -2096,12 +2009,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 				return authRoleContext, nil
 			})
 
-			env, err := newTestEnv(
-				withAuthorizer(authorizer),
-				withAccessGraphConfig(test.accessGraphConfig),
-				withAccessGraphSettings(test.accessGraphSettings),
-				withModules(test.modules),
-			)
+			env, err := newTestEnv(withAuthorizer(authorizer), withAccessGraphConfig(test.accessGraphConfig), withAccessGraphSettings(test.accessGraphSettings))
 			require.NoError(t, err, "creating test service")
 
 			got, err := env.GetClusterAccessGraphConfig(context.Background(), &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -2146,9 +2054,9 @@ func TestGetAccessGraphSettings(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				clusterconfigpb.AccessGraphSettingsSpec_builder{
+				&clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				}.Build(),
+				},
 			)
 			require.NoError(t, err)
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
@@ -2168,7 +2076,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 		name       string
 		mutator    func(p *clusterconfigpb.AccessGraphSettings)
 		authorizer authz.Authorizer
-		modules    *modulestest.Modules
+		testSetup  func(*testing.T)
 		assertion  func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
 	}{
 		{
@@ -2211,7 +2119,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				}, nil
 			}),
 			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
-				p.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
+				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
 			},
 			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
 				require.Error(t, err)
@@ -2219,12 +2127,15 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 		},
 		{
 			name: "updated",
-			modules: &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.AccessGraph: {Enabled: true},
+			testSetup: func(t *testing.T) {
+				m := modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
 					},
-				},
+				}
+				modulestest.SetTestModules(t, m)
 			},
 			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
@@ -2239,7 +2150,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				}, nil
 			}),
 			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
-				p.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
+				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
 			},
 			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
 				require.NoError(t, err)
@@ -2250,17 +2161,16 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				clusterconfigpb.AccessGraphSettingsSpec_builder{
+				&clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-				}.Build(),
+				},
 			)
 			require.NoError(t, err)
-			env, err := newTestEnv(
-				withAuthorizer(test.authorizer),
-				withAccessGraphSettings(settings),
-				withModules(test.modules),
-			)
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
 			// Set revisions to allow the update to succeed.
@@ -2269,7 +2179,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				test.mutator(pref)
 			}
 
-			updated, err := env.UpdateAccessGraphSettings(context.Background(), clusterconfigpb.UpdateAccessGraphSettingsRequest_builder{AccessGraphSettings: pref}.Build())
+			updated, err := env.UpdateAccessGraphSettings(context.Background(), &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: pref})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -2278,7 +2188,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 func TestUpsertAccessGraphSettings(t *testing.T) {
 	cases := []struct {
 		name       string
-		modules    *modulestest.Modules
+		testSetup  func(*testing.T)
 		mutator    func(p *clusterconfigpb.AccessGraphSettings)
 		authorizer authz.Authorizer
 		assertion  func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error)
@@ -2342,12 +2252,15 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 
 		{
 			name: "upserted",
-			modules: &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.AccessGraph: {Enabled: true},
+			testSetup: func(t *testing.T) {
+				m := modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
 					},
-				},
+				}
+				modulestest.SetTestModules(t, m)
 			},
 			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
@@ -2362,29 +2275,28 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				}, nil
 			}),
 			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
-				p.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
+				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
 			},
 			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
 				require.NoError(t, err)
-				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED, updated.GetSpec().GetSecretsScanConfig())
+				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED, updated.Spec.SecretsScanConfig)
 			},
 		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				clusterconfigpb.AccessGraphSettingsSpec_builder{
+				&clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				}.Build())
+				})
 
 			require.NoError(t, err)
 
-			env, err := newTestEnv(
-				withAuthorizer(test.authorizer),
-				withAccessGraphSettings(settings),
-				withModules(test.modules),
-			)
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
 			// Discard revisions to allow the update to succeed.
@@ -2393,7 +2305,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				test.mutator(pref)
 			}
 
-			updated, err := env.UpsertAccessGraphSettings(context.Background(), clusterconfigpb.UpsertAccessGraphSettingsRequest_builder{AccessGraphSettings: pref}.Build())
+			updated, err := env.UpsertAccessGraphSettings(context.Background(), &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: pref})
 			test.assertion(t, updated, err)
 		})
 	}
@@ -2403,7 +2315,7 @@ func TestResetAccessGraphSettings(t *testing.T) {
 	cases := []struct {
 		name       string
 		authorizer authz.Authorizer
-		modules    *modulestest.Modules
+		testSetup  func(*testing.T)
 		assertion  func(t *testing.T, reset *clusterconfigpb.AccessGraphSettings, err error)
 	}{
 		{
@@ -2434,12 +2346,15 @@ func TestResetAccessGraphSettings(t *testing.T) {
 		},
 		{
 			name: "reset",
-			modules: &modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.AccessGraph: {Enabled: true},
+			testSetup: func(t *testing.T) {
+				m := modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+						},
 					},
-				},
+				}
+				modulestest.SetTestModules(t, m)
 			},
 			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
@@ -2462,18 +2377,17 @@ func TestResetAccessGraphSettings(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				clusterconfigpb.AccessGraphSettingsSpec_builder{
+				&clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				}.Build())
+				})
 
 			require.NoError(t, err)
 
-			env, err := newTestEnv(
-				withAuthorizer(test.authorizer),
-				withAccessGraphSettings(settings),
-				withModules(test.modules),
-			)
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
 			require.NoError(t, err, "creating test service")
 
 			reset, err := env.ResetAccessGraphSettings(context.Background(), &clusterconfigpb.ResetAccessGraphSettingsRequest{})
@@ -2569,13 +2483,13 @@ func TestScopedGetClusterNetworkingConfig(t *testing.T) {
 			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
 				// we setup a full scoped checker context to make sure that we're evaluating scoped access rules
 				// and determining that VerbRead is not permitted for KindClusterName
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: string(systemRole),
-					}.Build(),
-				}.Build(), map[string]*services.ScopedAccessChecker{
+					},
+				}, map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerFromUnscoped(noopChecker{}),
 				})
 				if err != nil {
@@ -2600,13 +2514,13 @@ func TestScopedGetClusterNetworkingConfig(t *testing.T) {
 				checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 					Roles: []string{string(systemRole)},
 				}, clusterName, roleSet)
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: string(systemRole),
-					}.Build(),
-				}.Build(), map[string]*services.ScopedAccessChecker{
+					},
+				}, map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerForSystemRole(string(systemRole), checker),
 				})
 				if err != nil {
@@ -2666,13 +2580,13 @@ func TestScopedGetClusterName(t *testing.T) {
 			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
 				// we setup a full scoped checker context to make sure that we're evaluating scoped access rules
 				// and determining that VerbRead is not permitted for KindClusterName
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: string(systemRole),
-					}.Build(),
-				}.Build(), map[string]*services.ScopedAccessChecker{
+					},
+				}, map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerFromUnscoped(noopChecker{}),
 				})
 				if err != nil {
@@ -2697,13 +2611,13 @@ func TestScopedGetClusterName(t *testing.T) {
 				checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 					Roles: []string{string(systemRole)},
 				}, defaultCN.GetClusterName(), roleSet)
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: scopesv1.SystemRoles_builder{
+					SystemRoles: &scopesv1.SystemRoles{
 						Primary: string(systemRole),
-					}.Build(),
-				}.Build(), map[string]*services.ScopedAccessChecker{
+					},
+				}, map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerForSystemRole(string(systemRole), checker),
 				})
 				if err != nil {

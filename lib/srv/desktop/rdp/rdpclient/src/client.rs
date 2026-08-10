@@ -75,8 +75,6 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
-#[cfg(test)]
-use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::{self, JoinError};
 // Export this for crate level use.
@@ -1166,7 +1164,7 @@ impl Drop for Client {
 ///
 /// This enum is used by [`ClientHandle`]'s methods to dispatch function calls to the corresponding [`Client`] instance.
 #[derive(Debug)]
-pub(crate) enum ClientFunction {
+enum ClientFunction {
     /// Corresponds to [`Client::write_rdp_pointer`]
     WriteRdpPointer(CGOMousePointerEvent),
     /// Corresponds to [`Client::write_rdp_key`]
@@ -1216,7 +1214,7 @@ pub struct ClientHandle(Sender<ClientFunction>);
 
 impl ClientHandle {
     /// Creates a new `ClientHandle` and corresponding [`FunctionReceiver`] with a buffer of size `buffer`.
-    pub(super) fn new(buffer: usize) -> (Self, FunctionReceiver) {
+    fn new(buffer: usize) -> (Self, FunctionReceiver) {
         let (sender, receiver) = channel(buffer);
         (Self(sender), FunctionReceiver(receiver))
     }
@@ -1465,12 +1463,6 @@ impl FunctionReceiver {
     /// Receives a [`ClientFunction`] call from the `FunctionReceiver`.
     async fn recv(&mut self) -> Option<ClientFunction> {
         self.0.recv().await
-    }
-
-    /// Tries to receive a [`ClientFunction`] call from the `FunctionReceiver`.
-    #[cfg(test)]
-    pub(crate) fn try_recv(&mut self) -> Result<ClientFunction, TryRecvError> {
-        self.0.try_recv()
     }
 }
 

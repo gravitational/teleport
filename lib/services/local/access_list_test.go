@@ -323,19 +323,19 @@ func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
 	scopedAccessService := NewScopedAccessService(mem)
 
 	for _, role := range []string{"scoped-role-1", "scoped-role-2", "scoped-role-3"} {
-		_, err = scopedAccessService.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
-			Role: scopedaccessv1.ScopedRole_builder{
+		_, err = scopedAccessService.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: &scopedaccessv1.ScopedRole{
 				Kind: scopedaccess.KindScopedRole,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: role,
-				}.Build(),
+				},
 				Scope: "/",
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/eng", "/platform", "/ops"},
-				}.Build(),
+				},
 				Version: types.V1,
-			}.Build(),
-		}.Build())
+			},
+		})
 		require.NoError(t, err)
 	}
 

@@ -30,8 +30,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -163,9 +163,9 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
+	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.POST(dbscRegistrationPath, makeRouterHandler(h.handleDBSCRegistration))
 	h.router.POST(dbscRefreshPath, makeRouterHandler(h.handleDBSCRefresh))
-	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
@@ -264,7 +264,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr,
 		return isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if i < 0 {
-		return trace.NotFound("all app servers unhealthy")
+		return trace.NotFound("all app servers unheatlhy")
 	}
 
 	return nil
@@ -856,17 +856,7 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 			}
 		}
 
-		// Percent-encode every segment so that slashes in ARNs
-		// are not interpreted as path separators during URL
-		// serialization. Use strings.Join instead of path.Join
-		// to preserve the percent-encoded segments.
-		for i, s := range urlPath {
-			urlPath[i] = url.PathEscape(s)
-		}
-		u.RawPath = "/" + strings.Join(urlPath, "/")
-		// Error is unreachable: RawPath was built from
-		// PathEscape output above.
-		u.Path, _ = url.PathUnescape(u.RawPath)
+		u.Path = path.Join(urlPath...)
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly

@@ -1,11 +1,11 @@
 module github.com/gravitational/teleport/api
 
-go 1.26.5
+go 1.25.12
 
 require (
-	github.com/charlievieth/strcase v0.0.6
+	github.com/charlievieth/strcase v0.0.5
 	github.com/coreos/go-semver v0.3.1
-	github.com/go-piv/piv-go/v2 v2.6.0
+	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.7.0
@@ -14,8 +14,8 @@ require (
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/russellhaering/gosaml2 v0.11.0
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0

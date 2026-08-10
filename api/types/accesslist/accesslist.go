@@ -78,6 +78,9 @@ func parseReviewFrequency(input string) ReviewFrequency {
 // MaxAllowedDepth is the maximum allowed depth for nested access lists.
 const MaxAllowedDepth = 10
 
+// MaxNameLength is the maximum permitted byte length of an access list name.
+const MaxNameLength = 512
+
 var (
 	// MembershipKindUnspecified is the default membership kind (treated as 'user').
 	MembershipKindUnspecified = accesslistv1.MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED.String()
@@ -340,18 +343,6 @@ type Grants struct {
 	ScopedRoles []ScopedRoleGrant `json:"scoped_roles" yaml:"scoped_roles"`
 }
 
-// Clone returns a copy of the Grants.
-func (grants *Grants) Clone() Grants {
-	if grants == nil {
-		return Grants{}
-	}
-	return Grants{
-		Roles:       slices.Clone(grants.Roles),
-		Traits:      grants.Traits.Clone(),
-		ScopedRoles: slices.Clone(grants.ScopedRoles),
-	}
-}
-
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
 	// Role is the scope-qualified name of the scoped role to be granted.
@@ -373,10 +364,6 @@ type Status struct {
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
 
-	// OwnerDisplays contains display values for owners, keyed by owner username.
-	// It is ignored when marshaling so tctl users do not mistake these read-time
-	// values for fields they could update with resource YAML.
-	OwnerDisplays map[string]types.UserDisplay `json:"-" yaml:"-"`
 	// ScopedOwnerOf is a list of scope-qualified names of scoped access lists
 	// where this access list is an explicit owner.
 	ScopedOwnerOf []string `json:"scoped_owner_of" yaml:"scoped_owner_of"`
@@ -722,9 +709,8 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 type EqualAccessListsOption func(*equalAccessListsConfig)
 
 type equalAccessListsConfig struct {
-	skipClone      bool
-	resetFieldsFn  func(*AccessList)
-	canonicalizeFn func(*AccessList)
+	skipClone     bool
+	resetFieldsFn func(*AccessList)
 }
 
 // WithSkipClone configures EqualAccessLists to skip cloning
@@ -754,63 +740,12 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 	}
 }
 
-// WithIgnoreOktaUserManagedFields configures EqualAccessLists to ignore the
-// Spec fields that users are permitted to override on an Okta-originated
-// Access List, in addition to all ephemeral fields (see WithIgnoreEphemeralFields).
-//
-// On Access Lists with Origin=Okta, the Okta plugin is the source of truth for
-// most of the Spec, but the following fields remain user-editable and are
-// therefore ignored here:
-//   - Spec.Owners: owners are assigned in Teleport, not mirrored from Okta.
-//   - Spec.MembershipRequires: membership role/trait requirements are a
-//     Teleport-side policy.
-//   - Spec.OwnershipRequires: ownership role/trait requirements are a
-//     Teleport-side policy.
-//   - Spec.Audit: review cadence and notifications are configured in Teleport.
-//
-// Use this option to check whether a proposed update to an Okta-originated
-// Access List only touches user-editable fields; if EqualAccessLists returns
-// true under this option, the modification is within the allowed set.
-//
-// Note: This option causes the input access lists to be cloned (unless WithSkipClone
-// is also used) to avoid modifying the originals.
-func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
-	return func(c *equalAccessListsConfig) {
-		c.resetFieldsFn = func(a *AccessList) {
-			if a == nil {
-				return
-			}
-			resetEphemeralFieldsAccessList(a)
-			a.Spec.Owners = nil
-			a.Spec.MembershipRequires = Requires{}
-			a.Spec.OwnershipRequires = Requires{}
-			a.Spec.Audit = Audit{}
-		}
-	}
-}
-
-// WithCanonicalFields configures EqualAccessLists to canonicalize slice fields
-// within the Spec to ensure a consistent order and remove duplicates before
-// comparison. This prevents false negatives in equality checks where slices
-// might have different orders or contain duplicates.
-//
-// The following fields are canonicalized: Grants (roles/traits/scopedRoles),
-// OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
-// OwnershipRequires (roles/traits) and Owners.
-//
-// Note: This option reorders and de-duplicates the listed slice fields. As with
-// [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
-// [WithSkipClone] is also used) to avoid modifying the originals.
-func WithCanonicalFields() EqualAccessListsOption {
-	return func(c *equalAccessListsConfig) {
-		c.canonicalizeFn = canonicalizeAccessList
-	}
-}
-
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
-// to ignore ephemeral fields that are managed by reconcilers or the backend.
+// to ignore ephemeral fields that are managed by reconcilers or the backend. This function
+// mimics the behavior of services.CompareResources for AccessList types when used with
+// WithIgnoreEphemeralFields().
 //
 // By default, this function clones the input access lists before comparison to avoid
 // modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be
@@ -831,11 +766,6 @@ func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
 		cfg.resetFieldsFn(b)
 	}
 
-	if cfg.canonicalizeFn != nil {
-		cfg.canonicalizeFn(a)
-		cfg.canonicalizeFn(b)
-	}
-
 	return deriveTeleportEqualAccessList(a, b)
 }
 
@@ -849,97 +779,5 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	a.Status = Status{}
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
-	}
-}
-
-func canonicalizeAccessList(a *AccessList) {
-	if a == nil {
-		return
-	}
-
-	canonicalizeOwners(&a.Spec.Owners)
-	canonicalizeGrants(&a.Spec.Grants)
-	canonicalizeGrants(&a.Spec.OwnerGrants)
-	canonicalizeRequires(&a.Spec.MembershipRequires)
-	canonicalizeRequires(&a.Spec.OwnershipRequires)
-}
-
-// canonicalize the owner of an access list.
-// NOTE: Please to not use this function outside of the canonicalize flow. If
-// similar functionality is needed elsewhere, please consider using derive based
-// functions instead.
-func canonicalizeOwner(a, b Owner) int {
-	if a.Name != b.Name {
-		return strings.Compare(a.Name, b.Name)
-	}
-	if a.MembershipKind != b.MembershipKind {
-		return strings.Compare(a.MembershipKind, b.MembershipKind)
-	}
-	if a.Description != b.Description {
-		return strings.Compare(a.Description, b.Description)
-	}
-	if a.Title != b.Title {
-		return strings.Compare(a.Title, b.Title)
-	}
-
-	// If WithIgnoreEphemeralFields is used - the fields will be reset and equal.
-	return strings.Compare(a.IneligibleStatus, b.IneligibleStatus)
-}
-
-func canonicalizeOwners(o *[]Owner) {
-	slices.SortFunc(*o, canonicalizeOwner)
-
-	*o = slices.CompactFunc(*o, func(a, b Owner) bool {
-		return canonicalizeOwner(a, b) == 0
-	})
-
-	if len(*o) == 0 {
-		*o = nil
-	}
-}
-
-func canonicalizeGrants(g *Grants) {
-	if g == nil {
-		return
-	}
-
-	slices.Sort(g.Roles)
-	g.Roles = slices.Compact(g.Roles)
-	if len(g.Roles) == 0 {
-		g.Roles = nil
-	}
-
-	trait.Merge(g.Traits, nil)
-	if len(g.Traits) == 0 {
-		g.Traits = nil
-	}
-
-	slices.SortFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) int {
-		if a.Role == b.Role {
-			return strings.Compare(a.Scope, b.Scope)
-		}
-		return strings.Compare(a.Role, b.Role)
-	})
-
-	g.ScopedRoles = slices.Compact(g.ScopedRoles)
-	if len(g.ScopedRoles) == 0 {
-		g.ScopedRoles = nil
-	}
-}
-
-func canonicalizeRequires(r *Requires) {
-	if r == nil {
-		return
-	}
-
-	slices.Sort(r.Roles)
-	r.Roles = slices.Compact(r.Roles)
-	if len(r.Roles) == 0 {
-		r.Roles = nil
-	}
-
-	trait.Merge(r.Traits, nil)
-	if len(r.Traits) == 0 {
-		r.Traits = nil
 	}
 }

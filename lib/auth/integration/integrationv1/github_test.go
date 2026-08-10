@@ -32,10 +32,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestGenerateGitHubUserCert(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")
 	ctx, _, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1.nip.io")
 
@@ -46,19 +49,19 @@ func TestGenerateGitHubUserCert(t *testing.T) {
 		Role:     types.RoleAdmin,
 		Username: string(types.RoleAdmin),
 	})
-	_, err = resourceSvc.CreateIntegration(adminCtx, integrationpb.CreateIntegrationRequest_builder{Integration: githubIntegration}.Build())
+	_, err = resourceSvc.CreateIntegration(adminCtx, &integrationpb.CreateIntegrationRequest{Integration: githubIntegration})
 	require.NoError(t, err)
 
 	key, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	req := integrationpb.GenerateGitHubUserCertRequest_builder{
+	req := &integrationpb.GenerateGitHubUserCertRequest{
 		Integration: "github-my-org",
 		PublicKey:   key.MarshalSSHPublicKey(),
 		UserId:      "1122334455",
 		KeyId:       "alice",
 		Ttl:         durationpb.New(time.Minute),
-	}.Build()
+	}
 
 	// Admin users cannot generate certs.
 	_, err = resourceSvc.GenerateGitHubUserCert(adminCtx, req)
@@ -71,7 +74,7 @@ func TestGenerateGitHubUserCert(t *testing.T) {
 	})
 	resp, err := resourceSvc.GenerateGitHubUserCert(proxyCtx, req)
 	require.NoError(t, err)
-	authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(resp.GetAuthorizedKey())
+	authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(resp.AuthorizedKey)
 	require.NoError(t, err)
 	sshCert, ok := authorizedKey.(*ssh.Certificate)
 	require.True(t, ok)

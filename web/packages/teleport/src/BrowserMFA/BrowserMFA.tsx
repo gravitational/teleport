@@ -22,7 +22,6 @@ import { useParams } from 'react-router';
 import { Flex, Indicator } from 'design';
 import { AccessDenied, BadRequest } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getErrorMessage } from 'shared/utils/error';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { useMfa, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
@@ -75,7 +74,7 @@ export function BrowserMfa({ onRedirect = redirectTo }: BrowserMfaProps) {
       } catch (err) {
         setAttempt({
           status: 'failed',
-          statusText: getErrorMessage(err),
+          statusText: err.message,
         });
       }
     }

@@ -69,7 +69,7 @@ func newPluginsCollection(service services.Plugins, watch types.WatchKind) (*col
 // If the cache is not healthy, it falls back to fetching the plugin from the upstream.
 // The `withSecrets` flag controls whether secrets should be included in the result.
 func (c *Cache) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetPlugin")
+	_, span := c.Tracer.Start(ctx, "cache/GetPlugin")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.plugins)
@@ -100,7 +100,7 @@ func (c *Cache) GetPlugin(ctx context.Context, name string, withSecrets bool) (t
 // If the cache is not healthy, it falls back to fetching the plugin from the upstream.
 // The `withSecrets` flag controls whether secrets are included in the response.
 func (c *Cache) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetPlugins")
+	_, span := c.Tracer.Start(ctx, "cache/GetPlugins")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.plugins)
@@ -131,7 +131,7 @@ func (c *Cache) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugi
 // If the cache is not healthy, it fetches directly from the backend.
 // The `withSecrets` flag controls inclusion of secrets in the result.
 func (c *Cache) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListPlugins")
+	_, span := c.Tracer.Start(ctx, "cache/ListPlugins")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.plugins)
@@ -163,31 +163,6 @@ func (c *Cache) ListPlugins(ctx context.Context, limit int, startKey string, wit
 		plugins = append(plugins, stripAndClonePluginSecrets(item, withSecrets))
 	}
 	return plugins, nextKey, nil
-}
-
-// HasPluginType will return true if a plugin of the given type is registered.
-func (c *Cache) HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/HasPluginType")
-	defer span.End()
-
-	rg, err := acquireReadGuard(c, c.collections.plugins)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		// Cache is currently not available; check for the plugin type existence upstream.
-		ok, err := c.Config.Plugin.HasPluginType(ctx, pluginType)
-		return ok, trace.Wrap(err)
-	}
-
-	for plugin := range rg.store.resources(pluginNameIndex, "", "") {
-		if plugin.GetType() == pluginType {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // stripPluginSecrets returns a cloned plugin, optionally removing secrets.

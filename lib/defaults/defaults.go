@@ -554,18 +554,14 @@ func ReadableDatabaseProtocol(p string) string {
 }
 
 const (
-	// CmdPerfBufferPageCount is the size of buffered channel that receives
-	// eBPF command event messages.
-	CmdPerfBufferPageCount = 64
+	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
+	// Must be power of 2.
+	PerfBufferPageCount = 8
 
-	// OpenPerfBufferPageCount is the size of buffered channel that receives
-	// eBPF disk event messages. Open events generate many events so this
-	// buffer needs to be extra large.
+	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
+	// events generate many events so this buffer needs to be extra large.
+	// Must be power of 2.
 	OpenPerfBufferPageCount = 128
-
-	// NetPerfBufferPageCount is the size of the buffered channel that receives
-	// eBPF network event messages.
-	NetPerfBufferPageCount = 64
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
@@ -683,6 +679,11 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
+}
+
+// MetricsServiceListenAddr returns the default listening address for the metrics service
+func MetricsServiceListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, MetricsListenPort)
 }
 
 func ProxyPeeringListenAddr() *utils.NetAddr {
@@ -838,7 +839,7 @@ type httpClientOptions struct {
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func UseProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		enable := true
+		var enable = true
 		opts.useProxyFromEnvironment = &enable
 		return opts
 	}
@@ -848,7 +849,7 @@ func UseProxyFromEnvironment() HTTPClientOption {
 // settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func DisableProxyFromEnvironment() HTTPClientOption {
 	return func(opts *httpClientOptions) *httpClientOptions {
-		enable := false
+		var enable = false
 		opts.useProxyFromEnvironment = &enable
 		return opts
 	}

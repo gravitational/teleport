@@ -95,7 +95,7 @@ func TestListEKSClusters(t *testing.T) {
 		eksClustersAmount := 203
 		allClusters := make([]eksTypes.Cluster, 0, eksClustersAmount)
 
-		for c := range eksClustersAmount {
+		for c := 0; c < eksClustersAmount; c++ {
 			allClusters = append(allClusters, eksTypes.Cluster{
 				Name:   aws.String(fmt.Sprintf("EKS_%d", c)),
 				Arn:    aws.String(fmt.Sprintf("%s_%d", baseArn, c)),

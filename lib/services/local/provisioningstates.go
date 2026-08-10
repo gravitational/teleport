@@ -77,7 +77,7 @@ func (ss *ProvisioningStateService) CreateProvisioningState(ctx context.Context,
 		return nil, trace.Wrap(err, "creating provisioning state record")
 	}
 
-	createdState, err := ss.service.WithPrefix(state.GetSpec().GetDownstreamId()).CreateResource(ctx, state)
+	createdState, err := ss.service.WithPrefix(state.Spec.DownstreamId).CreateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating provisioning state record")
 	}
@@ -91,7 +91,7 @@ func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context,
 		return nil, trace.Wrap(err, "updating provisioning state record")
 	}
 
-	updatedState, err := ss.service.WithPrefix(state.GetSpec().GetDownstreamId()).ConditionalUpdateResource(ctx, state)
+	updatedState, err := ss.service.WithPrefix(state.Spec.DownstreamId).ConditionalUpdateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "updating provisioning state record")
 	}
@@ -105,7 +105,7 @@ func (ss *ProvisioningStateService) UpsertProvisioningState(ctx context.Context,
 		return nil, trace.Wrap(err, "upserting provisioning state record")
 	}
 
-	updatedState, err := ss.service.WithPrefix(state.GetSpec().GetDownstreamId()).UpsertResource(ctx, state)
+	updatedState, err := ss.service.WithPrefix(state.Spec.DownstreamId).UpsertResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "upserting provisioning state record")
 	}
@@ -147,6 +147,22 @@ func (ss *ProvisioningStateService) ListProvisioningStates2(ctx context.Context,
 // across all downstream receivers. Check the records' `DownstreamID` field
 // to disambiguate.
 func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams(
+	ctx context.Context,
+	pageSize int,
+	token string,
+) ([]*provisioningv1.PrincipalState, string, error) {
+	resp, nextPage, err := ss.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, token)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp, nextPage, nil
+}
+
+// ListProvisioningStatesForAllDownstreams2 lists all provisioning state records for all
+// downstream receivers. Note that the returned record names may not be unique
+// across all downstream receivers. Check the records' `DownstreamID` field
+// to disambiguate.
+func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams2(
 	ctx context.Context,
 	pageSize int,
 	token string,

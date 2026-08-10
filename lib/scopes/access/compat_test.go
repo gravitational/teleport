@@ -36,17 +36,17 @@ import (
 func TestEmptyRoleConverts(t *testing.T) {
 	t.Parallel()
 
-	role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+	role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
 		Kind: KindScopedRole,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "test",
-		}.Build(),
+		},
 		Scope: "/foo",
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo/bar"},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build(), "/foo/bar")
+	}, "/foo/bar")
 	require.NoError(t, err)
 	require.NotNil(t, role)
 	require.Equal(t, "test@/foo/bar", role.GetName())
@@ -73,15 +73,15 @@ func TestSSHConversion(t *testing.T) {
 		},
 		{
 			name: "sparse",
-			ssh: scopedaccessv1.ScopedRoleSSH_builder{
+			ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"root"},
 				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "team",
 						Values: []string{"red"},
-					}.Build(),
+					},
 				},
-			}.Build(),
+			},
 			expect: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -91,19 +91,19 @@ func TestSSHConversion(t *testing.T) {
 		},
 		{
 			name: "full",
-			ssh: scopedaccessv1.ScopedRoleSSH_builder{
+			ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"root", "admin"},
 				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "env",
 						Values: []string{"prod", "staging"},
-					}.Build(),
-					labelv1.Label_builder{
+					},
+					{
 						Name:   "team",
 						Values: []string{"blue"},
-					}.Build(),
+					},
 				},
-			}.Build(),
+			},
 			expect: types.RoleConditions{
 				Logins: []string{"root", "admin"},
 				NodeLabels: types.Labels{
@@ -116,18 +116,18 @@ func TestSSHConversion(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
+				},
 				Scope: "/foo",
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
 					Ssh:              tt.ssh,
-				}.Build(),
+				},
 				Version: types.V1,
-			}.Build(), "/foo/bar")
+			}, "/foo/bar")
 			require.NoError(t, err)
 			tt.expect.Namespaces = []string{"default"}
 			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))
@@ -147,14 +147,14 @@ func TestRulesConversion(t *testing.T) {
 		{
 			name: "basic",
 			rules: []*scopedaccessv1.ScopedRule{
-				scopedaccessv1.ScopedRule_builder{
+				{
 					Resources: []string{KindScopedRole},
 					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
-				}.Build(),
-				scopedaccessv1.ScopedRule_builder{
+				},
+				{
 					Resources: []string{KindScopedRoleAssignment},
 					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-				}.Build(),
+				},
 			},
 			expect: []types.Rule{
 				{
@@ -170,10 +170,10 @@ func TestRulesConversion(t *testing.T) {
 		{
 			name: "unsupported verb",
 			rules: []*scopedaccessv1.ScopedRule{
-				scopedaccessv1.ScopedRule_builder{
+				{
 					Resources: []string{KindScopedRole},
 					Verbs:     []string{types.VerbList, types.VerbRead},
-				}.Build(),
+				},
 			},
 			expect: []types.Rule{
 				{
@@ -185,14 +185,14 @@ func TestRulesConversion(t *testing.T) {
 		{
 			name: "unsupported resource",
 			rules: []*scopedaccessv1.ScopedRule{
-				scopedaccessv1.ScopedRule_builder{
+				{
 					Resources: []string{types.KindCertAuthority},
 					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
-				}.Build(),
-				scopedaccessv1.ScopedRule_builder{
+				},
+				{
 					Resources: []string{KindScopedRole},
 					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
-				}.Build(),
+				},
 			},
 			expect: []types.Rule{
 				{
@@ -205,18 +205,18 @@ func TestRulesConversion(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
+				},
 				Scope: "/foo",
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
 					Rules:            tt.rules,
-				}.Build(),
+				},
 				Version: types.V1,
-			}.Build(), "/foo/bar")
+			}, "/foo/bar")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.expect, role.GetRules(types.Allow)))
 		})
@@ -224,13 +224,13 @@ func TestRulesConversion(t *testing.T) {
 }
 
 func baseScopedRole() *scopedaccessv1.ScopedRole {
-	return scopedaccessv1.ScopedRole_builder{
+	return &scopedaccessv1.ScopedRole{
 		Kind:     KindScopedRole,
-		Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
+		Metadata: &headerv1.Metadata{Name: "test"},
 		Scope:    "/foo",
 		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo/bar"},
-			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
+			Ssh:              scopedaccessv1.ScopedRoleSSH_builder{}.Build(),
 			Kube: scopedaccessv1.ScopedRoleKube_builder{
 				Labels: []*labelv1.Label{
 					labelv1.Label_builder{
@@ -250,7 +250,7 @@ func baseScopedRole() *scopedaccessv1.ScopedRole {
 			}.Build(),
 		}.Build(),
 		Version: types.V1,
-	}.Build()
+	}
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -262,7 +262,7 @@ func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().SetClientIdleTimeout("30m")
+	sr.Spec.Ssh.ClientIdleTimeout = "30m"
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -276,11 +276,7 @@ func TestX11ForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	if x := ptr(true); x != nil {
-		sr.GetSpec().GetSsh().SetPermitX11Forwarding(*x)
-	} else {
-		sr.GetSpec().GetSsh().ClearPermitX11Forwarding()
-	}
+	sr.Spec.Ssh.PermitX11Forwarding = ptr(true)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -291,11 +287,7 @@ func TestForwardAgentNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	if x := ptr(true); x != nil {
-		sr.GetSpec().GetSsh().SetForwardAgent(*x)
-	} else {
-		sr.GetSpec().GetSsh().ClearForwardAgent()
-	}
+	sr.Spec.Ssh.ForwardAgent = ptr(true)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -306,11 +298,7 @@ func TestMaxSessionsNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	if x := ptr(int64(10)); x != nil {
-		sr.GetSpec().GetSsh().SetMaxSessions(*x)
-	} else {
-		sr.GetSpec().GetSsh().ClearMaxSessions()
-	}
+	sr.Spec.Ssh.MaxSessions = ptr(int64(10))
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -321,10 +309,10 @@ func TestSSHPortForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
-		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: ptr(false)}.Build(),
-		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: ptr(false)}.Build(),
-	}.Build())
+	sr.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -335,9 +323,9 @@ func TestHostUserCreationNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().SetHostUserCreation(scopedaccessv1.CreateHostUser_builder{
+	sr.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
 		Mode: "keep",
-	}.Build())
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -348,11 +336,7 @@ func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	if x := ptr(false); x != nil {
-		sr.GetSpec().GetSsh().SetFileCopy(*x)
-	} else {
-		sr.GetSpec().GetSsh().ClearFileCopy()
-	}
+	sr.Spec.Ssh.FileCopy = ptr(false)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -363,11 +347,11 @@ func TestEnhancedRecordingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().SetEnhancedRecording(scopedaccessv1.EnhancedRecording_builder{
+	sr.Spec.Ssh.EnhancedRecording = &scopedaccessv1.EnhancedRecording{
 		Command: ptr(true),
 		Network: ptr(true),
 		Disk:    ptr(true),
-	}.Build())
+	}
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
 	// BPF is the classic role equivalent of enhanced_recording.
@@ -378,11 +362,7 @@ func TestDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	if x := ptr(true); x != nil {
-		sr.GetSpec().GetSsh().SetDisconnectExpiredCert(*x)
-	} else {
-		sr.GetSpec().GetSsh().ClearDisconnectExpiredCert()
-	}
+	sr.Spec.Ssh.DisconnectExpiredCert = ptr(true)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -393,7 +373,7 @@ func TestKubeDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().SetKube(scopedaccessv1.ScopedRoleKube_builder{
+	sr.Spec.Kube = scopedaccessv1.ScopedRoleKube_builder{
 		DisconnectExpiredCert: ptr(true),
 		Labels: []*labelv1.Label{
 			labelv1.Label_builder{
@@ -410,7 +390,7 @@ func TestKubeDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 				Verbs:     []string{types.Wildcard},
 			}.Build(),
 		},
-	}.Build())
+	}.Build()
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -421,9 +401,9 @@ func TestSessionRecordingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().SetSessionRecording(scopedaccessv1.SessionRecording_builder{
+	sr.Spec.Ssh.SessionRecording = &scopedaccessv1.SessionRecording{
 		Mode: string(constants.SessionRecordingModeBestEffort),
-	}.Build())
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -439,9 +419,9 @@ func TestSSHLockingModeNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().SetLock(scopedaccessv1.Lock_builder{
+	sr.Spec.Ssh.Lock = &scopedaccessv1.Lock{
 		Mode: "strict",
-	}.Build())
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -453,9 +433,9 @@ func TestKubeLockingModeNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetKube().SetLock(scopedaccessv1.Lock_builder{
+	sr.Spec.Kube.Lock = &scopedaccessv1.Lock{
 		Mode: "strict",
-	}.Build())
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -491,10 +471,10 @@ func TestKubeConversion(t *testing.T) {
 				Users:  []string{"system:user"},
 				Groups: []string{"viewer"},
 				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "team",
 						Values: []string{"red"},
-					}.Build(),
+					},
 				},
 				Resources: []*scopedaccessv1.KubeResource{
 					scopedaccessv1.KubeResource_builder{
@@ -521,14 +501,14 @@ func TestKubeConversion(t *testing.T) {
 				Users:  []string{"system:user", "system:admin"},
 				Groups: []string{"viewer", "editor"},
 				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
+					{
 						Name:   "env",
 						Values: []string{"prod", "staging"},
-					}.Build(),
-					labelv1.Label_builder{
+					},
+					{
 						Name:   "team",
 						Values: []string{"blue"},
-					}.Build(),
+					},
 				},
 				Resources: []*scopedaccessv1.KubeResource{
 					scopedaccessv1.KubeResource_builder{
@@ -567,18 +547,18 @@ func TestKubeConversion(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
 				Kind: KindScopedRole,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test",
-				}.Build(),
+				},
 				Scope: "/foo",
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Spec: &scopedaccessv1.ScopedRoleSpec{
 					Kube:             tt.kube,
 					AssignableScopes: []string{"/foo/bar"},
-				}.Build(),
+				},
 				Version: types.V1,
-			}.Build(), "/foo/bar")
+			}, "/foo/bar")
 			require.NoError(t, err)
 			tt.expect.Namespaces = []string{"default"}
 			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))

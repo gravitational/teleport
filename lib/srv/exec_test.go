@@ -19,7 +19,7 @@
 package srv
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"os/user"
 	"strconv"
@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -59,7 +58,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
-	rec, ok := scx.party.s.recorder.(*mockRecorder)
+	rec, ok := scx.session.recorder.(*mockRecorder)
 	require.True(t, ok)
 
 	expectedUsr, err := user.Current()
@@ -79,61 +78,47 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		inResult ExecResult
+		inCommand  string
+		inError    error
+		outCommand string
+		outCode    string
 	}{
+		// Successful execution.
 		{
-			name: "success",
-			inResult: ExecResult{
-				Command: "exit 0",
-				Error:   nil,
-				Code:    reexecconstants.RemoteCommandSuccess,
-			},
+			inCommand:  "exit 0",
+			inError:    nil,
+			outCommand: "exit 0",
+			outCode:    strconv.Itoa(reexecconstants.RemoteCommandSuccess),
 		},
+		// Exited with error.
 		{
-
-			name: "exit with error",
-			inResult: ExecResult{
-				Command: "exit 255",
-				Error:   errors.New("exit status 255"),
-				Code:    reexecconstants.RemoteCommandFailure,
-			},
+			inCommand:  "exit 255",
+			inError:    fmt.Errorf("unknown error"),
+			outCommand: "exit 255",
+			outCode:    strconv.Itoa(reexecconstants.RemoteCommandFailure),
 		},
+		// Command injection.
 		{
-			name: "command injection",
-			inResult: ExecResult{
-				Command: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
-				Error:   errors.New("unknown error"),
-				Code:    reexecconstants.RemoteCommandFailure,
-			},
+			inCommand:  "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+			inError:    fmt.Errorf("unknown error"),
+			outCommand: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+			outCode:    strconv.Itoa(reexecconstants.RemoteCommandFailure),
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitExecAuditEvent(scx, tt.inResult)
-			execEvent := rec.emitter.LastEvent().(*apievents.Exec)
-			require.Equal(t, tt.inResult.Command, execEvent.Command)
-			if tt.inResult.Error != nil {
-				require.Equal(t, tt.inResult.Error.Error(), execEvent.Error)
-			} else {
-				require.Empty(t, execEvent.Error)
-			}
-			if tt.inResult.Code == 0 {
-				require.Equal(t, events.ExecCode, execEvent.Code)
-			} else {
-				require.Equal(t, events.ExecFailureCode, execEvent.Code)
-			}
-			require.Equal(t, strconv.Itoa(tt.inResult.Code), execEvent.ExitCode)
-			require.Equal(t, expectedMeta, execEvent.UserMetadata)
-			require.Equal(t, "123", execEvent.ServerID)
-			require.Equal(t, "abc", execEvent.ForwardedBy)
-			require.Equal(t, expectedHostname, execEvent.ServerHostname)
-			require.Equal(t, "testNamespace", execEvent.ServerNamespace)
-			require.Equal(t, "xxx", execEvent.SessionID)
-			require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
-			require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
-			require.NotEmpty(t, events.EventID)
-		})
+		emitExecAuditEvent(scx, tt.inCommand, tt.inError)
+		execEvent := rec.emitter.LastEvent().(*apievents.Exec)
+		require.Equal(t, tt.outCommand, execEvent.Command)
+		require.Equal(t, tt.outCode, execEvent.ExitCode)
+		require.Equal(t, expectedMeta, execEvent.UserMetadata)
+		require.Equal(t, "123", execEvent.ServerID)
+		require.Equal(t, "abc", execEvent.ForwardedBy)
+		require.Equal(t, expectedHostname, execEvent.ServerHostname)
+		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
+		require.Equal(t, "xxx", execEvent.SessionID)
+		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
+		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
+		require.NotEmpty(t, events.EventID)
 	}
 }
 
@@ -145,24 +130,17 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 	term.SetTermType("xterm")
 
 	rec := &mockRecorder{done: false}
-	s := &session{
+	scx.session = &session{
 		id:       "xxx",
 		term:     term,
 		emitter:  rec,
 		recorder: rec,
 		scx:      scx,
-		registry: &SessionRegistry{
-			SessionRegistryConfig: SessionRegistryConfig{
-				Srv: srv,
-			},
-		},
 	}
-	scx.party = newParty(s, types.SessionPeerMode, nil, scx)
-
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, scx.party.s.term.Close()) })
+	t.Cleanup(func() { require.NoError(t, scx.session.term.Close()) })
 
 	return scx
 }

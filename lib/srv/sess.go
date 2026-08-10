@@ -63,6 +63,11 @@ import (
 const sessionRecorderID = "session-recorder"
 
 const (
+	PresenceVerifyInterval = time.Second * 15
+	PresenceMaxDifference  = time.Minute
+)
+
+const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
 	sessionRecordingWarningMessage = "Warning: node error. This might cause some functionalities not to work correctly."
@@ -257,12 +262,12 @@ func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.
 		return nil, nil
 	}
 
-	if len(identityContext.AccessPermit.GetHostSudoers()) == 0 {
+	if len(identityContext.AccessPermit.HostSudoers) == 0 {
 		// not an error, sudoers may not be configured.
 		return nil, nil
 	}
 
-	if err := sudoWriter.WriteSudoers(identityContext.Login, identityContext.AccessPermit.GetHostSudoers()); err != nil {
+	if err := sudoWriter.WriteSudoers(identityContext.Login, identityContext.AccessPermit.HostSudoers); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -300,12 +305,12 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 	}
 
 	log.DebugContext(ctx, "Checking if user provisioning is allowed")
-	ui := identityContext.AccessPermit.GetHostUsersInfo()
+	ui := identityContext.AccessPermit.HostUsersInfo
 	if ui == nil {
 		return false, nil, trace.Wrap(errHostUserCreationNotAuthorized)
 	}
 
-	if obtainFallbackUID != nil && ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_KEEP && ui.GetUid() == "" {
+	if obtainFallbackUID != nil && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP && ui.Uid == "" {
 		if err := s.users.UserExists(identityContext.Login); err != nil {
 			if !trace.IsNotFound(err) {
 				return false, nil, trace.Wrap(err)
@@ -319,9 +324,9 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 			}
 			if ok {
 				log.DebugContext(ctx, "Obtained UID from control plane", "uid", fallbackUID)
-				ui.SetUid(strconv.Itoa(int(fallbackUID)))
-				if ui.GetGid() == "" {
-					ui.SetGid(ui.GetUid())
+				ui.Uid = strconv.Itoa(int(fallbackUID))
+				if ui.Gid == "" {
+					ui.Gid = ui.Uid
 				}
 			} else {
 				log.DebugContext(ctx, "No UID configured in the cluster")
@@ -349,7 +354,7 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 }
 
 // OpenSession either starts a new session.
-func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) (err error) {
+func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
 	if scx.JoinOnly {
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
@@ -360,24 +365,14 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Make sure to close the session when returning an error
-	defer func() {
-		if err != nil {
-			sess.Close()
-		}
-	}()
-
+	scx.setSession(ctx, sess)
 	s.addSession(sess)
 	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sess.id)
-
-	if err := p.ctx.setParty(p); err != nil {
-		return trace.Wrap(err)
-	}
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	if err := sess.startInteractive(ctx, scx, p); err != nil {
+		sess.Close()
 		return trace.Wrap(err)
 	}
 	return nil
@@ -403,6 +398,8 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 	default:
 		return trace.BadParameter("Unrecognized session participant mode: %q", mode)
 	}
+
+	scx.setSession(ctx, session)
 
 	// Update the in-memory data structure that a party member has joined.
 	if err := session.join(ch, scx, mode); err != nil {
@@ -447,9 +444,9 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		return errCannotStartUnattendedSession
 	}
 
-	if err := p.ctx.setParty(p); err != nil {
-		return trace.Wrap(err)
-	}
+	// Start a non-interactive session (TTY attached). Close the session if an error
+	// occurs, otherwise it will be closed by the callee.
+	scx.setSession(ctx, sess)
 
 	err = sess.startExec(ctx, channel, scx, p)
 	if err != nil {
@@ -459,7 +456,13 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	return nil
 }
 
-func (s *SessionRegistry) ForceTerminate(sess *session) error {
+func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
+	sess := ctx.getSession()
+	if sess == nil {
+		s.logger.DebugContext(s.Srv.Context(), "Unable to terminate session, no session found in context.")
+		return nil
+	}
+
 	sess.BroadcastMessage("Forcefully terminating session...")
 
 	// Stop session, it will be cleaned up in the background to ensure
@@ -476,7 +479,7 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 
 	sess := s.sessions[rsession.ID(sessionID)]
 	if sess == nil {
-		return nil, trace.NotFound("session not found")
+		return nil, trace.NotFound("No session found in context.")
 	}
 
 	return sess.term.GetWinSize()
@@ -785,7 +788,6 @@ type session struct {
 
 	initiator sessionInitiatorInfo
 
-	// scx is the host context for the session.
 	scx *ServerContext
 
 	presenceEnabled bool
@@ -821,7 +823,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case scx.Identity.AccessPermit != nil:
-		sessionRecordingMode = constants.SessionRecordingMode(scx.Identity.AccessPermit.GetSessionRecordingMode())
+		sessionRecordingMode = constants.SessionRecordingMode(scx.Identity.AccessPermit.SessionRecordingMode)
 	case scx.Identity.ProxyingPermit != nil:
 		sessionRecordingMode = scx.Identity.ProxyingPermit.SessionRecordingMode
 	default:
@@ -901,7 +903,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
-			err := sess.registry.ForceTerminate(sess)
+			err := sess.registry.ForceTerminate(sess.scx)
 			if err != nil {
 				sess.logger.ErrorContext(sess.serverCtx, "Failed to terminate session.", "error", err)
 			}
@@ -1047,14 +1049,14 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...any) {
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 
 // BroadcastSystemMessage sends a message to all parties.
-func (s *session) BroadcastSystemMessage(format string, args ...any) {
+func (s *session) BroadcastSystemMessage(format string, args ...interface{}) {
 	s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 }
 
@@ -1333,9 +1335,7 @@ func (s *session) launchUnderLock() {
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
 		go func() {
-			// Check presence 4 times per max duration to provide ample opportunity to complete MFA.
-			checkPresenceInterval := s.scx.srv.GetPresenceMaxDuration() / 4
-			ticker := s.registry.clock.NewTicker(checkPresenceInterval)
+			ticker := s.registry.clock.NewTicker(PresenceVerifyInterval)
 			defer ticker.Stop()
 			for {
 				select {
@@ -1462,49 +1462,44 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		return trace.Wrap(err)
 	}
 
-	bpfEnabled := scx.srv.GetBPF().Enabled()
-	var eventsMap map[string]struct{}
+	var eventsMap map[string]bool
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
-	} else if bpfEnabled {
+	} else if scx.srv.GetBPF().Enabled() {
 		// in theory this should never happen, as this method should only ever be called either on a
 		// standard ssh agent (in which case we will always have an access permit) or a recording
 		// proxy (in which case we will never have bpf enabled).
 		return trace.BadParameter("cannot start an interactive session with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	// Only open a BPF recording session if Enhanced Session Recording
-	// is enabled on the server and the access permit enables at least
-	// one event.
-	if bpfEnabled && len(eventsMap) > 0 {
-		auditSessID, err := s.term.ReadAuditSessionID()
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to get BPF PID", "error", err)
-			return trace.Wrap(err)
-		}
+	// Open a BPF recording session. If BPF was not configured, not available,
+	// or running in a recording proxy, OpenSession is a NOP.
+	sessionContext := &bpf.SessionContext{
+		Context:               scx.srv.Context(),
+		PID:                   s.term.PID(),
+		Emitter:               scx.BPFEmitter(),
+		Namespace:             scx.srv.GetNamespace(),
+		SessionID:             s.id.String(),
+		ServerID:              scx.srv.ID(),
+		ServerHostname:        scx.srv.GetInfo().GetHostname(),
+		Login:                 scx.Identity.Login,
+		User:                  scx.Identity.TeleportUser,
+		UserOriginClusterName: scx.Identity.OriginClusterName,
+		UserRoles:             scx.Identity.MappedRoles,
+		UserTraits:            scx.Identity.Traits,
+		Events:                eventsMap,
+	}
 
-		sessionContext := &bpf.SessionContext{
-			Context:               scx.srv.Context(),
-			AuditSessionID:        auditSessID,
-			Emitter:               scx.BPFEmitter(),
-			Namespace:             scx.srv.GetNamespace(),
-			SessionID:             s.id.String(),
-			ServerID:              scx.srv.ID(),
-			ServerHostname:        scx.srv.GetInfo().GetHostname(),
-			Login:                 scx.Identity.Login,
-			User:                  scx.Identity.TeleportUser,
-			UserOriginClusterName: scx.Identity.OriginClusterName,
-			UserRoles:             scx.Identity.MappedRoles,
-			UserTraits:            scx.Identity.Traits,
-			BeamID:                scx.Identity.BeamID,
-			Events:                eventsMap,
-		}
+	if err := s.term.WaitForChild(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 
-		bpfService := scx.srv.GetBPF()
-		if err := bpfService.OpenSession(sessionContext); err != nil {
-			s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
-			return trace.Wrap(err)
-		}
+	bpfService := scx.srv.GetBPF()
+	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
+		return trace.Wrap(err)
+	} else if cgroupID > 0 {
+		// If a cgroup ID was assigned then enhanced session recording was enabled.
 		s.setHasEnhancedRecording(true)
 		go func() {
 			// Close the BPF recording session once the session is closed
@@ -1517,7 +1512,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 
 	s.logger.DebugContext(ctx, "Waiting for continue signal.")
 
-	// Signal to child that it may execute the requested program.
+	// Process has been placed in a cgroup, continue execution.
 	s.term.Continue()
 
 	s.logger.DebugContext(ctx, "Got continue signal.")
@@ -1526,9 +1521,9 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
 	go func() {
-		result := s.term.Wait()
-		if result.Error != nil {
-			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", result.Error)
+		result, err := s.term.Wait()
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", err)
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1540,12 +1535,14 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		case <-s.doneCh:
 		}
 
-		if err := s.registry.broadcastResult(s.id, result); err != nil {
-			s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
+			}
 		}
 
-		if result.Command != "" {
-			emitExecAuditEvent(scx, result)
+		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
+			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
 		s.emitSessionEndEvent()
@@ -1572,7 +1569,7 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 		s.term = term
 	}
 
-	if err := s.term.Run(ctx, s.io); err != nil {
+	if err := s.term.Run(ctx); err != nil {
 		s.logger.ErrorContext(ctx, "Unable to run shell command.", "error", err)
 		return trace.ConvertSystemError(err)
 	}
@@ -1589,7 +1586,7 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case ctx.Identity.AccessPermit != nil:
-		sessionRecordingMode = constants.SessionRecordingMode(ctx.Identity.AccessPermit.GetSessionRecordingMode())
+		sessionRecordingMode = constants.SessionRecordingMode(ctx.Identity.AccessPermit.SessionRecordingMode)
 	case ctx.Identity.ProxyingPermit != nil:
 		sessionRecordingMode = ctx.Identity.ProxyingPermit.SessionRecordingMode
 	default:
@@ -1648,8 +1645,20 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 
-	if err := execRequest.Start(ctx, channel); err != nil {
+	// Start execution. If the program failed to start, send that result back.
+	// Note this is a partial start. Teleport will have re-exec'ed itself and
+	// wait until it's been placed in a cgroup and told to continue.
+	result, err := execRequest.Start(ctx, channel)
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if result != nil {
+		s.logger.DebugContext(
+			ctx, "Exec request completed.",
+			"request", execRequest,
+			"result", result,
+		)
+		scx.SendExecResult(ctx, *result)
 	}
 
 	// Add the party to the session once it is running.
@@ -1658,88 +1667,74 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	s.participants[p.id] = p
 	s.mu.Unlock()
 
-	bpfEnabled := scx.srv.GetBPF().Enabled()
-	var eventsMap map[string]struct{}
+	var eventsMap map[string]bool
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
-	} else if bpfEnabled {
+	} else if scx.srv.GetBPF().Enabled() {
 		// in theory this should never happen, as this method should only ever be called either on a
 		// standard ssh agent (in which case we will always have an access permit) or a recording
 		// proxy (in which case we will never have bpf enabled).
 		return trace.BadParameter("cannot start exec with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	var sessionContext *bpf.SessionContext
-	if bpfEnabled && len(eventsMap) != 0 {
-		auditSessID, err := execRequest.ReadAuditSessionID()
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to get child PID", "error", err)
-			return trace.Wrap(err)
-		}
+	// Open a BPF recording session. If BPF was not configured, not available,
+	// or running in a recording proxy, OpenSession is a NOP.
+	sessionContext := &bpf.SessionContext{
+		Context:               scx.srv.Context(),
+		PID:                   scx.execRequest.PID(),
+		Emitter:               scx.BPFEmitter(),
+		Namespace:             scx.srv.GetNamespace(),
+		SessionID:             string(s.id),
+		ServerID:              scx.srv.ID(),
+		ServerHostname:        scx.srv.GetInfo().GetHostname(),
+		Login:                 scx.Identity.Login,
+		User:                  scx.Identity.TeleportUser,
+		UserOriginClusterName: scx.Identity.OriginClusterName,
+		Events:                eventsMap,
+	}
 
-		// Open a BPF recording session.
-		sessionContext = &bpf.SessionContext{
-			Context:               scx.srv.Context(),
-			AuditSessionID:        auditSessID,
-			Emitter:               scx.BPFEmitter(),
-			Namespace:             scx.srv.GetNamespace(),
-			SessionID:             string(s.id),
-			ServerID:              scx.srv.ID(),
-			ServerHostname:        scx.srv.GetInfo().GetHostname(),
-			Login:                 scx.Identity.Login,
-			User:                  scx.Identity.TeleportUser,
-			UserOriginClusterName: scx.Identity.OriginClusterName,
-			UserRoles:             scx.Identity.MappedRoles,
-			UserTraits:            scx.Identity.Traits,
-			BeamID:                scx.Identity.BeamID,
-			Events:                eventsMap,
-		}
+	if err := execRequest.WaitForChild(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 
-		if err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
-			s.logger.ErrorContext(
-				ctx, "Failed to open enhanced recording (exec) session.",
-				"command", execRequest.GetCommand(),
-				"error", err,
-			)
-			return trace.Wrap(err)
-		}
+	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
+	if err != nil {
+		s.logger.ErrorContext(
+			ctx, "Failed to open enhanced recording (exec) session.",
+			"command", execRequest.GetCommand(),
+			"error", err,
+		)
+		return trace.Wrap(err)
+	}
 
+	// If a cgroup ID was assigned then enhanced session recording was enabled.
+	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
 	}
 
-	s.logger.DebugContext(ctx, "Waiting for continue signal.")
-
-	// Signal to child that it may execute the requested program.
+	// Process has been placed in a cgroup, continue execution.
 	execRequest.Continue()
-
-	s.logger.DebugContext(ctx, "Got continue signal.")
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result := execRequest.Wait()
-		scx.SendExecResult(ctx, result)
+		result = execRequest.Wait()
+		if result != nil {
+			scx.SendExecResult(ctx, *result)
+		}
 
-		// Wait a little bit to let all events filter through before
-		// closing the BPF session so everything can be recorded.
-		//
-		// TODO: This sleep is also necessary to prevent the SSH server
-		// from closing an SSH session without sending the exit status
-		// to the client. The SSH server code in handleSessionRequests
-		// should be refactored to consistently wait for the exit result
-		// before cleaning up.
+		// Wait a little bit to let all events filter through before closing the
+		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
-		if sessionContext != nil {
-			err = scx.srv.GetBPF().CloseSession(sessionContext)
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)
-			}
+		// Close the BPF recording session. If BPF was not configured, not available,
+		// or running in a recording proxy, this is simply a NOP.
+		err = scx.srv.GetBPF().CloseSession(sessionContext)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)
 		}
 
 		s.emitSessionEndEvent()
-		if err := s.Close(); err != nil {
-			s.logger.WarnContext(ctx, "Failed to close session.", "error", err)
-		}
+		s.Close()
 
 		s.io.Close()
 		close(s.doneCh)
@@ -1798,7 +1793,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	if !canRun {
 		if policyOptions.OnLeaveAction == types.OnSessionLeaveTerminate {
 			// Force termination in goroutine to avoid deadlock
-			go s.registry.ForceTerminate(s)
+			go s.registry.ForceTerminate(s.scx)
 			return nil
 		}
 
@@ -1852,8 +1847,6 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 }
 
 func (s *session) checkPresence(ctx context.Context) error {
-	now := s.registry.clock.Now().UTC()
-
 	// We cannot check presence on the local tracker as that will not
 	// be updated in response to parties performing their presence
 	// checks. To prevent the stale version of the session tracker from
@@ -1870,7 +1863,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 			continue
 		}
 
-		if participant.Mode == string(types.SessionModeratorMode) && now.After(participant.LastActive.Add(s.scx.srv.GetPresenceMaxDuration())) {
+		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.logger.WarnContext(
 				ctx, "Participant is not active, kicking.",
 				"participant", participant.ID,
@@ -2105,6 +2098,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
+	p.ctx.AddCloser(p)
 
 	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
@@ -2200,10 +2194,6 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 	// create a new "party" (connected client) and launch/join the session.
 	p := newParty(s, mode, ch, scx)
-	if err := p.ctx.setParty(p); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := s.addParty(p, mode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2257,7 +2247,7 @@ type party struct {
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
 	pid := rsession.NewID()
-	party := &party{
+	return &party{
 		log: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			"party_id", pid,
@@ -2274,7 +2264,6 @@ func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx
 		sconn:         ctx.ServerConn,
 		mode:          mode,
 	}
-	return party
 }
 
 func (p *party) updateActivity() {
@@ -2452,10 +2441,10 @@ func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRec
 	}
 }
 
-func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]struct{} {
-	eventsMap := make(map[string]struct{}, len(permit.GetBpfEvents()))
-	for _, event := range permit.GetBpfEvents() {
-		eventsMap[event] = struct{}{}
+func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]bool {
+	eventsMap := make(map[string]bool, len(permit.BpfEvents))
+	for _, event := range permit.BpfEvents {
+		eventsMap[event] = true
 	}
 
 	return eventsMap

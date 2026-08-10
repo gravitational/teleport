@@ -45,17 +45,17 @@ func TestSSHIdentityConversion(t *testing.T) {
 		ClusterName: "some-cluster",
 		SystemRole:  types.RoleNode,
 		Username:    "user",
-		ScopePin: scopesv1.Pin_builder{
+		ScopePin: &scopesv1.Pin{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"/::role1", "/::role2"}},
 			}),
-			SystemRoles: scopesv1.SystemRoles_builder{
+			SystemRoles: &scopesv1.SystemRoles{
 				Primary:    string(types.RoleNode),
 				Additional: []string{string(types.RoleProxy)},
-			}.Build(),
-		}.Build(),
+			},
+		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
 		PermitX11Forwarding:     true,
@@ -105,23 +105,21 @@ func TestSSHIdentityConversion(t *testing.T) {
 				},
 			},
 		}},
-		ConnectionDiagnosticID:   "diag",
-		PrivateKeyPolicy:         keys.PrivateKeyPolicy("policy"),
-		DeviceID:                 "device",
-		DeviceAssetTag:           "asset",
-		DeviceCredentialID:       "cred",
-		GitHubUserID:             "github",
-		GitHubUsername:           "ghuser",
-		HeadlessAuthenticationID: "headless-auth-id",
-		AgentScope:               "/foo",
-		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
+		ConnectionDiagnosticID: "diag",
+		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
+		DeviceID:               "device",
+		DeviceAssetTag:         "asset",
+		DeviceCredentialID:     "cred",
+		GitHubUserID:           "github",
+		GitHubUsername:         "ghuser",
+		AgentScope:             "/foo",
+		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
-		}.Build()),
+		}),
 		DelegationSessionID: "delegation-session",
-		BeamID:              "beam-id",
 	}
 
 	ignores := []string{
@@ -134,15 +132,6 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"ResourceID.XXX_NoUnkeyedLiteral",
 		"ResourceID.XXX_unrecognized",
 		"ResourceID.XXX_sizecache",
-		"ResourceAccessID.XXX_NoUnkeyedLiteral",
-		"ResourceAccessID.XXX_unrecognized",
-		"ResourceAccessID.XXX_sizecache",
-		"ResourceConstraints.XXX_NoUnkeyedLiteral",
-		"ResourceConstraints.XXX_unrecognized",
-		"ResourceConstraints.XXX_sizecache",
-		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
-		"AWSConsoleResourceConstraints.XXX_unrecognized",
-		"AWSConsoleResourceConstraints.XXX_sizecache",
 		"Pin.XXX_NoUnkeyedLiteral",
 		"Pin.XXX_unrecognized",
 		"Pin.XXX_sizecache",
@@ -162,6 +151,15 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"RoleNode.XXX_sizecache",
 		"RoleNode.Children",  // has to be empty in leaf nodes because of how trees work
 		"RolesByScope.Depth", // 0 is the only valid depth for root role assignments
+		"ResourceAccessID.XXX_NoUnkeyedLiteral",
+		"ResourceAccessID.XXX_unrecognized",
+		"ResourceAccessID.XXX_sizecache",
+		"ResourceConstraints.XXX_NoUnkeyedLiteral",
+		"ResourceConstraints.XXX_unrecognized",
+		"ResourceConstraints.XXX_sizecache",
+		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
+		"AWSConsoleResourceConstraints.XXX_unrecognized",
+		"AWSConsoleResourceConstraints.XXX_sizecache",
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))
