@@ -15,7 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Dependencies
-import Foundation
+public import Foundation
 import Synchronization
 import SystemClients
 
@@ -32,8 +32,12 @@ public final class RotatingFileWriter: Sendable {
 	private let queue = DispatchQueue(label: "com.goteleport.teleportkit.rotating-file-writer")
 	private let fileSystemClient: FileSystemClient
 
-	init(activeFileURL: URL, configuration: Configuration = .live) {
-		self.activeFileURL = activeFileURL
+	public convenience init(fileURL: URL) {
+		self.init(fileURL: fileURL, configuration: .live)
+	}
+
+	init(fileURL: URL, configuration: Configuration) {
+		self.activeFileURL = fileURL
 		self.configuration = configuration
 
 		// Retrieving the dependency once during init is safe because the file system implementation should not
@@ -43,13 +47,46 @@ public final class RotatingFileWriter: Sendable {
 
 		self.fileSystemClient = fileSystemClient
 	}
+
+	/// Waits for all previously enqueued records to be processed and synchronizes the active file.
+	public func flush() async throws {}
+
+	func enqueue(record: Data) {}
+}
+
+// MARK: - Inbox Processing
+
+extension RotatingFileWriter {
+	private func enqueue(item: PendingItem) {}
+
+	private func processInbox() {}
+}
+
+// MARK: - File Operations
+
+extension RotatingFileWriter {
+	private func append(record: Data) throws {}
+
+	private func append(droppedRecordNoticeFor count: Int) throws {}
+
+	private func truncateRecordIfNeeded(_ record: Data) -> Data {
+		record
+	}
+
+	private func openActiveFileIfNeeded() throws {}
+
+	private func rotateActiveFileIfNeeded(forAppendingByteCount byteCount: Int) throws {}
+
+	private func processFlushRequest(_ continuation: CheckedContinuation<Void, any Error>) {}
+
+	private func recordFailure(_ error: any Error) {}
 }
 
 // MARK: - Supporting Types
 
 extension RotatingFileWriter {
-	public struct Configuration: Sendable {
-		public static let live = Configuration(
+	struct Configuration: Sendable {
+		static let live = Configuration(
 			maximumFileSize: 4 * 1024 * 1024, // 4 MB
 			maximumArchiveCount: 3, // At most 3 archived files. Including
 		)
@@ -65,10 +102,8 @@ extension RotatingFileWriter {
 	}
 
 	private struct Inbox {
-		var pendingItems: [Data] = []
-		var queuedBytes: Int {
-			pendingItems.map(\.count).reduce(0, +)
-		}
+		var pendingItems: [PendingItem] = []
+		var isProcessing = false
 	}
 
 	/// Contains mutable state that the worker needs in order to write to disk.
@@ -78,5 +113,7 @@ extension RotatingFileWriter {
 
 	private enum PendingItem {
 		case logMessage(Data)
+		case droppedRecordNotice(Int)
+		case flush(CheckedContinuation<Void, any Error>)
 	}
 }
