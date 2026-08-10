@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for teleport-acl-lifecycle route-coverage evals. Reads
+# fixtures from the same directory instead of hitting a real cluster.
+
+import json
+import os
+import re
+import sys
+import copy
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+def load(filename):
+    with open(os.path.join(dir, filename)) as f:
+        return json.load(f)
+
+
+def has(flag_prefix):
+    return any(a.startswith(flag_prefix) for a in args)
+
+
+def unquote(value):
+    """Strip one matched pair of surrounding quotes, never a lone trailing one.
+
+    Predicates end in a quote (labels["env"] == "staging"), so an unconditional
+    strip would truncate them into an unterminated string.
+    """
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
+def flag_value(flag):
+    prefix = flag + "="
+    for idx, arg in enumerate(args):
+        if arg.startswith(prefix):
+            return unquote(arg[len(prefix):])
+        if arg == flag and idx + 1 < len(args):
+            return unquote(args[idx + 1])
+    return None
+
+
+def require_json(command):
+    if "--format=json" not in args:
+        print(f"ERROR: {command} must use --format=json in these evals", file=sys.stderr)
+        sys.exit(1)
+
+
+def app_search_text(app_server):
+    app = app_server.get("spec", {}).get("app", {})
+    labels = app.get("metadata", {}).get("labels", {})
+    parts = [
+        app_server.get("metadata", {}).get("name", ""),
+        app.get("metadata", {}).get("name", ""),
+        app.get("spec", {}).get("public_addr", ""),
+        app.get("spec", {}).get("uri", ""),
+        app.get("spec", {}).get("cloud", ""),
+        app.get("sub_kind", ""),
+    ]
+    for key, value in labels.items():
+        parts.extend([key, value])
+    return " ".join(str(p) for p in parts).lower()
+
+
+def effective_labels(record):
+    """Static labels merged with dynamic results, per RESOURCE_KINDS.md."""
+    kind = record.get("kind", "")
+    if kind == "node":
+        inner, dyn_key = record, "cmd_labels"
+    elif kind == "db_server":
+        inner, dyn_key = record.get("spec", {}).get("database", {}), "dynamic_labels"
+    elif kind == "kube_server":
+        inner, dyn_key = record.get("spec", {}).get("cluster", {}), "dynamic_labels"
+    elif kind == "app_server":
+        inner, dyn_key = record.get("spec", {}).get("app", {}), "dynamic_labels"
+    else:
+        inner, dyn_key = record, None
+    labels = dict(inner.get("metadata", {}).get("labels", {}))
+    if dyn_key:
+        for key, value in (inner.get("spec", {}).get(dyn_key) or {}).items():
+            labels[key] = value.get("result", "")
+    labels.update(record.get("spec", {}).get("immutable_labels", {}))
+    return labels
+
+
+# Only the predicate forms RESOURCE_KINDS.md sanctions: labels["k"] == "v" and
+# exists(labels["k"]), joined by && / || with parens. Anything else is an error
+# rather than a silent wrong answer, so a drifting skill surfaces loudly.
+# No eval(): the query string comes from the agent under test.
+ATOM = re.compile(
+    r'\s*(?:exists\(\s*labels\[\s*"([^"]*)"\s*\]\s*\)'
+    r'|labels\[\s*"([^"]*)"\s*\]\s*==\s*"([^"]*)")'
+)
+
+
+def eval_predicate(expr, record):
+    pos = 0
+
+    def parse_or():
+        nonlocal pos
+        value = parse_and()
+        while True:
+            rest = expr[pos:].lstrip()
+            if not rest.startswith("||"):
+                return value
+            pos = len(expr) - len(rest) + 2
+            value = parse_and() or value
+        return value
+
+    def parse_and():
+        nonlocal pos
+        value = parse_atom()
+        while True:
+            rest = expr[pos:].lstrip()
+            if not rest.startswith("&&"):
+                return value
+            pos = len(expr) - len(rest) + 2
+            value = parse_atom() and value
+        return value
+
+    def parse_atom():
+        nonlocal pos
+        rest = expr[pos:].lstrip()
+        skipped = len(expr) - len(rest)
+        if rest.startswith("("):
+            pos = skipped + 1
+            value = parse_or()
+            rest = expr[pos:].lstrip()
+            pos = len(expr) - len(rest) + (1 if rest.startswith(")") else 0)
+            return value
+        match = ATOM.match(expr, pos)
+        if not match:
+            raise ValueError(f"unsupported predicate near: {expr[pos:][:40]}")
+        pos = match.end()
+        exists_key, label_key, label_val = match.groups()
+        labels = effective_labels(record)
+        if exists_key is not None:
+            return exists_key in labels
+        return labels.get(label_key) == label_val
+
+    result = parse_or()
+    if expr[pos:].strip():
+        raise ValueError(f"unparsed predicate tail: {expr[pos:][:40]}")
+    return result
+
+
+def apply_query(records, query):
+    """Filter records by --query, or exit like tctl does on a bad predicate."""
+    if not query:
+        return records
+    try:
+        return [r for r in records if eval_predicate(query, r)]
+    except ValueError as err:
+        print(f"ERROR: {err}", file=sys.stderr)
+        sys.exit(1)
+
+
+try:
+    ACL_GET_DETAILS = load("acl-get-details.json")
+except FileNotFoundError:
+    ACL_GET_DETAILS = {}
+
+# Titles that make 'acl create' simulate a role-build failure: the list is
+# created but role creation fails, and 'tctl' tells the caller to run
+# 'acl rm <name>' to clean up (which itself then surfaces leftover roles).
+ROLE_BUILD_FAILURE_TITLES = {"Duplicate Role Conflict"}
+ROLE_BUILD_FAILURE_UUID = "c9f3a1b2-0000-4000-8000-000000000099"
+
+# Titles that make 'acl create' simulate a member-setup failure: the list and
+# its roles are created, but adding members fails, and 'tctl' tells the
+# caller to retry with 'acl update <name> --members=...'.
+MEMBER_SETUP_FAILURE_TITLES = {"Member Setup Conflict"}
+MEMBER_SETUP_FAILURE_UUID = "d8e2b4c6-0000-4000-8000-000000000098"
+
+# UUIDs whose 'acl rm' prints a leftover supporting-role warning block.
+LEFTOVER_ROLES_ON_RM = {
+    "07070707-0000-4000-8000-000000000009": [
+        "support-tier1-acl-preset-07070707",
+        "support-tier2-acl-preset-07070707",
+    ],
+    ROLE_BUILD_FAILURE_UUID: [
+        "reviewer-acl-preset-c9f3a1b2",
+    ],
+}
+
+LEFTOVER_ROLE_BLOCK = """The following roles are no longer used by this access list:
+{roles}
+
+These roles may still be assigned to users or referenced by other roles.
+Verify each role is unused before deleting it with:
+  tctl rm roles/<name>
+"""
+
+if args[:1] == ["status"]:
+    read("tsh-status.txt")
+
+elif args[:3] == ["acl", "create", "--help"]:
+    read("acl-create-help.txt")
+
+elif args[:3] == ["acl", "update", "--help"]:
+    print(
+        "Usage: tctl acl update <name> [<flags>]\n\n"
+        "Update an existing access list. Accepts the same metadata/owner/member\n"
+        "flags as 'acl create', plus --remove-access (access-type lists only).\n"
+    )
+
+elif args[:2] == ["apps", "ls"]:
+    require_json("apps ls")
+    query = flag_value("--query")
+    if query and "resource.sub_kind" in query and "mcp" in query:
+        read("apps-ls-mcp.json")
+    else:
+        apps = load("apps-ls.json")
+        if query and "resource.spec.cloud" in query:
+            if "AWS" in query:
+                apps = [
+                    app for app in apps
+                    if app.get("spec", {}).get("app", {}).get("spec", {}).get("cloud") == "AWS"
+                ]
+            elif "Azure" in query:
+                apps = [
+                    app for app in apps
+                    if app.get("spec", {}).get("app", {}).get("spec", {}).get("cloud") == "Azure"
+                ]
+            elif "GCP" in query:
+                apps = [
+                    app for app in apps
+                    if app.get("spec", {}).get("app", {}).get("spec", {}).get("cloud") == "GCP"
+                ]
+        if query and "labels[" in query:
+            apps = apply_query(apps, query)
+        search = flag_value("--search")
+        if search:
+            terms = search.lower().split()
+            apps = [
+                app for app in apps
+                if all(term in app_search_text(app) for term in terms)
+            ]
+        print(json.dumps(apps, indent=2))
+
+elif args[:2] == ["nodes", "ls"]:
+    require_json("nodes ls")
+    query = flag_value("--query") or ""
+    if any("glob" in a for a in args):
+        nodes = load("nodes-ls-glob.json")
+    elif any("edge" in a for a in args):
+        nodes = load("nodes-ls-edge.json")
+    elif any("sensor" in a for a in args):
+        nodes = load("nodes-ls-sensor.json")
+    elif any("dynamic-gw-1" in a for a in args) or (
+        "region" in query and "us-west-2" in query
+    ):
+        nodes = load("nodes-ls-dynamic.json")
+    else:
+        nodes = load("nodes-ls.json")
+    print(json.dumps(apply_query(nodes, query), indent=2))
+
+elif args[:2] == ["db", "ls"]:
+    require_json("db ls")
+    query = flag_value("--query") or ""
+    # Eval 52 needs a deterministic read failure.
+    if "expired-credentials" in query:
+        print("ERROR: credentials have expired", file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(apply_query(load("db-ls.json"), query), indent=2))
+
+elif args[:2] == ["kube", "ls"]:
+    require_json("kube ls")
+    print(json.dumps(apply_query(load("kube-ls.json"), flag_value("--query")), indent=2))
+
+elif args[:2] == ["get", "windows_desktop"]:
+    require_json("get windows_desktop")
+    read("windows-desktops.json")
+
+elif args[:2] == ["get", "git_server"]:
+    require_json("get git_server")
+    read("git-server-ls.json")
+
+elif args[:2] == ["acl", "ls"]:
+    require_json("acl ls")
+    read("acl-ls.json")
+
+elif args[:2] == ["acl", "get"]:
+    require_json("acl get")
+    identifier = args[2] if len(args) > 2 else ""
+    obj = ACL_GET_DETAILS.get(identifier)
+    if obj:
+        obj = copy.deepcopy(obj)
+        obj.get("spec", {}).pop("members", None)
+        print(json.dumps([obj], indent=2))
+    else:
+        print(f"ERROR: access_list \"{identifier}\" is not found", file=sys.stderr)
+        sys.exit(1)
+
+elif args[:3] == ["acl", "users", "ls"]:
+    require_json("acl users ls")
+    identifier = args[3] if len(args) > 3 else ""
+    obj = ACL_GET_DETAILS.get(identifier)
+    if obj:
+        print(json.dumps(obj.get("spec", {}).get("members", []), indent=2))
+    else:
+        print(f"ERROR: access_list \"{identifier}\" is not found", file=sys.stderr)
+        sys.exit(1)
+
+# 'acl users add' and 'acl users rm' each take exactly one member, so a
+# multi-member change is several invocations. Messages match tctl's, including
+# the missing trailing newline on add (command.go UsersAdd/UsersRemove).
+elif args[:3] in (["acl", "users", "add"], ["acl", "users", "rm"]):
+    action = args[2]
+    positional = [a for a in args[3:] if not a.startswith("--")]
+    identifier = positional[0] if positional else ""
+    member = positional[1] if len(positional) > 1 else ""
+    if identifier not in ACL_GET_DETAILS:
+        print(f"ERROR: access_list \"{identifier}\" is not found", file=sys.stderr)
+        sys.exit(1)
+    if not member:
+        print(f"ERROR: acl users {action} requires an access list and one member", file=sys.stderr)
+        sys.exit(1)
+    if action == "add":
+        print(f"successfully added user {member} to access list {identifier}", end="")
+    else:
+        print(f"successfully removed user {member} from access list {identifier}")
+
+elif args[:2] == ["get", "roles"]:
+    require_json("get roles")
+    read("roles.json")
+
+elif args[:4] == ["integrations", "awsic", "accounts", "ls"]:
+    if "--format=json" in args:
+        read("awsic-accounts-ls.json")
+    else:
+        print("ERROR: AWS IC account listings must use --format=json in these evals", file=sys.stderr)
+        sys.exit(1)
+
+elif args[:2] == ["acl", "create"]:
+    title = ""
+    access_type = None
+    for a in args:
+        if a.startswith("--title="):
+            title = a[len("--title="):].strip('"')
+        elif a.startswith("--access-type="):
+            access_type = a[len("--access-type="):].strip('"')
+
+    if title in ROLE_BUILD_FAILURE_TITLES:
+        print("ERROR: forced error building roles", file=sys.stderr)
+        print(file=sys.stderr)
+        print(
+            f'An access list named "{ROLE_BUILD_FAILURE_UUID}" was created '
+            "before the operation failed.",
+            file=sys.stderr,
+        )
+        print(file=sys.stderr)
+        print(
+            f"Run `tctl acl rm {ROLE_BUILD_FAILURE_UUID}` and follow the "
+            "cleanup instructions before retrying.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if title in MEMBER_SETUP_FAILURE_TITLES:
+        print("ERROR: forced creating members error", file=sys.stderr)
+        print(file=sys.stderr)
+        print(
+            f'Access list "{MEMBER_SETUP_FAILURE_UUID}" was created, but '
+            "Teleport could not add all requested members.",
+            file=sys.stderr,
+        )
+        print(file=sys.stderr)
+        print("To retry member setup, run:", file=sys.stderr)
+        print(
+            f'  tctl acl update {MEMBER_SETUP_FAILURE_UUID} --members="apple,banana"',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    new_uuid = "11111111-2222-4333-8444-555555555555"
+    created_roles = []
+    if access_type:
+        # reviewer/requester are created for any access-type list (standing
+        # or Access Request) to manage list membership, regardless of whether
+        # the granted *resource* access itself uses Access Requests.
+        created_roles.append(f"reviewer-acl-preset-{new_uuid[:8]}")
+        created_roles.append(f"requester-acl-preset-{new_uuid[:8]}")
+        if has("--node-labels=") or has("--db-labels=") or has("--kubernetes-labels=") \
+                or has("--app-labels=") or has("--windows-labels=") or has("--github-orgs="):
+            created_roles.append(f"access-standard-acl-preset-{new_uuid[:8]}")
+        if has("--aws-ic-assignments="):
+            created_roles.append(f"access-awsic-acl-preset-{new_uuid[:8]}")
+
+    if "--format=json" in args:
+        response = {
+            "access_list": {
+                "kind": "access_list",
+                "metadata": {"name": new_uuid},
+                "spec": {"title": title},
+            }
+        }
+        if access_type:
+            response["access_type"] = access_type
+        if created_roles:
+            response["created_roles"] = created_roles
+        print(json.dumps(response, indent=2))
+    else:
+        print(f'Created access list "{title}" ({new_uuid})')
+        if access_type:
+            print(f"Access type: {access_type}")
+            print("Roles created for the access list:")
+            for r in created_roles:
+                print(f"  - {r}")
+
+elif args[:2] == ["acl", "update"]:
+    name = args[2] if len(args) > 2 else "<unknown>"
+    print(f'access_list "{name}" has been updated')
+    if "--remove-access" in args and name == "f6f6f6f6-0000-4000-8000-000000000008":
+        print()
+        print(LEFTOVER_ROLE_BLOCK.format(roles="  - access-standard-acl-preset-f6f6f6f6"))
+
+elif args[:2] == ["acl", "rm"]:
+    name = args[2] if len(args) > 2 else "<unknown>"
+    print(f'access_list "{name}" has been removed')
+    roles = LEFTOVER_ROLES_ON_RM.get(name)
+    if roles:
+        role_lines = "\n".join(f"  - {r}" for r in roles)
+        print()
+        print(LEFTOVER_ROLE_BLOCK.format(roles=role_lines))
+
+else:
+    print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)
