@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
@@ -182,17 +182,17 @@ func TestJoinIAM(t *testing.T) {
 	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir:            t.TempDir(),
-			ScopesFeatures: scopes.Features{Enabled: true},
 			FIPS:           true,
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, fipsServer.Shutdown(ctx)) })
 
-	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
+	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
-	isBadParameter := func(t require.TestingT, err error, _ ...any) {
+	isBadParameter := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
 
@@ -869,27 +869,26 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 		assert.NoError(t, tc.authServer.Auth().DeleteToken(ctx, token.GetName()))
 	})
 
-	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 		Scope: "/test",
-		Metadata: headerv1.Metadata_builder{
-			Name: token.GetName(),
-		}.Build(),
-		Spec: joiningv1.ScopedTokenSpec_builder{
+		Metadata: &headerv1.Metadata{
+			Name: "scoped_" + token.GetName(),
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/test/one",
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
-	_, err = tc.authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+	_, err = tc.authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 		Token: scopedToken,
-	}.Build())
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
-			Name:  scopedToken.GetMetadata().GetName(),
-			Scope: scopedToken.GetScope(),
-		}.Build())
+		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+			Name: scopedToken.GetMetadata().GetName(),
+		})
 		require.NoError(t, err)
 	})
 
@@ -985,8 +984,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	})
 	t.Run("scoped", func(t *testing.T) {
 		_, err := joinclient.Join(ctx, joinclient.JoinParams{
-			Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
-			TokenSecret: scopedToken.GetStatus().GetSecret(),
+			Token: "scoped_" + tc.requestTokenName,
 			ID: state.IdentityID{
 				Role:     types.RoleInstance,
 				NodeName: "test-node",
@@ -1024,7 +1022,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 					Role:      "Instance",
 					Method:    "iam",
 					NodeName:  "test-node",
-					TokenName: "test-token",
+					TokenName: "scoped_test-token",
 					Scope:     "/test/one",
 					Roles:     []string{types.RoleNode.String()},
 				},

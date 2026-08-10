@@ -169,7 +169,7 @@ func printEnrollOutcome(out io.Writer, outcome enroll.RunAdminOutcome, dev *devi
 	fmt.Fprintf(
 		out,
 		"Device %q/%v %v\n",
-		dev.GetAssetTag(), devicetrust.FriendlyOSType(dev.GetOsType()), action)
+		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType), action)
 }
 
 type deviceCollectCommand struct {
@@ -205,7 +205,7 @@ func (c *deviceAssetTagCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintln(cf.Stdout(), cdd.GetSerialNumber())
+	fmt.Fprintln(cf.Stdout(), cdd.SerialNumber)
 	return nil
 }
 

@@ -17,7 +17,7 @@
  */
 
 import { MouseEvent } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { space, SpaceProps } from 'design/system';

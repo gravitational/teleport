@@ -82,7 +82,7 @@ func TestBufferedChannelPipeWrite(t *testing.T) {
 			}()
 
 			p := make([]byte, tc.len)
-			for n := range tc.len {
+			for n := 0; n < tc.len; n++ {
 				p[n] = byte(n)
 			}
 
@@ -133,7 +133,7 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, buffer.Close()) })
 
 			write := make([]byte, tc.writeLen)
-			for i := range tc.writeLen {
+			for i := 0; i < tc.writeLen; i++ {
 				write[i] = byte(i)
 			}
 

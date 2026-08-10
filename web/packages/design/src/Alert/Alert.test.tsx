@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Router } from 'react-router';
 
-import { CurrentPath, render, screen, userEvent } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { Alert, Banner } from '.';
 
@@ -114,24 +115,27 @@ describe('Banner', () => {
 
   test('action buttons as internal links', async () => {
     const user = userEvent.setup();
+    const history = createMemoryHistory({
+      initialEntries: ['/'],
+    });
+    const push = jest.spyOn(history, 'push');
 
     render(
-      <MemoryRouter initialEntries={['/']}>
-        <Banner
-          primaryAction={{
-            content: 'Primary Link',
-            linkTo: 'primary-route',
-          }}
-          secondaryAction={{
-            content: 'Secondary Link',
-            linkTo: 'secondary-route',
-          }}
-        />
-        <CurrentPath />
+      <MemoryRouter>
+        <Router history={history}>
+          <Banner
+            primaryAction={{
+              content: 'Primary Link',
+              linkTo: 'primary-route',
+            }}
+            secondaryAction={{
+              content: 'Secondary Link',
+              linkTo: 'secondary-route',
+            }}
+          />
+        </Router>
       </MemoryRouter>
     );
-
-    expect(screen.getByTestId('current-path')).toHaveTextContent('/');
 
     expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
       'href',
@@ -141,9 +145,7 @@ describe('Banner', () => {
       screen.getByRole('link', { name: 'Primary Link' })
     ).not.toHaveAttribute('target');
     await user.click(screen.getByRole('link', { name: 'Primary Link' }));
-    expect(screen.getByTestId('current-path')).toHaveTextContent(
-      '/primary-route'
-    );
+    expect(push).toHaveBeenCalledWith('primary-route');
 
     expect(
       screen.getByRole('link', { name: 'Secondary Link' })
@@ -152,9 +154,7 @@ describe('Banner', () => {
       screen.getByRole('link', { name: 'Secondary Link' })
     ).not.toHaveAttribute('target');
     await user.click(screen.getByRole('link', { name: 'Secondary Link' }));
-    expect(screen.getByTestId('current-path')).toHaveTextContent(
-      '/secondary-route'
-    );
+    expect(push).toHaveBeenCalledWith('secondary-route');
   });
 
   test('dismiss button', async () => {

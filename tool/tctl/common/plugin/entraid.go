@@ -363,7 +363,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		return trace.Wrap(err, "failed to read Access List owners source")
 	}
 
-	req := pluginspb.CreatePluginRequest_builder{
+	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: inputs.name,
@@ -388,7 +388,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 				},
 			},
 		},
-	}.Build()
+	}
 
 	_, err = args.plugins.CreatePlugin(ctx, req)
 	if err != nil {
@@ -397,17 +397,17 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		}
 		plugin := req.GetPlugin()
 		{
-			oldPlugin, err := args.plugins.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
+			oldPlugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
 				Name: inputs.name,
-			}.Build())
+			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			plugin.Metadata.Revision = oldPlugin.GetMetadata().Revision
 		}
-		if _, err = args.plugins.UpdatePlugin(ctx, pluginspb.UpdatePluginRequest_builder{
+		if _, err = args.plugins.UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{
 			Plugin: plugin,
-		}.Build()); err != nil {
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}

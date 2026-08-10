@@ -130,21 +130,19 @@ func (r Resource[T, I]) Create(ctx context.Context, req tfsdk.CreateResourceRequ
 	}
 
 	id := r.resource.Identifier.FromResource(val)
-	_, singletonResource := any(id).(SingletonIdentifier)
+	_, err := r.resourceClient.Get(ctx, id)
+	if !trace.IsNotFound(err) {
+		if err == nil {
+			resp.Diagnostics.Append(
+				tfdiag.DiagFromErr(
+					fmt.Sprintf("%q exists in Teleport", r.resource.Kind),
+					trace.Errorf("%[1]s exists in Teleport. Either remove it (tctl rm %[1]s/%[2]v)"+
+						" or import it to the existing state (terraform import teleport_%[1]s.%[2]v %[2]v)", r.resource.Kind, id),
+				),
+			)
+			return
+		}
 
-	resourceBefore, err := r.resourceClient.Get(ctx, id)
-	switch {
-	case trace.IsNotFound(err):
-	case err == nil && !singletonResource:
-		resp.Diagnostics.Append(
-			tfdiag.DiagFromErr(
-				fmt.Sprintf("%q exists in Teleport", r.resource.Kind),
-				trace.Errorf("%[1]s exists in Teleport. Either remove it (tctl rm %[1]s/%[2]v)"+
-					" or import it to the existing state (terraform import teleport_%[1]s.%[2]v %[2]v)", r.resource.Kind, id),
-			),
-		)
-		return
-	case err != nil:
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error reading %q", r.resource.Kind), trace.Wrap(err), r.resource.Kind))
 		return
 	}
@@ -161,41 +159,42 @@ func (r Resource[T, I]) Create(ctx context.Context, req tfsdk.CreateResourceRequ
 
 	for tries := 1; ; tries++ {
 		retrieved, err := r.resourceClient.Get(ctx, id)
-		switch {
-		case trace.IsNotFound(err):
-		case err != nil:
-			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error reading %q", r.resource.Kind), trace.Wrap(err), r.resource.Kind))
-			return
-		case singletonResource &&
-			resourceBefore != nil &&
-			r.resource.ResourceRevision(resourceBefore) == r.resource.ResourceRevision(retrieved):
-		default:
-			diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
+		if trace.IsNotFound(err) {
+			if tries >= r.runtime.MaxRetries() {
+				diagMessage := fmt.Sprintf("Error reading %q (tried %d times) - state outdated, please import resource", r.resource.Kind, tries)
+				resp.Diagnostics.AddError(diagMessage, r.resource.Kind)
 				return
 			}
 
-			plan.Attrs["id"] = types.String{Value: id.String()}
+			select {
+			case <-ctx.Done():
+				resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error reading %q", r.resource.Kind), trace.Wrap(ctx.Err()), r.resource.Kind))
+				return
+			case <-retry.After():
+			}
 
-			diags = resp.State.Set(ctx, &plan)
-			resp.Diagnostics.Append(diags...)
-
+			continue
+		}
+		if err != nil {
+			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error reading %q", r.resource.Kind), trace.Wrap(err), r.resource.Kind))
 			return
 		}
 
-		if tries >= r.runtime.MaxRetries() {
-			diagMessage := fmt.Sprintf("Error reading %q (tried %d times) - state outdated, please import resource", r.resource.Kind, tries)
-			resp.Diagnostics.AddError(diagMessage, r.resource.Kind)
+		diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		select {
-		case <-ctx.Done():
-			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error reading %q", r.resource.Kind), trace.Wrap(ctx.Err()), r.resource.Kind))
+		plan.Attrs["id"] = types.String{Value: id.String()}
+
+		diags = resp.State.Set(ctx, &plan)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
 			return
-		case <-retry.After():
 		}
+
+		return
 	}
 }
 

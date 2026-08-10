@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -378,37 +377,6 @@ func TestAgentStart(t *testing.T) {
 	require.Equal(t, AgentClosed, agent.GetState())
 }
 
-func TestAgentSmoothedRTT(t *testing.T) {
-	agent, client := testAgent(t, agentConfig{
-		staleConnTimeoutDisabled: true,
-		keepAlive:                5 * time.Millisecond,
-	})
-
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-
-	agent.ctx = ctx
-	agent.cancel = cancel
-	agent.client = client
-
-	count := &atomic.Int32{}
-	client.MockSendRequest = func(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
-		if count.Add(1) > 2 {
-			return false, nil, trace.Errorf("err")
-		}
-		return true, nil, nil
-	}
-
-	err := agent.sendKeepalives()
-	require.Error(t, err)
-
-	rtt, ok := agent.RTT()
-	require.True(t, ok)
-	if rtt <= time.Duration(0) {
-		t.Fatalf("expected smoothed RTT to be greater than zero: %s", rtt)
-	}
-}
-
 func TestAgentStateTransitions(t *testing.T) {
 	tests := []struct {
 		start    AgentState
@@ -559,15 +527,11 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 	}
 
 	pool, err := NewAgentPool(ctx, AgentPoolConfig{
-		Resolver:    resolver,
-		Client:      &mockLocalClusterClient{},
-		AccessPoint: &fakeClient{caKey: ca.PublicKey()},
-		Cluster:     "test",
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{signer}, nil
-			},
-		},
+		Resolver:                 resolver,
+		Client:                   &mockAuthClient{},
+		AccessPoint:              &fakeClient{caKey: ca.PublicKey()},
+		Cluster:                  "test",
+		AuthMethods:              []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostUUID:                 uuid.NewString(),
 		StaleConnTimeoutDisabled: tt.staleConnTimeoutDisabled,
 	})
@@ -665,31 +629,4 @@ func TestAgentTimeout(t *testing.T) {
 		})
 	}
 
-}
-
-func TestCalculateSmoothedRTT(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		rtts []time.Duration
-		srtt time.Duration
-	}{
-		{
-			name: "single measurement equals srtt",
-			rtts: []time.Duration{time.Second},
-			srtt: time.Second,
-		},
-		{
-			name: "multiple measurements are smoothed",
-			rtts: []time.Duration{time.Second, 2 * time.Second},
-			srtt: 1125 * time.Millisecond,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var srtt time.Duration
-			for _, rtt := range tc.rtts {
-				srtt = calculateSmoothedRTT(srtt, rtt)
-			}
-			require.Equal(t, tc.srtt, srtt)
-		})
-	}
 }

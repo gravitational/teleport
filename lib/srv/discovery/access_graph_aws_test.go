@@ -39,75 +39,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 )
-
-func TestIdentitySecurityEntitlementGates(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name               string
-		features           *proto.Features
-		wantAccessGraph    bool
-		wantActivityCenter bool
-	}{
-		{
-			name: "legacy AccessGraph enabled signal",
-			features: &proto.Features{
-				AccessGraph: true,
-			},
-			wantAccessGraph: true,
-		},
-		{
-			name: "legacy Policy entitlement enables missing split features",
-			features: &proto.Features{
-				Entitlements: map[string]*proto.EntitlementInfo{
-					string(entitlements.Policy): {Enabled: true},
-				},
-			},
-			wantAccessGraph:    true,
-			wantActivityCenter: true,
-		},
-		{
-			name: "explicit split entitlements override legacy Policy fallback",
-			features: &proto.Features{
-				Entitlements: map[string]*proto.EntitlementInfo{
-					string(entitlements.Policy):         {Enabled: true},
-					string(entitlements.AccessGraph):    {Enabled: false},
-					string(entitlements.ActivityCenter): {Enabled: false},
-				},
-			},
-		},
-		{
-			name: "Access Graph entitlement",
-			features: &proto.Features{
-				Entitlements: map[string]*proto.EntitlementInfo{
-					string(entitlements.AccessGraph): {Enabled: true},
-				},
-			},
-			wantAccessGraph: true,
-		},
-		{
-			name: "Activity Center entitlement",
-			features: &proto.Features{
-				Entitlements: map[string]*proto.EntitlementInfo{
-					string(entitlements.ActivityCenter): {Enabled: true},
-				},
-			},
-			wantActivityCenter: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.wantAccessGraph, accessGraphEntitlementEnabled(tt.features))
-			require.Equal(t, tt.wantActivityCenter, activityCenterEntitlementEnabled(tt.features))
-		})
-	}
-}
 
 func TestSQSPollEvents(t *testing.T) {
 	t.Parallel()
@@ -168,7 +101,7 @@ func TestSQSPollEvents(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.ElementsMatch(t, []string{"messageID1"}, fakeSQSQueue.getDeletedMessages())
+		assert.ElementsMatch(t, []string{"messageID1"}, fakeSQSQueue.getDeletedMessages())
 	}, time.Second*5, time.Millisecond, "expected all messages to be deleted")
 
 	publish("bucket2", "messageID2", "key2", "key3")
@@ -189,7 +122,7 @@ func TestSQSPollEvents(t *testing.T) {
 	require.Len(t, messages, 3)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.ElementsMatch(t, []string{"messageID1", "messageID2", "messageID3"}, fakeSQSQueue.getDeletedMessages())
+		assert.ElementsMatch(t, []string{"messageID1", "messageID2", "messageID3"}, fakeSQSQueue.getDeletedMessages())
 	}, time.Second*5, time.Millisecond, "expected all messages to be deleted")
 
 	// Simulate a failure to get an object from S3 if only one key fails.
@@ -199,7 +132,7 @@ func TestSQSPollEvents(t *testing.T) {
 	// Check that the files were downloaded.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, file := range []string{"bucket4/key1", "bucket4/key2", "bucket4/key3"} {
-			require.Contains(t, fakeS3Bucket.getDownloadedFiles(), file)
+			assert.Contains(t, fakeS3Bucket.getDownloadedFiles(), file)
 		}
 	}, time.Second*5, time.Millisecond, "expected all files to be downloaded")
 

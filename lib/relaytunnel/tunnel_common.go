@@ -107,10 +107,10 @@ func addrToProto(a net.Addr) *relaytunnelv1alpha.Addr {
 		return nil
 	}
 
-	return relaytunnelv1alpha.Addr_builder{
+	return &relaytunnelv1alpha.Addr{
 		Network: a.Network(),
 		Addr:    a.String(),
-	}.Build()
+	}
 }
 
 func addrFromProto(a *relaytunnelv1alpha.Addr) net.Addr {

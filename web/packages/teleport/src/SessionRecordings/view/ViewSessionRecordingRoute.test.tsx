@@ -20,7 +20,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ComponentType } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route } from 'react-router-dom';
 
 import {
   enableMswServer,
@@ -88,16 +88,11 @@ function setupTest(
   return render(
     <MemoryRouter initialEntries={initialEntry ? [initialEntry] : undefined}>
       <ContextProvider ctx={ctx}>
-        <Routes>
-          <Route
-            path={cfg.routes.player}
-            element={
-              <ViewSessionRecordingRoute
-                withSummaryComponent={customSummaryComponent}
-              />
-            }
+        <Route path={cfg.routes.player}>
+          <ViewSessionRecordingRoute
+            withSummaryComponent={customSummaryComponent}
           />
-        </Routes>
+        </Route>
       </ContextProvider>
     </MemoryRouter>
   );

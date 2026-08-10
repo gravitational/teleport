@@ -18,6 +18,7 @@ package utils
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -86,6 +87,19 @@ func (s Strings) MarshalYAML() (interface{}, error) {
 	return []string(s), nil
 }
 
+// CopyStrings makes a deep copy of the passed in string slice and returns
+// the copy.
+func CopyStrings(in []string) []string {
+	if in == nil {
+		return nil
+	}
+
+	out := make([]string, len(in))
+	copy(out, in)
+
+	return out
+}
+
 // MapToStrings collects keys and values of a map into a slice of strings.
 func MapToStrings(m map[string]string) []string {
 	s := make([]string, 0, len(m)*2)
@@ -93,4 +107,14 @@ func MapToStrings(m map[string]string) []string {
 		s = append(s, key, value)
 	}
 	return s
+}
+
+// ToLowerStrings lower cases each string in a slice.
+func ToLowerStrings(strs []string) []string {
+	lowerCasedStrs := make([]string, len(strs))
+	for i, s := range strs {
+		lowerCasedStrs[i] = strings.ToLower(s)
+	}
+
+	return lowerCasedStrs
 }

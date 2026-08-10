@@ -31,7 +31,7 @@ spec:
     # web_terminal_clipboard_mode controls whether users can copy text from
     # an SSH session to the clipboard in the Web UI terminal. Options are 'unrestricted'
     # (the default) and 'no-copy'. If any of the user's roles is set to 'no-copy',
-    # copying is disabled.
+    # copying is disabled. Available in Teleport v18.9.0 and newer.
     web_terminal_clipboard_mode: no-copy
     # client_idle_timeout determines if SSH sessions to cluster nodes are
     # forcefully terminated after no activity from a client (idle client).
@@ -382,9 +382,6 @@ spec:
       # the reviewer can preview details about resources accessible by any roles
       # listed in preview_as_roles when reviewing Resource Access Requests
       preview_as_roles: ['dbadmin']
-      # the reviewer can submit reviews on behalf of other users;
-      # only to be used by Access Request plugins (eg. Slack plugin)
-      submit_for_users: ['*']
 
     # request allows a user to request roles matching
     # expressions below

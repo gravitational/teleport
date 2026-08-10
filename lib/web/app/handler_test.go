@@ -235,6 +235,7 @@ func TestAuthPOST(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp")
@@ -690,8 +691,8 @@ type mockAuthClient struct {
 	appServers    []types.AppServer
 	caKey         []byte
 	caCert        []byte
-	jwtSigner     crypto.Signer
 	emittedEvents []apievents.AuditEvent
+	jwtSigner     crypto.Signer
 	mtx           sync.Mutex
 }
 
@@ -1010,16 +1011,14 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&required-apps=&state=abc123",
 		},
 		{
-			// ARN inputs are decoded (matching the real flow through q.Get("arn")
-			// which URL-decodes query parameters).
 			name: "OK - with clusterId, publicAddr, and arn",
 			launderURLParams: launcherURLParams{
 				stateToken:  "abc123",
 				clusterName: "im-a-cluster-name",
 				publicAddr:  "grafana.localhost",
-				arn:         "arn:aws:iam::123456789012:role/role-name",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=&required-apps=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, arn and path",
@@ -1027,10 +1026,10 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				stateToken:  "abc123",
 				clusterName: "im-a-cluster-name",
 				publicAddr:  "grafana.localhost",
-				arn:         "arn:aws:iam::123456789012:role/role-name",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
 				path:        "/foo/bar?qux=qex",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, arn, path, and required-apps",
@@ -1038,31 +1037,11 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				stateToken:       "abc123",
 				clusterName:      "im-a-cluster-name",
 				publicAddr:       "grafana.localhost",
-				arn:              "arn:aws:iam::123456789012:role/role-name",
+				arn:              "arn:aws:iam::123456789012:role%2Frole-name",
 				path:             "/foo/bar?qux=qex",
 				requiredAppFQDNs: "api.example.com,grafana.localhost",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
-		},
-		{
-			name: "OK - with ARN containing multi-level path",
-			launderURLParams: launcherURLParams{
-				stateToken:  "abc123",
-				clusterName: "im-a-cluster-name",
-				publicAddr:  "grafana.localhost",
-				arn:         "arn:aws:iam::123456789012:role/path/to/role-name",
-			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Fpath%2Fto%2Frole-name?path=&required-apps=&state=abc123",
-		},
-		{
-			name: "OK - with ARN containing special characters",
-			launderURLParams: launcherURLParams{
-				stateToken:  "abc123",
-				clusterName: "im-a-cluster-name",
-				publicAddr:  "grafana.localhost",
-				arn:         "arn:aws:iam::123456789012:role/path+with=chars",
-			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Fpath+with=chars?path=&required-apps=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -1100,188 +1079,6 @@ func startFakeAppServerOnCluster(t *testing.T, clusterName string, accessPoint a
 		server.Close()
 	})
 	return fakeCluster
-}
-
-func TestHandlerAuthenticate(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	clusterName := "test-cluster"
-	publicAddr := "app.example.com"
-	key, cert, err := tlsca.GenerateSelfSignedCA(
-		pkix.Name{CommonName: clusterName},
-		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
-		defaults.CATTL,
-	)
-	require.NoError(t, err)
-	fakeClock := clockwork.NewFakeClock()
-
-	authClient := &mockAuthClient{
-		clusterName: clusterName,
-		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
-		appServers: []types.AppServer{
-			createNamedAppServer(t, "testapp", publicAddr),
-		},
-		caKey:  key,
-		caCert: cert,
-	}
-
-	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
-
-	appHandler, err := NewHandler(ctx, &HandlerConfig{
-		Clock:       fakeClock,
-		AuthClient:  authClient,
-		AccessPoint: authClient,
-		ClusterGetter: &reversetunnelclient.FakeServer{
-			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
-		},
-		CipherSuites:          utils.DefaultCipherSuites(),
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
-	})
-	require.NoError(t, err)
-
-	t.Run("with cookie", func(t *testing.T) {
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		addValidSessionCookiesToRequest(authClient.appSession, request)
-
-		_, err = appHandler.authenticate(ctx, request)
-		require.NoError(t, err)
-	})
-
-	t.Run("with client cert", func(t *testing.T) {
-		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
-		require.NoError(t, err)
-		require.NotEmpty(t, clientCert.Certificate)
-		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
-		require.NoError(t, err)
-
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
-
-		_, err = appHandler.authenticate(ctx, request)
-		require.NoError(t, err)
-	})
-
-	t.Run("with HTTPS tunnel conn", func(t *testing.T) {
-		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
-
-		_, err := appHandler.authenticate(ctx, request)
-		require.NoError(t, err)
-	})
-
-	t.Run("with HTTPS tunnel conn from browser is rejected", func(t *testing.T) {
-		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		request.Header.Set("Sec-Fetch-Site", "same-origin")
-		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
-
-		_, err := appHandler.authenticate(ctx, request)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-	})
-
-	t.Run("with HTTPS tunnel conn and mismatched client cert", func(t *testing.T) {
-		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
-		require.NoError(t, err)
-		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
-		require.NoError(t, err)
-
-		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, t.Name())
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
-		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
-
-		_, err = appHandler.authenticate(ctx, request)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-
-		lastEvent, ok := authClient.lastEmittedEvent().(*apievents.AuthAttempt)
-		require.True(t, ok)
-		require.Equal(t, events.AuthAttemptEvent, lastEvent.GetType())
-		require.Contains(t, lastEvent.Status.Error, t.Name())
-	})
-
-	t.Run("without cookie or client cert", func(t *testing.T) {
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		_, err := appHandler.authenticate(ctx, request)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-	})
-
-	t.Run("with cookie subject mismatch", func(t *testing.T) {
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		request.AddCookie(&http.Cookie{Name: CookieName, Value: authClient.appSession.GetName()})
-		request.AddCookie(&http.Cookie{Name: SubjectCookieName, Value: "wrong-token"})
-
-		_, err := appHandler.authenticate(ctx, request)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-
-		event := authClient.lastEmittedEvent()
-		require.NotNil(t, event)
-		attempt, ok := event.(*apievents.AuthAttempt)
-		require.True(t, ok)
-		require.Equal(t, "unknown", attempt.UserMetadata.User)
-		require.Equal(t, "testuser", attempt.UserMetadata.Login)
-	})
-
-	t.Run("session expired", func(t *testing.T) {
-		fakeClock.Advance(authClient.appSession.Expiry().Sub(fakeClock.Now()) + time.Minute)
-		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		addValidSessionCookiesToRequest(authClient.appSession, request)
-
-		_, err := appHandler.authenticate(ctx, request)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-	})
-}
-
-func TestRedirectToLauncherClusterFallback(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	clusterName := "tp.test"
-	appFQDN := "greeting.tp.test"
-	authClient := &mockAuthClient{clusterName: clusterName}
-
-	appHandler, err := NewHandler(ctx, &HandlerConfig{
-		AuthClient:            authClient,
-		AccessPoint:           authClient,
-		CipherSuites:          utils.DefaultCipherSuites(),
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
-	})
-	require.NoError(t, err)
-
-	t.Run("redirects using cluster name when ProxyPublicAddrs is empty", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "https://"+appFQDN+"/", nil)
-		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
-		require.NoError(t, err)
-		require.Equal(t, http.StatusFound, w.Code)
-		loc := w.Header().Get("Location")
-		want := "https://" + clusterName + ":443/web/launch/" + appFQDN
-		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
-	})
-
-	t.Run("rejects app addr matching cluster name", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "https://"+clusterName+"/", nil)
-		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok", publicAddr: clusterName})
-		require.Error(t, err)
-		require.True(t, trace.IsBadParameter(err))
-	})
-
-	t.Run("preserves request port in fallback redirect", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "https://"+appFQDN+":3080/", nil)
-		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
-		require.NoError(t, err)
-		loc := w.Header().Get("Location")
-		want := "https://" + clusterName + ":3080/web/launch/" + appFQDN
-		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
-	})
 }
 
 func TestDBSCRefresh(t *testing.T) {
@@ -1539,6 +1336,188 @@ func makeDBSCProofJWT(deviceKey crypto.Signer, params dbscProofJWTParams) (strin
 		},
 		Key: jwk.Public(),
 	}).CompactSerialize()
+}
+
+func TestHandlerAuthenticate(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+	fakeClock := clockwork.NewFakeClock()
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers: []types.AppServer{
+			createNamedAppServer(t, "testapp", publicAddr),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:       fakeClock,
+		AuthClient:  authClient,
+		AccessPoint: authClient,
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+		},
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	t.Run("with cookie", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		addValidSessionCookiesToRequest(authClient.appSession, request)
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with client cert", func(t *testing.T) {
+		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
+		require.NoError(t, err)
+		require.NotEmpty(t, clientCert.Certificate)
+		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
+		require.NoError(t, err)
+
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with HTTPS tunnel conn", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with HTTPS tunnel conn from browser is rejected", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("with HTTPS tunnel conn and mismatched client cert", func(t *testing.T) {
+		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
+		require.NoError(t, err)
+		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
+		require.NoError(t, err)
+
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, t.Name())
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		lastEvent, ok := authClient.lastEmittedEvent().(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, events.AuthAttemptEvent, lastEvent.GetType())
+		require.Contains(t, lastEvent.Status.Error, t.Name())
+	})
+
+	t.Run("without cookie or client cert", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("with cookie subject mismatch", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.AddCookie(&http.Cookie{Name: CookieName, Value: authClient.appSession.GetName()})
+		request.AddCookie(&http.Cookie{Name: SubjectCookieName, Value: "wrong-token"})
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		event := authClient.lastEmittedEvent()
+		require.NotNil(t, event)
+		attempt, ok := event.(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, "unknown", attempt.UserMetadata.User)
+		require.Equal(t, "testuser", attempt.UserMetadata.Login)
+	})
+
+	t.Run("session expired", func(t *testing.T) {
+		fakeClock.Advance(authClient.appSession.Expiry().Sub(fakeClock.Now()) + time.Minute)
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		addValidSessionCookiesToRequest(authClient.appSession, request)
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+}
+
+func TestRedirectToLauncherClusterFallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clusterName := "tp.test"
+	appFQDN := "greeting.tp.test"
+	authClient := &mockAuthClient{clusterName: clusterName}
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	t.Run("redirects using cluster name when ProxyPublicAddrs is empty", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+appFQDN+"/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusFound, w.Code)
+		loc := w.Header().Get("Location")
+		want := "https://" + clusterName + ":443/web/launch/" + appFQDN
+		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
+	})
+
+	t.Run("rejects app addr matching cluster name", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+clusterName+"/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok", publicAddr: clusterName})
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("preserves request port in fallback redirect", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+appFQDN+":3080/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
+		require.NoError(t, err)
+		loc := w.Header().Get("Location")
+		want := "https://" + clusterName + ":3080/web/launch/" + appFQDN
+		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
+	})
 }
 
 func addValidSessionCookiesToRequest(appSession types.WebSession, r *http.Request) {

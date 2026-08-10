@@ -201,18 +201,18 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 
 			got := fakeDevices.resetConfirmRequests()
 			want := []*devicepb.ConfirmDeviceWebAuthenticationRequest{
-				devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
-					ConfirmationToken: devicepb.DeviceConfirmationToken_builder{
+				{
+					ConfirmationToken: &devicepb.DeviceConfirmationToken{
 						Id:    "my-token-id",
 						Token: "my-token-token",
-					}.Build(),
-				}.Build(),
+					},
+				},
 			}
 
 			if len(got) > 0 {
-				webSessionID := got[0].GetCurrentWebSessionId()
+				webSessionID := got[0].CurrentWebSessionId
 				assert.NotEmpty(t, webSessionID, "ConfirmDeviceWebAuthentication called with empty WebSessionID")
-				want[0].SetCurrentWebSessionId(webSessionID)
+				want[0].CurrentWebSessionId = webSessionID
 			}
 
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {

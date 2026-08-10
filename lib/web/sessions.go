@@ -27,7 +27,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"time"
 
@@ -108,14 +107,6 @@ type SessionContextConfig struct {
 	// "GetNodes".
 	UnsafeCachedAuthClient authclient.ReadProxyAccessPoint
 
-	// UnsafeScoopedRoleReader is a scoped role reader. It's authenticated with
-	// the identity of the node, hence it's "unsafe".
-	//
-	// Only use it where the identity of the caller will not affect the result of
-	// the RPC. For example, never call it to get a list of roles and return it
-	// to the user, as it may return more than the user is allowed to see.
-	UnsafeScopedRoleReader services.ScopedRoleReader
-
 	Parent *sessionCache
 	// Resources is a persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -146,10 +137,6 @@ func (c *SessionContextConfig) CheckAndSetDefaults() error {
 
 	if c.Session == nil {
 		return trace.BadParameter("Session required")
-	}
-
-	if c.UnsafeCachedAuthClient == nil {
-		return trace.BadParameter("Scoped role reader required")
 	}
 
 	if c.Log == nil {
@@ -530,37 +517,6 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	return accessChecker, trace.Wrap(err)
 }
 
-func (c *SessionContext) GetUserScopedAccessCheckerContext(ctx context.Context) (*services.ScopedAccessCheckerContext, error) {
-	cert, err := c.GetSSHCertificate()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ident, err := sshca.DecodeIdentity(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
-
-	if accessInfo.ScopePin == nil {
-		checker, err := c.GetUserAccessChecker()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return services.NewScopedAccessCheckerContextFromUnscoped(checker), nil
-	}
-
-	checkerCtx, err := services.NewScopedAccessCheckerContext(
-		ctx, accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeScopedRoleReader,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return checkerCtx, err
-}
-
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
 func (c *SessionContext) GetProxyListenerMode(ctx context.Context) (types.ProxyListenerMode, error) {
 	resp, err := c.cfg.UnsafeCachedAuthClient.GetClusterNetworkingConfig(ctx)
@@ -670,12 +626,11 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
-	proxyClient      authclient.ClientI
-	scopedRoleReader services.ScopedRoleReader
-	accessPoint      authclient.ReadProxyAccessPoint
-	servers          []utils.NetAddr
-	cipherSuites     []uint16
-	clock            clockwork.Clock
+	proxyClient  authclient.ClientI
+	accessPoint  authclient.ReadProxyAccessPoint
+	servers      []utils.NetAddr
+	cipherSuites []uint16
+	clock        clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
@@ -688,7 +643,6 @@ type sessionCacheOptions struct {
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
-	buildType                           string
 	// See [sessionCache.rootClientDialOptions]. Used for testing.
 	rootClientDialOptions []grpc.DialOption
 }
@@ -713,7 +667,6 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	cache := &sessionCache{
 		clusterName:                      clusterName.GetClusterName(),
 		proxyClient:                      config.proxyClient,
-		scopedRoleReader:                 config.scopedRoleReader,
 		accessPoint:                      config.accessPoint,
 		sessions:                         make(map[string]*SessionContext),
 		resources:                        make(map[string]*sessionResources),
@@ -733,7 +686,6 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 			}
 		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
-		buildType:                           config.buildType,
 		rootClientDialOptions:               config.rootClientDialOptions,
 	}
 
@@ -749,20 +701,18 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 // sessionCache handles web session authentication,
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
-	log              *slog.Logger
-	proxyClient      authclient.ClientI
-	authServers      []utils.NetAddr
-	accessPoint      authclient.ReadProxyAccessPoint
-	scopedRoleReader services.ScopedRoleReader
-	closer           *utils.CloseBroadcaster
-	clusterName      string
-	clock            clockwork.Clock
+	log         *slog.Logger
+	proxyClient authclient.ClientI
+	authServers []utils.NetAddr
+	accessPoint authclient.ReadProxyAccessPoint
+	closer      *utils.CloseBroadcaster
+	clusterName string
+	clock       clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
-	buildType    string
 
 	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
@@ -849,7 +799,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // It only stops when ctx is done.
 func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
-	if s.buildType != modules.BuildEnterprise {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return
 	}
 
@@ -989,7 +939,6 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(ctx context.Context,
 func (s *sessionCache) AuthWithOTP(
 	ctx context.Context,
 	user, pass, otpToken string,
-	scope string,
 	clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
@@ -1000,14 +949,13 @@ func (s *sessionCache) AuthWithOTP(
 			Token:    otpToken,
 		},
 		ClientMetadata: clientMeta,
-		Scope:          scope,
 	})
 }
 
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	ctx context.Context, user, pass string, scope string, clientMeta *authclient.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
@@ -1015,7 +963,6 @@ func (s *sessionCache) AuthWithoutOTP(
 			Password: []byte(pass),
 		},
 		ClientMetadata: clientMeta,
-		Scope:          scope,
 	})
 }
 
@@ -1025,7 +972,6 @@ func (s *sessionCache) AuthenticateWebUser(
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
 		ClientMetadata: clientMeta,
-		Scope:          req.Scope,
 	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
@@ -1110,12 +1056,12 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 		return nil, trace.Wrap(err)
 	}
 
-	// Enforce IP Pinning if it is present in the user's certificate.
 	var clientAddr string
 	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		clientAddr = clientSrcAddr.String()
 	}
 
+	// Enforce IP Pinning if it is present in the user's certificate.
 	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1284,7 +1230,6 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		User:                   session.GetUser(),
 		RootClient:             userClient,
 		UnsafeCachedAuthClient: s.accessPoint,
-		UnsafeScopedRoleReader: s.scopedRoleReader,
 		Parent:                 s,
 		Resources:              s.upsertSessionContext(session.GetUser()),
 		Session:                session,
@@ -1381,7 +1326,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = slices.Delete(c.closers, i, i+1)
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
 			return
 		}
 	}

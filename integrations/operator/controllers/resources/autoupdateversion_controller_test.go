@@ -38,15 +38,15 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
-var autoUpdateVersionSpec = autoupdatev1pb.AutoUpdateVersionSpec_builder{
+var autoUpdateVersionSpec = &autoupdatev1pb.AutoUpdateVersionSpec{
 	Tools: nil,
-	Agents: autoupdatev1pb.AutoUpdateVersionSpecAgents_builder{
+	Agents: &autoupdatev1pb.AutoUpdateVersionSpecAgents{
 		StartVersion:  "1.2.3",
 		TargetVersion: "1.2.4",
 		Schedule:      autoupdate.AgentsScheduleRegular,
 		Mode:          autoupdate.AgentsUpdateModeEnabled,
-	}.Build(),
-}.Build()
+	},
+}
 
 type autoUpdateVersionTestingPrimitives struct {
 	setup *testSetup
@@ -62,17 +62,17 @@ func (g *autoUpdateVersionTestingPrimitives) SetupTeleportFixtures(ctx context.C
 }
 
 func (g *autoUpdateVersionTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	autoUpdateVersion := autoupdatev1pb.AutoUpdateVersion_builder{
+	autoUpdateVersion := &autoupdatev1pb.AutoUpdateVersion{
 		Kind:    types.KindAutoUpdateVersion,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameAutoUpdateVersion,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		}.Build(),
+		},
 		Spec: autoUpdateVersionSpec,
-	}.Build()
+	}
 	_, err := g.setup.TeleportClient.
 		CreateAutoUpdateVersion(ctx, autoUpdateVersion)
 	return trace.Wrap(err)
@@ -127,10 +127,10 @@ func (g *autoUpdateVersionTestingPrimitives) ModifyKubernetesResource(ctx contex
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	autoUpdateVersion.Spec.Agents.SetMode(autoupdate.AgentsUpdateModeSuspended)
-	autoUpdateVersion.Spec.Tools = autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
+	autoUpdateVersion.Spec.Agents.Mode = autoupdate.AgentsUpdateModeSuspended
+	autoUpdateVersion.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{
 		TargetVersion: "1.2.4",
-	}.Build()
+	}
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, autoUpdateVersion))
 }
 

@@ -241,12 +241,12 @@ func (c *Client) dialRelay(ctx context.Context, dialTarget string, tunnelType ty
 	})
 	defer defuse()
 
-	if err := writeProto(tc, relaypeeringv1alpha.DialRequest_builder{
+	if err := writeProto(tc, &relaypeeringv1alpha.DialRequest{
 		TargetHostId:   dialTarget,
 		ConnectionType: string(tunnelType),
 		Source:         addrToProto(src),
 		Destination:    addrToProto(dst),
-	}.Build()); err != nil {
+	}); err != nil {
 		defuse()
 		_ = tc.Close()
 		return nil, trace.Wrap(err)

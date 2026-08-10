@@ -20,7 +20,6 @@ import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Indicator } from 'design';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
@@ -58,10 +57,10 @@ export const AppInitializer = () => {
         success: true,
       });
     } catch (error) {
-      logger.error('Failed to initialize app', error);
+      logger.error(error?.message);
 
       setShouldShowUi(true);
-      appContext?.notificationsService.notifyError(getErrorMessage(error));
+      appContext?.notificationsService.notifyError(error?.message);
       appContext?.mainProcessClient.signalUserInterfaceReadiness({
         success: false,
       });

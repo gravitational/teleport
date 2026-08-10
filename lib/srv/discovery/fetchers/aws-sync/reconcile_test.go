@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -47,102 +46,114 @@ func TestReconcileResults(t *testing.T) {
 	upsert, delete := ReconcileResults(&oldResults, &newResults)
 
 	wantDelete := []*accessgraphv1alpha.AWSResource{
-		accessgraphv1alpha.AWSResource_builder{
-			Role: proto.ValueOrDefault(oldRoles[0]),
-		}.Build(),
+		{
+			Resource: &accessgraphv1alpha.AWSResource_Role{
+				Role: oldRoles[0],
+			},
+		},
 	}
 
 	wantUpsert := []*accessgraphv1alpha.AWSResource{
-		accessgraphv1alpha.AWSResource_builder{
-			Role: proto.ValueOrDefault(newRoles[0]),
-		}.Build(),
-		accessgraphv1alpha.AWSResource_builder{
-			Role: proto.ValueOrDefault(newRoles[1]),
-		}.Build(),
-		accessgraphv1alpha.AWSResource_builder{
-			User: proto.ValueOrDefault(newUsers[1]),
-		}.Build(),
-		accessgraphv1alpha.AWSResource_builder{
-			User: proto.ValueOrDefault(newUsers[2]),
-		}.Build(),
-		accessgraphv1alpha.AWSResource_builder{
-			Instance: proto.ValueOrDefault(newEC2[2]),
-		}.Build(),
+		{
+			Resource: &accessgraphv1alpha.AWSResource_Role{
+				Role: newRoles[0],
+			},
+		},
+		{
+			Resource: &accessgraphv1alpha.AWSResource_Role{
+				Role: newRoles[1],
+			},
+		},
+		{
+			Resource: &accessgraphv1alpha.AWSResource_User{
+				User: newUsers[1],
+			},
+		},
+		{
+			Resource: &accessgraphv1alpha.AWSResource_User{
+				User: newUsers[2],
+			},
+		},
+		{
+			Resource: &accessgraphv1alpha.AWSResource_Instance{
+				Instance: newEC2[2],
+			},
+		},
 	}
 
-	require.ElementsMatch(t, wantDelete, delete.GetResources())
-	require.ElementsMatch(t, wantUpsert, upsert.GetResources())
+	require.ElementsMatch(t, wantDelete, delete.Resources)
+	require.ElementsMatch(t, wantUpsert, upsert.Resources)
 }
 
 func generateUsers() (old, new []*accessgraphv1alpha.AWSUserV1) {
-	userA := accessgraphv1alpha.AWSUserV1_builder{
+	userA := &accessgraphv1alpha.AWSUserV1{
 		UserName: "userA",
 		Arn:      "arn:userA",
-		Tags:     []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
-	userBOld := accessgraphv1alpha.AWSUserV1_builder{
+		Tags:     []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
+	userBOld := &accessgraphv1alpha.AWSUserV1{
 		UserName: "userB",
 		Arn:      "arn:userB",
-		Tags:     []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
-	userBNew := accessgraphv1alpha.AWSUserV1_builder{
+		Tags:     []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
+	userBNew := &accessgraphv1alpha.AWSUserV1{
 		UserName: "userB",
 		Arn:      "arn:userB",
-		Tags:     []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value2")}.Build()},
-	}.Build()
-	userC := accessgraphv1alpha.AWSUserV1_builder{
+		Tags:     []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value2")}},
+	}
+	userC := &accessgraphv1alpha.AWSUserV1{
 		UserName: "userC",
 		Arn:      "arn:userC",
-		Tags:     []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
+		Tags:     []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
 	old = []*accessgraphv1alpha.AWSUserV1{userA, userBOld}
 	new = []*accessgraphv1alpha.AWSUserV1{userA, userC, userBNew}
 	return
 }
 
 func generateRoles() (old, new []*accessgraphv1alpha.AWSRoleV1) {
-	roleA := accessgraphv1alpha.AWSRoleV1_builder{
+	roleA := &accessgraphv1alpha.AWSRoleV1{
 		Name: "roleA",
 		Arn:  "arn:roleA",
-		Tags: []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
-	roleBOld := accessgraphv1alpha.AWSRoleV1_builder{
+		Tags: []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
+	roleBOld := &accessgraphv1alpha.AWSRoleV1{
 		Name: "roleB",
 		Arn:  "arn:roleB",
-		Tags: []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
-	roleBNew := accessgraphv1alpha.AWSRoleV1_builder{
+		Tags: []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
+	roleBNew := &accessgraphv1alpha.AWSRoleV1{
 		Name: "roleB",
 		Arn:  "arn:roleB",
-		Tags: []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value2")}.Build()},
-	}.Build()
-	roleC := accessgraphv1alpha.AWSRoleV1_builder{
+		Tags: []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value2")}},
+	}
+	roleC := &accessgraphv1alpha.AWSRoleV1{
 		Name: "roleC",
 		Arn:  "arn:roleC",
-		Tags: []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
+		Tags: []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
 	old = []*accessgraphv1alpha.AWSRoleV1{roleA, roleBOld}
 	new = []*accessgraphv1alpha.AWSRoleV1{roleC, roleBNew}
 	return
 }
 
 func generateEC2() (old, new []*accessgraphv1alpha.AWSInstanceV1) {
-	instanceA := accessgraphv1alpha.AWSInstanceV1_builder{
+	instanceA := &accessgraphv1alpha.AWSInstanceV1{
 		InstanceId: "instanceA",
-		Tags:       []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
-	instanceBOld := accessgraphv1alpha.AWSInstanceV1_builder{
+		Tags:       []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
+	instanceBOld := &accessgraphv1alpha.AWSInstanceV1{
 		InstanceId: "instanceB",
-		Tags:       []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
-	instanceBNew := accessgraphv1alpha.AWSInstanceV1_builder{
+		Tags:       []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
+	instanceBNew := &accessgraphv1alpha.AWSInstanceV1{
 		InstanceId: "instanceB",
-		Tags:       []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value2")}.Build()},
-	}.Build()
-	instanceC := accessgraphv1alpha.AWSInstanceV1_builder{
+		Tags:       []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value2")}},
+	}
+	instanceC := &accessgraphv1alpha.AWSInstanceV1{
 		InstanceId: "instanceC",
-		Tags:       []*accessgraphv1alpha.AWSTag{accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: wrapperspb.String("value1")}.Build()},
-	}.Build()
+		Tags:       []*accessgraphv1alpha.AWSTag{{Key: "key1", Value: wrapperspb.String("value1")}},
+	}
 	old = []*accessgraphv1alpha.AWSInstanceV1{instanceA, instanceBOld, instanceC}
 	new = []*accessgraphv1alpha.AWSInstanceV1{instanceA, instanceC, instanceBNew}
 	return

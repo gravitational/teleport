@@ -134,10 +134,10 @@ func (s *X509OverridesService) ListX509IssuerOverrides(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	return workloadidentityv1pb.ListX509IssuerOverridesResponse_builder{
+	return &workloadidentityv1pb.ListX509IssuerOverridesResponse{
 		X509IssuerOverrides: overrides,
 		NextPageToken:       nextPageToken,
-	}.Build(), nil
+	}, nil
 }
 
 // CreateX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].

@@ -229,8 +229,6 @@ type AuthenticateWebUserRequest struct {
 	User string `json:"user"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
-	// Scope is a scope for with the user is authenticated. Empty means unscoped.
-	Scope string `json:"scope,omitempty"`
 }
 
 type HeadlessRequest struct {
@@ -354,14 +352,7 @@ type SSOChallenge = mfatypes.SSOChallenge
 // SSOMFADevice is a json compatible [proto.SSOMFADevice].
 type SSOMFADevice = mfatypes.SSOMFADevice
 
-// BrowserMFAChallenge is a json compatible [proto.BrowserMFAChallenge].
-type BrowserMFAChallenge = mfatypes.BrowserMFAChallenge
-
-var (
-	SSOChallengeFromProto     = mfatypes.SSOChallengeFromProto
-	BrowserChallengeToProto   = mfatypes.BrowserChallengeToProto
-	BrowserChallengeFromProto = mfatypes.BrowserChallengeFromProto
-)
+var SSOChallengeFromProto = mfatypes.SSOChallengeFromProto
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
@@ -375,6 +366,15 @@ type MFARegisterChallenge struct {
 type TOTPRegisterChallenge struct {
 	QRCode []byte `json:"qrCode"`
 }
+
+// BrowserMFAChallenge is a json compatible [proto.BrowserMFAChallenge].
+type BrowserMFAChallenge = mfatypes.BrowserMFAChallenge
+
+// BrowserChallengeToProto converts an BrowserChallenge to proto format.
+var BrowserChallengeToProto = mfatypes.BrowserChallengeToProto
+
+// BrowserChallengeFromProto converts a BrowserChallenge to json compatible format
+var BrowserChallengeFromProto = mfatypes.BrowserChallengeFromProto
 
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
@@ -716,7 +716,7 @@ type CreateWebSessionResponse struct {
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
-	SessionExpires time.Time `json:"sessionExpires"`
+	SessionExpires time.Time `json:"sessionExpires,omitempty"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.

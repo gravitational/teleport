@@ -17,8 +17,6 @@
  */
 
 import 'whatwg-fetch';
-import { getErrorMessage } from 'shared/utils/error';
-
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
@@ -34,10 +32,6 @@ type RequestOptions = {
    * challenge.
    */
   skipAuthnRetry?: boolean;
-  /**
-   * If set to `true`, the MFA response on an authn retry will be reusable.
-   */
-  allowReuse?: boolean;
 };
 
 const api = {
@@ -88,62 +82,6 @@ const api = {
     }
 
     throw new Error('data for body is not a type of FormData');
-  },
-
-  /**
-   * postWithOptions makes a POST request. Optionally accepts data xor formData. The headers field
-   * overrides defaultHeaders but not auth headers (see getAuthHeaders).
-   *
-   * When passing formData, it always overrides default headers with Accept: 'application/json' to
-   * avoid setting Content-Type to let the browser infer Content-Type from formData. Always adds
-   * Accept: 'application/json' to custom headers when formData is used.
-   */
-  postWithOptions(
-    url: string,
-    options: Partial<{
-      headers: Record<string, string>;
-      mfaResponse: MfaChallengeResponse;
-      signal: AbortSignal;
-    }> & // Either data or formData.
-      (
-        | { data?: unknown; formData?: never }
-        | { data?: never; formData?: FormData }
-      ) = {}
-  ) {
-    let body: RequestInit['body'];
-    let headers: RequestInit['headers'] = options.headers;
-
-    if (options.data) {
-      body = JSON.stringify(options.data);
-    } else if (options.formData) {
-      body = options.formData;
-      // Override headers so that Content-Type is not set to the default one from `defaultRequestOptions`.
-      // Do not set Content-Type directly to let the browser infer Content-Type for FormData types
-      // to set the correct boundary:
-      // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
-      // 2) https://stackoverflow.com/a/64653976
-      headers = {
-        ...(options.headers || {}),
-        Accept: 'application/json',
-      };
-    }
-
-    const customOptions: RequestInit = {
-      method: 'POST',
-      body,
-      signal: options.signal,
-    };
-    // Special handling for header merging logic from api.fetch.
-    // Passing { headers: undefined } would cause api.fetch to completely ignore default headers.
-    if (headers) {
-      customOptions.headers = headers;
-    }
-
-    return api.fetchJsonWithMfaAuthnRetry(
-      url,
-      customOptions,
-      options.mfaResponse
-    );
   },
 
   /** @deprecated Use `deleteWithOptions` instead. */
@@ -279,7 +217,7 @@ const api = {
         !options.skipAuthnRetry &&
         isAdminActionRequiresMfaError(err)
       ) {
-        mfaResponse = await api.getAdminActionMfaResponse(options.allowReuse);
+        mfaResponse = await api.getAdminActionMfaResponse();
         const response = await api.fetch(url, customOptions, mfaResponse);
         return await api.getJsonFromFetchResponse(response);
       } else {
@@ -295,7 +233,7 @@ const api = {
     } catch (err) {
       // error reading JSON
       const message = response.ok
-        ? getErrorMessage(err)
+        ? err.message
         : `${response.status} - ${response.url}`;
       throw new ApiError({ message, response, opts: { cause: err } });
     }
@@ -324,10 +262,9 @@ const api = {
     });
   },
 
-  async getAdminActionMfaResponse(allowReuse?: boolean) {
+  async getAdminActionMfaResponse() {
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse,
     });
 
     if (!challenge) {
@@ -413,14 +350,12 @@ const api = {
   },
 };
 
-export const defaultHeaders: Readonly<Record<string, string>> = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json; charset=utf-8',
-};
-
 export const defaultRequestOptions: RequestInit = {
   credentials: 'same-origin',
-  headers: defaultHeaders,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json; charset=utf-8',
+  },
   mode: 'same-origin',
   cache: 'no-store',
 };
@@ -457,8 +392,8 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-export function isAdminActionRequiresMfaError(err: unknown) {
-  return getErrorMessage(err).includes(
+export function isAdminActionRequiresMfaError(err: Error) {
+  return err.message.includes(
     'admin-level API request requires MFA verification'
   );
 }

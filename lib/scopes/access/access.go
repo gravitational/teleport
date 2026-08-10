@@ -62,11 +62,8 @@ const (
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
 	maxAssignableScopes = 16
-
-	// invalidChars are the special characters that should not be allowed in certain keys or values.
-	invalidChars = "{}^$*"
-	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
-	invalidLabelChars = "{}^$"
+	invalidChars        = "{}^$*"
+	invalidLabelChars   = "{}^$"
 )
 
 // RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
@@ -197,23 +194,13 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	// verify that all rules are allowed for scoped roles
 	for _, rule := range role.GetSpec().GetRules() {
-		grantsRead := slices.Contains(rule.GetVerbs(), Read.String())
 		for _, resource := range rule.GetResources() {
 			for _, verb := range rule.GetVerbs() {
 				if !isAllowedScopedRule(resource, verb) {
-					if verb == Secrets.String() && isAllowedScopedRule(resource, Read.String()) {
-						return trace.BadParameter("scoped role %q has rule with verb %q that is too permissive for resource %q, use %q instead", role.GetMetadata().GetName(), verb, resource, Read)
-					}
-					if verb == types.VerbReadNoSecrets {
-						return trace.BadParameter("scoped role %q has rule with legacy verb %q for resource %q, use %q instead (scoped read permission is secret-exclusive)", role.GetMetadata().GetName(), verb, resource, Read)
+					if verb == types.VerbRead && isAllowedScopedRule(resource, types.VerbReadNoSecrets) {
+						return trace.BadParameter("scoped role %q has rule with verb %q that is too permissive for resource %q, use %q instead", role.GetMetadata().GetName(), verb, resource, types.VerbReadNoSecrets)
 					}
 					return trace.BadParameter("scoped role %q has rule with unsupported resource/verb combination: %q/%q", role.GetMetadata().GetName(), resource, verb)
-				}
-
-				// require secrets is always accompanied by read for ledgibility. our authz internals do not actually
-				// require this treat secret-inclusive read permissions as implying secret-exclusive read permissions.
-				if verb == Secrets.String() && !grantsRead {
-					return trace.BadParameter("scoped role %q has rule granting %q without %q for resource %q", role.GetMetadata().GetName(), Secrets, Read, resource)
 				}
 			}
 		}
@@ -233,6 +220,11 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	if err := validateKubeBlock(role.GetSpec().GetKube()); err != nil {
 		return trace.BadParameter("scoped role %q's kube %s", role.GetMetadata().GetName(), err)
+	}
+
+	// verify that app block is well-formed
+	if err := validateAppBlock(role.GetSpec().GetApp()); err != nil {
+		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
 	}
 
 	if err := validateLabels(role.GetSpec().GetWorkloadIdentity().GetLabels()); err != nil {

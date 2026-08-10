@@ -17,10 +17,10 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { Routes, Route } from 'react-router';
 
 import { ToastNotifications } from 'shared/components/ToastNotification';
 
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -43,9 +43,9 @@ function Component({
     <TeleportProviderBasic initialEntries={initialEntries}>
       <ToastNotifications />
       <ContentMinWidth>
-        <Routes>
-          <Route path={path} element={<IaCIntegrationOverview />} />
-        </Routes>
+        <Route path={path}>
+          <IaCIntegrationOverview />
+        </Route>
       </ContentMinWidth>
     </TeleportProviderBasic>
   );

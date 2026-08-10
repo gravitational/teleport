@@ -99,10 +99,6 @@ title: Reference for the ${module_name} Terraform module
 sidebar_label: ${module_name}
 description: This page describes the ${module_name} Terraform module.
 page_type: reference
-tags:
- - infrastructure-as-code
- - reference
- - platform-wide
 ---
 
 {/*

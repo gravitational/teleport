@@ -133,19 +133,21 @@ func (c *RouteConflictDiag) Run(ctx context.Context) (*diagv1.CheckReport, error
 			status = diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
 		}
 
-		return diagv1.CheckReport_builder{
+		return &diagv1.CheckReport{
 			Status: status,
-			RouteConflictReport: diagv1.RouteConflictReport_builder{
-				RouteConflicts: rcs,
-			}.Build(),
-		}.Build(), nil
+			Report: &diagv1.CheckReport_RouteConflictReport{
+				RouteConflictReport: &diagv1.RouteConflictReport{
+					RouteConflicts: rcs,
+				},
+			},
+		}, nil
 	}
 }
 
 func (c *RouteConflictDiag) EmptyCheckReport() *diagv1.CheckReport {
-	return diagv1.CheckReport_builder{
-		RouteConflictReport: &diagv1.RouteConflictReport{},
-	}.Build()
+	return &diagv1.CheckReport{
+		Report: &diagv1.CheckReport_RouteConflictReport{},
+	}
 }
 
 func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, error) {
@@ -215,12 +217,12 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 				return nil, trace.Wrap(err)
 			}
 
-			rcs = append(rcs, diagv1.RouteConflict_builder{
+			rcs = append(rcs, &diagv1.RouteConflict{
 				Dest:          rd.String(),
 				VnetDest:      vnetDest.String(),
 				InterfaceName: iface.Name,
 				InterfaceApp:  ifaceNetworkExtDesc,
-			}.Build())
+			})
 			break
 		}
 	}

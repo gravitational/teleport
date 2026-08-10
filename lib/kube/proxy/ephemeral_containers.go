@@ -264,7 +264,7 @@ func (f *Forwarder) getPodForEphemeralPatch(
 func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType, kubeUser string, kubeGroups []string) error {
 	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
 		ephemeralContName,
-		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
+		&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 			Username:         authCtx.User.GetName(),
 			Cluster:          authCtx.kubeClusterName,
 			Namespace:        authCtx.metaResource.requestedResource.namespace,
@@ -274,7 +274,7 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 			PatchType:        string(patchType),
 			KubernetesUser:   kubeUser,
 			KubernetesGroups: kubeGroups,
-		}.Build())
+		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -374,7 +374,7 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 // a session which can be safely waiting on until the moderated session
 // is approved.
 func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession, waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) (*watch.Event, error) {
-	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()))
+	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.Spec.PatchType))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -435,10 +435,10 @@ func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, userna
 			return nil, trace.Wrap(err)
 		}
 		for _, cont := range waitingContainers {
-			if cont.GetSpec().GetUsername() != username ||
-				cont.GetSpec().GetCluster() != kubeCluster ||
-				cont.GetSpec().GetNamespace() != namespace ||
-				cont.GetSpec().GetPodName() != pod {
+			if cont.Spec.Username != username ||
+				cont.Spec.Cluster != kubeCluster ||
+				cont.Spec.Namespace != namespace ||
+				cont.Spec.PodName != pod {
 				continue
 			}
 

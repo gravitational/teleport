@@ -24,7 +24,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -35,16 +34,16 @@ import (
 
 // TestMarshalNotificationRoundTrip tests the marshaling and unmarshaling functions for Notification objects.
 func TestMarshalNotificationRoundTrip(t *testing.T) {
-	notification := notificationsv1.Notification_builder{
+	notification := &notificationsv1.Notification{
 		Kind:    types.KindNotification,
 		Version: types.V1,
 		SubKind: "test-subkind",
 		Spec:    &notificationsv1.NotificationSpec{},
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:   "test-notification-1",
 			Labels: map[string]string{types.NotificationTitleLabel: "title-1"},
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	payload, err := MarshalNotification(notification)
 	require.NoError(t, err)
@@ -57,22 +56,24 @@ func TestMarshalNotificationRoundTrip(t *testing.T) {
 
 // TestMarshalGlobalNotificationRoundTrip tests the marshaling and unmarshaling functions for GlobalNotification objects.
 func TestMarshalGlobalNotificationRoundTrip(t *testing.T) {
-	notification := notificationsv1.GlobalNotification_builder{
+	notification := &notificationsv1.GlobalNotification{
 		Kind:     types.KindGlobalNotification,
 		Metadata: &headerv1.Metadata{},
 		Version:  types.V1,
-		Spec: notificationsv1.GlobalNotificationSpec_builder{
-			All: proto.Bool(true),
-			Notification: notificationsv1.Notification_builder{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_All{
+				All: true,
+			},
+			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:   "test-notification-id",
 					Labels: map[string]string{types.NotificationTitleLabel: "title-1"},
-				}.Build(),
-			}.Build(),
-		}.Build(),
-	}.Build()
+				},
+			},
+		},
+	}
 
 	payload, err := MarshalGlobalNotification(notification)
 	require.NoError(t, err)
@@ -85,15 +86,15 @@ func TestMarshalGlobalNotificationRoundTrip(t *testing.T) {
 
 // TestUserNotificationStateRoundTrip tests the marshaling and unmarshaling functions for UserNotificationState objects.
 func TestUserNotificationStateRoundTrip(t *testing.T) {
-	userNotificationState := notificationsv1.UserNotificationState_builder{
+	userNotificationState := &notificationsv1.UserNotificationState{
 		Metadata: &headerv1.Metadata{},
-		Spec: notificationsv1.UserNotificationStateSpec_builder{
+		Spec: &notificationsv1.UserNotificationStateSpec{
 			NotificationId: "test-notification-1",
-		}.Build(),
-		Status: notificationsv1.UserNotificationStateStatus_builder{
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	payload, err := MarshalUserNotificationState(userNotificationState)
 	require.NoError(t, err)
@@ -107,12 +108,12 @@ func TestUserNotificationStateRoundTrip(t *testing.T) {
 // TestUserLastSeenNotificationRoundTrip tests the marshaling and unmarshaling functions for Notification objects.
 func TestUserLastSeenNotificationStateRoundTrip(t *testing.T) {
 	timestamp := timestamppb.New(time.UnixMilli(1708041600000)) // February 16, 2024 12:00:00 AM UTC
-	userLastSeenNotification := notificationsv1.UserLastSeenNotification_builder{
+	userLastSeenNotification := &notificationsv1.UserLastSeenNotification{
 		Metadata: &headerv1.Metadata{},
-		Status: notificationsv1.UserLastSeenNotificationStatus_builder{
+		Status: &notificationsv1.UserLastSeenNotificationStatus{
 			LastSeenTime: timestamp,
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	payload, err := MarshalUserLastSeenNotification(userLastSeenNotification)
 	require.NoError(t, err)

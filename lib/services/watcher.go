@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -249,7 +248,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Logger.Log(p.ctx, logutils.TraceLevel, "Starting watch.")
+		p.Logger.DebugContext(p.ctx, "Starting watch.")
 		err := p.watch()
 
 		select {
@@ -571,16 +570,17 @@ func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
 		const databaseServerMaxStaleness = time.Minute
 		cfg.MaxStaleness = databaseServerMaxStaleness
 	}
-
 	if cfg.DatabaseServersGetter == nil {
 		getter, ok := cfg.Client.(DatabaseServersGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
 		}
 		cfg.DatabaseServersGetter = getter
+		const appServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = appServerMaxStaleness
 	}
-
 	return nil
+
 }
 
 func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
@@ -648,10 +648,6 @@ type KubeClusterWatcherConfig struct {
 	KubeClustersC chan []types.KubeCluster
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
-	// LoadSecrets specifies whether the watched kube clusters include their kubeconfig. Only the
-	// kube agent needs this, to connect to dynamically-registered clusters, and it requires
-	// secret-inclusive read permission on kubernetes_cluster.
-	LoadSecrets bool
 }
 
 // NewKubeClusterWatcher returns a new instance of KubeClusterWatcher.
@@ -664,11 +660,8 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeCluster, readonly.KubeCluster]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
-		LoadSecrets:           cfg.LoadSecrets,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
-				WithSecrets: cfg.LoadSecrets,
-			}.Build()))
+			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
 		},
 		ResourceKey: GetCursorForKubeCluster,
 		DeleteKey: func(res types.Resource) string {
@@ -756,10 +749,6 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
-	// ResourceFilter is an optional filter that is applied on the backend when
-	// watching for resources. Only resources matching the filter will be sent
-	// to the watcher.
-	ResourceFilter map[string]string
 	// ScopeFilter is an optional scope filter applied to the watch. A nil filter
 	// yields the caller's default scope behavior (unscoped-only for unscoped
 	// callers, current-scope-only for scoped callers). Watchers that run on the
@@ -913,7 +902,6 @@ func (g *genericCollector[T, R]) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{
 		Kind:        g.ResourceKind,
 		LoadSecrets: g.LoadSecrets,
-		Filter:      g.ResourceFilter,
 		ScopeFilter: g.ScopeFilter,
 	}}
 }
@@ -1022,7 +1010,7 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			// Always broadcast when a resource is deleted.
 			updated = true
 		case types.OpPut:
-			resource, err := types.ConvertResource[T](event.Resource)
+			resource, err := convertResource[T](event.Resource)
 			if err != nil {
 				g.Logger.WarnContext(ctx, "Failed to convert event resource",
 					"resource", event.Resource.GetKind(),
@@ -1584,7 +1572,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && authority.IsEqual(ca) {
+			if ok && CertAuthoritiesEquivalent(authority, ca) {
 				continue
 			}
 
@@ -1789,6 +1777,184 @@ func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Conte
 }
 
 func (*accessRequestCollector) notifyStale() {}
+
+// OktaAssignmentWatcherConfig is a OktaAssignmentWatcher configuration.
+type OktaAssignmentWatcherConfig struct {
+	// OktaAssignments is responsible for fetching Okta assignments.
+	OktaAssignments OktaAssignmentsGetter
+	// OktaAssignmentsC receives up-to-date list of all Okta assignment resources.
+	OktaAssignmentsC chan types.OktaAssignments
+	// RWCfg is the resource watcher configuration.
+	RWCfg ResourceWatcherConfig
+	// PageSize is the number of Okta assignments to list at a time.
+	PageSize int
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *OktaAssignmentWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.RWCfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.OktaAssignments == nil {
+		assignments, ok := cfg.RWCfg.Client.(OktaAssignmentsGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter OktaAssignments and Client not usable as OktaAssignments")
+		}
+		cfg.OktaAssignments = assignments
+	}
+	if cfg.OktaAssignmentsC == nil {
+		cfg.OktaAssignmentsC = make(chan types.OktaAssignments)
+	}
+	return nil
+}
+
+// NewOktaAssignmentWatcher returns a new instance of OktaAssignmentWatcher. The context here will be used to
+// exit early from the resource watcher if needed.
+func NewOktaAssignmentWatcher(ctx context.Context, cfg OktaAssignmentWatcherConfig) (*OktaAssignmentWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &oktaAssignmentCollector{
+		logger:          cfg.RWCfg.Logger,
+		cfg:             cfg,
+		initializationC: make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.RWCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &OktaAssignmentWatcher{
+		resourceWatcher: watcher,
+		collector:       collector,
+	}, nil
+}
+
+// OktaAssignmentWatcher is built on top of resourceWatcher to monitor Okta assignment resources.
+type OktaAssignmentWatcher struct {
+	resourceWatcher *resourceWatcher
+	collector       *oktaAssignmentCollector
+}
+
+// CollectorChan is the channel that collects the Okta assignments.
+func (o *OktaAssignmentWatcher) CollectorChan() chan types.OktaAssignments {
+	return o.collector.cfg.OktaAssignmentsC
+}
+
+// Close closes the underlying resource watcher
+func (o *OktaAssignmentWatcher) Close() {
+	o.resourceWatcher.Close()
+}
+
+// Done returns the channel that signals watcher closer.
+func (o *OktaAssignmentWatcher) Done() <-chan struct{} {
+	return o.resourceWatcher.Done()
+}
+
+// oktaAssignmentCollector accompanies resourceWatcher when monitoring Okta assignment resources.
+type oktaAssignmentCollector struct {
+	// OktaAssignmentWatcherConfig is the watcher configuration.
+	cfg    OktaAssignmentWatcherConfig
+	logger *slog.Logger
+	// current holds a map of the currently known Okta assignment resources.
+	current map[string]types.OktaAssignment
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	// mu guards "current"
+	mu   sync.RWMutex
+	once sync.Once
+}
+
+// resourceKinds specifies the resource kind to watch.
+func (*oktaAssignmentCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindOktaAssignment}}
+}
+
+// initializationChan is used to check if the initial state sync has been completed.
+func (c *oktaAssignmentCollector) initializationChan() <-chan struct{} {
+	return c.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	var oktaAssignments []types.OktaAssignment
+	var nextToken string
+	for {
+		var oktaAssignmentsPage []types.OktaAssignment
+		var err error
+		oktaAssignmentsPage, nextToken, err = c.cfg.OktaAssignments.ListOktaAssignments(ctx, c.cfg.PageSize, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		oktaAssignments = append(oktaAssignments, oktaAssignmentsPage...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
+	for _, oktaAssignment := range oktaAssignments {
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment.Copy()
+	}
+	c.mu.Lock()
+	c.current = newCurrent
+	c.defineCollectorAsInitialized()
+	c.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.cfg.OktaAssignmentsC <- oktaAssignments:
+	}
+
+	return nil
+}
+
+func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
+	c.once.Do(func() {
+		close(c.initializationC)
+	})
+}
+
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
+			c.logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
+			continue
+		}
+		switch event.Type {
+		case types.OpDelete:
+			delete(c.current, event.Resource.GetName())
+			resources := resourcesToSlice(c.current, types.OktaAssignment.Copy)
+			select {
+			case <-ctx.Done():
+			case c.cfg.OktaAssignmentsC <- resources:
+			}
+		case types.OpPut:
+			oktaAssignment, ok := event.Resource.(types.OktaAssignment)
+			if !ok {
+				c.logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
+				continue
+			}
+			c.current[oktaAssignment.GetName()] = oktaAssignment
+			resources := resourcesToSlice(c.current, types.OktaAssignment.Copy)
+
+			select {
+			case <-ctx.Done():
+			case c.cfg.OktaAssignmentsC <- resources:
+			}
+
+		default:
+			c.logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
+		}
+	}
+}
+
+func (*oktaAssignmentCollector) notifyStale() {}
 
 // GitServerWatcherConfig is the config for Git server watcher.
 type GitServerWatcherConfig struct {

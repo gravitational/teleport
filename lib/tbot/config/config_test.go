@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -230,6 +231,7 @@ func TestBotConfig_YAML(t *testing.T) {
 						Destination: &destination.Directory{
 							Path: "/bot/output",
 						},
+						Roles:   []string{"editor"},
 						Cluster: "example.teleport.sh",
 					},
 					&identity.OutputConfig{
@@ -246,6 +248,39 @@ func TestBotConfig_YAML(t *testing.T) {
 					},
 				},
 				Services: []ServiceConfig{
+					&legacyspiffe.WorkloadAPIConfig{
+						Listen: "unix:///var/run/spiffe.sock",
+						SVIDs: []legacyspiffe.SVIDRequestWithRules{
+							{
+								SVIDRequest: legacyspiffe.SVIDRequest{
+									Path: "/bar",
+									Hint: "my hint",
+									SANS: legacyspiffe.SVIDRequestSANs{
+										DNS: []string{"foo.bar"},
+										IP:  []string{"10.0.0.1"},
+									},
+								},
+								Rules: []legacyspiffe.SVIDRequestRule{
+									{
+										Unix: legacyspiffe.SVIDRequestRuleUnix{
+											PID: ptr(100),
+											UID: ptr(1000),
+											GID: ptr(1234),
+										},
+									},
+									{
+										Unix: legacyspiffe.SVIDRequestRuleUnix{
+											PID: ptr(100),
+										},
+									},
+								},
+							},
+						},
+						CredentialLifetime: bot.CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
+					},
 					&example.Config{
 						Message: "llama",
 					},
@@ -260,6 +295,7 @@ func TestBotConfig_YAML(t *testing.T) {
 					},
 					&application.TunnelConfig{
 						Listen:  "tcp://127.0.0.1:123",
+						Roles:   []string{"access"},
 						AppName: "my-app",
 						CredentialLifetime: bot.CredentialLifetime{
 							TTL:             30 * time.Second,
@@ -464,71 +500,6 @@ credential_ttl: 10m
 	})
 }
 
-// TestBotConfig_DeprecatedRolesRejected checks that the removed `roles` field is
-// rejected for every service that used to accept it.
-//
-// This deliberately goes through YAML parsing rather than setting the Go field:
-// the field only exists to keep the `roles` key bound, and unknown keys are
-// discarded silently, so a test that skips parsing would not notice the binding
-// being dropped.
-func TestBotConfig_DeprecatedRolesRejected(t *testing.T) {
-	tests := []struct {
-		name    string
-		service string
-	}{
-		{"identity", `
-  - type: identity
-    destination: {type: memory}
-    roles: [access]`},
-		{"identity/key-agent", `
-  - type: identity/key-agent
-    destination: {type: directory, path: /bot/output}
-    roles: [access]`},
-		{"database", `
-  - type: database
-    destination: {type: memory}
-    service: svc
-    database: db
-    username: alice
-    roles: [access]`},
-		{"database-tunnel", `
-  - type: database-tunnel
-    listen: tcp://127.0.0.1:3306
-    service: svc
-    database: db
-    username: alice
-    roles: [access]`},
-		{"application", `
-  - type: application
-    destination: {type: memory}
-    app_name: my-app
-    roles: [access]`},
-		{"application-tunnel", `
-  - type: application-tunnel
-    listen: tcp://127.0.0.1:8080
-    app_name: my-app
-    roles: [access]`},
-		{"kubernetes", `
-  - type: kubernetes
-    destination: {type: memory}
-    kubernetes_cluster: my-cluster
-    roles: [access]`},
-		{"ssh_host", `
-  - type: ssh_host
-    destination: {type: memory}
-    principals: [host.example.com]
-    roles: [access]`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := ReadConfig(strings.NewReader("version: v2\nservices:"+tt.service+"\n"), false)
-			require.NoError(t, err)
-			require.ErrorContains(t, cfg.CheckAndSetDefaults(), "roles: the roles field is no longer supported")
-		})
-	}
-}
-
 // TestBotConfig_Base64 ensures that config can be read from bas64 encoded YAML
 func TestBotConfig_Base64(t *testing.T) {
 	tests := []struct {
@@ -582,3 +553,5 @@ func TestBotConfig_Base64(t *testing.T) {
 		})
 	}
 }
+
+func ptr[T any](v T) *T { return &v }

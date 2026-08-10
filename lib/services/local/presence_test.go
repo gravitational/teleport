@@ -1056,6 +1056,8 @@ func TestListResources(t *testing.T) {
 	}
 
 	for testName, test := range tests {
+		testName := testName
+		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			backend, err := memory.New(memory.Config{
@@ -1083,13 +1085,13 @@ func TestListResources(t *testing.T) {
 			totalResources := totalWithLabels + totalWithoutLabels
 
 			// with labels
-			for i := range totalWithLabels {
+			for i := 0; i < totalWithLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
 			// without labels
-			for i := range totalWithoutLabels {
+			for i := 0; i < totalWithoutLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
 				require.NoError(t, err)
 			}
@@ -1241,6 +1243,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        5,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -1253,7 +1256,7 @@ func TestListResources_Helpers(t *testing.T) {
 	})
 
 	// Add some test servers.
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1271,6 +1274,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        -1,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := tc.fetch(req)
@@ -1286,6 +1290,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        int32(len(nodes)),
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -1301,6 +1306,7 @@ func TestListResources_Helpers(t *testing.T) {
 
 	t.Run("test first, middle, last fetching", func(t *testing.T) {
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				// First fetch.
@@ -1360,6 +1366,7 @@ func TestListResources_Helpers(t *testing.T) {
 			SearchKeywords: []string{targetVal},
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -1398,7 +1405,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some test servers.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1437,6 +1444,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		}
 
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				req := FakePaginateParams{
@@ -1565,121 +1573,6 @@ func TestFakePaginateWithScopes(t *testing.T) {
 	}
 }
 
-func TestFakePaginateScopedCursors(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	bend, err := memory.New(memory.Config{
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = bend.Close() })
-
-	const scope = "/aa"
-	encodedScope := scopes.EncodeForResourceCursor(scope)
-
-	unscopedKubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: "cluster",
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-
-	scopedKubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: "cluster",
-		},
-		types.KubernetesClusterSpecV3{},
-		types.KubeClusterWithScope(scope),
-	)
-	require.NoError(t, err)
-
-	unscopedKubeServer, err := types.NewKubernetesServerV3FromCluster(unscopedKubeCluster, "host", "host-id")
-	require.NoError(t, err)
-
-	scopedKubeServer, err := types.NewKubernetesServerV3FromCluster(scopedKubeCluster, "host", "host-id")
-	require.NoError(t, err)
-
-	unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
-		types.AppSpecV3{URI: "http://localhost:8080"})
-	require.NoError(t, err)
-
-	unscopedAppServer, err := types.NewAppServerV3FromApp(unscopedApp, "host", "host-id")
-	require.NoError(t, err)
-
-	scopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
-		types.AppSpecV3{URI: "http://localhost:8080"}, scope)
-	require.NoError(t, err)
-	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "host", "host-id")
-	require.NoError(t, err)
-
-	for _, tt := range []struct {
-		name          string
-		params        FakePaginateParams
-		resources     []types.ResourceWithLabels
-		expectNextKey string
-		expectErr     bool
-	}{
-		{
-			name: "next key is scoped kube cluster",
-			params: FakePaginateParams{
-				ResourceType: types.KindKubernetesCluster,
-				Limit:        1,
-			},
-			resources:     []types.ResourceWithLabels{unscopedKubeCluster, scopedKubeCluster},
-			expectNextKey: "~scoped/" + encodedScope + "/cluster",
-		},
-		{
-			name: "next key is unscoped kube cluster",
-			params: FakePaginateParams{
-				ResourceType: types.KindKubernetesCluster,
-				Limit:        1,
-			},
-			resources:     []types.ResourceWithLabels{scopedKubeCluster, unscopedKubeCluster},
-			expectNextKey: "cluster",
-		},
-		{
-			name: "fake paginating kube servers should fail",
-			params: FakePaginateParams{
-				ResourceType: types.KindKubeServer,
-				Limit:        2,
-			},
-			resources: []types.ResourceWithLabels{unscopedKubeServer, scopedKubeServer},
-			expectErr: true,
-		},
-		{
-			name: "next key is scoped app server",
-			params: FakePaginateParams{
-				ResourceType: types.KindAppServer,
-				Limit:        1,
-			},
-			resources:     []types.ResourceWithLabels{unscopedAppServer, scopedAppServer},
-			expectNextKey: "~scoped/" + encodedScope + "/host-id/a",
-		},
-		{
-			name: "next key is unscoped app server",
-			params: FakePaginateParams{
-				ResourceType: types.KindAppServer,
-				Limit:        1,
-			},
-			resources:     []types.ResourceWithLabels{scopedAppServer, unscopedAppServer},
-			expectNextKey: "host-id/a",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			res, err := FakePaginate(tt.resources, tt.params)
-			if tt.expectErr {
-				require.Error(t, err)
-				return
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, tt.expectNextKey, res.NextKey)
-		})
-	}
-
-}
-
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1729,12 +1622,13 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
 	for _, l := range leases {
+		l := l
 		go func() {
 			errCh <- presence.CancelSemaphoreLease(ctx, *l)
 		}()
 	}
 
-	for range maxLeases {
+	for i := 0; i < maxLeases; i++ {
 		err := <-errCh
 		require.NoError(t, err)
 	}
@@ -1792,7 +1686,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -1819,7 +1713,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -1842,7 +1736,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
@@ -1980,7 +1874,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
 		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
@@ -1997,7 +1891,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.ReverseTunnel{}
 	pageToken = ""
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		var got []types.ReverseTunnel
 		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
 		require.NoError(t, err)
@@ -2060,14 +1954,14 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	_, err = p.UpsertRelayServer(ctx, nil)
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	relayA := presencev1.RelayServer_builder{
+	relayA := &presencev1.RelayServer{
 		Kind:    types.KindRelayServer,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "a",
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
 	require.NoError(t, err)
@@ -2095,14 +1989,14 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	err = p.DeleteRelayServer(ctx, "a")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
-	relayB := presencev1.RelayServer_builder{
+	relayB := &presencev1.RelayServer{
 		Kind:    types.KindRelayServer,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "b",
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
 	require.NoError(t, err)
@@ -2353,7 +2247,7 @@ func TestReverseTunnels_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
 	slices := [][]types.ReverseTunnel{page1, page2, page3}
 	for i := range len(slices) {
 		for j := i + 1; j < len(slices); j++ {
-			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+			require.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
 		}
 	}
 }

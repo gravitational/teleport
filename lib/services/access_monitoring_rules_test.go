@@ -19,7 +19,6 @@
 package services
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -44,7 +43,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		{
 			description: "notification name required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().GetNotification().SetName("")
+				amr.Spec.Notification.Name = ""
 			},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "notification plugin name is missing")
@@ -53,7 +52,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		{
 			description: "automatic_review integration required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().GetAutomaticReview().SetIntegration("")
+				amr.Spec.AutomaticReview.Integration = ""
 			},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "automatic_review integration is missing")
@@ -62,7 +61,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		{
 			description: "automatic_review decision required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().GetAutomaticReview().SetDecision("")
+				amr.Spec.AutomaticReview.Decision = ""
 			},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "automatic_review decision is missing")
@@ -71,8 +70,8 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		{
 			description: "notification or automatic_review required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().ClearNotification()
-				amr.GetSpec().ClearAutomaticReview()
+				amr.Spec.Notification = nil
+				amr.Spec.AutomaticReview = nil
 			},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "notification or automatic_review must be configured")
@@ -81,105 +80,89 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		{
 			description: "allow automatic_review to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().ClearAutomaticReview()
+				amr.Spec.AutomaticReview = nil
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "allow notifications to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().ClearNotification()
+				amr.Spec.Notification = nil
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "invalid automatic_review decision",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().GetAutomaticReview().SetDecision("invalid-decision")
+				amr.Spec.AutomaticReview.Decision = "invalid-decision"
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `accessMonitoringRule automatic_review decision "invalid-decision" is not supported`)
-			},
-		},
-		{
-			description: "automatic_review reason at maximum length",
-			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().GetAutomaticReview().SetReason(strings.Repeat("a", maxAccessRequestReasonSize))
-			},
-			assertErr: require.NoError,
-		},
-		{
-			description: "automatic_review reason too long",
-			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().GetAutomaticReview().SetReason(strings.Repeat("a", maxAccessRequestReasonSize+1))
-			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "automatic_review reason is too long")
 			},
 		},
 		{
 			description: "invalid desired_state",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().SetDesiredState("invalid-desired-state")
+				amr.Spec.DesiredState = "invalid-desired-state"
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `accessMonitoringRule desired_state "invalid-desired-state" is not supported`)
 			},
 		},
 		{
 			description: "invalid condition",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().SetCondition("invalid-condition")
+				amr.Spec.Condition = "invalid-condition"
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "accessMonitoringRule condition is invalid")
 			},
 		},
 		{
 			description: "allow desired_state to be empty",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().SetDesiredState("")
+				amr.Spec.DesiredState = ""
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "valid time schedule",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.GetSpec().SetSchedules(map[string]*accessmonitoringrulesv1.Schedule{
-					"default": accessmonitoringrulesv1.Schedule_builder{
-						Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				amr.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
+					"default": {
+						Time: &accessmonitoringrulesv1.TimeSchedule{
 							Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-								accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+								{
 									Weekday: time.Monday.String(),
 									Start:   "00:00",
 									End:     "23:59",
-								}.Build(),
+								},
 							},
-						}.Build(),
-					}.Build(),
-				})
+						},
+					},
+				}
 			},
 			assertErr: require.NoError,
 		},
 	}
 
-	validAMR := accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	validAMR := &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:     types.KindAccessMonitoringRule,
 		Metadata: &headerv1.Metadata{},
 		Version:  types.V1,
-		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:     []string{types.KindAccessRequest},
 			Condition:    "true",
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
-			Notification: accessmonitoringrulesv1.Notification_builder{
+			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "fakePlugin",
-			}.Build(),
-			AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+			},
+			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 				Integration: "fakePlugin",
 				Decision:    types.RequestState_APPROVED.String(),
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
@@ -204,45 +187,45 @@ func TestValidateSchedules(t *testing.T) {
 		{
 			description: "valid schedules",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "multiple schedules",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"on-call-1": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"on-call-1": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Saturday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-				"on-call-2": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+					},
+				},
+				"on-call-2": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Sunday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: require.NoError,
 		},
@@ -258,9 +241,9 @@ func TestValidateSchedules(t *testing.T) {
 		{
 			description: "does not contain any shifts",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
+				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{},
-				}.Build(),
+				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "at least one shift is require")
@@ -269,90 +252,90 @@ func TestValidateSchedules(t *testing.T) {
 		{
 			description: "valid timezone (UTC)",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Timezone: "UTC",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "valid timezone (America/Los_Angeles)",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Timezone: "America/Los_Angeles",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "valid timezone (Europe/Lisbon)",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Timezone: "Europe/Lisbon",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "valid timezone (Asia/Singapore)",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Timezone: "Asia/Singapore",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: require.NoError,
 		},
 		{
 			description: "invalid timezone",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Timezone: "invalid",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "00:00",
 								End:     "23:59",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "invalid timezone")
@@ -361,17 +344,17 @@ func TestValidateSchedules(t *testing.T) {
 		{
 			description: "start time is not before end time",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": accessmonitoringrulesv1.Schedule_builder{
-					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
+							{
 								Weekday: time.Monday.String(),
 								Start:   "23:59",
 								End:     "00:00",
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
+					},
+				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "start time must be before end time")

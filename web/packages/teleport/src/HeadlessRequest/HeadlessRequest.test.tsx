@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { Route, Router } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -44,12 +45,14 @@ function setup({ mfaPrompt = false, path = '/web/headless/123' } = {}) {
     .spyOn(auth, 'headlessSsoGet')
     .mockResolvedValue({ clientIpAddress: '1.2.3.4' });
 
+  const mockHistory = createMemoryHistory({ initialEntries: [path] });
+
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path={cfg.routes.headlessSso} element={<HeadlessRequest />} />
-      </Routes>
-    </MemoryRouter>
+    <Router history={mockHistory}>
+      <Route path={cfg.routes.headlessSso}>
+        <HeadlessRequest />
+      </Route>
+    </Router>
   );
 }
 

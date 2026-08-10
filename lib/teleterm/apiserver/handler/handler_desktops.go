@@ -32,13 +32,13 @@ func newAPIWindowsDesktop(clusterDesktop clusters.WindowsDesktop) *api.WindowsDe
 	desktop := clusterDesktop.WindowsDesktop
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(desktop.GetAllLabels()))
 
-	return api.WindowsDesktop_builder{
+	return &api.WindowsDesktop{
 		Uri:    clusterDesktop.URI.String(),
 		Name:   desktop.GetName(),
 		Addr:   desktop.GetAddr(),
 		Logins: clusterDesktop.Logins,
 		Labels: apiLabels,
-	}.Build()
+	}
 }
 
 // ConnectToDesktop establishes a desktop connection.

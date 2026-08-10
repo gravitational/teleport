@@ -70,9 +70,6 @@ locals {
   ]
 
   rds_actions = [
-    "ec2:DescribeSecurityGroups",
-    "ec2:DescribeSubnets",
-    "ec2:DescribeVpcs",
     "rds:DescribeDBClusters",
     "rds:DescribeDBInstances",
   ]

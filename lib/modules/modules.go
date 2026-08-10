@@ -81,7 +81,7 @@ type Features struct {
 	// AccessGraph enables the usage of access graph.
 	// NOTE: this is a legacy flag that is currently used to signal
 	// that Access Graph integration is *enabled* on a cluster.
-	// *Access* to the feature is gated on the `AccessGraph` entitlement.
+	// *Access* to the feature is gated on the `Policy` flag.
 	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// AccessMonitoringConfigured contributes to the enablement of access monitoring.
@@ -119,7 +119,7 @@ func (e EntitlementInfo) UnderLimit(count int) bool {
 
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
-	return &proto.Features{
+	protoF := &proto.Features{
 		Cloud:                      f.Cloud,
 		CustomTheme:                f.CustomTheme,
 		IsStripeManaged:            f.IsStripeManaged,
@@ -135,27 +135,59 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:              f.RecoveryCodes,
 		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
 		Entitlements:               f.EntitlementsToProto(),
-
-		// TODO(michellescripts) DELETE IN v21.0.0
-		// Deprecated, use entitlements
-		Policy: &proto.PolicyFeature{
-			Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
-		},
-		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
-		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
-		BeamsUI:              f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled,
 	}
+
+	// remove setLegacyLogic in v18
+	setLegacyLogic(protoF, f)
+	return protoF
 }
 
-// EntitlementsToProto takes the features.Entitlements object and returns a
-// proto version. Missing split identity security entitlements fall back to the
-// legacy Policy entitlement.
+// setLegacyLogic sets the deprecated fields; to be removed in v18 - use entitlements
+func setLegacyLogic(protoF *proto.Features, f Features) {
+	protoF.Kubernetes = f.GetEntitlement(entitlements.K8s).Enabled
+	protoF.App = f.GetEntitlement(entitlements.App).Enabled
+	protoF.DB = f.GetEntitlement(entitlements.DB).Enabled
+	protoF.OIDC = f.GetEntitlement(entitlements.OIDC).Enabled
+	protoF.SAML = f.GetEntitlement(entitlements.SAML).Enabled
+	protoF.HSM = f.GetEntitlement(entitlements.HSM).Enabled
+	protoF.Desktop = f.GetEntitlement(entitlements.Desktop).Enabled
+	protoF.FeatureHiding = f.GetEntitlement(entitlements.FeatureHiding).Enabled
+	protoF.IdentityGovernance = f.GetEntitlement(entitlements.Identity).Enabled
+	protoF.ExternalAuditStorage = f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled
+	protoF.JoinActiveSessions = f.GetEntitlement(entitlements.JoinActiveSessions).Enabled
+	protoF.MobileDeviceManagement = f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled
+
+	protoF.DeviceTrust = &proto.DeviceTrustFeature{
+		Enabled: f.GetEntitlement(entitlements.DeviceTrust).Enabled, DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
+	}
+	protoF.AccessRequests = &proto.AccessRequestsFeature{
+		MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
+	}
+	protoF.AccessMonitoring = &proto.AccessMonitoringFeature{
+		Enabled: f.AccessMonitoringConfigured, MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
+	}
+	protoF.AccessList = &proto.AccessListFeature{
+		CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
+	}
+	protoF.Policy = &proto.PolicyFeature{
+		Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
+	}
+	protoF.BeamsUI = f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled
+}
+
+// EntitlementsToProto takes the features.Entitlements object and returns a proto version. If not present on Features, the
+// proto entitlement will default to false
 func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
 	all := entitlements.AllEntitlements
 	result := make(map[string]*proto.EntitlementInfo, len(all))
 
 	for _, e := range all {
-		al := f.GetEntitlement(e)
+		al, ok := f.Entitlements[e]
+		if !ok {
+			result[string(e)] = &proto.EntitlementInfo{}
+			continue
+		}
+
 		result[string(e)] = &proto.EntitlementInfo{
 			Enabled: al.Enabled,
 			Limit:   al.Limit,
@@ -165,56 +197,31 @@ func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
 	return result
 }
 
-// GetEntitlement returns the requested entitlement. For compatibility with
-// licenses that predate the identity security entitlement split, a missing
-// AccessGraph, ActivityCenter, or SessionSummaries entitlement falls back to an
-// enabled legacy Policy entitlement.
+// GetEntitlement takes an entitlement and returns either the Features entitlement, or if not present, a false entitlement
 func (f Features) GetEntitlement(e entitlements.EntitlementKind) EntitlementInfo {
 	al, ok := f.Entitlements[e]
-	if ok {
-		return EntitlementInfo{
-			Enabled: al.Enabled,
-			Limit:   al.Limit,
-		}
+	if !ok {
+		return EntitlementInfo{}
 	}
 
-	if isLegacyPolicyFallbackEntitlement(e) && f.Entitlements[entitlements.Policy].Enabled {
-		return EntitlementInfo{Enabled: true}
+	return EntitlementInfo{
+		Enabled: al.Enabled,
+		Limit:   al.Limit,
 	}
-
-	return EntitlementInfo{}
 }
 
-// GetProtoEntitlement returns the requested proto entitlement. For
-// compatibility with clusters that predate the identity security entitlement
-// split, a missing AccessGraph, ActivityCenter, or SessionSummaries entitlement
-// falls back to an enabled legacy Policy entitlement or Policy proto field.
+// GetProtoEntitlement takes a proto features set and an entitlement and returns either the proto features entitlement,
+// or if not present, a false entitlement
 func GetProtoEntitlement(f *proto.Features, e entitlements.EntitlementKind) *proto.EntitlementInfo {
 	fE := f.GetEntitlements()
 	al, ok := fE[string(e)]
-	if ok {
-		return &proto.EntitlementInfo{
-			Enabled: al.Enabled,
-			Limit:   al.Limit,
-		}
+	if !ok {
+		return &proto.EntitlementInfo{}
 	}
 
-	if isLegacyPolicyFallbackEntitlement(e) {
-		policy, hasPolicyEntitlement := fE[string(entitlements.Policy)]
-		if policy.GetEnabled() || !hasPolicyEntitlement && f.GetPolicy().GetEnabled() {
-			return &proto.EntitlementInfo{Enabled: true}
-		}
-	}
-
-	return &proto.EntitlementInfo{}
-}
-
-func isLegacyPolicyFallbackEntitlement(e entitlements.EntitlementKind) bool {
-	switch e {
-	case entitlements.AccessGraph, entitlements.ActivityCenter, entitlements.SessionSummaries:
-		return true
-	default:
-		return false
+	return &proto.EntitlementInfo{
+		Enabled: al.Enabled,
+		Limit:   al.Limit,
 	}
 }
 
@@ -276,6 +283,8 @@ type AccessListAndMembersGetter interface {
 type Modules interface {
 	// PrintVersion prints teleport version
 	PrintVersion()
+	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
 	// SetFeatures set features queried from Cloud
@@ -286,10 +295,8 @@ type Modules interface {
 	IsEnterpriseBuild() bool
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
-	// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-	IsFIPSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
+	AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GenerateAccessRequestSuggestedReviewers generates a list of suggested reviewers for a given access request.
@@ -430,13 +437,12 @@ func (p *defaultModules) Features() Features {
 func (p *defaultModules) SetFeatures(f Features) {
 }
 
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-func (p *defaultModules) IsFIPSBuild() bool {
-	return IsFIPSBuild()
+func (p *defaultModules) IsBoringBinary() bool {
+	return IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
 	return nil, trace.NotFound("no attestation data for the given key")
 }

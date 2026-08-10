@@ -275,21 +275,7 @@ message DatabaseV3 {
 
 // DatabaseSpecV3 is the database spec.
 message DatabaseSpecV3 {
-  // Protocol is the database protocol. Valid options are:
-  // "cassandra"
-  // "clickhouse"
-  // "clickhouse-http"
-  // "cockroachdb"
-  // "dynamodb"
-  // "elasticsearch"
-  // "mongodb"
-  // "mysql"
-  // "oracle"
-  // "postgres"
-  // "redis"
-  // "snowflake"
-  // "spanner"
-  // "sqlserver"
+  // Protocol is the database protocol: postgres, mysql, mongodb, etc.
   string Protocol = 1 [(gogoproto.jsontag) = "protocol"];
   // URI is the database connection endpoint.
   string URI = 2 [(gogoproto.jsontag) = "uri"];
@@ -2770,9 +2756,6 @@ message AgentMeshTunnelStrategy {}
 // ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 message ProxyPeeringTunnelStrategy {
   int64 AgentConnectionCount = 1 [(gogoproto.jsontag) = "agent_connection_count,omitempty"];
-  // disconnect_threshold_seconds is the duration without connectivity or topology changes
-  // before an agent pool may disconnect excess connections.
-  uint32 disconnect_threshold_seconds = 2;
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
@@ -3346,23 +3329,6 @@ message AccessRequestDryRunEnrichment {
   ];
   // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
   repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
-  // UserDisplays maps the requester and server-suggested reviewer usernames to
-  // read-time display values.
-  map<string, AccessRequestUserDisplay> UserDisplays = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "user_displays,omitempty"
-  ];
-}
-
-// AccessRequestUserDisplay holds read-time display values derived from a user
-// resource.
-message AccessRequestUserDisplay {
-  // Primary is a human-readable display name derived from the user's traits.
-  // Empty when the user has no display value distinct from their username.
-  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
-  // Secondary is supporting context, typically the user's email address.
-  // Empty when the user has no such value distinct from their username.
-  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
 }
 
 // AccessReview is a review to be applied to an Access Request.
@@ -3706,14 +3672,6 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
-  // resource_access_ids is a list of resources paired with optional constraints
-  // for which we would like to view the necessary roles. When present,
-  // these are deduplicated against provided ResourceIDs to form the full set
-  // of requested resources.
-  repeated ResourceAccessID resource_access_ids = 7 [
-    (gogoproto.jsontag) = "resource_access_ids,omitempty",
-    (gogoproto.nullable) = false
-  ];
 }
 
 // RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
@@ -3740,15 +3698,6 @@ message RemoteAccessCapabilitiesRequest {
   // the necessary roles for.
   repeated ResourceID ResourceIDs = 3 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
-    (gogoproto.nullable) = false
-  ];
-
-  // resource_access_ids is a list of resources paired with optional constraints
-  // for which we would like to view the necessary roles. When present,
-  // these are deduplicated against provided ResourceIDs to form the full set
-  // of requested resources.
-  repeated ResourceAccessID resource_access_ids = 4 [
-    (gogoproto.jsontag) = "resource_access_ids,omitempty",
     (gogoproto.nullable) = false
   ];
 }
@@ -3848,7 +3797,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -4421,35 +4370,6 @@ message RoleConditions {
   // BeamLabelsExpression is a predicate expression used to allow/deny access
   // to beams.
   string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
-
-  // AppResources is the list of rules controlling access to an app's
-  // resources on each HTTP request. It is valid only in role version v9 and
-  // above, and only under allow.
-  repeated AppResource AppResources = 52 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "app_resources,omitempty"
-  ];
-
-  // Field 53 is reserved for AppResourcesExpressions, the predicate
-  // counterpart of the declarative AppResources rules.
-  reserved 53;
-  reserved "AppResourcesExpressions";
-}
-
-// AppResource is one rule under a role's app_resources. The only supported
-// rule form is allow_all, which grants unrestricted access.
-message AppResource {
-  // Fields 1 to 4 and 6 to 9 are reserved for the upcoming fine-grained
-  // rule fields (paths, methods, where, allow_encoded, allow_code,
-  // allow_reason, deny_code_hint, deny_reason_hint). Unreserving one means
-  // re-evaluating AppResource.IsAllowAllOnly, which decides whether a rule
-  // is unrestricted.
-  reserved 1 to 4, 6 to 9;
-  reserved "Paths", "Methods", "Where", "AllowEncoded", "AllowCode", "AllowReason", "DenyCodeHint", "DenyReasonHint";
-
-  // AllowAll grants unrestricted access to every path and method. It
-  // cannot be combined with any other field.
-  bool AllowAll = 5 [(gogoproto.jsontag) = "allow_all,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -9497,10 +9417,9 @@ message JamfSpecV1 {
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
 message JamfInventoryEntry {
   option (gogoproto.equal) = true;
-  // Jamf Pro API RSQL filter. The set of filterable fields depends on device_type:
-  // - "computers": see https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
-  // - "mobile_devices": see https://developer.jamf.com/jamf-pro/reference/get_v2-mobile-devices-detail.
-  // Empty means no filter is applied.
+  // Jamf Pro API RSQL filter, used when querying endpoints like
+  // "/api/v1/computers-inventory".
+  // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
   string filter_rsql = 1 [(gogoproto.jsontag) = "filter_rsql,omitempty"];
   // Sync period for PARTIAL syncs.
   // PARTIAL syncs are scheduled in the time window between FULL syncs, so
@@ -9529,12 +9448,6 @@ message JamfInventoryEntry {
   // Custom page size for inventory queries.
   // A server default is used if zeroed or negative.
   int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
-  // device_type is the Jamf device type to sync.
-  // Valid values are "computers" and "mobile_devices". If empty, defaults to
-  // "computers".
-  //
-  // To sync more than one device type, add multiple inventory entries.
-  string device_type = 6 [(gogoproto.jsontag) = "device_type,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily
@@ -9663,11 +9576,8 @@ message InstallerParams {
   // Valid values:
   // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
   // 1: uses script mode
-  // 2: uses eice mode (deprecated)
-  InstallParamEnrollMode EnrollMode = 8 [
-    (gogoproto.jsontag) = "enroll_mode,omitempty",
-    deprecated = true
-  ];
+  // 2: uses eice mode
+  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
   // Suffix indicates the installation suffix for the teleport installation.
   // Set this value if you want multiple installations of Teleport.
   // See --install-suffix flag in teleport-update program.
@@ -9706,8 +9616,6 @@ enum InstallParamEnrollMode {
   INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
   // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
   // Only available for AWS EC2 instances.
-  //
-  // DEPRECATED: EICE mode is deprecated. Use script mode.
   INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 

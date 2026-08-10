@@ -28,7 +28,6 @@ export const KeysEnum = {
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
   ACCESS_GRAPH_ENABLED: 'grv_teleport_access_graph_enabled',
-  ACCESS_GRAPH_IAC_ENABLED: 'grv_teleport_access_graph_iac_enabled',
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   ACCESS_GRAPH_ROLE_TESTER_ENABLED:
     'grv_teleport_access_graph_role_tester_enabled',
@@ -69,9 +68,6 @@ export const KeysEnum = {
     'grv_teleport_identity_security_recommendations_unified_resources_cta_seen',
   APP_LAUNCHER_FRAGMENT: 'grv_teleport_app_launcher_fragment',
   DESKTOP_HIDPI: 'grv_teleport_desktop_hidpi',
-  // TODO(bl-nero): Remove this once the login scope picker is operational.
-  USE_LOGIN_SCOPE_PICKER: 'grv_teleport_use_login_scope_picker',
-  SCOPE_SELECTED: 'grv_teleport_scope_selected',
 };
 
 // SurveyRequest is the request for sending data to the back end

@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -46,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -98,9 +98,6 @@ type Config struct {
 	// ShutdownDelay is a fixed delay between receiving a termination signal and
 	// the beginning of the shutdown procedures.
 	ShutdownDelay time.Duration
-
-	// AuditQueue configures the audit log event queue.
-	AuditQueue AuditQueueConfig
 
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
@@ -222,11 +219,8 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS compliant configuration was requested via the --fips flag.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
-
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 
 	// SkipVersionCheck means the version checking between server and client
 	// will be skipped.
@@ -287,8 +281,7 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-	// InsecureMode defines whether insecure connections are allowed.
-	InsecureMode bool
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -337,17 +330,6 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
-
-	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
-	// a locking operation for backend objects.
-	// This setting is particularly useful in test environments,
-	// as it can help accelerate operations such as updating the access list,
-	// especially when the list is also being modified concurrently by the background
-	// eligibility handler.
-	RunWhileLockedRetryInterval time.Duration
-
-	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
-	TriggerOktaSyncC chan struct{}
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
@@ -663,11 +645,7 @@ func (cfg *Config) ProxyWebAddr() utils.NetAddr {
 func (cfg *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(cfg.token)
 	if err != nil {
-		if _, parseErr := scopes.ParseQualifiedName(cfg.token); parseErr != nil {
-			return "", trace.Wrap(err)
-		}
-
-		return cfg.token, nil
+		return "", trace.Wrap(err)
 	}
 
 	return token, nil
@@ -708,6 +686,20 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		cfg.CAPins = filteredPins
 	}
 	return nil
+}
+
+// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
+// a string
+func (cfg *Config) DebugDumpToYAML() string {
+	shallow := *cfg
+	// do not copy sensitive data to stdout
+	shallow.Identities = nil
+	shallow.Auth.Authorities = nil
+	out, err := yaml.Marshal(shallow)
+	if err != nil {
+		return err.Error()
+	}
+	return string(out)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
@@ -757,10 +749,6 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
-	}
-
-	if cfg.Modules == nil {
-		cfg.Modules = modules.GetModules()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from
@@ -823,7 +811,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
-	defaults.ConfigureLimiter(&cfg.Apps.Limiter)
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false

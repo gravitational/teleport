@@ -38,15 +38,11 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 	}
 
 	return &collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
-		store: newStore(
-			types.KindRecordingEncryption,
-			proto.CloneOf[*recordingencryptionv1.RecordingEncryption],
-			map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
-				recordingEncryptionNameIndex: func(r *recordingencryptionv1.RecordingEncryption) string {
-					return r.GetMetadata().GetName()
-				},
+		store: newStore(types.KindRecordingEncryption, proto.CloneOf[*recordingencryptionv1.RecordingEncryption], map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
+			recordingEncryptionNameIndex: func(r *recordingencryptionv1.RecordingEncryption) string {
+				return r.GetMetadata().GetName()
 			},
-		),
+		}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*recordingencryptionv1.RecordingEncryption, error) {
 			recordingEncryption, err := upstream.GetRecordingEncryption(ctx)
 			if err != nil {
@@ -56,13 +52,13 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 			return []*recordingencryptionv1.RecordingEncryption{recordingEncryption}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *recordingencryptionv1.RecordingEncryption {
-			return recordingencryptionv1.RecordingEncryption_builder{
+			return &recordingencryptionv1.RecordingEncryption{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil

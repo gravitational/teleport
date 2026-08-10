@@ -1,5 +1,5 @@
 ---
-authors: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com), Maja Cieślak (maja.cieslak@goteleport.com)
+authors: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com), Rafał Cieślak (rafal.cieslak@goteleport.com)
 state: implemented (14.1)
 ---
 

@@ -29,19 +29,19 @@ import (
 )
 
 func newIdentityCenterAccount(id string) *identitycenterv1.Account {
-	return identitycenterv1.Account_builder{
+	return &identitycenterv1.Account{
 		Kind:    types.KindIdentityCenterAccount,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: id,
-		}.Build(),
-		Spec: identitycenterv1.AccountSpec_builder{
+		},
+		Spec: &identitycenterv1.AccountSpec{
 			Id:  id,
 			Arn: "arn:aws:sso:::permissionSet/ssoins-722326ecc902a06a/" + id,
-		}.Build(),
+		},
 		Status: &identitycenterv1.AccountStatus{},
-	}.Build()
+	}
 }
 
 // TestIdentityCenterAccount asserts that an Identity Center Account can be cached
@@ -56,41 +56,41 @@ func TestIdentityCenterAccount(t *testing.T) {
 			return newIdentityCenterAccount(s), nil
 		},
 		create: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount(ctx, item)
+			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount2(ctx, item)
 			return trace.Wrap(err)
 		},
 		update: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount(ctx, item)
+			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount2(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListIdentityCenterAccounts,
+		list: fixturePack.identityCenter.ListIdentityCenterAccounts2,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteIdentityCenterAccount(
 				ctx, services.IdentityCenterAccountID(id)))
 		},
 		deleteAll: fixturePack.identityCenter.DeleteAllIdentityCenterAccounts,
-		cacheList: fixturePack.cache.ListIdentityCenterAccounts,
+		cacheList: fixturePack.cache.ListIdentityCenterAccounts2,
 		cacheGet:  fixturePack.cache.GetIdentityCenterAccount,
-	})
+	}, withSkipPaginationTest())
 }
 
 func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.PrincipalAssignment {
-	return identitycenterv1.PrincipalAssignment_builder{
+	return &identitycenterv1.PrincipalAssignment{
 		Kind:    types.KindIdentityCenterPrincipalAssignment,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: id,
-		}.Build(),
-		Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
+		},
+		Spec: &identitycenterv1.PrincipalAssignmentSpec{
 			PrincipalType: identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			PrincipalId:   id,
 			ExternalId:    "ext_" + id,
-		}.Build(),
-		Status: identitycenterv1.PrincipalAssignmentStatus_builder{
+		},
+		Status: &identitycenterv1.PrincipalAssignmentStatus{
 			ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 // TestIdentityCenterPrincipalAssignment asserts that an Identity Center PrincipalAssignment can be cached
@@ -111,36 +111,36 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			_, err := fixturePack.identityCenter.UpdatePrincipalAssignment(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListPrincipalAssignments,
+		list: fixturePack.identityCenter.ListPrincipalAssignments2,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeletePrincipalAssignment(ctx, services.PrincipalAssignmentID(id)))
 		},
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAllPrincipalAssignments(ctx))
 		},
-		cacheList: fixturePack.cache.ListPrincipalAssignments,
+		cacheList: fixturePack.cache.ListPrincipalAssignments2,
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.PrincipalAssignment, error) {
 			r, err := fixturePack.cache.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(id))
 			return r, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssignment {
-	return identitycenterv1.AccountAssignment_builder{
+	return &identitycenterv1.AccountAssignment{
 		Kind:    types.KindIdentityCenterAccountAssignment,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: id,
-		}.Build(),
-		Spec: identitycenterv1.AccountAssignmentSpec_builder{
+		},
+		Spec: &identitycenterv1.AccountAssignmentSpec{
 			Display:       "account " + id,
 			PermissionSet: &identitycenterv1.PermissionSetInfo{},
 			AccountName:   id,
 			AccountId:     id,
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 // TestIdentityCenterAccountAssignment asserts that an Identity Center
@@ -174,5 +174,5 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			r, err := fixturePack.cache.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id))
 			return r.AccountAssignment, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }

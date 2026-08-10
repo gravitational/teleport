@@ -156,8 +156,7 @@ export function UnifiedResources(props: {
       supported: 'yes',
       availabilityFilter: getResourceAvailabilityFilter(
         userPreferences.unifiedResourcePreferences.availableResourceMode,
-        rootCluster.showResources === ShowResources.REQUESTABLE,
-        false /* scopedSession */
+        rootCluster.showResources === ShowResources.REQUESTABLE
       ),
     };
   }, [

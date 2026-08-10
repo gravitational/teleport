@@ -134,7 +134,6 @@ func TestUnversionedTbotConfig(t *testing.T) {
 			in: internal.UnversionedConfig{
 				AuthServer: "auth.example.com",
 			},
-			err: true,
 		},
 		{
 			name:    "v1",
@@ -142,7 +141,6 @@ func TestUnversionedTbotConfig(t *testing.T) {
 			in: internal.UnversionedConfig{
 				AuthServer: "auth.example.com",
 			},
-			err: true,
 		},
 		{
 			name:    "v2",

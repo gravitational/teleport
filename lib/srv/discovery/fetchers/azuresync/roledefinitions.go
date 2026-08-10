@@ -58,18 +58,18 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 				fetchErrs = append(fetchErrs, trace.BadParameter("nil values on Permission object: %v", perm))
 				continue
 			}
-			pbPerm := accessgraphv1alpha.AzureRBACPermission_builder{
+			pbPerm := accessgraphv1alpha.AzureRBACPermission{
 				Actions:    slices.FromPointers(perm.Actions),
 				NotActions: slices.FromPointers(perm.NotActions),
-			}.Build()
-			pbPerms = append(pbPerms, pbPerm)
+			}
+			pbPerms = append(pbPerms, &pbPerm)
 		}
-		pbRoleDef := accessgraphv1alpha.AzureRoleDefinition_builder{
+		pbRoleDef := &accessgraphv1alpha.AzureRoleDefinition{
 			Id:             *roleDef.ID,
 			Name:           *roleDef.Properties.RoleName,
 			SubscriptionId: subscriptionID,
 			Permissions:    pbPerms,
-		}.Build()
+		}
 		pbRoleDefs = append(pbRoleDefs, pbRoleDef)
 	}
 	return pbRoleDefs, trace.NewAggregate(fetchErrs...)

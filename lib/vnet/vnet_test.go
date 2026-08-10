@@ -46,15 +46,11 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -93,31 +89,31 @@ type testPackConfig struct {
 	allowAppHTTPSTunnel bool
 }
 
-func newTestPack(tb testing.TB, ctx context.Context, cfg testPackConfig) *testPack {
+func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
 	if cfg.homePath == "" {
-		cfg.homePath = tb.TempDir()
+		cfg.homePath = t.TempDir()
 	}
 
 	hostNetwork, err := NewFakeHostNetwork()
-	require.NoError(tb, err)
-	tb.Cleanup(hostNetwork.Close)
+	require.NoError(t, err)
+	t.Cleanup(hostNetwork.Close)
 
 	vnetIPv6Prefix, err := newIPv6Prefix()
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, dns.DNSServerSuffix)
 
 	// In reality the VNet networking stack runs in a separate process from the
 	// client application and communicates over gRPC. For the test, everything
 	// runs in a single process, but we still set up the gRPC service and only
 	// interface with fakeClientApp via the gRPC client.
-	clt := runTestClientApplicationService(tb, ctx, cfg)
+	clt := runTestClientApplicationService(t, ctx, cfg)
 	appProvider := newAppProvider(clt)
 	sshProvider, err := newSSHProvider(ctx, sshProviderConfig{
 		clt:                clt,
 		clock:              cfg.clock,
 		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
 	})
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
@@ -136,17 +132,17 @@ func newTestPack(tb testing.TB, ctx context.Context, cfg testPackConfig) *testPa
 		tcpHandlerResolver:       tcpHandlerResolver,
 		upstreamNameserverSource: noUpstreamNameservers{},
 	})
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	tunIPv6, err := tunIPv6ForPrefix(vnetIPv6Prefix.String())
-	require.NoError(tb, err)
-	require.NoError(tb, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
+	require.NoError(t, err)
+	require.NoError(t, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
 		DeviceIPv6: tunIPv6,
 		CIDRRanges: []string{tunIPv6 + "/64"},
 		DNSAddrs:   []string{dnsIPv6.String()},
 	}))
 
-	testutils.RunTestBackgroundTask(ctx, tb, &testutils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
 			err := ns.run(ctx)
@@ -204,10 +200,10 @@ func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Con
 // runTestClientApplicationService runs the gRPC service that's normally used to
 // expose the client application and Teleport client methods to the VNet
 // admin/networking process over gRPC. It returns a client of the gRPC service.
-func runTestClientApplicationService(tb testing.TB, ctx context.Context, cfg testPackConfig) *clientApplicationServiceClient {
+func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg testPackConfig) *clientApplicationServiceClient {
 	clusterConfigCache := NewClusterConfigCache(cfg.clock)
 	leafClusterCache, err := newLeafClusterCache(cfg.clock)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
 		clientApplication:   cfg.fakeClientApp,
 		clusterConfigCache:  clusterConfigCache,
@@ -221,12 +217,12 @@ func runTestClientApplicationService(tb testing.TB, ctx context.Context, cfg tes
 		homePath:          cfg.homePath,
 		clock:             cfg.clock,
 	})
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	ipcCredentials, err := newIPCCredentials()
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	serverTLSConfig, err := ipcCredentials.server.serverTLSConfig()
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
@@ -236,8 +232,8 @@ func runTestClientApplicationService(tb testing.TB, ctx context.Context, cfg tes
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, clientApplicationService)
 
 	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(tb, err)
-	testutils.RunTestBackgroundTask(ctx, tb, &testutils.TestBackgroundTask{
+	require.NoError(t, err)
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "user process gRPC server",
 		Task: func(ctx context.Context) error {
 			return trace.Wrap(grpcServer.Serve(listener), "serving VNet user process gRPC service")
@@ -250,14 +246,14 @@ func runTestClientApplicationService(tb testing.TB, ctx context.Context, cfg tes
 
 	// Write the service credentials to and from disk as that's what really
 	// happens outside of tests.
-	credDir := tb.TempDir()
-	require.NoError(tb, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
+	credDir := t.TempDir()
+	require.NoError(t, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
 	clientCreds, err := readCredentials(credDir)
-	require.NoError(tb, err, "reading service credentials from disk")
+	require.NoError(t, err, "reading service credentials from disk")
 
 	clt, err := newClientApplicationServiceClient(ctx, clientCreds, listener.Addr().String())
-	require.NoError(tb, err)
-	tb.Cleanup(func() { clt.close() })
+	require.NoError(t, err)
+	t.Cleanup(func() { clt.close() })
 	return clt
 }
 
@@ -322,11 +318,10 @@ type fakeClientApp struct {
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
 
-	onNewSSHSessionCallCount           atomic.Uint32
-	performSessionMFACeremonyCallCount atomic.Uint32
-	onNewAppConnectionCallCount        atomic.Uint32
-	onNewDBConnectionCallCount         atomic.Uint32
-	onInvalidLocalPortCallCount        atomic.Uint32
+	onNewSSHSessionCallCount    atomic.Uint32
+	onNewAppConnectionCallCount atomic.Uint32
+	onNewDBConnectionCallCount  atomic.Uint32
+	onInvalidLocalPortCallCount atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
@@ -347,21 +342,21 @@ type fakeClientAppConfig struct {
 // This is what ultimately defines the environment for the test. VNet should be
 // able to run with any implementation of [ClientApplication] and little to no
 // other configuration.
-func newFakeClientApp(ctx context.Context, tb testing.TB, cfg *fakeClientAppConfig) *fakeClientApp {
+func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfig) *fakeClientApp {
 	teleportHostCAKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	teleportHostCA, err := ssh.NewSignerFromSigner(teleportHostCAKey)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	teleportUserCAKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	teleportUserCA, err := ssh.NewSignerFromSigner(teleportUserCAKey)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	forwardedAgents := &forwardedAgents{}
 
-	tlsCA := newSelfSignedCA(tb)
-	dialOpts := mustStartFakeWebProxy(ctx, tb, fakeWebProxyConfig{
+	tlsCA := newSelfSignedCA(t)
+	dialOpts := mustStartFakeWebProxy(ctx, t, fakeWebProxyConfig{
 		tlsCA:           tlsCA,
 		hostCA:          teleportHostCA,
 		userCA:          teleportUserCA,
@@ -402,7 +397,6 @@ func (p *fakeClientApp) GetCachedClient(ctx context.Context, profileName, leafCl
 				clusterName:     profileName,
 				rootClusterName: profileName,
 			},
-			clientApp:      p,
 			clusterSpec:    &rootCluster,
 			teleportHostCA: p.teleportHostCA,
 			teleportUserCA: p.teleportUserCA,
@@ -419,7 +413,6 @@ func (p *fakeClientApp) GetCachedClient(ctx context.Context, profileName, leafCl
 			clusterName:     leafClusterName,
 			rootClusterName: profileName,
 		},
-		clientApp:      p,
 		clusterSpec:    &leafCluster,
 		teleportHostCA: p.teleportHostCA,
 		teleportUserCA: p.teleportUserCA,
@@ -489,20 +482,20 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 		if rootCluster.cidrRange == "" {
 			return nil, trace.NotFound("vnet_config not found")
 		}
-		cfg := vnet.VnetConfig_builder{
+		cfg := &vnet.VnetConfig{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "vnet-config",
-			}.Build(),
-			Spec: vnet.VnetConfigSpec_builder{
+			},
+			Spec: &vnet.VnetConfigSpec{
 				Ipv4CidrRange: rootCluster.cidrRange,
-			}.Build(),
-		}.Build()
+			},
+		}
 		for _, zone := range rootCluster.customDNSZones {
-			cfg.GetSpec().SetCustomDnsZones(append(cfg.GetSpec().GetCustomDnsZones(),
-				vnet.CustomDNSZone_builder{Suffix: zone}.Build(),
-			))
+			cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+				&vnet.CustomDNSZone{Suffix: zone},
+			)
 		}
 		return cfg, nil
 	}
@@ -513,31 +506,26 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 	if leafCluster.cidrRange == "" {
 		return nil, trace.NotFound("vnet_config not found")
 	}
-	cfg := vnet.VnetConfig_builder{
+	cfg := &vnet.VnetConfig{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "vnet-config",
-		}.Build(),
-		Spec: vnet.VnetConfigSpec_builder{
+		},
+		Spec: &vnet.VnetConfigSpec{
 			Ipv4CidrRange: leafCluster.cidrRange,
-		}.Build(),
-	}.Build()
+		},
+	}
 	for _, zone := range leafCluster.customDNSZones {
-		cfg.GetSpec().SetCustomDnsZones(append(cfg.GetSpec().GetCustomDnsZones(),
-			vnet.CustomDNSZone_builder{Suffix: zone}.Build(),
-		))
+		cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+			&vnet.CustomDNSZone{Suffix: zone},
+		)
 	}
 	return cfg, nil
 }
 
 func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
 	p.onNewSSHSessionCallCount.Add(1)
-}
-
-func (p *fakeClientApp) PerformSessionMFACeremony(_ context.Context, _, _ string, _ []byte) (string, error) {
-	p.performSessionMFACeremonyCallCount.Add(1)
-	return "test-challenge-name", nil
 }
 
 func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
@@ -612,7 +600,6 @@ func (p *fakeClientApp) dialSSHNode(
 
 type fakeClusterClient struct {
 	authClient     *fakeAuthClient
-	clientApp      *fakeClientApp
 	clusterSpec    *testClusterSpec
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
@@ -660,19 +647,6 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 		ValidAfter:      uint64(now.Add(-1 * time.Minute).Unix()),
 		ValidBefore:     uint64(now.Add(time.Minute).Unix()),
 	}
-
-	// We treat fallbackLegacyMFAUser as having completed MFA if the target
-	// requires MFA checks or doesn't specify them at all. This allows us to
-	// test both MFA and non-MFA scenarios without needing to implement a fake
-	// MFA service and ceremony.
-	mfaVerified := user == fallbackLegacyMFAUser &&
-		(target.MFACheck == nil || target.MFACheck.Required)
-
-	if mfaVerified {
-		cert.Extensions = map[string]string{
-			teleport.CertExtensionMFAVerified: mfaDeviceID,
-		}
-	}
 	if err := cert.SignCert(rand.Reader, c.teleportUserCA); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -687,11 +661,7 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 			},
 		},
 	}
-	return k, mfaVerified, nil
-}
-
-func (c *fakeClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
-	return c.clientApp.PerformSessionMFACeremony(ctx, c.RootClusterName(), c.ClusterName(), sessionID)
+	return k, false, nil
 }
 
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
@@ -814,15 +784,15 @@ func (c *fakeAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
 }
 
 func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
-	vnetConfig := vnet.VnetConfig_builder{
-		Spec: vnet.VnetConfigSpec_builder{
+	vnetConfig := &vnet.VnetConfig{
+		Spec: &vnet.VnetConfigSpec{
 			Ipv4CidrRange: c.clusterSpec.cidrRange,
-		}.Build(),
-	}.Build()
+		},
+	}
 	for _, zone := range c.clusterSpec.customDNSZones {
-		vnetConfig.GetSpec().SetCustomDnsZones(append(vnetConfig.GetSpec().GetCustomDnsZones(), vnet.CustomDNSZone_builder{
+		vnetConfig.Spec.CustomDnsZones = append(vnetConfig.Spec.CustomDnsZones, &vnet.CustomDNSZone{
 			Suffix: zone,
-		}.Build()))
+		})
 	}
 	return vnetConfig, nil
 }
@@ -1033,7 +1003,7 @@ func TestDialFakeApp(t *testing.T) {
 		//
 		// It's important not to run these subtests which advance a shared clock in parallel. It's okay for
 		// the inner app dial/connection tests to run in parallel because they don't advance the clock.
-		for i := range 3 {
+		for i := 0; i < 3; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				for _, tc := range validTestCases {
 					if tc.expectRouteToApp.URI == "" && tc.expectRouteToApp.PublicAddr != "" {
@@ -1232,7 +1202,7 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	writeBuf := bytes.Repeat([]byte(testString), 200)
 	readBuf := make([]byte, len(writeBuf))
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		written, err := conn.Write(writeBuf)
 		for written < len(writeBuf) && err == nil {
 			var n int
@@ -1545,17 +1515,6 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 	require.Error(t, err)
 }
 
-const (
-	// inbandMFAUser is the username used for testing in-band MFA.
-	inbandMFAUser = "in-band-mfa-user"
-
-	// fallbackLegacyMFAUser is the username used for testing fallback to legacy MFA certs.
-	fallbackLegacyMFAUser = "fallback-legacy-mfa-user"
-
-	// mfaDeviceID is the MFA device ID encoded in fake legacy MFA certs.
-	mfaDeviceID = "mfa-device-id"
-)
-
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
 	ctx := t.Context()
@@ -1639,13 +1598,6 @@ func TestSSH(t *testing.T) {
 			"OnNewSSHSession call count does not match the expected number of reported SSH sessions")
 	})
 
-	// Check that each session-bound MFA ceremony is performed through the client application when expected.
-	var expectMFACeremonies atomic.Uint32
-	t.Cleanup(func() {
-		assert.Equal(t, expectMFACeremonies.Load(), clientApp.performSessionMFACeremonyCallCount.Load(),
-			"PerformSessionMFACeremony call count does not match the expected number of MFA ceremonies")
-	})
-
 	for _, tc := range []struct {
 		dialAddr                 string
 		dialPort                 int
@@ -1657,7 +1609,6 @@ func TestSSH(t *testing.T) {
 		expectSSHHandshakeToFail bool
 		expectBannerMessages     []string
 		expectSSHSessionReported bool
-		expectMFACeremonies      uint32
 	}{
 		{
 			// Connection to node in root cluster should work.
@@ -1720,30 +1671,7 @@ func TestSSH(t *testing.T) {
 			// The session should be reported because VNet successfully got a
 			// Teleport user SSH cert for this session and made the SSH dial to
 			// the target, only then the target SSH server rejected the
-			// connection. The fallback attempt is part of the same logical SSH
-			// session and is not reported separately.
-			expectSSHSessionReported: true,
-		},
-		{
-			// When the target requests in-band MFA, VNet should complete the
-			// session-bound MFA ceremony through the client application.
-			dialAddr:                 "node.root1.example.com",
-			dialPort:                 22,
-			expectCIDR:               root1CIDR,
-			sshUser:                  inbandMFAUser,
-			sshUserSigner:            sshUserSigner,
-			expectSSHSessionReported: true,
-			expectMFACeremonies:      1,
-		},
-		{
-			// If direct auth fails because the target doesn't support in-band
-			// MFA, or if the client does not support in-band MFA, then VNet
-			// should retry with the legacy MFA cert credential mode.
-			dialAddr:                 "node.root1.example.com",
-			dialPort:                 22,
-			expectCIDR:               root1CIDR,
-			sshUser:                  fallbackLegacyMFAUser,
-			sshUserSigner:            sshUserSigner,
+			// connection.
 			expectSSHSessionReported: true,
 		},
 		{
@@ -1796,7 +1724,6 @@ func TestSSH(t *testing.T) {
 			if tc.expectSSHSessionReported {
 				expectReportedSSHSessions.Add(1)
 			}
-			expectMFACeremonies.Add(tc.expectMFACeremonies)
 
 			if tc.expectLookupToFail {
 				// In these cases the DNS lookup is expected to fail, just run the DNS lookup.
@@ -1847,13 +1774,9 @@ func TestSSH(t *testing.T) {
 				Clock: clock.Now,
 			}
 			var bannerMessages []string
-			clientConfig := apissh.ClientConfig{
-				User: tc.sshUser,
-				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					Signers: func() ([]ssh.Signer, error) {
-						return []ssh.Signer{tc.sshUserSigner}, nil
-					},
-				},
+			clientConfig := &ssh.ClientConfig{
+				User:            tc.sshUser,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(tc.sshUserSigner)},
 				HostKeyCallback: certChecker.CheckHostKey,
 				BannerCallback: func(msg string) error {
 					bannerMessages = append(bannerMessages, msg)
@@ -1861,7 +1784,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := apissh.NewClientConn(ctx, conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
+			sshConn, chans, reqs, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1879,13 +1802,9 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 		// Set up the SSH client config to capture the host certs it sees.
 		var checkedHostCerts []*ssh.Certificate
-		clientConfig := apissh.ClientConfig{
+		clientConfig := &ssh.ClientConfig{
 			User: "testuser",
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{sshUserSigner}, nil
-				},
-			},
+			Auth: []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
 			HostKeyCallback: func(addr string, remote net.Addr, key ssh.PublicKey) error {
 				checkedHostCerts = append(checkedHostCerts, key.(*ssh.Certificate))
 				return nil
@@ -1895,7 +1814,7 @@ func TestSSH(t *testing.T) {
 		for range connections {
 			conn, err := p.dialHost(ctx, "node.root1.example.com", 22)
 			require.NoError(t, err)
-			sshConn, _, _, err := apissh.NewClientConn(ctx, conn, "node.root1.example.com:22", clientConfig)
+			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
 			expectReportedSSHSessions.Add(1)
@@ -2045,13 +1964,13 @@ func TestPriority(t *testing.T) {
 			},
 			Clock: clock.Now,
 		}
-		clientConfig := apissh.ClientConfig{
+		clientConfig := &ssh.ClientConfig{
 			User:            "testuser",
-			PublicKeyAuth:   apissh.PublicKeyAuthConfig{Signers: func() ([]ssh.Signer, error) { return []ssh.Signer{sshUserSigner}, nil }},
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
 			HostKeyCallback: certChecker.CheckHostKey,
 		}
 
-		sshConn, chans, reqs, err := apissh.NewClientConn(ctx, conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
+		sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
 		require.NoError(t, err)
 		defer sshConn.Close()
 
@@ -2110,9 +2029,9 @@ func TestPriority(t *testing.T) {
 	})
 }
 
-func newSelfSignedCA(tb testing.TB) tls.Certificate {
+func newSelfSignedCA(t *testing.T) tls.Certificate {
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
@@ -2127,7 +2046,7 @@ func newSelfSignedCA(tb testing.TB) tls.Certificate {
 		MaxPathLenZero:        true,
 	}
 	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, signer.Public(), signer)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	return tls.Certificate{
 		Certificate: [][]byte{certBytes},
@@ -2206,14 +2125,14 @@ type fakeWebProxyConfig struct {
 
 func mustStartFakeWebProxy(
 	ctx context.Context,
-	tb testing.TB,
+	t *testing.T,
 	cfg fakeWebProxyConfig,
 ) *vnetv1.DialOptions {
-	tb.Helper()
+	t.Helper()
 
 	roots := x509.NewCertPool()
 	caX509, err := x509.ParseCertificate(cfg.tlsCA.Certificate[0])
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	roots.AddCert(caX509)
 
 	const proxyCN = "testproxy"
@@ -2225,7 +2144,7 @@ func mustStartFakeWebProxy(
 		cfg.suite,
 		cryptosuites.HostIdentity,
 	)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	proxyTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{proxyCert},
@@ -2269,29 +2188,7 @@ func mustStartFakeWebProxy(
 				if !cfg.forwardedAgents.forwarded(pubKey) {
 					return nil, trace.Errorf("user SSH key was not forwarded")
 				}
-
-				perms, err := certChecker.Authenticate(conn, pubKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				// Special test cases for certain usernames to test MFA behavior.
-				switch conn.User() {
-				case fallbackLegacyMFAUser:
-					cert, ok := pubKey.(*ssh.Certificate)
-					if !ok || cert.Extensions[teleport.CertExtensionMFAVerified] != mfaDeviceID {
-						return nil, trace.AccessDenied("expected legacy MFA cert, got %T", pubKey)
-					}
-
-				case inbandMFAUser:
-					return nil, &ssh.PartialSuccessError{
-						Next: ssh.ServerAuthCallbacks{
-							KeyboardInteractiveCallback: handleSSHKeyboardInteractive,
-						},
-					}
-				}
-
-				return perms, nil
+				return certChecker.Authenticate(conn, pubKey)
 			},
 		}
 		serverConfig.AddHostKey(hostCert)
@@ -2315,9 +2212,9 @@ func mustStartFakeWebProxy(
 	}
 
 	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
-	testutils.RunTestBackgroundTask(ctx, tb, &testutils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "web proxy",
 		Task: func(ctx context.Context) error {
 			for {
@@ -2335,11 +2232,11 @@ func mustStartFakeWebProxy(
 					// the main test goroutine. The test will fail if the conn is not handled.
 					tlsConn, ok := conn.(*tls.Conn)
 					if !ok {
-						tb.Log("client conn is not TLS")
+						t.Log("client conn is not TLS")
 						return
 					}
 					if err := tlsConn.Handshake(); err != nil {
-						tb.Log("error completing tls handshake")
+						t.Log("error completing tls handshake")
 						return
 					}
 					protocol := tlsConn.ConnectionState().NegotiatedProtocol
@@ -2350,7 +2247,7 @@ func mustStartFakeWebProxy(
 					}
 					clientCerts := tlsConn.ConnectionState().PeerCertificates
 					if len(clientCerts) == 0 {
-						tb.Log("client has no certs")
+						t.Log("client has no certs")
 						return
 					}
 					// Manually checking the cert expiry compared to the time of the fake clock, since the TLS
@@ -2359,11 +2256,11 @@ func mustStartFakeWebProxy(
 					// cert NotBefore is always at/before the real current time, so the TLS library is
 					// satisfied.
 					if cfg.clock.Now().After(clientCerts[0].NotAfter) {
-						tb.Logf("client cert is expired: currentTime=%s expiry=%s", cfg.clock.Now(), clientCerts[0].NotAfter)
+						t.Logf("client cert is expired: currentTime=%s expiry=%s", cfg.clock.Now(), clientCerts[0].NotAfter)
 						return
 					}
 					if err := handler(conn); err != nil {
-						tb.Logf("error in protocol handler: %v", err)
+						t.Logf("error in protocol handler: %v", err)
 					}
 				}()
 			}
@@ -2377,12 +2274,12 @@ func mustStartFakeWebProxy(
 	})
 
 	caPEM, err := tlsca.MarshalCertificatePEM(caX509)
-	require.NoError(tb, err)
-	dialOpts := vnetv1.DialOptions_builder{
+	require.NoError(t, err)
+	dialOpts := &vnetv1.DialOptions{
 		WebProxyAddr:          listener.Addr().String(),
 		RootClusterCaCertPool: caPEM,
 		Sni:                   proxyCN,
-	}.Build()
+	}
 	return dialOpts
 }
 
@@ -2430,18 +2327,4 @@ func (a *forwardedAgents) forwarded(key ssh.PublicKey) bool {
 		}
 	}
 	return false
-}
-
-func handleSSHKeyboardInteractive(_ ssh.ConnMetadata, clt ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-	prompt := sshpb.AuthPrompt_builder{
-		MfaPrompt: &sshpb.MFAPrompt{},
-	}.Build()
-
-	promptBytes, err := protojson.Marshal(prompt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = clt("", "", []string{string(promptBytes)}, []bool{false})
-	return nil, trace.Wrap(err)
 }

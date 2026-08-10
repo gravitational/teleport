@@ -52,7 +52,7 @@ type TestBackgroundTask struct {
 // RunTestBackgroundTask runs task.Task in the background for the remaining duration of the test.
 // During test cleanup it will cancel the context passed to the task, call task.Terminate if set, and wait for
 // the task to terminate before allowing the test to complete.
-func RunTestBackgroundTask(ctx context.Context, tb testing.TB, task *TestBackgroundTask) {
+func RunTestBackgroundTask(ctx context.Context, t *testing.T, task *TestBackgroundTask) {
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
@@ -62,22 +62,22 @@ func RunTestBackgroundTask(ctx context.Context, tb testing.TB, task *TestBackgro
 		if ctx.Err() == nil {
 			// The context hasn't been canceled yet, meaning the task has exited prematurely. This should
 			// fail the test even if the error is nil.
-			tb.Errorf("Test background task %q exited prematurely with error: %s", task.Name, trace.DebugReport(err))
+			t.Errorf("Test background task %q exited prematurely with error: %s", task.Name, trace.DebugReport(err))
 			return
 		}
 		// The context has been canceled and the task has successfully exited, but any error other than
 		// context.Canceled should still fail the test.
 		if err != nil && !errors.Is(err, context.Canceled) {
-			tb.Errorf("Test background task %q exited with error: %+v", task.Name, trace.DebugReport(err))
+			t.Errorf("Test background task %q exited with error: %+v", task.Name, trace.DebugReport(err))
 		}
 	}()
 
-	tb.Cleanup(func() {
-		tb.Logf("Cleanup: terminating test background task %q.", task.Name)
+	t.Cleanup(func() {
+		t.Logf("Cleanup: terminating test background task %q.", task.Name)
 		cancel()
 		if task.Terminate != nil {
 			if err := task.Terminate(); err != nil {
-				tb.Errorf("Terminating test background task %q failed with error: %s", task.Name, trace.DebugReport(err))
+				t.Errorf("Terminating test background task %q failed with error: %s", task.Name, trace.DebugReport(err))
 			}
 		}
 		ticker := time.NewTicker(2 * time.Second)
@@ -85,7 +85,7 @@ func RunTestBackgroundTask(ctx context.Context, tb testing.TB, task *TestBackgro
 		for {
 			select {
 			case <-ticker.C:
-				tb.Logf("Waiting for test background task %q to terminate.", task.Name)
+				t.Logf("Waiting for test background task %q to terminate.", task.Name)
 			case <-done:
 				return
 			}
@@ -112,7 +112,7 @@ func generateUsername(tb testing.TB) string {
 // already exists (but it does not create the user).
 func GenerateLocalUsername(tb testing.TB) string {
 	const maxAttempts = 10
-	for range maxAttempts {
+	for i := 0; i < maxAttempts; i++ {
 		login := generateUsername(tb)
 		_, err := user.Lookup(login)
 		if errors.Is(err, user.UnknownUserError(login)) {

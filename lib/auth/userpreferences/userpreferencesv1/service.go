@@ -32,7 +32,7 @@ import (
 // ServiceConfig holds configuration options for the user preferences service.
 type ServiceConfig struct {
 	Backend    services.UserPreferences
-	Authorizer authz.ScopedAuthorizer
+	Authorizer authz.Authorizer
 }
 
 // Service implements the teleport.userpreferences.v1.UserPreferencesService RPC service.
@@ -40,7 +40,7 @@ type Service struct {
 	userpreferences.UnimplementedUserPreferencesServiceServer
 
 	backend    services.UserPreferences
-	authorizer authz.ScopedAuthorizer
+	authorizer authz.Authorizer
 }
 
 // NewService returns a new user preferences gRPC service.
@@ -60,14 +60,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *Service) GetUserPreferences(ctx context.Context, _ *userpreferences.GetUserPreferencesRequest) (*userpreferences.GetUserPreferencesResponse, error) {
-	authCtx, err := a.authorizer.AuthorizeScoped(ctx)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User == nil {
-		return nil, trace.AccessDenied("user preferences are only available to users, not scoped agents")
-	}
 	username := authCtx.User.GetName()
 
 	prefs, err := a.backend.GetUserPreferences(ctx, username)
@@ -75,22 +72,19 @@ func (a *Service) GetUserPreferences(ctx context.Context, _ *userpreferences.Get
 		return nil, trace.Wrap(err)
 	}
 
-	return userpreferences.GetUserPreferencesResponse_builder{
+	return &userpreferences.GetUserPreferencesResponse{
 		Preferences: prefs,
-	}.Build(), nil
+	}, nil
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
 func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreferences.UpsertUserPreferencesRequest) (*emptypb.Empty, error) {
-	authCtx, err := a.authorizer.AuthorizeScoped(ctx)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User == nil {
-		return nil, trace.AccessDenied("user preferences are only available to users, not scoped agents")
-	}
 	username := authCtx.User.GetName()
 
-	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.GetPreferences()))
+	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.Preferences))
 }

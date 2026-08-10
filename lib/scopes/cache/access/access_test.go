@@ -63,9 +63,9 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	var expectedRoleNames []string
 	for i := 0; i < 10; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		_, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
@@ -76,9 +76,9 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	var expectedAssignmentNames []string
 	for i := 0; i < 10; i++ {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
-		_, err := service.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
@@ -135,9 +135,9 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// perform additional role writes to cover event replication
 	for i := 10; i < 20; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		_, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
@@ -146,9 +146,9 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// perform additional assignment writes to cover event replication
 	for i := 10; i < 20; i++ {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
-		_, err := service.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
@@ -184,11 +184,11 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 
-		role.GetMetadata().SetLabels(map[string]string{"updated": "true"})
+		role.Metadata.Labels = map[string]string{"updated": "true"}
 
-		_, err := service.UpdateScopedRole(ctx, scopedaccessv1.UpdateScopedRoleRequest_builder{
+		_, err := service.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
 			Role: role,
-		}.Build())
+		})
 		require.NoError(t, err)
 	}
 
@@ -204,11 +204,11 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 
 	// test that cache can handle partial deletes for assignments
 	for _, name := range expectedAssignmentNames[0:10] {
-		_, err := service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		_, err := service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 			Name:    name,
 			Scope:   "/",
 			SubKind: scopedaccess.SubKindDynamic,
-		}.Build())
+		})
 		require.NoError(t, err)
 	}
 
@@ -227,11 +227,11 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 
 	// test that cache can handle delete of all assignments
 	for _, name := range expectedAssignmentNames[10:] {
-		_, err := service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		_, err := service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 			Name:    name,
 			Scope:   "/",
 			SubKind: scopedaccess.SubKindDynamic,
-		}.Build())
+		})
 		require.NoError(t, err)
 	}
 
@@ -300,9 +300,9 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	var expectedRoleNames []string
 	for i := 0; i < 10; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		_, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
@@ -313,9 +313,9 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	var expectedAssignmentNames []string
 	for i := 0; i < 10; i++ {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
-		_, err := service.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
@@ -373,9 +373,9 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	// perform additional role writes to cover subsequent ttl-cache image loads
 	for i := 10; i < 20; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		_, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
@@ -384,9 +384,9 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	// perform additional assignment writes to cover ttl-cache image loads
 	for i := 10; i < 20; i++ {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
-		_, err := service.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
@@ -420,28 +420,28 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 }
 
 func newScopedRole(name string) *scopedaccessv1.ScopedRole {
-	return scopedaccessv1.ScopedRole_builder{
+	return &scopedaccessv1.ScopedRole{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo"},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 }
 
 func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignment {
-	return scopedaccessv1.ScopedRoleAssignment_builder{
+	return &scopedaccessv1.ScopedRoleAssignment{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
@@ -449,9 +449,9 @@ func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignme
 					Scope: "/foo",
 				}.Build(),
 			},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 }
 
 func waitForRoleCondition(t *testing.T, reader services.ScopedRoleReader, condition func([]*scopedaccessv1.ScopedRole) bool) {

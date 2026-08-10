@@ -46,7 +46,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestStableUNIXUsers(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	bk, err := memory.New(memory.Config{Context: ctx})
 	require.NoError(t, err)
@@ -105,7 +106,7 @@ func TestStableUNIXUsers(t *testing.T) {
 	}
 
 	obtainUIDForUsername := func(username string) (int32, error) {
-		r, err := svc.ObtainUIDForUsername(ctx, stableunixusersv1.ObtainUIDForUsernameRequest_builder{Username: username}.Build())
+		r, err := svc.ObtainUIDForUsername(ctx, &stableunixusersv1.ObtainUIDForUsernameRequest{Username: username})
 		if err != nil {
 			return 0, err
 		}
@@ -168,18 +169,18 @@ func TestStableUNIXUsers(t *testing.T) {
 	require.False(t, emitter.getAndReset())
 
 	// nodes are not allowed to list users
-	_, err = svc.ListStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
+	_, err = svc.ListStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
 		PageSize: 2,
-	}.Build())
+	})
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
 	authorizer = func(ctx context.Context) (*authz.Context, error) {
 		return authz.NewBuiltinRoleContext(types.RoleAdmin)
 	}
 
-	resp, err := svc.ListStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
+	resp, err := svc.ListStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
 		PageSize: 2,
-	}.Build())
+	})
 	require.NoError(t, err)
 	require.Equal(t, "user3", resp.GetNextPageToken())
 	require.Len(t, resp.GetStableUnixUsers(), 2)
@@ -189,10 +190,10 @@ func TestStableUNIXUsers(t *testing.T) {
 	require.Equal(t, "user2", resp.GetStableUnixUsers()[1].GetUsername())
 	require.Equal(t, firstUID+1, resp.GetStableUnixUsers()[1].GetUid())
 
-	resp, err = svc.ListStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
+	resp, err = svc.ListStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
 		PageSize:  2,
 		PageToken: "user3",
-	}.Build())
+	})
 	require.NoError(t, err)
 	require.Empty(t, resp.GetNextPageToken())
 	require.Len(t, resp.GetStableUnixUsers(), 2)

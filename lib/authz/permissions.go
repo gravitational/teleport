@@ -46,7 +46,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -55,6 +54,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+// NewAdminContext returns new admin auth context
+func NewAdminContext() (*Context, error) {
+	return NewBuiltinRoleContext(types.RoleAdmin)
+}
 
 // NewBuiltinRoleContext create auth context for the provided builtin role.
 func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
@@ -230,12 +234,6 @@ type MFAAuthData struct {
 	// AllowReuse determines whether the MFA challenge response used to authenticate
 	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
 	AllowReuse mfav1.ChallengeAllowReuse
-	// Payload is the optional session identifying payload attached to the MFA authentication.
-	Payload *mfatypes.SessionIdentifyingPayload
-	// SourceCluster is the source cluster name associated with this MFA authentication.
-	SourceCluster string
-	// TargetCluster is the target cluster name associated with this MFA authentication.
-	TargetCluster string
 	// MFAViaBrowser indicates that this MFA device was used as part of the Browser MFA flow.
 	MFAViaBrowser bool
 }
@@ -498,7 +496,7 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 	return nil
 }
 
-func (a *authorizer) fromUser(ctx context.Context, userI any) (*Context, error) {
+func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(ctx, user)
@@ -801,7 +799,6 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
 		DeviceExtensions:  u.Identity.DeviceExtensions,
-		BeamID:            u.Identity.BeamID,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -976,8 +973,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindRelayServer, services.RO()),
 				types.NewRule(types.KindAccessList, services.RO()),
 				types.NewRule(types.KindHealthCheckConfig, services.RO()),
-				types.NewRule(types.KindAppAuthConfig, services.RO()),
-				types.NewRule(types.KindValidatedMFAChallenge, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1010,6 +1005,19 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 	}
 }
 
+// RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
+func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
+	var definitions []types.Role
+	for _, role := range roles {
+		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		definitions = append(definitions, rd)
+	}
+	return services.NewRoleSet(definitions...), nil
+}
+
 // RoleSetForUnauthenticatedRoles returns a RoleSet for unauthenticated roles.
 func RoleSetForUnauthenticatedRoles(clusterName string, roles ...types.UnauthenticatedRole) (services.RoleSet, error) {
 	var definitions []types.Role
@@ -1031,19 +1039,6 @@ func RoleSetForUnauthenticatedRoles(clusterName string, roles ...types.Unauthent
 		default:
 			return nil, trace.NotFound("unauthenticated role %q is not recognized", role)
 		}
-	}
-	return services.NewRoleSet(definitions...), nil
-}
-
-// RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
-func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
-	var definitions []types.Role
-	for _, role := range roles {
-		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		definitions = append(definitions, rd)
 	}
 	return services.NewRoleSet(definitions...), nil
 }
@@ -1314,7 +1309,6 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-						types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 					},
 				},
 			})
@@ -1514,9 +1508,8 @@ func ContextForUnauthenticatedRole(r UnauthenticatedRole) (*Context, error) {
 	roles := []string{string(r.Role)}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-		Roles:                    roles,
-		Traits:                   nil,
-		AllowedResourceAccessIDs: nil,
+		Roles:  roles,
+		Traits: nil,
 	}, r.ClusterName, roleSet)
 	return &Context{
 		User:                  user,
@@ -1690,6 +1683,17 @@ func GetClientUserIsSSO(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return identity.UserType == types.UserTypeSSO, nil
+}
+
+// ClientImpersonator returns the impersonator username of a remote client
+// making the call. If not present, returns an empty string
+func ClientImpersonator(ctx context.Context) string {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
+		return ""
+	}
+	identity := userWithIdentity.GetIdentity()
+	return identity.Impersonator
 }
 
 // ClientUserMetadata returns a UserMetadata suitable for events caused by a

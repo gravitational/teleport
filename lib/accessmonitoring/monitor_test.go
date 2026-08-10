@@ -81,7 +81,7 @@ func TestAccessMonitoringRule(t *testing.T) {
 		"handle create access monitoring rule event")
 
 	// Test update access monitoring rule event.
-	rule.GetSpec().SetCondition("new-condition")
+	rule.Spec.Condition = "new-condition"
 	updateEvent := types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule),
@@ -269,22 +269,22 @@ func (w mockWatcher) Error() error {
 func newApprovalRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
 	const integrationName = "test"
 
-	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
-		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:     []string{types.KindAccessRequest},
 			Condition:    condition,
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
-			AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
+			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 				Integration: integrationName,
 				Decision:    types.RequestState_APPROVED.String(),
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 }
 
 // mockEventHandler is a mock implementation of the EventHandler.

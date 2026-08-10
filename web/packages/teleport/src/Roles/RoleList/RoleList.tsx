@@ -86,9 +86,6 @@ export function RoleList({
           ),
         },
       ]}
-      row={{
-        getKey: role => role.id,
-      }}
       emptyText="No Roles Found"
       isSearchable
     />

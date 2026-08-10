@@ -101,24 +101,24 @@ func TestAutoUsersPostgres(t *testing.T) {
 					},
 				},
 			},
-			importRuleSpec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
+			importRuleSpec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
 				Priority:       0,
 				DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 				Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-					dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+					{
 						// select three tables out of five in the public schema.
 						// see handleSchemaInfo() for the effective schema.
-						Match: dbobjectimportrulev1.DatabaseObjectImportMatch_builder{
+						Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
 							TableNames: []string{"orders", "departments", "projects"},
-						}.Build(),
+						},
 						// select public schema, skipping the hr schema.
-						Scope: dbobjectimportrulev1.DatabaseObjectImportScope_builder{
+						Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
 							SchemaNames: []string{"public"},
-						}.Build(),
+						},
 						AddLabels: map[string]string{"can_select": "true"},
-					}.Build(),
+					},
 				},
-			}.Build(),
+			},
 			expectedPermissions: postgres.Permissions{
 				Tables: []postgres.TablePermission{
 					{Privilege: "SELECT", Schema: "public", Table: "orders"},
@@ -340,9 +340,11 @@ func TestAutoUsersMySQL(t *testing.T) {
 			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
-			// DatabaseUser must match identity.
-			_, err = testCtx.mysqlClient(tc.teleportUser, "mysql", "some-other-username")
-			require.Error(t, err)
+			if !tc.expectConnectionErr {
+				// DatabaseUser must match identity.
+				_, err = testCtx.mysqlClient(tc.teleportUser, "mysql", "some-other-username")
+				require.Error(t, err)
+			}
 
 			// Try to connect to the database as this user.
 			mysqlConn, err := testCtx.mysqlClient(tc.teleportUser, "mysql", tc.teleportUser)
@@ -406,6 +408,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

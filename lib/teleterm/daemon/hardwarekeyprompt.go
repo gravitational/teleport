@@ -65,10 +65,10 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.Con
 		return trace.Wrap(err)
 	}
 
-	_, err = clt.PromptHardwareKeyTouch(ctx, api.PromptHardwareKeyTouchRequest_builder{
+	_, err = clt.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
 		ProxyHostname: keyInfo.ProxyHost,
 		Command:       keyInfo.AgentKeyInfo.Command,
-	}.Build())
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,16 +87,16 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 		return "", trace.Wrap(err)
 	}
 
-	res, err := clt.PromptHardwareKeyPIN(ctx, api.PromptHardwareKeyPINRequest_builder{
+	res, err := clt.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		ProxyHostname: keyInfo.ProxyHost,
 		PinOptional:   requirement == hardwarekey.PINOptional,
 		Command:       keyInfo.AgentKeyInfo.Command,
-	}.Build())
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	pin := res.GetPin()
+	pin := res.Pin
 	if pin == "" {
 		pin = hardwarekey.DefaultPIN
 	}
@@ -113,16 +113,16 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := clt.PromptHardwareKeyPINChange(ctx, api.PromptHardwareKeyPINChangeRequest_builder{
+	res, err := clt.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
 		ProxyHostname: keyInfo.ProxyHost,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &hardwarekey.PINAndPUK{
-		PIN:        res.GetPin(),
-		PUK:        res.GetPuk(),
-		PUKChanged: res.GetPukChanged(),
+		PIN:        res.Pin,
+		PUK:        res.Puk,
+		PUKChanged: res.PukChanged,
 	}, nil
 }
 
@@ -133,12 +133,12 @@ func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message 
 		return false, trace.Wrap(err)
 	}
 
-	res, err := clt.ConfirmHardwareKeySlotOverwrite(ctx, api.ConfirmHardwareKeySlotOverwriteRequest_builder{
+	res, err := clt.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
 		ProxyHostname: keyInfo.ProxyHost,
 		Message:       message,
-	}.Build())
+	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return res.GetConfirmed(), nil
+	return res.Confirmed, nil
 }

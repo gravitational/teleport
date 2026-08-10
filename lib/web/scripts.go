@@ -109,24 +109,24 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	switch {
 	case rolloutErr == nil:
 		autoupdateStyle = scripts.UpdaterBinaryAutoupdate
-	case automaticUpgrades(h.GetClusterFeatures()):
+	case automaticUpgrades(h.clusterFeatures):
 		autoupdateStyle = scripts.PackageManagerAutoupdate
 	default:
 		autoupdateStyle = scripts.NoAutoupdate
 	}
 
 	var teleportFlavor string
-	switch h.cfg.Modules.BuildType() {
+	switch modules.GetModules().BuildType() {
 	case modules.BuildEnterprise:
 		teleportFlavor = types.PackageNameEnt
 	case modules.BuildOSS, modules.BuildCommunity:
 		teleportFlavor = types.PackageNameOSS
 	default:
-		h.logger.WarnContext(ctx, "Unknown built type, defaulting to the 'teleport' package.", "type", h.cfg.Modules.BuildType())
+		h.logger.WarnContext(ctx, "Unknown built type, defaulting to the 'teleport' package.", "type", modules.GetModules().BuildType())
 		teleportFlavor = types.PackageNameOSS
 	}
 
-	cdnBaseURL, err := getCDNBaseURL(h.cfg.Modules.BuildType(), version)
+	cdnBaseURL, err := getCDNBaseURL(version)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get CDN base URL", "error", err)
 		return scripts.InstallScriptOptions{}, trace.Wrap(err)
@@ -138,7 +138,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		CDNBaseURL:      cdnBaseURL,
 		ProxyAddr:       h.PublicProxyAddr(),
 		TeleportFlavor:  teleportFlavor,
-		FIPS:            modules.IsFIPSBuild(),
+		FIPS:            modules.IsBoringBinary(),
 	}, nil
 }
 
@@ -150,7 +150,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 // - "https://cdn.cloud.gravitational.io" (dev builds/staging)
 const EnvVarCDNBaseURL = "TELEPORT_CDN_BASE_URL"
 
-func getCDNBaseURL(buildType string, version *semver.Version) (string, error) {
+func getCDNBaseURL(version *semver.Version) (string, error) {
 	// If the user explicitly overrides the CDN base URL, we use it.
 	if override := os.Getenv(EnvVarCDNBaseURL); override != "" {
 		return override, nil
@@ -160,7 +160,7 @@ func getCDNBaseURL(buildType string, version *semver.Version) (string, error) {
 	// license so we error and ask the user set the CDN URL, either to:
 	// - the official Teleport CDN if they agree with the community license and meet its requirements
 	// - a custom CDN where they can store their own AGPL binaries
-	if buildType == modules.BuildOSS {
+	if modules.GetModules().BuildType() == modules.BuildOSS {
 		return "", trace.BadParameter(
 			"This proxy is licensed under AGPL but CDN binaries are licensed under the more restrictive Community license. "+
 				"You can set TELEPORT_CDN_BASE_URL to a custom CDN, or to %q if you are OK with using the Community Edition license.",

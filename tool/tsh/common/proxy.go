@@ -31,10 +31,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 	"unicode"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
@@ -671,7 +671,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	appName := cf.AppSQN.Name
 	if portMapping.TargetPort != 0 {
-		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
+		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
 	}
 	fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
@@ -760,7 +760,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     cf.Format,
 		"randomPort": cf.LocalProxyPort == "",
@@ -1169,7 +1169,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

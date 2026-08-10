@@ -60,21 +60,21 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("object must not be nil")
-	case s.GetVersion() != types.V1:
-		return trace.BadParameter("only version %q is supported, got %q", types.V1, s.GetVersion())
-	case s.GetKind() != types.KindHealthCheckConfig:
-		return trace.BadParameter("kind must be %q, got %q", types.KindHealthCheckConfig, s.GetKind())
-	case !s.HasMetadata():
+	case s.Version != types.V1:
+		return trace.BadParameter("only version %q is supported, got %q", types.V1, s.Version)
+	case s.Kind != types.KindHealthCheckConfig:
+		return trace.BadParameter("kind must be %q, got %q", types.KindHealthCheckConfig, s.Kind)
+	case s.Metadata == nil:
 		return trace.BadParameter("metadata is missing")
-	case s.GetMetadata().GetName() == "":
+	case s.Metadata.Name == "":
 		return trace.BadParameter("metadata.name is missing")
-	case !s.HasSpec():
+	case s.Spec == nil:
 		return trace.BadParameter("spec is missing")
-	case !s.GetSpec().HasMatch():
+	case s.Spec.Match == nil:
 		return trace.BadParameter("spec.match is missing")
 	}
 
-	for _, label := range s.GetSpec().GetMatch().GetDbLabels() {
+	for _, label := range s.Spec.Match.DbLabels {
 		if err := validateLabel(label); err != nil {
 			return trace.BadParameter("invalid spec.db_labels: %v", err)
 		}
@@ -85,7 +85,7 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 		}
 	}
 
-	for _, label := range s.GetSpec().GetMatch().GetKubernetesLabels() {
+	for _, label := range s.Spec.Match.KubernetesLabels {
 		if err := validateLabel(label); err != nil {
 			return trace.BadParameter("invalid spec.kubernetes_labels: %v", err)
 		}
@@ -96,7 +96,7 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 		}
 	}
 
-	timeout := s.GetSpec().GetTimeout().AsDuration()
+	timeout := s.Spec.Timeout.AsDuration()
 	switch {
 	case timeout == 0:
 		timeout = defaults.HealthCheckTimeout
@@ -104,7 +104,7 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 		return trace.BadParameter("spec.timeout must be at least %s", constants.MinHealthCheckTimeout)
 	}
 
-	interval := s.GetSpec().GetInterval().AsDuration()
+	interval := s.Spec.Interval.AsDuration()
 	switch {
 	case interval == 0:
 		interval = defaults.HealthCheckInterval
@@ -115,26 +115,26 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 	}
 
 	if timeout > interval {
-		if s.GetSpec().GetTimeout().AsDuration() == 0 {
+		if s.Spec.Timeout.AsDuration() == 0 {
 			return trace.BadParameter("spec.interval (%s) must not be less than the default timeout (%s)", interval, defaults.HealthCheckTimeout)
 		}
-		if s.GetSpec().GetInterval().AsDuration() == 0 {
+		if s.Spec.Interval.AsDuration() == 0 {
 			return trace.BadParameter("spec.timeout (%s) must not be greater than the default interval (%s)", timeout, defaults.HealthCheckInterval)
 		}
 		return trace.BadParameter("spec.timeout (%s) must not be greater than spec.interval (%s)", timeout, interval)
 	}
 
-	if s.GetSpec().GetHealthyThreshold() > constants.MaxHealthCheckHealthyThreshold {
+	if s.Spec.HealthyThreshold > constants.MaxHealthCheckHealthyThreshold {
 		return trace.BadParameter(
 			"spec.healthy_threshold (%v) must not be greater than %v",
-			s.GetSpec().GetHealthyThreshold(),
+			s.Spec.HealthyThreshold,
 			constants.MaxHealthCheckHealthyThreshold,
 		)
 	}
-	if s.GetSpec().GetUnhealthyThreshold() > constants.MaxHealthCheckUnhealthyThreshold {
+	if s.Spec.UnhealthyThreshold > constants.MaxHealthCheckUnhealthyThreshold {
 		return trace.BadParameter(
 			"spec.unhealthy_threshold (%v) must not be greater than %v",
-			s.GetSpec().GetUnhealthyThreshold(),
+			s.Spec.UnhealthyThreshold,
 			constants.MaxHealthCheckUnhealthyThreshold,
 		)
 	}
@@ -142,9 +142,9 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 }
 
 func validateLabel(label *labelv1.Label) error {
-	if label.GetName() == types.Wildcard {
-		if len(label.GetValues()) != 1 || label.GetValues()[0] != types.Wildcard {
-			return trace.BadParameter("selector *:%s is not supported, a wildcard label key may only be used with a wildcard label value", label.GetValues()[0])
+	if label.Name == types.Wildcard {
+		if len(label.Values) != 1 || label.Values[0] != types.Wildcard {
+			return trace.BadParameter("selector *:%s is not supported, a wildcard label key may only be used with a wildcard label value", label.Values[0])
 		}
 	}
 	return nil

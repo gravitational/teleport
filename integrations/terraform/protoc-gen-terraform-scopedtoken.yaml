@@ -39,6 +39,7 @@ exclude_fields:
 
 # These fields will be marked as Computed: true
 computed_fields:
+  - "ScopedToken.metadata.expires"
   - "ScopedToken.metadata.namespace"
   - "ScopedToken.kind"
 
@@ -49,6 +50,7 @@ required_fields:
   - "ScopedToken.version"
   - "ScopedToken.scope"
   - "ScopedToken.spec"
+  - "ScopedToken.spec.assigned_scope"
   - "ScopedToken.spec.join_method"
   - "ScopedToken.spec.roles"
   - "ScopedToken.spec.usage_mode"

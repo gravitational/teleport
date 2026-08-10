@@ -37,48 +37,48 @@ func TestKubeAccessCheckerAdjustDisconnectExpiredCert(t *testing.T) {
 	}{
 		{
 			name: "unset defers to default false",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
 				Kube: &scopedaccessv1.ScopedRoleKube{},
-			}.Build(),
+			},
 			defaultVal: false,
 			expect:     false,
 		},
 		{
 			name: "unset kube and default defers to default true",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
 				Kube: &scopedaccessv1.ScopedRoleKube{},
-			}.Build(),
+			},
 			defaultVal: true,
 			expect:     true,
 		},
 		{
 			name: "explicit true overrides default false",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Kube: &scopedaccessv1.ScopedRoleKube{
 					DisconnectExpiredCert: ptr(true),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			defaultVal: false,
 			expect:     true,
 		},
 		{
 			name: "explicit false overrides default true",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Kube: &scopedaccessv1.ScopedRoleKube{
 					DisconnectExpiredCert: ptr(false),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			defaultVal: true,
 			expect:     false,
 		},
 		{
 			name: "default block is applied when kube block is empty",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
 					DisconnectExpiredCert: ptr(false),
-				}.Build(),
+				},
 				Kube: &scopedaccessv1.ScopedRoleKube{},
-			}.Build(),
+			},
 			defaultVal: true,
 			expect:     false,
 		},
@@ -102,61 +102,61 @@ func TestKubeAccessCheckerLockingMode(t *testing.T) {
 	}{
 		{
 			name: "unset kube and default blocks defers to default mode",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
 				Kube: &scopedaccessv1.ScopedRoleKube{},
-			}.Build(),
+			},
 			defaultMode: constants.LockingModeBestEffort,
 			expect:      constants.LockingModeBestEffort,
 		},
 		{
 			name: "strict from role",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
-					Lock: scopedaccessv1.Lock_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Lock: &scopedaccessv1.Lock{
 						Mode: string(constants.LockingModeStrict),
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			defaultMode: constants.LockingModeBestEffort,
 			expect:      constants.LockingModeStrict,
 		},
 		{
 			name: "best effort from role",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
-					Lock: scopedaccessv1.Lock_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Lock: &scopedaccessv1.Lock{
 						Mode: string(constants.LockingModeBestEffort),
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			defaultMode: constants.LockingModeStrict,
 			expect:      constants.LockingModeBestEffort,
 		},
 		{
 			name: "invalid value falls back to default",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Kube: &scopedaccessv1.ScopedRoleKube{
 
-					Lock: scopedaccessv1.Lock_builder{
+					Lock: &scopedaccessv1.Lock{
 						Mode: "invalid",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			defaultMode: constants.LockingModeStrict,
 			expect:      constants.LockingModeStrict,
 		},
 		{
 			name: "empty mode falls back to default block",
-			spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
-					Lock: scopedaccessv1.Lock_builder{
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					Lock: &scopedaccessv1.Lock{
 						Mode: string(constants.LockingModeStrict),
-					}.Build(),
-				}.Build(),
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
+					},
+				},
+				Kube: &scopedaccessv1.ScopedRoleKube{
 					Lock: nil,
-				}.Build(),
-			}.Build(),
+				},
+			},
 			defaultMode: constants.LockingModeBestEffort,
 			expect:      constants.LockingModeStrict,
 		},

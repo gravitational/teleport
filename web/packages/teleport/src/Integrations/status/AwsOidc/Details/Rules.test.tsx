@@ -17,10 +17,11 @@
  */
 
 import { within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
 import { integrationService } from 'teleport/services/integrations';
@@ -58,12 +59,10 @@ test('renders region & labels from response', async () => {
         `/web/integrations/status/aws-oidc/some-name/resources/eks`,
       ]}
     >
-      <Routes>
-        <Route
-          path={cfg.routes.integrationStatusResources}
-          element={<Rules />}
-        />
-      </Routes>
+      <Route
+        path={cfg.routes.integrationStatusResources}
+        render={() => <Rules />}
+      />
     </MemoryRouter>
   );
 

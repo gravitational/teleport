@@ -28,13 +28,17 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	mfav1impl "github.com/gravitational/teleport/lib/auth/mfa/mfav1"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 )
 
-//nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+const (
+	sourceCluster = "test-cluster"
+)
+
 func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, user := setupAuthServer(t)
+	authServer, service, _, user := setupAuthServer(t, nil)
 
 	requestID := "test-request-id"
 	authServer.requestIDs.Store(requestID, struct{}{})
@@ -58,11 +62,10 @@ func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 	require.Contains(t, resp.TshRedirectUrl, "127.0.0.1")
 }
 
-//nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
 func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 	t.Parallel()
 
-	_, service, _ := setupAuthServer(t)
+	_, service, _, _ := setupAuthServer(t, nil)
 
 	// Use a context with a non-user role (proxy).
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
@@ -84,11 +87,10 @@ func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 	require.Nil(t, resp)
 }
 
-//nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
 func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, user := setupAuthServer(t)
+	authServer, service, _, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
@@ -142,8 +144,8 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			// For the "non-existent RequestId" test, ensure we have at least one valid ID stored.
-			if testCase.name == "non-existent RequestId" {
+			// For the "invalid RequestId" test, ensure we have at least one valid ID stored.
+			if testCase.name == "invalid RequestId" {
 				authServer.requestIDs.Store("valid-id", struct{}{})
 			}
 
@@ -155,23 +157,29 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 	}
 }
 
-func setupAuthServer(t *testing.T) (*mockAuthServer, *mfav1impl.Service, types.User) {
+func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav1impl.Service, *eventstest.MockRecorderEmitter, types.User) {
 	t.Helper()
+
+	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName: "test-cluster",
+			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
+			ClusterName: sourceCluster,
 			Dir:         t.TempDir(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactors: []types.SecondFactorType{
 					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
 				},
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
 			},
 		},
-	})
+	},
+		devices,
+	)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -192,5 +200,5 @@ func setupAuthServer(t *testing.T) (*mockAuthServer, *mfav1impl.Service, types.U
 	})
 	require.NoError(t, err)
 
-	return authServer, service, user
+	return authServer, service, emitter, user
 }

@@ -115,10 +115,10 @@ func (d *CosignSignatureDiscoveryMethod) Discover(ctx context.Context) ([]*workl
 			return nil, trace.Wrap(err, "pulling simple signing layer")
 		}
 
-		payloads = append(payloads, workloadidentityv1.SigstoreVerificationPayload_builder{
+		payloads = append(payloads, &workloadidentityv1.SigstoreVerificationPayload{
 			Bundle:                bundleBytes,
 			SimpleSigningEnvelope: envelope,
-		}.Build())
+		})
 		if len(payloads) == maxPayloads {
 			break
 		}

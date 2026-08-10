@@ -68,34 +68,6 @@ func TestUnmarshal(t *testing.T) {
 	require.Empty(t, cmp.Diff(expected, connector))
 }
 
-func TestUnmarshalNoRoleMappings(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(`{
-		"kind": "github",
-		"version": "v3",
-		"metadata": {
-			"name": "github"
-		},
-		"spec": {
-			"client_id": "aaa",
-			"client_secret": "bbb",
-			"display": "GitHub",
-			"redirect_url": "https://localhost:3080/v1/webapi/github/callback"
-		}
-	}`)
-	connector, err := UnmarshalGithubConnector(data)
-	require.NoError(t, err)
-	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
-		ClientID:     "aaa",
-		ClientSecret: "bbb",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-		Display:      "GitHub",
-	})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expected, connector))
-}
-
 func TestMarshal(t *testing.T) {
 	connectorWithPublicEndpoint, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:       "aaa",

@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -60,22 +59,26 @@ func TestBuildCreateDelegationSessionRequest(t *testing.T) {
 			wantUser: "bob",
 			wantTTL:  10 * time.Minute,
 			wantResources: []*delegationv1pb.DelegationResourceSpec{
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.KindNode, Name: "node1"}.Build(),
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.KindDatabase, Name: "database1"}.Build(),
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.KindApp, Name: "app1"}.Build(),
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.KindKubernetesCluster, Name: "cluster1"}.Build(),
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.KindWindowsDesktop, Name: "desktop1"}.Build(),
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.KindGitServer, Name: "git1"}.Build(),
+				{Kind: types.KindNode, Name: "node1"},
+				{Kind: types.KindDatabase, Name: "database1"},
+				{Kind: types.KindApp, Name: "app1"},
+				{Kind: types.KindKubernetesCluster, Name: "cluster1"},
+				{Kind: types.KindWindowsDesktop, Name: "desktop1"},
+				{Kind: types.KindGitServer, Name: "git1"},
 			},
 			wantAuthorizedUser: []*delegationv1pb.DelegationUserSpec{
-				delegationv1pb.DelegationUserSpec_builder{
-					Kind:    types.KindBot,
-					BotName: proto.String("bot1"),
-				}.Build(),
-				delegationv1pb.DelegationUserSpec_builder{
-					Kind:    types.KindBot,
-					BotName: proto.String("bot2"),
-				}.Build(),
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "bot1",
+					},
+				},
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "bot2",
+					},
+				},
 			},
 		},
 		{
@@ -89,13 +92,15 @@ func TestBuildCreateDelegationSessionRequest(t *testing.T) {
 			wantUser: "bob",
 			wantTTL:  5 * time.Minute,
 			wantResources: []*delegationv1pb.DelegationResourceSpec{
-				delegationv1pb.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
+				{Kind: types.Wildcard, Name: types.Wildcard},
 			},
 			wantAuthorizedUser: []*delegationv1pb.DelegationUserSpec{
-				delegationv1pb.DelegationUserSpec_builder{
-					Kind:    types.KindBot,
-					BotName: proto.String("bot1"),
-				}.Build(),
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "bot1",
+					},
+				},
 			},
 		},
 		{

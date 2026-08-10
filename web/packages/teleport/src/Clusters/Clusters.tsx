@@ -42,7 +42,7 @@ export function Clusters() {
         key="cluster-list"
         exact
         path={cfg.routes.clusters}
-        element={<ClusterListPage />}
+        component={ClusterListPage}
       />
     </Switch>
   );

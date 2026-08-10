@@ -33,7 +33,6 @@ import (
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -173,26 +172,30 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "determining credential id")
 	}
 
-	enrollPayload := devicepb.TPMEnrollPayload_builder{
+	enrollPayload := &devicepb.TPMEnrollPayload{
 		AttestationParameters: devicetrust.AttestationParametersToProto(
 			ak.AttestationParameters(),
 		),
-	}.Build()
+	}
 	switch {
 	// Prefer ekCert over ekPub
 	case ekCert != nil:
-		enrollPayload.SetEkCert(proto.ValueOrDefaultBytes(ekCert))
+		enrollPayload.Ek = &devicepb.TPMEnrollPayload_EkCert{
+			EkCert: ekCert,
+		}
 	case ekKey != nil:
-		enrollPayload.SetEkKey(proto.ValueOrDefaultBytes(ekKey))
+		enrollPayload.Ek = &devicepb.TPMEnrollPayload_EkKey{
+			EkKey: ekKey,
+		}
 	default:
 		return nil, trace.BadParameter("tpm has neither ek_key or ek_cert")
 	}
 
-	return devicepb.EnrollDeviceInit_builder{
+	return &devicepb.EnrollDeviceInit{
 		CredentialId: credentialID,
 		DeviceData:   deviceData,
 		Tpm:          enrollPayload,
-	}.Build(), nil
+	}, nil
 }
 
 // credentialIDFromAK produces a deterministic, short-ish, unique-ish, printable
@@ -258,9 +261,9 @@ func (d *tpmDevice) getDeviceCredential() (*devicepb.DeviceCredential, error) {
 		return nil, trace.Wrap(err, "determining credential id")
 	}
 
-	return devicepb.DeviceCredential_builder{
+	return &devicepb.DeviceCredential{
 		Id: credentialID,
-	}.Build(), nil
+	}, nil
 }
 
 func (d *tpmDevice) solveTPMEnrollChallenge(
@@ -293,7 +296,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	platformsParams, err := attestPlatform(tpm, ak, challenge.GetAttestationNonce())
+	platformsParams, err := attestPlatform(tpm, ak, challenge.AttestationNonce)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -302,7 +305,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	// auth server.
 	logger.DebugContext(ctx, "Activating credential")
 	encryptedCredential := devicetrust.EncryptedCredentialFromProto(
-		challenge.GetEncryptedCredential(),
+		challenge.EncryptedCredential,
 	)
 	if encryptedCredential == nil {
 		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
@@ -340,12 +343,12 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	}
 
 	logger.DebugContext(ctx, "Enrollment challenge completed.")
-	return devicepb.TPMEnrollChallengeResponse_builder{
+	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
 		PlatformParameters: devicetrust.PlatformParametersToProto(
 			platformsParams,
 		),
-	}.Build(), nil
+	}, nil
 }
 
 //nolint:unused // Used by Windows builds.
@@ -432,17 +435,17 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	platformsParams, err := attestPlatform(tpm, ak, challenge.GetAttestationNonce())
+	platformsParams, err := attestPlatform(tpm, ak, challenge.AttestationNonce)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	logger.DebugContext(ctx, "Authenticate device challenge completed")
-	return devicepb.TPMAuthenticateDeviceChallengeResponse_builder{
+	return &devicepb.TPMAuthenticateDeviceChallengeResponse{
 		PlatformParameters: devicetrust.PlatformParametersToProto(
 			platformsParams,
 		),
-	}.Build(), nil
+	}, nil
 }
 
 func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.PlatformParameters, error) {

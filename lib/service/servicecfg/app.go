@@ -20,8 +20,8 @@ package servicecfg
 
 import (
 	"fmt"
+	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"strings"
 
@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	netutils "github.com/gravitational/teleport/api/utils/net"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 )
@@ -50,19 +49,8 @@ type AppsConfig struct {
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 
-	// Limiter limits the connection and request rates.
-	Limiter limiter.Config
-
-	// ResourceMatchers match cluster application resources.
+	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
-
-	// AllowedHosts is the list of IP addresses and CIDR ranges that proxied
-	// application targets are allowed to resolve to.
-	AllowedHosts []netip.Prefix
-
-	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
-	// application targets are not allowed to resolve to.
-	DeniedHosts []netip.Prefix
 
 	// MonitorCloseChannel will be signaled when a monitor closes a connection.
 	// Used only for testing. Optional.
@@ -194,17 +182,25 @@ func (a *App) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
 	}
-	// Stricter than the dynamic write path: label (no dots), max 63.
-	// Dynamic resources allow subdomain because integrations produce
-	// dotted names.
-	if errs := validation.IsDNS1123Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", a.Name)
+	// Check if the application name is a valid subdomain. Don't allow names that
+	// are invalid subdomains because for trusted clusters the name is used to
+	// construct the domain that the application will be available at.
+	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
+		return trace.BadParameter("application name %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", a.Name)
 	}
+	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
 		return trace.BadParameter("application %q URI invalid: %v", a.Name, err)
 	}
-	if err := services.ValidatePublicAddr(a.Name, a.PublicAddr); err != nil {
-		return trace.Wrap(err)
+	// If a port was specified or an IP address was provided for the public
+	// address, return an error.
+	if a.PublicAddr != "" {
+		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
+			return trace.BadParameter("application %q public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.Name, a.PublicAddr)
+		}
+		if net.ParseIP(a.PublicAddr) != nil {
+			return trace.BadParameter("application %q public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.Name, a.PublicAddr)
+		}
 	}
 	// Mark the app as coming from the static configuration.
 	if a.StaticLabels == nil {
@@ -230,54 +226,6 @@ func (a *App) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// ParseTargetHostPrefixes parses IP addresses and CIDR prefixes from an app
-// service target host policy.
-func ParseTargetHostPrefixes(hosts []string) ([]netip.Prefix, error) {
-	if len(hosts) == 0 {
-		return nil, nil
-	}
-	prefixes := make([]netip.Prefix, 0, len(hosts))
-	for _, host := range hosts {
-		host = strings.TrimSpace(host)
-		if host == "" {
-			return nil, trace.BadParameter("target host restriction contains an empty entry")
-		}
-
-		if addr, err := netip.ParseAddr(host); err == nil {
-			if addr.Zone() != "" {
-				return nil, trace.BadParameter("target host restriction %q must not include an IPv6 zone identifier", host)
-			}
-			// IPv4-in-IPv6 notation is rejected so that rules are written
-			// unambiguously: resolved targets are unmapped before evaluation,
-			// so a rule must use plain IPv4 (e.g. 192.0.2.10) to match them.
-			if addr.Is4In6() {
-				return nil, trace.BadParameter("target host restriction %q must use IPv4 notation (e.g. 192.0.2.10) instead of IPv4-in-IPv6 notation", host)
-			}
-			prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
-			continue
-		}
-
-		prefix, err := netip.ParsePrefix(host)
-		if err != nil {
-			return nil, trace.BadParameter("target host restriction %q must be an IP address or CIDR range", host)
-		}
-		// IPv4-in-IPv6 CIDRs are rejected: their bit count is offset by 96
-		// (e.g. ::ffff:169.254.0.0/112 is really /16), which silently fails to
-		// match the unmapped IPv4 addresses the policy evaluates against.
-		if prefix.Addr().Is4In6() {
-			return nil, trace.BadParameter("target host restriction %q must use IPv4 CIDR notation (e.g. 169.254.0.0/16) instead of IPv4-in-IPv6 notation (e.g. ::ffff:169.254.0.0/112)", host)
-		}
-		// Reject non-canonical CIDRs (host bits set) instead of silently
-		// masking them, which would otherwise turn a typo like 10.0.0.5/8 into
-		// a different range than the operator wrote.
-		if masked := prefix.Masked(); masked != prefix {
-			return nil, trace.BadParameter("target host restriction %q is not a canonical CIDR range; use %q", host, masked.String())
-		}
-		prefixes = append(prefixes, prefix)
-	}
-	return prefixes, nil
 }
 
 func (a *App) checkPorts() error {

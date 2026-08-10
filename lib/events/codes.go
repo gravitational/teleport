@@ -138,16 +138,6 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
-	// AppSessionHTTPRequestCode is the HTTP proxy request event code.
-	AppSessionHTTPRequestCode = "T2015I"
-	// AppSessionHTTPRequestBodyChunkCode is the HTTP proxy request body chunk event code.
-	AppSessionHTTPRequestBodyChunkCode = "T2016I"
-	// AppSessionHTTPResponseCode is the HTTP proxy response event code.
-	AppSessionHTTPResponseCode = "T2017I"
-	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
-	AppSessionHTTPResponseBodyChunkCode = "T2018I"
-	// AppSessionTargetDialDeniedCode is the application target dial denied event code.
-	AppSessionTargetDialDeniedCode = "T2019E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -343,10 +333,6 @@ const (
 	KubernetesClusterUpdateCode = "T3011I"
 	// KubernetesClusterDeleteCode is the kube.delete event code.
 	KubernetesClusterDeleteCode = "T3012I"
-	// AgentForwardCode is the agent forward event code.
-	AgentForwardCode = "T3013I"
-	// AgentForwardFailureCode is the agent forward failure event code.
-	AgentForwardFailureCode = "T3013W"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode           = "TS001I"
@@ -525,11 +511,6 @@ const (
 	DeviceWebTokenCreateCode = "TV008I"
 	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
 	DeviceAuthenticateConfirmCode = "TV009I"
-	// DeviceEnrollPairingRequestCode is the device enroll pairing request code.
-	DeviceEnrollPairingRequestCode = "TV010I"
-	// DeviceEnrollPairingRequestFailureCode is the device enroll pairing request
-	// failure code.
-	DeviceEnrollPairingRequestFailureCode = "TV010W"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
@@ -880,19 +861,6 @@ const (
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
 
-	// AppAuthConfigCreateCode is the app auth config create event code.
-	AppAuthConfigCreateCode = "TAAC001I"
-	// AppAuthConfigUpdateCode is the app auth config update event code.
-	AppAuthConfigUpdateCode = "TAAC002I"
-	// AppAuthConfigDeleteCode is the app auth config delete event code.
-	AppAuthConfigDeleteCode = "TAAC003I"
-	// AppAuthConfigVerifySuccessCode is the app auth verification success event
-	// code.
-	AppAuthConfigVerifySuccessCode = "TAAC004I"
-	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
-	// code.
-	AppAuthConfigVerifyFailureCode = "TAAC004E"
-
 	// VnetConfigCreateCode is the Vnet config create event code.
 	VnetConfigCreateCode = "TVNET001I"
 	// VnetConfigUpdateCode is the Vnet config update event code.
@@ -945,19 +913,6 @@ const (
 	RetrievalModelUpdateCode = "INF012I"
 	// RetrievalModelDeleteCode is the retrieval model delete event code.
 	RetrievalModelDeleteCode = "INF013I"
-
-	// ClassifierCreateCode is the classifier create event code.
-	ClassifierCreateCode = "INF014I"
-	// ClassifierCreateFailureCode is the classifier create failure event code.
-	ClassifierCreateFailureCode = "INF014E"
-	// ClassifierUpdateCode is the classifier update event code.
-	ClassifierUpdateCode = "INF015I"
-	// ClassifierUpdateFailureCode is the classifier update failure event code.
-	ClassifierUpdateFailureCode = "INF015E"
-	// ClassifierDeleteCode is the classifier delete event code.
-	ClassifierDeleteCode = "INF016I"
-	// ClassifierDeleteFailureCode is the classifier delete failure event code.
-	ClassifierDeleteFailureCode = "INF016E"
 
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -55,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -124,7 +125,7 @@ type certificateStoreClient interface {
 // protocol.
 type WindowsService struct {
 	cfg        WindowsServiceConfig
-	middleware *authz.Middleware
+	middleware *auth.Middleware
 
 	ca certificateStoreClient
 
@@ -217,7 +218,7 @@ type WindowsServiceConfig struct {
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
 	// ResourceMatchers match dynamic Windows desktop resources.
 	ResourceMatchers []services.ResourceMatcher
@@ -285,9 +286,6 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if cfg.ConnLimiter == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing ConnLimiter")
 	}
-	if cfg.ConnectedProxyGetter == nil {
-		return trace.BadParameter("WindowsServiceConfig is missing ConnectedProxyGetter")
-	}
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -302,38 +300,13 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
 	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	cfg.ConnectedProxyGetter = cmp.Or(cfg.ConnectedProxyGetter, reversetunnel.NewConnectedProxyGetter())
 
 	if !cfg.LocateServer.Enabled && cfg.LocateServer.Site != "" {
 		cfg.Logger.WarnContext(context.Background(), "site is set, but locate_server is false. site will be ignored.")
 	}
 
-	cfg.insecureSkipVerifyWarning()
-
 	return nil
-}
-
-func (w *WindowsServiceConfig) insecureSkipVerifyWarning() {
-	if !w.LDAPConfig.InsecureSkipVerify || w.Logger == nil {
-		return
-	}
-
-	const withCAs = "LDAP configuration specifies both a CA certificate and insecure_skip_verify. " +
-		"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
-
-	const withoutCAs = "LDAP configuration specifies insecure_skip_verify. " +
-		"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
-
-	// It's possible to provide a CA certificate for the LDAP server
-	// and to skip TLS validation, though this may be an error, so try
-	// to warn the user.
-	// (You may need this configuration in order to use certificates to
-	// authenticate with LDAP when the LDAP server name is not correct
-	// in the certificate).
-	if len(w.LDAPConfig.CAs) > 0 {
-		w.Logger.WarnContext(context.Background(), withCAs)
-	} else {
-		w.Logger.WarnContext(context.Background(), withoutCAs)
-	}
 }
 
 func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
@@ -360,6 +333,9 @@ func (s *WindowsService) getLDAPConfig() *winpki.LDAPConfig {
 	}
 }
 
+const insecureSkipVerifyWarning = "LDAP configuration specifies both a CA certificate and insecure_skip_verify. " +
+	"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
+
 // NewWindowsService initializes a new WindowsService.
 //
 // To start serving connections, call Serve.
@@ -367,6 +343,16 @@ func (s *WindowsService) getLDAPConfig() *winpki.LDAPConfig {
 func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// It's possible to provide a CA certificate for the LDAP server
+	// and to skip TLS valdiation, though this may be an error, so try
+	// to warn the user.
+	// (You may need this configuration in order to use certificates to
+	// authenticate with LDAP when the LDAP server name is not correct
+	// in the certificate).
+	if len(cfg.LDAPConfig.CAs) > 0 && cfg.LDAPConfig.InsecureSkipVerify {
+		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
 	}
 
 	clusterName, err := cfg.AccessPoint.GetClusterName(context.TODO())
@@ -416,7 +402,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 
 	s := &WindowsService{
 		cfg: cfg,
-		middleware: &authz.Middleware{
+		middleware: &auth.Middleware{
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},

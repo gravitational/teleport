@@ -61,7 +61,7 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		return trace.BadParameter("cannot unset title")
 	}
 
-	aclName, err := c.accessListScopeQualifiedName()
+	aclName, err := c.accessListQualifiedName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,6 +87,11 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		if c.removeAccess && c.anyAccessFlagsSet() {
 			return trace.BadParameter("--remove-access removes all resource access and cannot be combined with resource access flags (--node-labels, --logins, etc.)")
 		}
+	}
+
+	ctx, err = withReusableAdminActionMFA(ctx, client)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	var updatedAccessList *accesslist.AccessList
@@ -199,7 +204,7 @@ func reconcileOwners(wantUpdate bool, ownersStr string, memberKind string, currO
 	}
 
 	newOwnerLookup := make(map[accesslists.NormalizedSQN]struct{}, len(currOwners))
-	ownerNames, err := splitQualifiedNames(ownersStr)
+	ownerNames, err := splitACLQualifiedNames(ownersStr)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "parsing owner name")
 	}
@@ -234,7 +239,7 @@ func reconcileMembers(listName scopes.QualifiedName, wantUpdate bool, membersStr
 	}
 
 	newMemberLookup := make(map[accesslists.NormalizedSQN]struct{}, len(currMembers))
-	memberNames, err := splitQualifiedNames(membersStr)
+	memberNames, err := splitACLQualifiedNames(membersStr)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "parsing member name")
 	}

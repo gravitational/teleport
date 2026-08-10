@@ -24,7 +24,6 @@ import {
   makeEmptyAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
@@ -164,7 +163,7 @@ export function useMfa(props?: MfaProps): MfaState {
         setMfaAttempt({
           data: null,
           status: 'error',
-          statusText: getErrorMessage(err),
+          statusText: err.message,
           error: err,
         });
       }

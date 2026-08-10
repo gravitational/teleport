@@ -119,10 +119,10 @@ func (h *fakeHeartbeatDriver) newStream(ctx context.Context, t *testing.T) clien
 
 	require.IsType(t, *new(*proto.UpstreamInventoryHello), msg)
 
-	err := upstream.Send(ctx, proto.DownstreamInventoryHello_builder{
+	err := upstream.Send(ctx, &proto.DownstreamInventoryHello{
 		ServerID: "test-auth",
 		Version:  teleport.Version,
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	return upstream
@@ -132,11 +132,11 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 	// streamC is used to pass a fake control stream to the downstream handle's create func.
 	streamC := make(chan client.DownstreamInventoryControlStream)
 
-	hello := proto.UpstreamInventoryHello_builder{
+	hello := &proto.UpstreamInventoryHello{
 		ServerID: "test-node",
 		Version:  teleport.Version,
 		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
-	}.Build()
+	}
 
 	handle, err := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		// we're emulating an inventory.DownstreamCreateFunc here, but those are typically
@@ -169,7 +169,8 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 func TestHeartbeatV2Basics(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -295,7 +296,8 @@ func TestHeartbeatV2Basics(t *testing.T) {
 func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -351,7 +353,8 @@ func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 func TestHeartbeatV2NoFallbackChecked(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.

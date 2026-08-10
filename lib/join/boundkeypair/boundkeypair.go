@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -266,8 +265,8 @@ func (m *consumeRecoveryMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.SetRecoveryCount(status.GetRecoveryCount() + 1)
-	status.SetLastRecoveredAt(timestamppb.New(m.now))
+	status.RecoveryCount += 1
+	status.LastRecoveredAt = timestamppb.New(m.now)
 }
 
 // mutateStatusConsumeRecovery consumes a "hard" join on the backend, incrementing
@@ -311,7 +310,7 @@ func (m *boundPublicKeyMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.SetBoundPublicKey(m.newPublicKey)
+	status.BoundPublicKey = m.newPublicKey
 }
 
 // mutateStatusBoundPublicKey is a mutator that updates the bound public key
@@ -356,7 +355,7 @@ func (m *boundBotInstanceMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.SetBoundBotInstanceId(m.newBotInstance)
+	status.BoundBotInstanceId = m.newBotInstance
 }
 
 // mutateStatusBoundBotInstance updates the bot instance ID currently bound to
@@ -401,7 +400,7 @@ func (m *boundHostIDMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.SetBoundHostId(m.newHostID)
+	status.BoundHostId = m.newHostID
 }
 
 // mutateStatusBoundHostID updates the host ID currently bound to this token. It
@@ -459,9 +458,9 @@ func (m *lastRotatedAtMutator) mutateScopedToken(
 	status *joiningv1.BoundKeypairStatus,
 ) {
 	if m.newValue == nil {
-		status.ClearLastRotatedAt()
+		status.LastRotatedAt = nil
 	} else {
-		status.SetLastRotatedAt(timestamppb.New(*m.newValue))
+		status.LastRotatedAt = timestamppb.New(*m.newValue)
 	}
 }
 
@@ -501,7 +500,7 @@ func (m *clearRegistrationSecretMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.SetRegistrationSecret("")
+	status.RegistrationSecret = ""
 }
 
 // mutateStatusClearRegistrationSecret clears the registration secret field to
@@ -540,7 +539,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 
 		return patched, nil
 	case *joining.Token:
-		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}, func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 			if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
 				return nil, trace.BadParameter("scoped bound keypair tokens must have non-nil status.usage.bound_keypair")
 			}
@@ -720,7 +719,7 @@ func tryLockTokenInvalidJoinState(
 	// Create a lock against this token.
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
 		Target: types.LockTarget{
-			JoinToken: scopes.QualifiedName{Name: token.GetName(), Scope: token.GetScope()}.String(),
+			JoinToken: token.GetName(),
 		},
 		Message:   message,
 		CreatedAt: params.Clock.Now(),
@@ -814,9 +813,7 @@ func verifyLocksForBoundKeypairToken(ctx context.Context, params *JoinParams, to
 
 	return trace.Wrap(params.AuthService.CheckLockInForce(
 		readOnlyAuthPref.GetLockingMode(),
-		[]types.LockTarget{
-			{JoinToken: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}.String()},
-		},
+		[]types.LockTarget{{JoinToken: token.GetName()}},
 	))
 }
 
@@ -916,7 +913,7 @@ type AuthService interface {
 type ScopedTokenService interface {
 	PatchScopedToken(
 		ctx context.Context,
-		tokenName scopes.QualifiedName,
+		tokenName string,
 		updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
 	) (*joiningv1.ScopedToken, error)
 }

@@ -730,8 +730,8 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				}
 				var err error
 				expected, err = w.GetUnifiedResources(ctx)
-				require.NoError(t, err)
-				require.Len(t, expected, resourceCount)
+				assert.NoError(t, err)
+				assert.Len(t, expected, resourceCount)
 			}, 10*time.Second, 100*time.Millisecond)
 
 			t.Run("resource iterator", func(t *testing.T) {
@@ -1234,8 +1234,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
-		require.NoError(t, err)
-		require.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
 	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted except for HA servers")
 
 	// delete all remaining (db, kube, app, desktop) servers
@@ -1266,8 +1268,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
-		require.NoError(t, err)
-		require.Empty(t, res)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Empty(t, res)
 	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 
@@ -1301,32 +1305,32 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 	accountID := t.Name()
 
-	icAcct, err := svc.CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: t.Name(),
 			Labels: map[string]string{
 				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-		}.Build(),
-		Spec: identitycenterv1.AccountSpec_builder{
+		},
+		Spec: &identitycenterv1.AccountSpec{
 			Id:          accountID,
 			Arn:         "arn:aws:sso:::account/" + accountID,
 			Name:        "Test AWS Account",
 			Description: "Used for testing",
 			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-				identitycenterv1.PermissionSetInfo_builder{
+				{
 					Name: "Alpha",
 					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-				}.Build(),
-				identitycenterv1.PermissionSetInfo_builder{
+				},
+				{
 					Name: "Beta",
 					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err, "creating Identity Center Account")
 	return icAcct
 }
@@ -1546,13 +1550,13 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	linuxDesktop1 := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "linux-desktop-1",
 			Labels: map[string]string{
 				"env":    "production",
 				"region": "us-west-1",
 			},
-		}.Build(),
+		},
 		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.1:22",
 			Hostname: "linux-host-1",
@@ -1582,7 +1586,7 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	unwrapper, ok := resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
 	require.True(t, ok, "resource should be unwrappable to LinuxDesktop")
 	unwrapped := unwrapper.UnwrapT()
-	require.Equal(t, "linux-desktop-1", unwrapped.GetMetadata().GetName())
+	require.Equal(t, "linux-desktop-1", unwrapped.GetMetadata().Name)
 	require.Equal(t, "10.0.0.1:22", unwrapped.GetSpec().GetAddr())
 	require.Equal(t, "linux-host-1", unwrapped.GetSpec().GetHostname())
 
@@ -1590,12 +1594,12 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	linuxDesktop2 := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "linux-desktop-2",
 			Labels: map[string]string{
 				"env": "staging",
 			},
-		}.Build(),
+		},
 		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.2:22",
 			Hostname: "linux-host-2",
@@ -1653,12 +1657,12 @@ func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 	linuxDesktop := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "linux-desktop",
 			Labels: map[string]string{
 				"env": "test",
 			},
-		}.Build(),
+		},
 		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.10:22",
 			Hostname: "test-host",
@@ -1740,12 +1744,12 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "test-desktop",
 					Labels: map[string]string{
 						"env": "production",
 					},
-				}.Build(),
+				},
 				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "192.168.1.100:22",
 					Hostname: "desktop-host",
@@ -1760,9 +1764,9 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "protected-desktop",
-				}.Build(),
+				},
 				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "10.0.0.50:22",
 					Hostname: "protected-host",
@@ -1790,7 +1794,7 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			// Verify fields match
 			require.Equal(t, tt.desktop.GetKind(), wireDesktop.Kind)
 			require.Equal(t, tt.desktop.GetVersion(), wireDesktop.Version)
-			require.Equal(t, tt.desktop.GetMetadata().GetName(), wireDesktop.Metadata.Name)
+			require.Equal(t, tt.desktop.GetMetadata().Name, wireDesktop.Metadata.Name)
 			require.Equal(t, tt.desktop.GetSpec().GetAddr(), wireDesktop.Addr)
 			require.Equal(t, tt.desktop.GetSpec().GetHostname(), wireDesktop.Hostname)
 			require.Equal(t, tt.desktop.GetSpec().GetProxyIds(), wireDesktop.ProxyIds)
@@ -1800,13 +1804,13 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			unpacked := proto.UnpackLinuxDesktop(wireDesktop)
 			require.NotNil(t, unpacked)
 			require.Equal(t, types.KindLinuxDesktop, unpacked.GetKind())
-			require.Equal(t, tt.desktop.GetMetadata().GetName(), unpacked.GetName())
+			require.Equal(t, tt.desktop.GetMetadata().Name, unpacked.GetName())
 
 			// Verify it can be unwrapped back to the original type
 			unwrapper, ok := unpacked.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
 			require.True(t, ok, "unpacked resource should be unwrappable")
 			unpackedDesktop := unwrapper.UnwrapT()
-			require.Equal(t, tt.desktop.GetMetadata().GetName(), unpackedDesktop.GetMetadata().GetName())
+			require.Equal(t, tt.desktop.GetMetadata().Name, unpackedDesktop.GetMetadata().Name)
 			require.Equal(t, tt.desktop.GetSpec().GetAddr(), unpackedDesktop.GetSpec().GetAddr())
 			require.Equal(t, tt.desktop.GetSpec().GetHostname(), unpackedDesktop.GetSpec().GetHostname())
 		})

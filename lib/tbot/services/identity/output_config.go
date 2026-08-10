@@ -66,8 +66,9 @@ type OutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
-	DeprecatedRoles []string `yaml:"roles,omitempty"`
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles []string `yaml:"roles,omitempty"`
 
 	// Cluster allows certificates to be generated for a leaf cluster of the
 	// cluster that the bot is connected to. These certificates can be used
@@ -119,9 +120,6 @@ func (o *OutputConfig) GetDestination() destination.Destination {
 }
 
 func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
-	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
-		return trace.Wrap(err)
-	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -131,12 +129,12 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 
 	if scoped {
 		switch {
+		case len(o.Roles) != 0:
+			return trace.BadParameter("roles: not supported with scopes")
 		case o.AllowReissue:
 			return trace.BadParameter("allow_reissue: not supported with scopes")
 		case o.Cluster != "":
 			return trace.BadParameter("cluster: not supported with scopes")
-		case o.DelegationSessionID != "":
-			return trace.BadParameter("delegation_session_id: not supported with scopes")
 		}
 	}
 
@@ -159,6 +157,9 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	case SSHConfigModeOff, SSHConfigModeOn:
 	default:
 		return trace.BadParameter("ssh_config: unrecognized value %q", o.SSHConfigMode)
+	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
 	}
 
 	return nil

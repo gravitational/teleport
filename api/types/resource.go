@@ -147,47 +147,11 @@ type EnrichedResource struct {
 	ResourceWithLabels
 	// Logins that the user is allowed to access the above resource with.
 	Logins []string
-	// Principals holds the resource's principals, one entry per dimension,
-	// split into granted and requestable.
-	Principals []ResourcePrincipalSet
 	// RequiresRequest is true if a resource is being returned to the user but requires
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
 }
-
-// ResourcePrincipalSet is one principal dimension of a resource.
-type ResourcePrincipalSet struct {
-	// PrincipalType is the dimension's inline constraint key ("logins",
-	// "role_arns").
-	PrincipalType string
-	// Granted holds values usable without an access request.
-	Granted []string
-	// Requestable holds values usable only via access request.
-	Requestable []string
-	// ByRole optionally attributes values to the roles granting them, for
-	// kinds whose dimensions must be co-granted by a single role.
-	ByRole []RolePrincipalValues
-}
-
-// RolePrincipalValues is the subset of one principal dimension's values
-// granted by a single role.
-type RolePrincipalValues struct {
-	// Role is the granting role's name.
-	Role string
-	// RequiresRequest is set when the role is not held and must be requested.
-	RequiresRequest bool
-	// Values are the principals the role grants for the parent dimension.
-	Values []string
-}
-
-// Principal types, matching inline constraint keys.
-const (
-	// PrincipalTypeLogins is SSH logins on nodes.
-	PrincipalTypeLogins = "logins"
-	// PrincipalTypeRoleARNs is AWS role ARNs on AWS console apps.
-	PrincipalTypeRoleARNs = "role_arns"
-)
 
 // EnrichedResources is a wrapper of []*EnrichedResource.
 // A EnrichedResource is a [ResourceWithLabels] wrapped with additional

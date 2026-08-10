@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"k8s.io/client-go/discovery"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -87,7 +86,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	botConfig.Scoped = config.scoped
 	bot, err := embeddedtbot.New(botConfig, slogLogger.With(teleport.ComponentLabel, "embedded-tbot"))
 	if err != nil {
 		setupLog.Error(err, "unable to build tbot")
@@ -105,13 +103,7 @@ func main() {
 		setupLog.Error(err, "error waiting the teleport client")
 	}
 
-	kubeClientConfig := ctrl.GetConfigOrDie()
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeClientConfig)
-	if err != nil {
-		setupLog.Error(err, "unable to create kubernetes client")
-	}
-
-	mgr, err := ctrl.NewManager(kubeClientConfig, ctrl.Options{
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: config.metricsAddr,
@@ -140,14 +132,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = resources.SetupAllControllers(
-		resources.Config{
-			Log:            setupLog,
-			TeleportClient: client,
-			KubeClient:     mgr.GetClient(),
-			Scoped:         config.scoped,
-			Features:       pong.ServerFeatures,
-		}, mgr, discoveryClient); err != nil {
+	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures); err != nil {
 		setupLog.Error(err, "failed to setup controllers")
 		os.Exit(1)
 	}

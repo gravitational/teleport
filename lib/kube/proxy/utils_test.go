@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
@@ -70,9 +69,7 @@ import (
 	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
@@ -112,7 +109,6 @@ type KubeClusterConfig struct {
 
 // TestConfig defines the suite options.
 type TestConfig struct {
-	Modules              *modulestest.Modules
 	Clusters             []KubeClusterConfig
 	ResourceMatchers     []services.ResourceMatcher
 	OnReconcile          func(types.KubeClusters)
@@ -156,7 +152,6 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		Streamer:       streamer,
 		UploadHandler:  testCtx.UploadHandler,
 		Dir:            t.TempDir(),
-		Modules:        cmp.Or(cfg.Modules, modulestest.OSSModules()),
 		ScopesFeatures: cfg.ScopesFeatures,
 	})
 	require.NoError(t, err)
@@ -349,14 +344,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:          func(err error) {},
-		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:     cfg.ResourceMatchers,
-		OnReconcile:          cfg.OnReconcile,
-		Log:                  logtest.NewLogger(),
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		OnHeartbeat:        func(err error) {},
+		GetRotation:        func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:   cfg.ResourceMatchers,
+		OnReconcile:        cfg.OnReconcile,
+		Log:                logtest.NewLogger(),
+		InventoryHandle:    inventoryHandle,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -438,8 +432,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Zero(t, testCtx.KubeServer.Server.ReadTimeout, "kube server read timeout must be 0 to keep long-running watch streams alive")
@@ -452,9 +445,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		case sender := <-inventoryHandle.Sender():
 			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat_builder{
+			require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 				KubernetesServer: server,
-			}.Build()))
+			}))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")
 		}
@@ -570,39 +563,42 @@ func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope stri
 	require.NoError(t, err)
 
 	scopedAccess := c.TLSServer.Auth().ScopedAccess()
-	role, err := scopedAccess.CreateScopedRole(t.Context(), accessv1.CreateScopedRoleRequest_builder{
-		Role: accessv1.ScopedRole_builder{
+	role, err := scopedAccess.CreateScopedRole(t.Context(), &accessv1.CreateScopedRoleRequest{
+		Role: &accessv1.ScopedRole{
 			Kind:    access.KindScopedRole,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: username,
-			}.Build(),
+			},
 			Scope: scope,
 			Spec:  roleSpec,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
-	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), accessv1.CreateScopedRoleAssignmentRequest_builder{
-		Assignment: accessv1.ScopedRoleAssignment_builder{
+	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), &accessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &accessv1.ScopedRoleAssignment{
 			Kind:    access.KindScopedRoleAssignment,
 			Version: types.V1,
 			SubKind: access.SubKindDynamic,
 			Scope:   scope,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: uuid.New().String(),
-			}.Build(),
-			Spec: accessv1.ScopedRoleAssignmentSpec_builder{
+			},
+			Spec: &accessv1.ScopedRoleAssignmentSpec{
 				User: username,
 				Assignments: []*accessv1.Assignment{
-					accessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: role.GetRole().GetScope(), Name: role.GetRole().GetMetadata().GetName()}.String(),
+					{
+						Role: scopes.QualifiedName{
+							Name:  role.GetRole().GetMetadata().GetName(),
+							Scope: role.GetRole().GetScope(),
+						}.String(),
 						Scope: scope,
-					}.Build(),
+					},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	return user, assignment
@@ -822,10 +818,10 @@ func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, 
 }
 
 func (c *TestContext) GetScopePinForUser(t *testing.T, username, scope string) *scopesv1.Pin {
-	pin := scopesv1.Pin_builder{
+	pin := &scopesv1.Pin{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: scope,
-	}.Build()
+	}
 	err := c.AuthServer.ScopedAccessCache.PopulatePinnedAssignmentsForUser(t.Context(), username, pin)
 	require.NoError(t, err)
 

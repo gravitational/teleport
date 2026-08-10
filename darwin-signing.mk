@@ -11,16 +11,6 @@
 # profile alongside build.assets/macos/*/*.provisioningprofile. We also need
 # to update these profiles if the keys are changed/rotated.
 
-# RETRY_TOOL_ENABLED defaults to true in CI so transient notarization failures
-# get retried automatically. It can be forced on or off with:
-#   make RETRY_TOOL_ENABLED=true ...
-#   make RETRY_TOOL_ENABLED=false ...
-RETRY_TOOL_ENABLED ?= $(if $(filter true yes 1,$(CI)),true)
-RETRY_TOOL_ENABLED := $(if $(filter true yes 1,$(RETRY_TOOL_ENABLED)),true,)
-RETRY_TOOL_RETRIES ?= 3
-RETRY_TOOL_INITIAL ?= 30s
-RETRY_TOOL = $(if $(RETRY_TOOL_ENABLED),go run github.com/gravitational/shared-workflows/tools/retry@v0.0.2 --retries $(RETRY_TOOL_RETRIES) --initial $(RETRY_TOOL_INITIAL) --)
-
 # Default environment name if not specified. This is currently for running
 # locally instead of from GitHub Actions, where ENVIRONMENT_NAME would not be
 # set.
@@ -108,7 +98,7 @@ define notarize_binaries_cmd
 	mkdir $(notary_dir)
 	ditto $(BINARIES) $(notary_dir)
 	ditto -c -k $(notary_dir) $(notary_file)
-	$(RETRY_TOOL) xcrun notarytool submit $(notary_file) \
+	xcrun notarytool submit $(notary_file) \
 		--team-id="$(TEAMID)" \
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
@@ -151,7 +141,7 @@ define notarize_app_bundle
 		"$($@_BUNDLE)"
 
 	ditto -c -k --keepParent $($@_BUNDLE) $(notary_file)
-	$(RETRY_TOOL) xcrun notarytool submit $(notary_file) \
+	xcrun notarytool submit $(notary_file) \
 		--team-id="$(TEAMID)" \
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
@@ -167,7 +157,7 @@ define notarize_pkg
 		--timestamp \
 		$($@_IN_PKG) \
 		$($@_OUT_PKG)
-	$(RETRY_TOOL) xcrun notarytool submit $($@_OUT_PKG) \
+	xcrun notarytool submit $($@_OUT_PKG) \
 		--team-id="$(TEAMID)" \
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
@@ -190,6 +180,3 @@ print-darwin-signing-vars:
 	$(call echo_var,TSH_SKELETON)
 	$(call echo_var,TCTL_BUNDLEID)
 	$(call echo_var,TCTL_SKELETON)
-	$(call echo_var,RETRY_TOOL_ENABLED)
-	$(call echo_var,RETRY_TOOL_RETRIES)
-	$(call echo_var,RETRY_TOOL_INITIAL)

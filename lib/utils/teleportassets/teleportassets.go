@@ -100,9 +100,9 @@ const (
 )
 
 // DistrolessImage returns the distroless teleport image repo.
-func DistrolessImage(version semver.Version, buildType string) string {
+func DistrolessImage(version semver.Version) string {
 	repo := distrolessImageRepo(version)
-	name := distrolessImageName(buildType)
+	name := distrolessImageName(modules.GetModules().BuildType())
 	return fmt.Sprintf("%s/%s:%s", repo, name, version)
 }
 

@@ -8,10 +8,6 @@ page_type: reference
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-{/* Disable the outdated name check since data source fields occasionally need
-to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This page lists the supported values of the `teleport_discovery_config` data source of the
 Teleport Terraform provider.
 
@@ -51,6 +47,7 @@ Optional:
 - `expires` (String) expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) labels is a set of labels.
 - `namespace` (String) namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
+- `revision` (String) revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.
 
 
 
@@ -146,7 +143,7 @@ Optional:
 Optional:
 
 - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specawsinstallazure))
-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
 - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specawsinstallhttp_proxy_settings))
 - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
 - `join_method` (String) JoinMethod is the method to use when joining the cluster
@@ -220,7 +217,7 @@ Required:
 Optional:
 
 - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specazureinstall_paramsazure))
-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
 - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specazureinstall_paramshttp_proxy_settings))
 - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
 - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
@@ -264,7 +261,7 @@ Optional:
 Optional:
 
 - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specgcpinstall_paramsazure))
-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
 - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specgcpinstall_paramshttp_proxy_settings))
 - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
 - `join_method` (String) JoinMethod is the method to use when joining the cluster

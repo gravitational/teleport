@@ -73,7 +73,7 @@ func newEKSAuditLogFetcher(
 // audit logs for the configured cluster. It feeds the logs retrieved to the
 // configured grpc stream, running until the given context is canceled.
 func (f *eksAuditLogFetcher) Run(ctx context.Context) error {
-	f.log = f.log.With("cluster", f.cluster.GetArn())
+	f.log = f.log.With("cluster", f.cluster.Arn)
 
 	cursor := initialCursor(f.cluster)
 	if err := f.sendTAGKubeAuditLogNewStream(ctx, cursor); err != nil {
@@ -148,9 +148,11 @@ func (f *eksAuditLogFetcher) fetchLogs(ctx context.Context, cursor *accessgraphv
 
 func (f *eksAuditLogFetcher) sendTAGKubeAuditLogNewStream(ctx context.Context, cursor *accessgraphv1alpha.KubeAuditLogCursor) error {
 	err := f.stream.Send(
-		accessgraphv1alpha.KubeAuditLogStreamRequest_builder{
-			NewStream: accessgraphv1alpha.KubeAuditLogNewStream_builder{Initial: cursor}.Build(),
-		}.Build(),
+		&accessgraphv1alpha.KubeAuditLogStreamRequest{
+			Action: &accessgraphv1alpha.KubeAuditLogStreamRequest_NewStream{
+				NewStream: &accessgraphv1alpha.KubeAuditLogNewStream{Initial: cursor},
+			},
+		},
 	)
 	if err != nil {
 		err = consumeTillErr(f.stream)
@@ -172,14 +174,16 @@ func (f *eksAuditLogFetcher) receiveTAGKubeAuditLogResume(ctx context.Context) (
 	}
 
 	f.log.InfoContext(ctx, "KubeAuditLogResumeState received", "state", state)
-	return state.GetCursor(), nil
+	return state.Cursor, nil
 }
 
 func (f *eksAuditLogFetcher) sendTAGKubeAuditLogEvents(ctx context.Context, events []*structpb.Struct, cursor *accessgraphv1alpha.KubeAuditLogCursor) error {
 	err := f.stream.Send(
-		accessgraphv1alpha.KubeAuditLogStreamRequest_builder{
-			Events: accessgraphv1alpha.KubeAuditLogEvents_builder{Events: events, Cursor: cursor}.Build(),
-		}.Build(),
+		&accessgraphv1alpha.KubeAuditLogStreamRequest{
+			Action: &accessgraphv1alpha.KubeAuditLogStreamRequest_Events{
+				Events: &accessgraphv1alpha.KubeAuditLogEvents{Events: events, Cursor: cursor},
+			},
+		},
 	)
 	if err != nil {
 		err = consumeTillErr(f.stream)
@@ -190,21 +194,21 @@ func (f *eksAuditLogFetcher) sendTAGKubeAuditLogEvents(ctx context.Context, even
 }
 
 func cursorFromEvent(cluster *accessgraphv1alpha.AWSEKSClusterV1, event cwltypes.FilteredLogEvent) *accessgraphv1alpha.KubeAuditLogCursor {
-	return accessgraphv1alpha.KubeAuditLogCursor_builder{
+	return &accessgraphv1alpha.KubeAuditLogCursor{
 		LogSource:     accessgraphv1alpha.KubeAuditLogCursor_KUBE_AUDIT_LOG_SOURCE_EKS,
-		ClusterId:     cluster.GetArn(),
+		ClusterId:     cluster.Arn,
 		EventId:       *event.EventId,
 		LastEventTime: timestamppb.New(time.UnixMilli(*event.Timestamp)),
-	}.Build()
+	}
 }
 
 // initialCursor returns a cursor for a EKS cluster that we have not previously
 // retrieved logs from, so there is no resume state. The cursor is set to
 // have logs retrieved back a standard amount of time.
 func initialCursor(cluster *accessgraphv1alpha.AWSEKSClusterV1) *accessgraphv1alpha.KubeAuditLogCursor {
-	return accessgraphv1alpha.KubeAuditLogCursor_builder{
+	return &accessgraphv1alpha.KubeAuditLogCursor{
 		LogSource:     accessgraphv1alpha.KubeAuditLogCursor_KUBE_AUDIT_LOG_SOURCE_EKS,
-		ClusterId:     cluster.GetArn(),
+		ClusterId:     cluster.Arn,
 		LastEventTime: timestamppb.New(time.Now().UTC().Add(-initialLogBacklog)),
-	}.Build()
+	}
 }

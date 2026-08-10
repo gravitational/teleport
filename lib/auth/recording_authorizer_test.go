@@ -19,6 +19,8 @@
 package auth_test
 
 import (
+	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -40,10 +42,8 @@ import (
 func TestSessionRecordingAuthorized_RBAC(t *testing.T) {
 	t.Parallel()
 
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	authServer := as.AuthServer
+	srv := newTestTLSServerForRecording(t)
+	authServer := srv.AuthServer.AuthServer
 
 	session1 := createTestSession(t, authServer, "alice", []string{"alice", "bob"})
 	session2 := createTestSession(t, authServer, "bob", []string{"bob", "charlie"})
@@ -83,7 +83,7 @@ func TestSessionRecordingAuthorized_RBAC(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, role, err := authtest.CreateUserAndRole(
-				authServer,
+				srv.Auth(),
 				tc.username,
 				[]string{},
 				[]types.Rule{
@@ -103,7 +103,7 @@ func TestSessionRecordingAuthorized_RBAC(t *testing.T) {
 					Groups:   []string{role.GetName()},
 				},
 			}
-			authContext, err := authz.ContextForLocalUser(t.Context(), localUser, authServer, as.ClusterName, true /* disableDeviceAuthz */)
+			authContext, err := authz.ContextForLocalUser(t.Context(), localUser, srv.Auth(), srv.ClusterName(), true /* disableDeviceAuthz */)
 			require.NoError(t, err)
 
 			authorizer := &mockAuthorizer{
@@ -128,6 +128,27 @@ func TestSessionRecordingAuthorized_RBAC(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newTestTLSServerForRecording(t testing.TB) *authtest.TLSServer {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	srv, err := as.NewTestTLSServer()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err := srv.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	return srv
 }
 
 func createTestSession(t *testing.T, authServer *auth.Server, user string, participants []string) session.ID {

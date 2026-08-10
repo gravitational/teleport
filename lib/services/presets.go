@@ -180,7 +180,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-					types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindLoginRule, RW()),
@@ -226,13 +225,11 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
-					types.NewRule(types.KindClassifier, RW()),
 					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
-					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
 					types.NewRule(types.KindRecordingEncryption, RW()),
 					types.NewRule(types.KindBeamsConfig, RW()),
@@ -496,7 +493,6 @@ func NewPresetDeviceAdminRole(buildType string) types.Role {
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-					types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 				},
 			},
 		},
@@ -841,7 +837,6 @@ func NewPresetTerraformProviderRole() types.Role {
 				// Login/user set.
 				AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
@@ -857,7 +852,6 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDevice, RW()),
 					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
-					types.NewRule(types.KindKubernetesCluster, RW()),
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),
@@ -882,11 +876,9 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindHealthCheckConfig, RW()),
 					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
-					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
-					types.NewRule(types.KindClassifier, RW()),
 					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
@@ -1064,52 +1056,52 @@ func NewSystemBeamRole(buildType string) types.Role {
 // health checks for all databases resources, and is intended to be used as a
 // virtual default resource. Its name is "default" for historical reasons.
 func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
-	return healthcheckconfigv1.HealthCheckConfig_builder{
+	return &healthcheckconfigv1.HealthCheckConfig{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        teleport.VirtualDefaultHealthCheckConfigDBName,
 			Description: "Enables health checks for all databases by default",
 			// this revision MUST be changed every time we change the contents
 			// of the preset so that conditional updates can check against it
 			Revision: "af391615-1e42-4237-aa2b-155e6abbd41a",
-		}.Build(),
-		Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
-			Match: healthcheckconfigv1.Matcher_builder{
+		},
+		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
 				// match all databases
-				DbLabels: []*labelv1.Label{labelv1.Label_builder{
+				DbLabels: []*labelv1.Label{{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}.Build()},
-			}.Build(),
-		}.Build(),
-	}.Build()
+				}},
+			},
+		},
+	}
 }
 
 // VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
 // health checks for all Kubernetes resources. It's intended to be used as a
 // virtual default resource.
 func VirtualDefaultHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
-	return healthcheckconfigv1.HealthCheckConfig_builder{
+	return &healthcheckconfigv1.HealthCheckConfig{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        teleport.VirtualDefaultHealthCheckConfigKubeName,
 			Description: "Enables health checks for all Kubernetes clusters by default.",
 			// this revision MUST be changed every time we change the contents
 			// of the preset so that conditional updates can check against it
 			Revision: "d796f007-e60c-4747-8dde-f479aff6b743",
-		}.Build(),
-		Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
-			Match: healthcheckconfigv1.Matcher_builder{
+		},
+		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
 				// match all kubernetes clusters
-				KubernetesLabels: []*labelv1.Label{labelv1.Label_builder{
+				KubernetesLabels: []*labelv1.Label{{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}.Build()},
-			}.Build(),
-		}.Build(),
-	}.Build()
+				}},
+			},
+		},
+	}
 }
 
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
@@ -1186,7 +1178,6 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			AppLabels:            wildcardLabels,
 			DatabaseLabels:       wildcardLabels,
 			NodeLabels:           wildcardLabels,
-			KubernetesLabels:     wildcardLabels,
 			WindowsDesktopLabels: wildcardLabels,
 		},
 		teleport.PresetListAccessRequestResourcesRoleName: {

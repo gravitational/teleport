@@ -106,27 +106,3 @@ func TestResolveAAAADiagProbeCaseInsensitive(t *testing.T) {
 	}
 	require.Empty(t, ns.state.assignedIPs)
 }
-
-// TestTunMTU verifies that the TELEPORT_UNSTABLE_VNET_TUN_MTU override is
-// applied when valid and ignored otherwise.
-func TestTunMTU(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		env  string
-		want int
-	}{
-		{name: "unset", env: "", want: vnetTUNMTU},
-		{name: "valid override", env: "1500", want: 1500},
-		{name: "not a number", env: "16k", want: vnetTUNMTU},
-		{name: "below IPv6 minimum", env: "1279", want: vnetTUNMTU},
-		{name: "at minimum", env: "1280", want: 1280},
-		{name: "at maximum", env: "65535", want: 65535},
-		{name: "above maximum", env: "65536", want: vnetTUNMTU},
-		{name: "negative", env: "-1500", want: vnetTUNMTU},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(vnetTUNMTUEnvVar, tc.env)
-			require.Equal(t, tc.want, tunMTU(t.Context()))
-		})
-	}
-}

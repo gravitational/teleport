@@ -57,6 +57,7 @@ type ResourceMatcherAWS struct {
 func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
 	out := make([]*types.DatabaseResourceMatcher, len(in))
 	for i, resMatcher := range in {
+		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
 			AWS: types.ResourceMatcherAWS{
@@ -66,6 +67,15 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 		}
 	}
 	return out
+}
+
+// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
+// AWS IAM role ARN and external ID from AWS metadata.
+func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
+	return types.AssumeRole{
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
+	}
 }
 
 // SimplifyAzureMatchers returns simplified Azure matchers. Each selector list
@@ -200,8 +210,6 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	case *types.KubernetesClusterV3:
 		scope = res.GetScope()
 	case types.KubeServer:
-		scope = res.GetScope()
-	case types.AppServer:
 		scope = res.GetScope()
 	}
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer

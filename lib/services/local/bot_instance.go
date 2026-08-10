@@ -96,14 +96,14 @@ func (b *BotInstanceService) serviceForBot(botScope, botName string) (*generic.S
 // Note that new BotInstances will have their .Metadata.Name overwritten by the
 // instance UUID.
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-	instance.SetKind(types.KindBotInstance)
-	instance.SetVersion(types.V1)
+	instance.Kind = types.KindBotInstance
+	instance.Version = types.V1
 
-	if !instance.HasMetadata() {
-		instance.SetMetadata(&headerv1.Metadata{})
+	if instance.Metadata == nil {
+		instance.Metadata = &headerv1.Metadata{}
 	}
 
-	instance.GetMetadata().SetName(instance.GetSpec().GetInstanceId())
+	instance.Metadata.Name = instance.Spec.InstanceId
 
 	serviceWithPrefix, err := b.serviceForBot(instance.GetScope(), instance.GetSpec().GetBotName())
 	if err != nil {
@@ -238,12 +238,12 @@ func (b *BotInstanceService) PatchBotInstance(
 
 	const iterLimit = 3
 
-	for range iterLimit {
-		existing, err := b.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
+	for i := 0; i < iterLimit; i++ {
+		existing, err := b.GetBotInstance(ctx, &machineidv1.GetBotInstanceRequest{
 			BotScope:   opts.Bot.Scope,
 			BotName:    opts.Bot.Name,
 			InstanceId: opts.InstanceID,
-		}.Build())
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -279,7 +279,7 @@ func (b *BotInstanceService) PatchBotInstance(
 			return nil, trace.Wrap(err)
 		}
 
-		updated.GetMetadata().SetRevision(lease.GetMetadata().GetRevision())
+		updated.GetMetadata().Revision = lease.GetMetadata().Revision
 		return updated, nil
 	}
 

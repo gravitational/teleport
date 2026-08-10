@@ -268,13 +268,13 @@ func (v *vnetApplicationService) getOSConfiguration(ctx context.Context) (*vnetO
 
 		return &vnetOSConfiguration{
 			pong: pong,
-			config: vnetv1.TargetOSConfiguration_builder{
+			config: &vnetv1.TargetOSConfiguration{
 				DnsZones: dnsZones,
 
 				// Note: we do not currently honor custom CIDR ranges, because cloud
 				// makes assumptions about the IPv4 address of the nameserver.
 				Ipv4CidrRanges: []string{typesvnet.DefaultIPv4CIDRRange},
-			}.Build(),
+			},
 		}, nil
 	}
 	return utils.FnCacheGet(ctx, v.cache, "", uncached)
@@ -304,7 +304,7 @@ func (v *vnetApplicationService) clusterAccess(osConfig *vnetOSConfiguration) (c
 		profile:  proxyAddr,
 		cluster:  osConfig.pong.GetClusterName(),
 		ipv4CIDR: cidrs[0],
-		dialOptions: vnetv1.DialOptions_builder{
+		dialOptions: &vnetv1.DialOptions{
 			WebProxyAddr: proxyAddr,
 			// ALPN Upgrade is not required in Teleport Cloud. We might need
 			// to reevaluate this if we support Beams on-premise (or not? we
@@ -312,7 +312,7 @@ func (v *vnetApplicationService) clusterAccess(osConfig *vnetOSConfiguration) (c
 			// configuration).
 			AlpnConnUpgradeRequired: false,
 			InsecureSkipVerify:      v.insecure,
-		}.Build(),
+		},
 	}, nil
 }
 
@@ -388,33 +388,37 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	appInfo := vnetv1.AppInfo_builder{
-		AppKey: vnetv1.AppKey_builder{
+	appInfo := &vnetv1.AppInfo{
+		AppKey: &vnetv1.AppKey{
 			Profile: ca.profile,
 			Name:    app.GetName(),
-		}.Build(),
+		},
 		App:           app,
 		Ipv4CidrRange: ca.ipv4CIDR,
 		Cluster:       ca.cluster,
 		DialOptions:   ca.dialOptions,
-	}.Build()
+	}
 
 	switch {
 	case app.IsTCP():
-		return vnetv1.ResolveFQDNResponse_builder{
-			MatchedTcpApp: vnetv1.MatchedTCPApp_builder{
-				AppInfo: appInfo,
-			}.Build(),
-		}.Build(), nil
+		return &vnetv1.ResolveFQDNResponse{
+			Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
+				MatchedTcpApp: &vnetv1.MatchedTCPApp{
+					AppInfo: appInfo,
+				},
+			},
+		}, nil
 	case vnet.IsHTTPSTunnelApp(app):
 		// HTTP and LLM apps are tunneled via the HTTPS-in-mTLS ALPN protocol.
 		// Browser access via this tunnel is currently disabled on the web app
 		// handler, which should be fine for common use cases inside beams.
-		return vnetv1.ResolveFQDNResponse_builder{
-			MatchedHttpsTunnelApp: vnetv1.MatchedHTTPSTunnelApp_builder{
-				AppInfo: appInfo,
-			}.Build(),
-		}.Build(), nil
+		return &vnetv1.ResolveFQDNResponse{
+			Match: &vnetv1.ResolveFQDNResponse_MatchedHttpsTunnelApp{
+				MatchedHttpsTunnelApp: &vnetv1.MatchedHTTPSTunnelApp{
+					AppInfo: appInfo,
+				},
+			},
+		}, nil
 	default:
 		v.logger.DebugContext(ctx, "Application protocol not supported by VNet",
 			"fqdn", fqdn,
@@ -480,20 +484,22 @@ func (v *vnetApplicationService) resolveDatabaseFQDN(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetv1.ResolveFQDNResponse_builder{
-		MatchedDatabase: vnetv1.MatchedDatabase_builder{
-			DatabaseInfo: vnetv1.DatabaseInfo_builder{
-				DatabaseKey: vnetv1.DatabaseKey_builder{
-					Profile: ca.profile,
-					Name:    dbResource.GetName(),
-				}.Build(),
-				Cluster:       ca.cluster,
-				Protocol:      dbResource.GetProtocol(),
-				Ipv4CidrRange: ca.ipv4CIDR,
-				DialOptions:   ca.dialOptions,
-			}.Build(),
-		}.Build(),
-	}.Build(), nil
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+			MatchedDatabase: &vnetv1.MatchedDatabase{
+				DatabaseInfo: &vnetv1.DatabaseInfo{
+					DatabaseKey: &vnetv1.DatabaseKey{
+						Profile: ca.profile,
+						Name:    dbResource.GetName(),
+					},
+					Cluster:       ca.cluster,
+					Protocol:      dbResource.GetProtocol(),
+					Ipv4CidrRange: ca.ipv4CIDR,
+					DialOptions:   ca.dialOptions,
+				},
+			},
+		},
+	}, nil
 }
 
 // GetDBCert issues a TLS certificate for the given database via tbot's

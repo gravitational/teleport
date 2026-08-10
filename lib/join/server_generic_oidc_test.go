@@ -641,8 +641,7 @@ func TestJoinGenericOIDCScoped(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_, err := authServer.Auth().DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-					Name:  token.GetMetadata().GetName(),
-					Scope: token.GetScope(),
+					Name: token.GetMetadata().GetName(),
 				}.Build())
 				assert.NoError(t, err)
 			})
@@ -660,7 +659,7 @@ func TestJoinGenericOIDCScoped(t *testing.T) {
 			}
 
 			_, err = joinclient.Join(ctx, joinclient.JoinParams{
-				Token: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
+				Token: cmp.Or(tt.requestTokenName, token.GetMetadata().GetName()),
 				ID: state.IdentityID{
 					Role:     types.RoleInstance,
 					NodeName: "test-node",

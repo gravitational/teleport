@@ -182,45 +182,45 @@ func TestScopePinning(t *testing.T) {
 		{
 			name:      "unscoped node unreachable when pinned",
 			host:      "unscoped.example.com",
-			pin:       scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
+			pin:       &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
 			unmatched: true,
 		},
 		{
 			name: "parent scoped node reachable when pinned to exact scope",
 			host: "unique-parent.example.com",
-			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
+			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
 		},
 		{
 			name:      "parent scoped node unreachable when pinned to child scope",
 			host:      "unique-parent.example.com",
-			pin:       scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"}.Build(),
+			pin:       &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"},
 			unmatched: true,
 		},
 		{
 			name: "child scoped node reachable when pinned to child scope",
 			host: "unique-child.example.com",
-			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"}.Build(),
+			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"},
 		},
 		{
 			name: "child scoped node reachable when pinned to parent scope",
 			host: "unique-child.example.com",
-			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
+			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
 		},
 		{
 			name: "no collisions from orthogonal scopes when pinned",
 			host: "orthogonal.example.com",
-			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
+			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
 		},
 		{
 			name:      "parent/child conflict when pinned to parent",
 			host:      "parent-child.example.com",
-			pin:       scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
+			pin:       &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
 			ambiguous: true,
 		},
 		{
 			name: "parent/child doesn't conflict when pinned to child",
 			host: "parent-child.example.com",
-			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"}.Build(),
+			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"},
 		},
 		{
 			name:      "parent/child conflict when unpinned",
@@ -263,7 +263,8 @@ func TestScopePinning(t *testing.T) {
 func TestRouteScoring(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up various servers with overlapping IPs and hostnames
 	servers := createServers([]server{
@@ -543,7 +544,7 @@ func TestGetServers(t *testing.T) {
 			name: "no matches for uuid",
 			site: testSite{cfg: &mostRecentCfg},
 			host: uuid.NewString(),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -554,7 +555,7 @@ func TestGetServers(t *testing.T) {
 			name: "no matches for ec2 id",
 			site: testSite{cfg: &unambiguousCfg},
 			host: "123456789012-i-1234567890abcdef0",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -565,7 +566,7 @@ func TestGetServers(t *testing.T) {
 			name: "ambiguous match fails",
 			site: testSite{cfg: &unambiguousCfg, nodes: servers},
 			host: "sheep",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -637,7 +638,7 @@ func TestGetServers(t *testing.T) {
 			name: "case-insensitive ambiguous",
 			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host: "platypus",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -670,7 +671,7 @@ func TestGetServers(t *testing.T) {
 			name: "git server not found",
 			site: testSite{cfg: &unambiguousCfg, gitServers: gitServers},
 			host: "org-not-found.teleport-github-org",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {

@@ -75,7 +75,8 @@ func TestLockTargetMatch(t *testing.T) {
 
 func TestLockTargetIsSimple(t *testing.T) {
 	ty := reflect.TypeFor[LockTarget]()
-	for f := range ty.Fields() {
+	for i := range ty.NumField() {
+		f := ty.Field(i)
 		// A struct embedded by value that is also "simple" in this sense would
 		// work too, so if we need something like that we can extend this check.
 		// Arrays (of likewise "simple" types) would also work but outside of

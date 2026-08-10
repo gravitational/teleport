@@ -47,7 +47,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 	sampleKubeWaitingContFn := func(t *testing.T, name string) *kubewaitingcontainerpb.KubernetesWaitingContainer {
 		wc, err := kubewaitingcontainer.NewKubeWaitingContainer(
 			name,
-			kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
+			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 				Username:      username,
 				Cluster:       cluster,
 				Namespace:     namespace,
@@ -55,7 +55,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				ContainerName: name,
 				Patch:         []byte("patch"),
 				PatchType:     patchType,
-			}.Build(),
+			},
 		)
 		require.NoError(t, err)
 		return wc
@@ -83,10 +83,10 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				for range 10 {
-					_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				for i := 0; i < 10; i++ {
+					_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 						WaitingContainer: sampleKubeWaitingContFn(t, uuid.NewString()),
-					}.Build())
+					})
 					require.NoError(t, err)
 				}
 			},
@@ -116,27 +116,27 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
-				}.Build())
+				})
 				require.NoError(t, err)
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				out, err := resourceSvc.GetKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest_builder{
+				out, err := resourceSvc.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 					Username:      username,
 					Cluster:       cluster,
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
-				}.Build())
+				})
 				require.NoError(t, err)
-				require.Equal(t, wcName, out.GetMetadata().GetName())
-				require.Equal(t, username, out.GetSpec().GetUsername())
-				require.Equal(t, cluster, out.GetSpec().GetCluster())
-				require.Equal(t, namespace, out.GetSpec().GetNamespace())
-				require.Equal(t, podName, out.GetSpec().GetPodName())
-				require.Equal(t, wcName, out.GetSpec().GetContainerName())
-				require.Equal(t, patchType, out.GetSpec().GetPatchType())
+				require.Equal(t, wcName, out.Metadata.Name)
+				require.Equal(t, username, out.Spec.Username)
+				require.Equal(t, cluster, out.Spec.Cluster)
+				require.Equal(t, namespace, out.Spec.Namespace)
+				require.Equal(t, podName, out.Spec.PodName)
+				require.Equal(t, wcName, out.Spec.ContainerName)
+				require.Equal(t, patchType, out.Spec.PatchType)
 			},
 		},
 		{
@@ -147,13 +147,13 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.GetKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 					Username:      username,
 					Cluster:       cluster,
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
-				}.Build())
+				})
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -164,13 +164,13 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.GetKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 					Username:      username,
 					Cluster:       cluster,
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
-				}.Build())
+				})
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -183,17 +183,17 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				out, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				out, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
-				}.Build())
+				})
 				require.NoError(t, err)
-				require.Equal(t, wcName, out.GetMetadata().GetName())
-				require.Equal(t, username, out.GetSpec().GetUsername())
-				require.Equal(t, cluster, out.GetSpec().GetCluster())
-				require.Equal(t, namespace, out.GetSpec().GetNamespace())
-				require.Equal(t, podName, out.GetSpec().GetPodName())
-				require.Equal(t, wcName, out.GetSpec().GetContainerName())
-				require.Equal(t, patchType, out.GetSpec().GetPatchType())
+				require.Equal(t, wcName, out.Metadata.Name)
+				require.Equal(t, username, out.Spec.Username)
+				require.Equal(t, cluster, out.Spec.Cluster)
+				require.Equal(t, namespace, out.Spec.Namespace)
+				require.Equal(t, podName, out.Spec.PodName)
+				require.Equal(t, wcName, out.Spec.ContainerName)
+				require.Equal(t, patchType, out.Spec.PatchType)
 			},
 		},
 		{
@@ -204,9 +204,9 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
-				}.Build())
+				})
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -217,15 +217,15 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
-				}.Build())
+				})
 				require.NoError(t, err)
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
-				}.Build())
+				})
 				require.Error(t, err)
 				require.True(t, trace.IsAlreadyExists(err))
 			},
@@ -238,19 +238,19 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Setup: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.CreateKubernetesWaitingContainerRequest{
 					WaitingContainer: sampleKubeWaitingContFn(t, wcName),
-				}.Build())
+				})
 				require.NoError(t, err)
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 					Username:      username,
 					Cluster:       cluster,
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
-				}.Build())
+				})
 				require.NoError(t, err)
 			},
 		},
@@ -262,13 +262,13 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				})
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 					Username:      username,
 					Cluster:       cluster,
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
-				}.Build())
+				})
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -279,13 +279,13 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 				return kubeAuthFn
 			},
 			Test: func(t *testing.T, ctx context.Context, resourceSvc *Service, wcName string) {
-				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest_builder{
+				_, err := resourceSvc.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 					Username:      username,
 					Cluster:       cluster,
 					Namespace:     namespace,
 					PodName:       podName,
 					ContainerName: wcName,
-				}.Build())
+				})
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -293,6 +293,7 @@ func TestKubeWaitingContainerServiceCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 

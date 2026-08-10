@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -112,24 +111,24 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetMetadata().GetDryRun() {
-		if opts := req.GetMetadata().GetDryRunOptions(); opts != nil {
+	if req.Metadata.DryRun {
+		if opts := req.Metadata.DryRunOptions; opts != nil {
 			// dry-run requests may omit a true caller identity in favor of specifying a user for which a
 			// hypothetical identity should be generated.
-			if opts.HasGenerateIdentity() {
-				generatedIdent, err := s.GenerateDryRunSSHIdentity(ctx, opts.GetGenerateIdentity())
+			if opts.GenerateIdentity != nil {
+				generatedIdent, err := s.GenerateDryRunSSHIdentity(ctx, opts.GenerateIdentity)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				req.SetSshIdentity(generatedIdent)
+				req.SshIdentity = generatedIdent
 			}
 		}
 	}
 
-	ident := SSHIdentityToSSHCA(req.GetSshIdentity())
+	ident := SSHIdentityToSSHCA(req.SshIdentity)
 
-	authority, err := s.resolveSSHAuthority(ctx, req.GetSshAuthority())
+	authority, err := s.resolveSSHAuthority(ctx, req.SshAuthority)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,7 +155,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetOsUser() == teleport.SSHSessionJoinPrincipal {
+	if req.OsUser == teleport.SSHSessionJoinPrincipal {
 		// XXX: this is the point in the process where ahLoginChecker.canLoginWithRBAC forks into session access
 		// evaluation. It is still unclear how we should be handling session-joining within the decision method.
 		// For the time being, we will consider it an error, but this must be resolved before this method can
@@ -164,7 +163,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Errorf("session joining is not yet supported by the decision service")
 	}
 
-	target, err := s.cfg.AccessPoint.GetNode(ctx, apidefaults.Namespace, req.GetNode().GetName())
+	target, err := s.cfg.AccessPoint.GetNode(ctx, apidefaults.Namespace, req.Node.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,17 +172,19 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	if err := accessChecker.CheckAccess(
 		target,
 		state,
-		services.NewLoginMatcher(req.GetOsUser()),
+		services.NewLoginMatcher(req.OsUser),
 	); err != nil {
-		return decisionpb.EvaluateSSHAccessResponse_builder{
-			Denial: decisionpb.SSHAccessDenial_builder{
-				Metadata: decisionpb.DenialMetadata_builder{
-					PdpVersion: teleport.Version,
-					UserMessage: fmt.Sprintf("user %s@%s is not authorized to login as %v@%s: %v",
-						ident.Username, authority.GetClusterName(), req.GetOsUser(), localClusterName, err),
-				}.Build(),
-			}.Build(),
-		}.Build(), nil
+		return &decisionpb.EvaluateSSHAccessResponse{
+			Decision: &decisionpb.EvaluateSSHAccessResponse_Denial{
+				Denial: &decisionpb.SSHAccessDenial{
+					Metadata: &decisionpb.DenialMetadata{
+						PdpVersion: teleport.Version,
+						UserMessage: fmt.Sprintf("user %s@%s is not authorized to login as %v@%s: %v",
+							ident.Username, authority.GetClusterName(), req.OsUser, localClusterName, err),
+					},
+				},
+			},
+		}, nil
 	}
 
 	// load net config (used during calculation of client idle timeout)
@@ -203,7 +204,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Wrap(err)
 	}
 
-	lockTargets := services.SSHAccessLockTargets(localClusterName, req.GetNode().GetName(), req.GetOsUser(), accessInfo, ident)
+	lockTargets := services.SSHAccessLockTargets(localClusterName, req.Node.Name, req.OsUser, accessInfo, ident)
 
 	hostSudoers, err := accessChecker.HostSudoers(target)
 	if err != nil {
@@ -215,16 +216,22 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		bpfEvents = append(bpfEvents, event)
 	}
 
-	hostUsersDecision, err := accessChecker.HostUsers(target)
+	hostUsersInfo, err := accessChecker.HostUsers(target)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
 	}
 
-	permit := decisionpb.SSHAccessPermit_builder{
-		Metadata: decisionpb.PermitMetadata_builder{
+	permit := &decisionpb.SSHAccessPermit{
+		Metadata: &decisionpb.PermitMetadata{
 			PdpVersion: teleport.Version,
-		}.Build(),
-		ForwardAgent:          accessChecker.CheckAgentForward(req.GetOsUser()) == nil,
+		},
+		ForwardAgent:          accessChecker.CheckAgentForward(req.OsUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
 		MaxConnections:        accessChecker.MaxConnections(),
 		MaxSessions:           accessChecker.MaxSessions(),
@@ -239,22 +246,20 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		MappedRoles:           accessInfo.Roles,
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
-		HostUsersInfo:         hostUsersDecision.Info,
-		DecisionContext: decisionpb.SSHAccessPermitContext_builder{
-			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
-			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		}.Build(),
-	}.Build()
-
-	if accessChecker.PinSourceIP() {
-		permit.SetPreconditions(append(permit.GetPreconditions(), decisionpb.Precondition_builder{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		}.Build()))
+		HostUsersInfo:         hostUsersInfo,
 	}
 
-	return decisionpb.EvaluateSSHAccessResponse_builder{
-		Permit: proto.ValueOrDefault(permit),
-	}.Build(), nil
+	if accessChecker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return &decisionpb.EvaluateSSHAccessResponse{
+		Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
+			Permit: permit,
+		},
+	}, nil
 }
 
 func (s *Service) getLocalClusterName(ctx context.Context) (string, error) {
@@ -268,8 +273,8 @@ func (s *Service) getLocalClusterName(ctx context.Context) (string, error) {
 // resolveSSHAuthority is a helper used to resolve the SSHAuthority reference type from a decision request into a cert authority resource.
 func (s *Service) resolveSSHAuthority(ctx context.Context, sshAuthority *decisionpb.SSHAuthority) (types.CertAuthority, error) {
 	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: sshAuthority.GetClusterName(),
-		Type:       types.CertAuthType(sshAuthority.GetAuthorityType()),
+		DomainName: sshAuthority.ClusterName,
+		Type:       types.CertAuthType(sshAuthority.AuthorityType),
 	}, false)
 	return ca, trace.Wrap(err)
 }
@@ -289,29 +294,29 @@ func checkEvaluateSSHAccessRequest(req *decisionpb.EvaluateSSHAccessRequest) err
 	if err := checkSSHIdentityBasedRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
-	if !req.HasSshAuthority() {
+	if req.SshAuthority == nil {
 		return trace.BadParameter("missing required parameter SshAuthority")
 	}
-	if req.GetSshAuthority().GetClusterName() == "" {
+	if req.SshAuthority.ClusterName == "" {
 		return trace.BadParameter("missing required parameter SshAuthority.ClusterName")
 	}
-	if req.GetSshAuthority().GetAuthorityType() == "" {
+	if req.SshAuthority.AuthorityType == "" {
 		return trace.BadParameter("missing required parameter SshAuthority.AuthorityType")
 	}
-	if types.CertAuthType(req.GetSshAuthority().GetAuthorityType()) != types.UserCA {
-		return trace.BadParameter("unsupported cert authority type %q, expected type %q", req.GetSshAuthority().GetAuthorityType(), types.UserCA)
+	if types.CertAuthType(req.SshAuthority.AuthorityType) != types.UserCA {
+		return trace.BadParameter("unsupported cert authority type %q, expected type %q", req.SshAuthority.AuthorityType, types.UserCA)
 	}
-	if !req.HasNode() {
+	if req.Node == nil {
 		return trace.BadParameter("missing required parameter Node")
 	}
-	if req.GetNode().GetName() == "" {
+	if req.Node.Name == "" {
 		return trace.BadParameter("missing required parameter Node.Name")
 	}
-	if req.GetNode().GetKind() != "" && req.GetNode().GetKind() != types.KindNode {
-		return trace.BadParameter("unsupported resource kind for ssh access eval %q, expected %q", req.GetNode().GetKind(), types.KindNode)
+	if req.Node.Kind != "" && req.Node.Kind != types.KindNode {
+		return trace.BadParameter("unsupported resource kind for ssh access eval %q, expected %q", req.Node.Kind, types.KindNode)
 	}
 
-	if req.GetOsUser() == "" {
+	if req.OsUser == "" {
 		// XXX: remove this requirement once we have login enumeration support
 		return trace.BadParameter("missing required parameter OsUser")
 	}
@@ -330,14 +335,14 @@ func checkSSHIdentityBasedRequest(req sshIdentityBasedRequest) error {
 		return trace.BadParameter("missing required parameter Metadata")
 	}
 
-	if meta.GetDryRun() {
+	if meta.DryRun {
 		// ensure that the dry run either specifies identity generation or an explicit identity but not both
-		if opts := meta.GetDryRunOptions(); opts != nil && opts.HasGenerateIdentity() {
+		if opts := meta.DryRunOptions; opts != nil && opts.GenerateIdentity != nil {
 			if req.GetSshIdentity() != nil {
 				return trace.BadParameter("cannot specify both SshIdentity and Metadata.DryRunOptions.GenerateIdentity")
 			}
 
-			if opts.GetGenerateIdentity().GetUsername() == "" {
+			if opts.GenerateIdentity.Username == "" {
 				return trace.BadParameter("missing required parameter Username in Metadata.DryRunOptions.GenerateIdentity")
 			}
 		} else {
@@ -359,7 +364,7 @@ func checkSSHIdentityBasedRequest(req sshIdentityBasedRequest) error {
 			return trace.Wrap(err)
 		}
 
-		if meta.HasDryRunOptions() {
+		if meta.DryRunOptions != nil {
 			return trace.BadParameter("unexpected parameter Metadata.DryRunOptions in non-dry-run request")
 		}
 	}
@@ -368,8 +373,8 @@ func checkSSHIdentityBasedRequest(req sshIdentityBasedRequest) error {
 }
 
 func checkSSHIdentity(ident *decisionpb.SSHIdentity) error {
-	if ident.GetCertType() != ssh.UserCert {
-		return trace.BadParameter("unsupported cert type for ssh identity (%d), expected type 'user' (%d)", ident.GetCertType(), ssh.UserCert)
+	if ident.CertType != ssh.UserCert {
+		return trace.BadParameter("unsupported cert type for ssh identity (%d), expected type 'user' (%d)", ident.CertType, ssh.UserCert)
 	}
 
 	return nil
@@ -385,7 +390,7 @@ func LockTargetsToProto(targets []types.LockTarget) []*decisionpb.LockTarget {
 }
 
 func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
-	return decisionpb.LockTarget_builder{
+	return &decisionpb.LockTarget{
 		User:           target.User,
 		Role:           target.Role,
 		Login:          target.Login,
@@ -397,7 +402,7 @@ func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
 		ServerId:       target.ServerID,
 		BotInstanceId:  target.BotInstanceID,
 		JoinToken:      target.JoinToken,
-	}.Build()
+	}
 }
 
 // LockTargetsFromProto converts a slice of decisionpb.LockTarget to a slice of LockTarget.
@@ -411,17 +416,17 @@ func LockTargetsFromProto(targets []*decisionpb.LockTarget) []types.LockTarget {
 
 func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
 	return types.LockTarget{
-		User:           target.GetUser(),
-		Role:           target.GetRole(),
-		Login:          target.GetLogin(),
-		MFADevice:      target.GetMfaDevice(),
-		WindowsDesktop: target.GetWindowsDesktop(),
-		LinuxDesktop:   target.GetLinuxDesktop(),
-		AccessRequest:  target.GetAccessRequest(),
-		Device:         target.GetDevice(),
-		ServerID:       target.GetServerId(),
-		BotInstanceID:  target.GetBotInstanceId(),
-		JoinToken:      target.GetJoinToken(),
+		User:           target.User,
+		Role:           target.Role,
+		Login:          target.Login,
+		MFADevice:      target.MfaDevice,
+		WindowsDesktop: target.WindowsDesktop,
+		LinuxDesktop:   target.LinuxDesktop,
+		AccessRequest:  target.AccessRequest,
+		Device:         target.Device,
+		ServerID:       target.ServerId,
+		BotInstanceID:  target.BotInstanceId,
+		JoinToken:      target.JoinToken,
 	}
 }
 

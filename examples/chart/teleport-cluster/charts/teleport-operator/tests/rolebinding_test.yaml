@@ -1,10 +1,6 @@
 suite: Operator RoleBinding
 templates:
   - rolebinding.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: creates no RoleBinding when operator is not enabled
     values:
@@ -24,7 +20,6 @@ tests:
   - it: creates a RoleBinding by default
     asserts:
       - containsDocument:
-          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-teleport-operator
@@ -34,7 +29,6 @@ tests:
       name: teleport-operator
     asserts:
       - containsDocument:
-          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
           name: teleport-operator
@@ -44,7 +38,6 @@ tests:
       nameOverride: operator
     asserts:
       - containsDocument:
-          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-operator

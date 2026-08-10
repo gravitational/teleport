@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -66,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
@@ -105,9 +105,6 @@ type RecordingEncryptionManager interface {
 
 // InitConfig is auth server init config
 type InitConfig struct {
-	// InsecureMode defines whether insecure connections are allowed.
-	InsecureMode bool
-
 	// Backend is auth backend to use
 	Backend backend.Backend
 
@@ -418,17 +415,6 @@ type InitConfig struct {
 	// MultipartHandler handles multipart uploads.
 	MultipartHandler events.MultipartHandler
 
-	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
-	// a locking operation for backend objects.
-	// This setting is particularly useful in test environments,
-	// as it can help accelerate operations such as updating the access list,
-	// especially when the list is also being modified concurrently by the background
-	// eligibility handler.
-	RunWhileLockedRetryInterval time.Duration
-
-	// ScopedAccess is a service that manages scoped access resources.
-	ScopedAccess services.ScopedAccess
-
 	// Summarizer manages summary inference configuration resources.
 	Summarizer services.Summarizer
 
@@ -440,15 +426,19 @@ type InitConfig struct {
 	// RecordingMetadataProvider provides recording metadata for session recordings.
 	RecordingMetadataProvider *recordingmetadata.Provider
 
+	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
+	// a locking operation for backend objects.
+	// This setting is particularly useful in test environments,
+	// as it can help accelerate operations such as updating the access list,
+	// especially when the list is also being modified concurrently by the background
+	// eligibility handler.
+	RunWhileLockedRetryInterval time.Duration
+
+	// ScopedAccess is a service that manages scoped access resources.
+	ScopedAccess services.ScopedAccess
+
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
-
-	// AppAuthConfig is the service for storing and retrieving
-	// app auth config resources.
-	AppAuthConfig services.AppAuthConfig
-
-	// MFAService is the service that manages backend MFA resources.
-	MFAService MFAService
 
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
@@ -469,8 +459,6 @@ type InitConfig struct {
 	// This helps eliminate timing attacks by ensuring that all recovery attempts
 	// with codes do a bcrypt comparison.
 	FakeRecoveryCodeHash []byte
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 
 	// RemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
 	// during periodic remote cluster connection status refresh.
@@ -481,9 +469,6 @@ type InitConfig struct {
 
 	// ScopesFeatures dictate which scoped components are enabled.
 	ScopesFeatures scopes.Features
-
-	// EnrollPairing manages mobile device enrollment pairings.
-	EnrollPairing services.EnrollPairing
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -498,31 +483,10 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
-	// TODO(tross): return an error once modules are injected everywhere.
-	if cfg.Modules == nil {
-		cfg.Modules = modules.GetModules()
-	}
-
 	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Initialize the unified resource cache before running period checks that rely on it.
-	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			QueueSize:    defaults.UnifiedResourcesQueueSize,
-			Component:    teleport.ComponentUnifiedResource,
-			Logger:       cfg.Logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
-			Client:       asrv.Cache,
-			MaxStaleness: time.Minute,
-		},
-		ResourceGetter: asrv,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	asrv.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	domainName := cfg.ClusterName.GetClusterName()
 	if err := backend.RunWhileLocked(ctx,
@@ -568,7 +532,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.BootstrapResources) > 0 {
 		if firstStart {
 			asrv.logger.InfoContext(ctx, "Applying bootstrap resources (first initialization)", "resource_count", len(cfg.BootstrapResources))
-			if err := checkResourceConsistency(ctx, cfg.Modules, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
+			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
@@ -583,7 +547,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.ApplyOnStartupResources) > 0 {
 		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
-		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features(), cfg.ScopesFeatures); err != nil {
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.ScopesFeatures); err != nil {
 			return trace.Wrap(err, "applying resources failed")
 		}
 	}
@@ -668,24 +632,24 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
 		defer span.End()
 		if cfg.StaticScopedTokens != nil {
-			return trace.Wrap(asrv.SetStaticScopedTokens(ctx, cfg.StaticScopedTokens))
+			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
 		}
 		return nil
 	})
 
 	var cn types.ClusterName
 	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
+		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
 		defer span.End()
 
 		// The first Auth Server that starts gets to set the name of the cluster.
@@ -755,7 +719,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if cfg.InsecureMode {
+	if lib.IsInsecureDevMode() {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
@@ -776,15 +740,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	span.AddEvent("completed checking certificate authority cluster names")
 
 	// Create presets - convenience and example resources.
-	if !services.IsDashboard(*cfg.Modules.Features().ToProto()) {
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		span.AddEvent("creating preset roles")
-		if err := createPresetRoles(ctx, asrv.modules.BuildType(), asrv); err != nil {
+		if err := createPresetRoles(ctx, modules.GetModules().BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
-		if err := createPresetUsers(ctx, asrv.modules.BuildType(), asrv); err != nil {
+		if err := createPresetUsers(ctx, modules.GetModules().BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
@@ -1148,7 +1112,7 @@ For more information:
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1179,7 +1143,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 				FIPS:          asrv.fips,
 				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-				Cloud:         asrv.modules.Features().Cloud,
+				Cloud:         modules.GetModules().Features().Cloud,
 			})
 		case newAuthPref.Origin() == types.OriginDefaults:
 			// There is a stored auth preference which we are overwriting with a
@@ -1231,7 +1195,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
 	const iterationLimit = 3
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1271,7 +1235,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1318,9 +1282,9 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 
-	stored, err = clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
+	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	}.Build())
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1564,8 +1528,26 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	if err != nil {
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
-	// If there are existing rules, don't create a preset.
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 
@@ -1603,7 +1585,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -1659,7 +1641,7 @@ func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore
 			}
 		case types.Role:
 			// Some options are only available with enterprise subscription
-			if err := checkRoleFeatureSupport(mod, r); err != nil {
+			if err := checkRoleFeatureSupport(r); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -1822,7 +1804,7 @@ var ResourceApplyPriority = map[string]int{
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
 // This means consistency is checked. This function support applying resources
 // with dependencies (like a user referring to a role).
-func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features, scopesFeatures scopes.Features) error {
+func applyResources(ctx context.Context, service *Services, resources []types.Resource, scopesFeatures scopes.Features) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
@@ -1857,9 +1839,11 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
 			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system", scopesFeatures)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
-			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT(), features)
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
+			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferencePolicy]:
@@ -1868,8 +1852,6 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.Summarizer.UpsertInferenceSecret(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.RetrievalModel]:
 			_, err = service.Summarizer.UpsertRetrievalModel(ctx, r.UnwrapT())
-		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
-			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

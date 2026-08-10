@@ -37,10 +37,10 @@ import (
 )
 
 func TestAddRoleDefaults(t *testing.T) {
-	noChange := func(t require.TestingT, err error, i ...any) {
+	noChange := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
-	notModifying := func(t require.TestingT, err error, i ...any) {
+	notModifying := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
 	}
 
@@ -729,7 +729,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -762,7 +761,6 @@ func TestAddRoleDefaults(t *testing.T) {
 							},
 							// The missing resources got added as individual rules
 							types.NewRule(types.KindDiscoveryConfig, RW()),
-							types.NewRule(types.KindKubernetesCluster, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
@@ -773,11 +771,9 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindHealthCheckConfig, RW()),
 							types.NewRule(types.KindVnetConfig, RW()),
 							types.NewRule(types.KindIntegration, RW()),
-							types.NewRule(types.KindAppAuthConfig, RW()),
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
-							types.NewRule(types.KindClassifier, RW()),
 							types.NewRule(types.KindRetrievalModel, RW()),
 							types.NewRule(types.KindScopedToken, RW()),
 							types.NewRule(access.KindScopedRole, RW()),
@@ -898,50 +894,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						GroupLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 						NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-					},
-				},
-			},
-		},
-		{
-			name:       "device-admin (missing mobile_device.create_enroll_token)",
-			enterprise: true,
-			role: &types.RoleV6{
-				Kind:    types.KindRole,
-				Version: types.V8,
-				Metadata: types.Metadata{
-					Name:        teleport.PresetDeviceAdminRoleName,
-					Namespace:   apidefaults.Namespace,
-					Description: "Administer trusted devices",
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: []types.Rule{
-							types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-						},
-					},
-				},
-			},
-			expectedErr: require.NoError,
-			expected: &types.RoleV6{
-				Kind:    types.KindRole,
-				Version: types.V8,
-				Metadata: types.Metadata{
-					Name:        teleport.PresetDeviceAdminRoleName,
-					Namespace:   apidefaults.Namespace,
-					Description: "Administer trusted devices",
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: []types.Rule{
-							types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-							types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
-						},
 					},
 				},
 			},

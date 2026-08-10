@@ -70,7 +70,6 @@ import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
 import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
-import { LoginScopePicker } from './Scopes';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
 import { TrustedClusters } from './TrustedClusters';
@@ -151,7 +150,6 @@ export class FeatureUnifiedResources implements TeleportFeature {
   sideNavCategory = SideNavigationCategory.Resources;
   // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
   standalone = true;
-  supportsScopes = true;
 
   route = {
     title: 'Resources',
@@ -619,7 +617,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   route = {
     title: 'Integration',
-    path: cfg.routes.integrationEnrollNew,
+    path: cfg.routes.integrationEnroll,
     exact: false,
     component: IntegrationEnroll,
   };
@@ -859,6 +857,7 @@ export class FeatureIntegrationOverview implements TeleportFeature {
   route = {
     title: 'Integration Overview',
     path: cfg.routes.integrationOverview,
+    exact: true,
     component: IaCIntegrationOverview,
   };
 
@@ -910,8 +909,6 @@ export class FeatureAccount implements TeleportFeature {
       'change password',
     ],
   };
-
-  supportsScopes = true;
 }
 
 export class FeatureHelpAndSupport implements TeleportFeature {
@@ -942,24 +939,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
       'version',
     ],
   };
-
-  supportsScopes = true;
-}
-
-export class FeatureScopes implements TeleportFeature {
-  route = {
-    title: 'Pick a Scope',
-    path: cfg.routes.scopePicker,
-    exact: true,
-    component: LoginScopePicker,
-  };
-
-  hideNavigation = true;
-  supportsScopes = true;
-
-  hasAccess(): boolean {
-    return cfg.scopesEnabled;
-  }
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
@@ -1005,6 +984,5 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
-    new FeatureScopes(),
   ];
 }

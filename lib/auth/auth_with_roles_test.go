@@ -89,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -164,6 +163,7 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			},
 		},
 	} {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			mfaResponse := test.getMFAResponse()
 			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
@@ -534,156 +534,10 @@ func TestGitHubConnectorNameTooLarge(t *testing.T) {
 	require.ErrorContains(t, err, "exceeds maximum length")
 }
 
-// TestAuthConnectorReadSecretsAdminActionMFA verifies that reading an auth
-// connector with secrets requires admin action MFA.
-func TestAuthConnectorReadSecretsAdminActionMFA(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	role, err := types.NewRole("test-role", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule(types.KindAuthConnector, services.RO()),
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.AuthServer.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	user, err := types.NewUser("test-user")
-	require.NoError(t, err)
-	user.AddRole(role.GetName())
-	_, err = srv.AuthServer.UpsertUser(ctx, user)
-	require.NoError(t, err)
-
-	githubConn, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
-		ClientID:     "client-id",
-		ClientSecret: "client-secret",
-		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
-		TeamsToRoles: []types.TeamRolesMapping{
-			{Organization: "octocats", Team: "dummy", Roles: []string{role.GetName()}},
-		},
-	})
-	require.NoError(t, err)
-	_, err = auth.UpsertGithubConnector(ctx, srv.AuthServer, githubConn)
-	require.NoError(t, err)
-
-	oidcConn, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
-		ClientID:     "client-id",
-		ClientSecret: "client-secret",
-		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-		ClaimsToRoles: []types.ClaimMapping{
-			{Claim: "dummy", Value: "dummy", Roles: []string{role.GetName()}},
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.AuthServer.UpsertOIDCConnector(ctx, oidcConn)
-	require.NoError(t, err)
-
-	// Get a valid signing certifiate so the SAML connector is valid
-	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
-	signingKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	certBytes, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: signingKey.Public(),
-		Subject:   pkix.Name{CommonName: "test"},
-		NotAfter:  time.Now().Add(time.Hour),
-	})
-	require.NoError(t, err)
-	samlConn, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
-		AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs",
-		Issuer:                   "test",
-		SSO:                      "https://example.com",
-		AttributesToRoles: []types.AttributeMapping{
-			{Name: "dummy", Value: "dummy", Roles: []string{role.GetName()}},
-		},
-		Cert: string(certBytes),
-	})
-	require.NoError(t, err)
-	_, err = srv.AuthServer.UpsertSAMLConnector(ctx, samlConn)
-	require.NoError(t, err)
-
-	// clientForState returns a client acting as the user with the admin action MFA auth state.
-	clientForState := func(t *testing.T, state authz.AdminActionAuthState) *auth.ServerWithRoles {
-		localUser := authz.LocalUser{
-			Username: "test-user",
-			Identity: tlsca.Identity{Username: "test-user", Groups: []string{role.GetName()}},
-		}
-		authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
-		require.NoError(t, err)
-		authContext.AdminActionAuthState = state
-		return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authContext)
-	}
-
-	tests := []struct {
-		name             string
-		getConnectorFunc func(clt *auth.ServerWithRoles, withSecrets bool) error
-	}{
-		{"github/Get", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, err := clt.GetGithubConnector(ctx, githubConn.GetName(), withSecrets)
-			return err
-		}},
-		{"github/GetAll", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, err := clt.GetGithubConnectors(ctx, withSecrets)
-			return err
-		}},
-		{"github/List", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, _, err := clt.ListGithubConnectors(ctx, 0, "", withSecrets)
-			return err
-		}},
-		{"saml/Get", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, err := clt.GetSAMLConnector(ctx, samlConn.GetName(), withSecrets)
-			return err
-		}},
-		{"saml/GetAll", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, err := clt.GetSAMLConnectors(ctx, withSecrets)
-			return err
-		}},
-		{"saml/List", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, _, err := clt.ListSAMLConnectorsWithOptions(ctx, 0, "", withSecrets)
-			return err
-		}},
-		{"oidc/Get", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, err := clt.GetOIDCConnector(ctx, oidcConn.GetName(), withSecrets)
-			return err
-		}},
-		{"oidc/GetAll", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, err := clt.GetOIDCConnectors(ctx, withSecrets)
-			return err
-		}},
-		{"oidc/List", func(clt *auth.ServerWithRoles, withSecrets bool) error {
-			_, _, err := clt.ListOIDCConnectors(ctx, 0, "", withSecrets)
-			return err
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Reading secrets without MFA returns an error
-			err := test.getConnectorFunc(clientForState(t, authz.AdminActionAuthUnauthorized), true /* withSecrets */)
-			require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
-
-			// Reading secrets with MFA works
-			err = test.getConnectorFunc(clientForState(t, authz.AdminActionAuthMFAVerified), true /* withSecrets */)
-			require.NoError(t, err)
-
-			// Reading without secrets works without MFA
-			err = test.getConnectorFunc(clientForState(t, authz.AdminActionAuthUnauthorized), false /* withSecrets */)
-			require.NoError(t, err)
-		})
-	}
-}
-
 func TestGithubAuthRequest(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	emptyRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -866,9 +720,9 @@ func TestGithubAuthRequest(t *testing.T) {
 // github/requests/validate which must have the same format as the requested
 // keys to support both old and new proxies.
 func TestGithubAuthCompat(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	connector, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
@@ -1314,17 +1168,17 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	}
 
 	scope := "/test"
-	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
-		Role: scopedaccessv1.ScopedRole_builder{
+	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: getScopeAsName(scope) + "-role",
-			}.Build(),
+			},
 			Scope: scope,
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{scope},
-				Kube: scopedaccessv1.ScopedRoleKube_builder{
+				Kube: &scopedaccessv1.ScopedRoleKube{
 					Users:  []string{"scoped_kube_user"},
 					Groups: []string{"scoped_kube_group"},
 					Resources: []*scopedaccessv1.KubeResource{
@@ -1337,28 +1191,28 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 						}.Build(),
 					},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   types.Wildcard,
 							Values: []string{types.Wildcard},
-						}.Build(),
+						},
 					},
-				}.Build(),
-			}.Build(),
-		}.Build(),
-	}.Build())
+				},
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	role := roleResp.GetRole()
-	sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
-		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+	sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
-			}.Build(),
+			},
 			Scope: scope,
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user1.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -1366,9 +1220,9 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 						Scope: scope,
 					}.Build(),
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	waitForSRACache(t, srv, sra)
 
@@ -1435,7 +1289,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
 			if tt.scope != "" {
-				require.Equal(t, tt.scope, identity.ScopePin.GetScope())
+				require.Equal(t, tt.scope, identity.ScopePin.Scope)
 			} else {
 				require.Nil(t, identity.ScopePin)
 			}
@@ -2306,14 +2160,36 @@ func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurable
 	runTestCases(true)
 }
 
-func TestClusterNetworkingCloudUpdates(t *testing.T) {
+func TestAuthPreferenceRBAC(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindClusterAuthPreference,
+		storeDefault: func(s *auth.Server) {
+			s.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		storeConfigFile: func(s *auth.Server) {
+			authPref := types.DefaultAuthPreference()
+			authPref.SetOrigin(types.OriginConfigFile)
+			s.UpsertAuthPreference(ctx, authPref)
+		},
+		get: func(s *auth.ServerWithRoles) error {
+			_, err := s.GetAuthPreference(ctx)
+			return err
+		},
+		set: func(s *auth.ServerWithRoles) error {
+			return s.SetAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		reset: func(s *auth.ServerWithRoles) error {
+			return s.ResetAuthPreference(ctx)
+		},
+		alwaysReadable: true,
+	})
+}
 
-	testModules := modulestest.EnterpriseModules()
-
-	srv := newTestTLSServer(t, withModules(testModules))
-
+func TestClusterNetworkingCloudUpdates(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
 	_, err := srv.Auth().UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
@@ -2406,7 +2282,13 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			testModules.TestFeatures.Cloud = tc.cloud
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
@@ -2493,32 +2375,6 @@ func TestClusterNetworkingConfigScopedRead(t *testing.T) {
 	require.Empty(t, cmp.Diff(netConfig, nc))
 }
 
-func TestClusterAuditConfigScopedRead(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
-		ScopesFeatures: scopes.Features{
-			Enabled:         true,
-			AgentPinEnabled: true,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-	auditConfig := types.DefaultClusterAuditConfig()
-	_, err = as.AuthServer.UpsertClusterAuditConfig(ctx, auditConfig)
-	require.NoError(t, err)
-
-	const hostID = "testhost"
-	const scope = "/aa/bb"
-	srv := newScopePinnedTestServerForHost(t, as, hostID, scope, types.RoleNode)
-	ac, err := srv.GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(auditConfig, ac))
-}
-
 func TestSessionRecordingConfigRBAC(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2577,7 +2433,7 @@ func BenchmarkListNodes(b *testing.B) {
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for range roleCount {
+	for i := 0; i < roleCount; i++ {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -2585,7 +2441,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -2768,7 +2624,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -2891,7 +2747,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
 	select {
 	case err := <-errC:
@@ -2905,7 +2762,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	username := "user"
@@ -2940,7 +2798,8 @@ func TestStreamSessionEvents_User(t *testing.T) {
 func TestAuditLog_SessionEvents_BuiltinRoles(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	roles := types.LocalServiceMappings()
@@ -3074,8 +2933,8 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 			Limit:      1,
 			Order:      types.EventOrderDescending,
 		})
-		require.NoError(t, err)
-		require.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+		assert.NoError(t, err)
+		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
 	}, 5*time.Second, 200*time.Millisecond)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -3516,6 +3375,8 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
@@ -3548,13 +3409,10 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
-		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
-		require.NoError(t, err)
-		require.Empty(t, clusters)
 
 		// TODO (eriktate): remove in v20
 		//nolint:staticcheck // SA1019
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		clusters, err := stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
@@ -3625,11 +3483,11 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
-	waitingContainer, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, kubewaitingcontainerv1.KubernetesWaitingContainer_builder{
-		Metadata: headerv1.Metadata_builder{
+	waitingContainer, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{
+		Metadata: &headerv1.Metadata{
 			Name: "waiting-container",
-		}.Build(),
-		Spec: kubewaitingcontainerv1.KubernetesWaitingContainerSpec_builder{
+		},
+		Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
 			Username:      "user",
 			Cluster:       clusterName,
 			Namespace:     "namespace",
@@ -3637,8 +3495,8 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 			ContainerName: "waiting-container",
 			Patch:         []byte("patch"),
 			PatchType:     kubewaitingcontainer.ApplyPatchType,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	t.Run("CreateKubernetesCluster", func(t *testing.T) {
@@ -3689,11 +3547,15 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
 		// unscoped kube clients SHOULD be able to list all kube clusters
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
 		// scoped kube clients SHOULD be able to list kube clusters within their scope
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		scopedClusters, err := scopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, scopedClusters, 1)
@@ -3806,11 +3668,11 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 
 	t.Run("CreateKubernetesWaitingContainer", func(t *testing.T) {
 		const wcName = "create-waiting-container"
-		wc := kubewaitingcontainerv1.KubernetesWaitingContainer_builder{
-			Metadata: headerv1.Metadata_builder{
+		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+			Metadata: &headerv1.Metadata{
 				Name: wcName,
-			}.Build(),
-			Spec: kubewaitingcontainerv1.KubernetesWaitingContainerSpec_builder{
+			},
+			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
 				Username:      waitingContainer.GetSpec().GetUsername(),
 				Cluster:       waitingContainer.GetSpec().GetCluster(),
 				Namespace:     waitingContainer.GetSpec().GetNamespace(),
@@ -3818,21 +3680,21 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 				ContainerName: wcName,
 				Patch:         waitingContainer.GetSpec().GetPatch(),
 				PatchType:     waitingContainer.GetSpec().GetPatchType(),
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		// unscoped kube service clients SHOULD be able to create a kube waiting container
 		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
 		require.NoError(t, err)
 
 		// cleanup waiting container
-		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest_builder{
+		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
 			Username:      wc.GetSpec().GetUsername(),
 			Cluster:       wc.GetSpec().GetCluster(),
 			Namespace:     wc.GetSpec().GetNamespace(),
 			PodName:       wc.GetSpec().GetPodName(),
 			ContainerName: wc.GetSpec().GetContainerName(),
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		// scoped kube service clients SHOULD NOT be able to create a kube waiting container
@@ -3843,11 +3705,11 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 
 	t.Run("DeleteKubernetesWaitingContainer", func(t *testing.T) {
 		const wcName = "delete-waiting-container"
-		wc := kubewaitingcontainerv1.KubernetesWaitingContainer_builder{
-			Metadata: headerv1.Metadata_builder{
+		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+			Metadata: &headerv1.Metadata{
 				Name: wcName,
-			}.Build(),
-			Spec: kubewaitingcontainerv1.KubernetesWaitingContainerSpec_builder{
+			},
+			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
 				Username:      waitingContainer.GetSpec().GetUsername(),
 				Cluster:       waitingContainer.GetSpec().GetCluster(),
 				Namespace:     waitingContainer.GetSpec().GetNamespace(),
@@ -3855,20 +3717,20 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 				ContainerName: wcName,
 				Patch:         waitingContainer.GetSpec().GetPatch(),
 				PatchType:     waitingContainer.GetSpec().GetPatchType(),
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		// unscoped kube service clients SHOULD be able to create a kube waiting container
 		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
 		require.NoError(t, err)
 
-		deleteReq := kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest_builder{
+		deleteReq := &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
 			Username:      wc.GetSpec().GetUsername(),
 			Cluster:       wc.GetSpec().GetCluster(),
 			Namespace:     wc.GetSpec().GetNamespace(),
 			PodName:       wc.GetSpec().GetPodName(),
 			ContainerName: wc.GetSpec().GetContainerName(),
-		}.Build()
+		}
 		// cleanup waiting container
 		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
 		require.NoError(t, err)
@@ -3880,13 +3742,13 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	})
 
 	t.Run("GetKubernetesWaitingContainer", func(t *testing.T) {
-		req := kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest_builder{
+		req := &kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest{
 			Username:      waitingContainer.GetSpec().GetUsername(),
 			Cluster:       waitingContainer.GetSpec().GetCluster(),
 			Namespace:     waitingContainer.GetSpec().GetNamespace(),
 			PodName:       waitingContainer.GetSpec().GetPodName(),
 			ContainerName: waitingContainer.GetSpec().GetContainerName(),
-		}.Build()
+		}
 		// unscoped kube clients SHOULD be able to fetch a kube waiting containers
 		_, err := unscopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
 		require.NoError(t, err)
@@ -3904,7 +3766,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("db-%d", i)
 		database, err := types.NewDatabaseV3(
 			types.Metadata{
@@ -4048,7 +3910,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test app servers.
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("app-%v", i)
 		app, err := types.NewAppV3(types.Metadata{
 			Name:   name,
@@ -4169,10 +4031,12 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 }
 
 func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
-	t.Parallel()
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withCacheEnabled(true), withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	ctx := context.Background()
+	srv := newTestTLSServer(t, withCacheEnabled(true))
 
 	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 		Name: "saml-app",
@@ -4219,12 +4083,14 @@ func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
 // RBAC and search filters when fetching SAML IdP service providers.
 func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
 
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:   name,
@@ -4838,7 +4704,7 @@ func TestKindClusterConfig(t *testing.T) {
 			srv.AuditLog,
 			*authContext,
 		)
-		_, err1 := s.ScopedServerWithRoles().GetClusterAuditConfig(ctx)
+		_, err1 := s.GetClusterAuditConfig(ctx)
 		_, err2 := s.ScopedServerWithRoles().GetClusterNetworkingConfig(ctx)
 		_, err3 := s.ScopedServerWithRoles().GetSessionRecordingConfig(ctx)
 		return []error{err1, err2, err3}
@@ -4878,7 +4744,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test kube servers.
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		// insert legacy kube servers
 		name := uuid.NewString()
 		cluster, err := types.NewKubernetesClusterV3(
@@ -5007,7 +4873,7 @@ func TestListDatabaseServices(t *testing.T) {
 	numInitialResources := 5
 
 	// Create test Database Services.
-	for range numInitialResources {
+	for i := 0; i < numInitialResources; i++ {
 		name := uuid.NewString()
 		s, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name: name,
@@ -5150,7 +5016,7 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5203,7 +5069,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 
 	// Create test nodes.
 	const numTestNodes = 3
-	for i := range numTestNodes {
+	for i := 0; i < numTestNodes; i++ {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5343,7 +5209,7 @@ func TestListResources_WithLogins(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5507,7 +5373,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test desktops.
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": name},
 			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
@@ -5693,13 +5559,12 @@ func TestCreateWindowsDesktop(t *testing.T) {
 
 func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
 	mods := modulestest.OSSModules()
 	mods.TestFeatures.Entitlements[entitlements.K8s] = modules.EntitlementInfo{Enabled: false}
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:     t.TempDir(),
-		Modules: mods,
-	})
-	require.NoError(t, err)
+	modulestest.SetTestModules(t, *mods)
 
 	type listResourcesSrv interface {
 		ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
@@ -5764,8 +5629,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleProxy,
-						Username:    string(types.RoleProxy),
+						Role:        types.RoleProvisionToken,
+						Username:    string(types.RoleProvisionToken),
 						ClusterName: "remote-cluster",
 					},
 				}
@@ -5778,8 +5643,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleProxy,
-						Username:    string(types.RoleProxy),
+						Role:        types.RoleProvisionToken,
+						Username:    string(types.RoleProvisionToken),
 						ClusterName: "remote-cluster",
 					},
 				}
@@ -5979,17 +5844,17 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	}
 	// create scoped roles, users, and assignments
 	for _, scope := range testScopes {
-		roleResp, err := scopedAccess.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
-			Role: scopedaccessv1.ScopedRole_builder{
+		roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: &scopedaccessv1.ScopedRole{
 				Kind:    scopedaccess.KindScopedRole,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: getScopeAsName(scope) + "-role",
-				}.Build(),
+				},
 				Scope: scope,
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{scope},
-					Kube: scopedaccessv1.ScopedRoleKube_builder{
+					Kube: &scopedaccessv1.ScopedRoleKube{
 						Users:  []string{"kube_user"},
 						Groups: []string{"kube_group"},
 						Resources: []*scopedaccessv1.KubeResource{
@@ -6002,31 +5867,31 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 							}.Build(),
 						},
 						Labels: []*labelv1.Label{
-							labelv1.Label_builder{
+							{
 								Name:   types.Wildcard,
 								Values: []string{types.Wildcard},
-							}.Build(),
+							},
 						},
-					}.Build(),
-				}.Build(),
-			}.Build(),
-		}.Build())
+					},
+				},
+			},
+		})
 		require.NoError(t, err)
 
 		user, err := authtest.CreateUser(ctx, srv.Auth(), getScopeAsName(scope)+"-reader")
 		require.NoError(t, err)
 
 		role := roleResp.GetRole()
-		sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
-			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+		sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			Assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: uuid.NewString(),
-				}.Build(),
+				},
 				Scope: scope,
-				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
@@ -6034,9 +5899,9 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 							Scope: scope,
 						}.Build(),
 					},
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 		require.NoError(t, err)
 
 		waitForSRACache(t, srv, sra)
@@ -6215,11 +6080,11 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, resp := range resps {
-			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
 				Scope:   resp.GetAssignment().GetScope(),
-			}.Build())
+			})
 			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
@@ -7328,7 +7193,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -7354,7 +7219,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -7371,7 +7236,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindWindowsDesktop",
 			kind: types.KindWindowsDesktop,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					desktop, err := types.NewWindowsDesktopV3(names[i], nil, types.WindowsDesktopSpecV3{
 						Addr:   "_",
 						HostID: fmt.Sprintf("name-%v", i),
@@ -7385,7 +7250,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 
 					kube, err := types.NewKubernetesClusterV3(types.Metadata{
 						Name: names[i],
@@ -7471,7 +7336,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// inserts a pool nodes with different labels
 	insertNodes := func(ctx context.Context, t *testing.T, srv *auth.Server, nodeCount int, labels map[string]string) {
-		for range nodeCount {
+		for i := 0; i < nodeCount; i++ {
 			name := uuid.NewString()
 			addr := fmt.Sprintf("node-%s.example.com", name)
 
@@ -7610,6 +7475,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// ensure that a user can see the correct number of resources for their role(s)
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -7685,7 +7551,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -7761,7 +7627,9 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 				StartKey:      start,
 			})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			results = append(results, resp.Resources...)
 			start = resp.NextKey
@@ -7772,7 +7640,9 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		require.Len(t, results, 20)
+		if !assert.Len(t, results, 20) {
+			return
+		}
 		resultsC <- results
 	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources")
 
@@ -7802,7 +7672,7 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 
 	// Create test nodes.
 	const numTestNodes = 3
-	for i := range numTestNodes {
+	for i := 0; i < numTestNodes; i++ {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
 			name,
@@ -8099,14 +7969,14 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 	// 1. Create app resources
 
 	searchableGenericApp := createTestAppServerV3(t, srv.Auth(),
-		"test-generic-app",
+		"test_generic_app",
 		map[string]string{
 			"find_me": "please",
 		},
 	)
 
 	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
-		"test-searchable-okta-app",
+		"test_searchable_okta_app",
 		map[string]string{
 			"find_me":         "please",
 			types.OriginLabel: types.OriginOkta,
@@ -8114,7 +7984,7 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 	)
 
 	assignedOktaApp := createTestAppServerV3(t, srv.Auth(),
-		"test-assigned-okta-app",
+		"test_assigned_okta_app",
 		map[string]string{
 			"owner":           "alice",
 			types.OriginLabel: types.OriginOkta,
@@ -8251,7 +8121,7 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -8367,19 +8237,19 @@ func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 	identity := authtest.TestUser(user.GetName())
 
 	// pin a resource
-	pinned := userpreferencesv1.PinnedResourcesUserPreferences_builder{
+	pinned := &userpreferencesv1.PinnedResourcesUserPreferences{
 		ResourceIds: []string{"tifa/tifa/node"},
-	}.Build()
-	clusterPrefs := userpreferencesv1.ClusterUserPreferences_builder{
+	}
+	clusterPrefs := &userpreferencesv1.ClusterUserPreferences{
 		PinnedResources: pinned,
-	}.Build()
+	}
 
-	req := userpreferencesv1.UpsertUserPreferencesRequest_builder{
-		Preferences: userpreferencesv1.UserPreferences_builder{
+	req := &userpreferencesv1.UpsertUserPreferencesRequest{
+		Preferences: &userpreferencesv1.UserPreferences{
 			ClusterPreferences: clusterPrefs,
-		}.Build(),
-	}.Build()
-	err = srv.Auth().UpsertUserPreferences(ctx, username, req.GetPreferences())
+		},
+	}
+	err = srv.Auth().UpsertUserPreferences(ctx, username, req.Preferences)
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(identity)
@@ -8412,7 +8282,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		name := names[i]
 		node, err := types.NewServerWithLabels(
 			name,
@@ -8486,7 +8356,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		name := names[i]
 
 		// add nodes
@@ -8584,9 +8454,9 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		require.NoError(t, err)
-		require.Empty(t, resp.NextKey)
-		require.Len(t, resp.Resources, 6)
+		assert.NoError(t, err)
+		assert.Empty(t, resp.NextKey)
+		assert.Len(t, resp.Resources, 6)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
@@ -8615,8 +8485,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
-		require.Nil(t, resp)
+		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		assert.Nil(t, resp)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -8641,7 +8511,7 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		name := names[i]
 
 		// add nodes
@@ -8730,21 +8600,21 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
+	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "test-account",
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		}.Build(),
-		Spec: identitycenterv1.AccountSpec_builder{
+		},
+		Spec: &identitycenterv1.AccountSpec{
 			Id:   validAccountID,
 			Arn:  "some:account:arn",
 			Name: "Test Account",
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		srv.Auth().DeleteIdentityCenterAccount(ctx,
@@ -9452,7 +9322,7 @@ func TestGenerateHostCert(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try by calling new gRPC endpoint directly
-			_, err = client.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
+			_, err = client.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 				Key:         pub,
 				HostId:      "",
 				NodeName:    "",
@@ -9460,7 +9330,7 @@ func TestGenerateHostCert(t *testing.T) {
 				ClusterName: clusterName,
 				Role:        string(types.RoleNode),
 				Ttl:         durationpb.New(0),
-			}.Build())
+			})
 			require.True(t, test.expect(err))
 		})
 	}
@@ -9596,15 +9466,13 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 func TestGenerateHostCertsScoped(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 
 	scope := "/aa/bb"
 	hostID := "testhost"
 	roles := types.SystemRoles{types.RoleNode}
 
-	s := newScopedTestServerForHost(t, as, hostID, scope, types.RoleNode)
+	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
 
 	_, sshPub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
@@ -10559,7 +10427,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -10577,7 +10445,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -10596,7 +10464,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -10615,7 +10483,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -10629,7 +10497,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 				EntityID:         "sp1",
 			},
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -10731,7 +10599,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
 		},
@@ -10749,7 +10617,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -10768,7 +10636,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
 		},
@@ -10787,7 +10655,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -10801,7 +10669,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 				EntityID:         "sp1",
 			},
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
 		},
@@ -10847,14 +10715,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "missing url scheme in acs input",
 			entityID: "sp",
 			acsURL:   "sp",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "missing url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
@@ -10862,14 +10730,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "http url scheme in acs",
 			entityID: "sp",
 			acsURL:   "http://sp",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "http url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "http://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -10877,14 +10745,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "unsupported scheme in acs",
 			entityID: "sp",
 			acsURL:   "gopher://sp",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "unsupported scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "gopher://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
@@ -10892,14 +10760,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "invalid character in acs",
 			entityID: "sp",
 			acsURL:   "https://sp>",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
 		{
 			name:             "invalid character in acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "https://sp>"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -10908,7 +10776,7 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			entityID:   "sp",
 			acsURL:     "https://sp",
 			relayState: "default_state<b",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
@@ -10961,28 +10829,28 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 		{
 			name:             "missing url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
 		{
 			name:             "http url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "http://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
 		{
 			name:             "unsupported scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "gopher://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
 		{
 			name:             "invalid character in acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp>"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -10990,7 +10858,7 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:             "invalid character in relay state",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
 			relayState:       "default_state<b",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
@@ -11048,7 +10916,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			spName:    "sp1",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -11057,7 +10925,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			spName:    "sp1",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -11067,7 +10935,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -11077,7 +10945,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -11085,7 +10953,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			name:      "without any permissions",
 			spName:    "sp1",
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -11122,7 +10990,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 
 	const errDeleteVerbDenied = `access denied to perform action "delete"`
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:   name,
@@ -11147,7 +11015,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "without VerbDelete but a matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
@@ -11156,7 +11024,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "with VerbDelete but a non-matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
@@ -11166,7 +11034,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
@@ -11176,7 +11044,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
@@ -11184,7 +11052,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 		{
 			name:      "without any permissions",
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
@@ -11352,6 +11220,7 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -11393,12 +11262,12 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	_, _, err := authtest.CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertNotFound := func(t require.TestingT, err error, i ...any) {
+	assertNotFound := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
 	}
 
-	assertAccessDenied := func(t require.TestingT, err error, i ...any) {
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
@@ -11469,6 +11338,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().GetClock())
@@ -11608,6 +11478,7 @@ func TestCreateSnowflakeSession(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -11664,6 +11535,7 @@ func TestGetSnowflakeSession(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -11702,6 +11574,7 @@ func TestGetSnowflakeSessions(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -11792,6 +11665,7 @@ func TestDeleteSnowflakeSession(t *testing.T) {
 	dbClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
 	require.NoError(t, err)
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -11836,6 +11710,7 @@ func TestDeleteAllSnowflakeSessions(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -12657,6 +12532,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	t.Run("watch_events", func(t *testing.T) {
 		// Check that each watcher captured the expected events.
 		for _, tc := range testCases {
+			tc := tc
 
 			// watcher was not initialized for this test case, skip.
 			if tc.watcher == nil {
@@ -12734,28 +12610,28 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpInit, event.Type)
 
 	// Create a ScopedRole and verify create event is well-formed.
-	role := scopedaccessv1.ScopedRole_builder{
+	role := &scopedaccessv1.ScopedRole{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "test-role",
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo", "/bar"},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 
-	crsp, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+	crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
 
 	resource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
-	require.Empty(t, cmp.Diff(crsp.GetRole(), resource, protocmp.Transform() /* deliberately not ignoring revision */))
+	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
 	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
@@ -12778,21 +12654,21 @@ func TestScopedRoleEvents(t *testing.T) {
 	}.Build(), deletedRole, protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
-	_, err = service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+	_, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	_ = getNextEvent() // drain the role create event
 
-	assignment := scopedaccessv1.ScopedRoleAssignment_builder{
+	assignment := &scopedaccessv1.ScopedRoleAssignment{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
@@ -12800,19 +12676,19 @@ func TestScopedRoleEvents(t *testing.T) {
 					Scope: "/foo",
 				}.Build(),
 			},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 
-	acrsp, err := service.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
-	}.Build())
+	})
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpPut, event.Type)
 	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
-	require.Empty(t, cmp.Diff(acrsp.GetAssignment(), assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
+	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
 	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
@@ -12841,10 +12717,12 @@ func TestScopedRoleEvents(t *testing.T) {
 // this test) is auth role which has access to all cache kinds and will fail
 // early if there is a mismatch.
 func TestWatchAllCacheKinds(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
+
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
 		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,
@@ -12895,11 +12773,8 @@ func collectWatchKind(kinds []types.WatchKind) []string {
 
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	authServer := as.AuthServer
-	domainName, err := authServer.GetDomainName()
+	srv := newTestTLSServer(t)
+	domainName, err := srv.Auth().GetDomainName()
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -12920,6 +12795,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			hostID := uuid.New().String()
@@ -12951,7 +12827,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 			// Upsert the kubernetes server into the backend.
-			_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
 			require.NoError(t, err)
 
 			// Create a built-in role.
@@ -12960,8 +12836,8 @@ func TestKubeKeepAliveServer(t *testing.T) {
 				authz.BuiltinRole{
 					Role:        test.builtInRole,
 					Username:    username,
-					ClusterName: domainName,
 					Identity:    tlsca.Identity{Username: username},
+					ClusterName: domainName,
 				},
 				types.DefaultSessionRecordingConfig(),
 			)
@@ -12969,7 +12845,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 			// Create a server with the built-in role.
 			srv := auth.NewServerWithRoles(
-				authServer,
+				srv.Auth(),
 				events.NewDiscardAuditLog(),
 				*authContext,
 			)
@@ -12991,7 +12867,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 // inlineEventually is equivalent to require.Eventually except that it runs the provided function directly
 // instead of in a background goroutine, making it safe to fail the test from within the closure.
-func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...any) {
+func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) {
 	t.Helper()
 
 	timer := time.NewTimer(waitFor)
@@ -13066,7 +12942,6 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 }
 
 func TestCloudDefaultPasswordless(t *testing.T) {
-	t.Parallel()
 	tt := []struct {
 		name                     string
 		cloud                    bool
@@ -13114,16 +12989,15 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			// create new server
-			ctx := t.Context()
-			t.Parallel()
-			testModules := &modulestest.Modules{
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},
-			}
-
-			srv := newTestTLSServer(t, withModules(testModules))
+			})
 
 			// set cluster Webauthn
 			authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -13139,7 +13013,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, testModules.BuildType(), srv.Auth())
+				auth.CreatePresetUsers(ctx, modules.BuildEnterprise, srv.Auth())
 			}
 
 			// create preexisting users
@@ -13204,11 +13078,9 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 func TestRoleRequestReasonModeValidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 
-	s := newTestServerWithRoles(t, as, types.RoleAdmin)
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
 
 	testCases := []struct {
 		desc          string
@@ -13334,40 +13206,40 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// GIVEN an Identity Center Account with some associated Permission Set
 	// resources
 	permissionSets := []*identitycenterv1.PermissionSetInfo{
-		identitycenterv1.PermissionSetInfo_builder{
+		{
 			Name:         "PS One",
 			Arn:          permissionSetArnPrefix + "one",
 			AssignmentId: accountID + "-" + "ps_one",
-		}.Build(),
-		identitycenterv1.PermissionSetInfo_builder{
+		},
+		{
 			Name:         "PS Two",
 			Arn:          permissionSetArnPrefix + "two",
 			AssignmentId: accountID + "-" + "ps_two",
-		}.Build(),
-		identitycenterv1.PermissionSetInfo_builder{
+		},
+		{
 			Name:         "PS Three",
 			Arn:          permissionSetArnPrefix + "ps_three",
 			AssignmentId: accountID + "-" + "ps_three",
-		}.Build(),
+		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: accountID,
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		}.Build(),
-		Spec: identitycenterv1.AccountSpec_builder{
+		},
+		Spec: &identitycenterv1.AccountSpec{
 			Id:                accountID,
 			Arn:               "aws:arn:test:account",
 			Name:              "Test Account",
 			Description:       "An account for testing",
 			PermissionSetInfo: permissionSets,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -13413,8 +13285,8 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		{
 			name: "basic access",
 			roleModifiers: []authtest.CreateUserAndRoleOption{
-				withAccountAssignment(types.Allow, accountID, permissionSets[0].GetArn()),
-				withAccountAssignment(types.Allow, accountID, permissionSets[1].GetArn()),
+				withAccountAssignment(types.Allow, accountID, permissionSets[0].Arn),
+				withAccountAssignment(types.Allow, accountID, permissionSets[1].Arn),
 			},
 			expectedPSs: []*types.IdentityCenterPermissionSet{
 				paginatedAppPermissionSet(permissionSets[0]),
@@ -13425,7 +13297,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		{
 			name: "ignore search as roles when disabled",
 			roleModifiers: []authtest.CreateUserAndRoleOption{
-				withAccountAssignment(types.Allow, accountID, permissionSets[1].GetArn()),
+				withAccountAssignment(types.Allow, accountID, permissionSets[1].Arn),
 				withRequesterRole,
 			},
 			includeRequestable: false,
@@ -13437,7 +13309,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		{
 			name: "requestable access",
 			roleModifiers: []authtest.CreateUserAndRoleOption{
-				withAccountAssignment(types.Allow, accountID, permissionSets[1].GetArn()),
+				withAccountAssignment(types.Allow, accountID, permissionSets[1].Arn),
 				withRequesterRole,
 			},
 			includeRequestable: true,
@@ -13508,9 +13380,9 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 
 func paginatedAppPermissionSet(src *identitycenterv1.PermissionSetInfo) *types.IdentityCenterPermissionSet {
 	return &types.IdentityCenterPermissionSet{
-		ARN:          src.GetArn(),
-		Name:         src.GetName(),
-		AssignmentID: src.GetAssignmentId(),
+		ARN:          src.Arn,
+		Name:         src.Name,
+		AssignmentID: src.AssignmentId,
 	}
 }
 
@@ -13570,11 +13442,9 @@ func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 
-	s := newTestServerWithRoles(t, as, types.RoleAdmin)
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
 
 	const errMsg = "supported in role version 7 and below"
 	testCases := []struct {
@@ -13593,7 +13463,7 @@ func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 					},
 				},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errMsg)
 			},
 		},
@@ -13607,7 +13477,7 @@ func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 					},
 				},
 			},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.NoError(t, err)
 			},
 		},
@@ -13910,14 +13780,8 @@ func TestRegisterInventoryControlStreamScopes(t *testing.T) {
 					return
 				}
 
-				select {
-				case msg := <-h.downstream.Recv():
-					require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
-				case <-time.After(time.Second * 1):
-					require.Fail(t, "downstream message not received")
-				}
-				// msg := <-h.downstream.Recv()
-				// require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+				msg := <-h.downstream.Recv()
+				require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
 
 				result := <-resultCh
 				require.NoError(t, result.err)
@@ -13934,12 +13798,12 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 	ctx := t.Context()
 
 	const serverID = "test-server"
-	helloLabels := joiningv1.ImmutableLabels_builder{
+	helloLabels := &joiningv1.ImmutableLabels{
 		Ssh: map[string]string{
 			"test":  "label",
 			"test2": "label2",
 		},
-	}.Build()
+	}
 	helloHash := joining.HashImmutableLabels(helloLabels)
 
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
@@ -13997,10 +13861,10 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 				resultCh <- registerResult{hello: hello, err: err}
 			}()
 
-			err := h.downstream.Send(ctx, proto.UpstreamInventoryHello_builder{
+			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
 				ServerID:        serverID,
 				ImmutableLabels: c.helloLabels,
-			}.Build())
+			})
 			require.NoError(t, err)
 
 			if c.expectErr != nil {
@@ -14021,18 +13885,18 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 
 // assert that common user cert generation cases are properly handled for scoped identities
 func TestScopedUserCertGeneration(t *testing.T) {
-	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withClock(clock))
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessGraph: {Enabled: true},
-				entitlements.K8s:         {Enabled: true},
-				entitlements.App:         {Enabled: true},
+				entitlements.Policy: {Enabled: true},
+				entitlements.K8s:    {Enabled: true},
+				entitlements.App:    {Enabled: true},
 			},
 		},
-	}), withClock(clock))
+	})
 	ctx := t.Context()
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
@@ -14043,9 +13907,9 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: username,
-			}.Build(),
+			},
 			Scope: scope,
 			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
@@ -14062,10 +13926,10 @@ func TestScopedUserCertGeneration(t *testing.T) {
 						}.Build(),
 					},
 					Labels: []*labelv1.Label{
-						labelv1.Label_builder{
+						{
 							Name:   types.Wildcard,
 							Values: []string{types.Wildcard},
-						}.Build(),
+						},
 					},
 				}.Build(),
 				App: scopedaccessv1.ScopedRoleApp_builder{
@@ -14085,16 +13949,16 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	scopedRole := roleResp.GetRole()
-	sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
-		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+	sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
-			}.Build(),
+			},
 			Scope: scope,
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
@@ -14102,9 +13966,9 @@ func TestScopedUserCertGeneration(t *testing.T) {
 						Scope: scope,
 					}.Build(),
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	waitForSRACache(t, srv, sra)
 
@@ -14747,21 +14611,11 @@ func TestRoleKubeLeastPrivilege(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("delete own kube server allowed", func(t *testing.T) {
-		// TODO (eriktate): remove in v20
-		//nolint:staticcheck // SA1019
-		require.NoError(t, kube.ScopedServerWithRoles().DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
-			HostID: ownID,
-			Name:   "kube",
-		}))
+		require.NoError(t, kube.ScopedServerWithRoles().DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{Name: "kube", HostID: ownID}))
 	})
 
 	t.Run("delete other kube server denied", func(t *testing.T) {
-		// TODO (eriktate): remove in v20
-		//nolint:staticcheck // SA1019
-		err := kube.ScopedServerWithRoles().DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
-			HostID: otherID,
-			Name:   "kube",
-		})
+		err := kube.ScopedServerWithRoles().DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{Name: "kube", HostID: otherID})
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 
@@ -14872,161 +14726,4 @@ func TestRoleWindowsDesktopLeastPrivilege(t *testing.T) {
 		err := desktop.DeleteWindowsDesktop(ctx, otherID, "desktop")
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
-}
-
-func TestGetAccessCapabilitiesRBAC(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	targetUser, err := types.NewUser("target")
-	require.NoError(t, err)
-	_, err = srv.AuthServer.CreateUser(ctx, targetUser)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name             string
-		allowRules       []types.Rule
-		callerUser       string
-		queriedUser      string
-		wantAccessDenied bool
-	}{
-		{
-			name:        "querying for self doesn't require permissions is allowed",
-			callerUser:  "caller-self-default",
-			queriedUser: "",
-		},
-		{
-			name:        "querying for self doesn't require permissions is allowed (explicit user name)",
-			callerUser:  "caller-self-explicit",
-			queriedUser: "caller-self-explicit",
-		},
-		{
-			name:             "querying for other user without permissions is denied",
-			callerUser:       "caller-other-denied",
-			queriedUser:      "target",
-			wantAccessDenied: true,
-		},
-		{
-			name: "querying for other user with permissions is allowed",
-			allowRules: []types.Rule{
-				types.NewRule(types.KindUser, []string{types.VerbRead}),
-				types.NewRule(types.KindRole, []string{types.VerbList, types.VerbRead}),
-			},
-			callerUser:  "caller-other-allowed",
-			queriedUser: "target",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := t.Context()
-			callerRole, err := types.NewRole(tt.callerUser+"-role", types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: tt.allowRules,
-				},
-			})
-			require.NoError(t, err)
-			callerUser, err := authtest.CreateUser(ctx, srv.AuthServer, tt.callerUser, callerRole)
-			require.NoError(t, err)
-
-			callerIdentity := authz.LocalUser{
-				Username: tt.callerUser,
-				Identity: tlsca.Identity{
-					Username: tt.callerUser,
-					Groups:   callerUser.GetRoles(),
-				},
-			}
-			authCtx, err := authz.ContextForLocalUser(
-				ctx, callerIdentity, srv.AuthServer.Services, srv.ClusterName, true, /* disableDeviceAuthz */
-			)
-			require.NoError(t, err)
-			authCtx.AdminActionAuthState = authz.AdminActionAuthMFAVerified
-
-			server := auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
-			_, err = server.GetAccessCapabilities(authz.ContextWithUser(ctx, callerIdentity), types.AccessCapabilitiesRequest{
-				User: tt.queriedUser,
-			})
-			if tt.wantAccessDenied {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %T: %v", err, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestGetAccessCapabilitiesScopedRBAC(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	targetUser, err := types.NewUser("target")
-	require.NoError(t, err)
-	_, err = srv.AuthServer.CreateUser(ctx, targetUser)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name             string
-		callerUser       string
-		queriedUser      string
-		wantAccessDenied bool
-	}{
-		{
-			name:        "querying for self is allowed",
-			callerUser:  "scoped-caller-self",
-			queriedUser: "",
-		},
-		{
-			name:             "querying for other user is denied",
-			callerUser:       "scoped-caller-other",
-			queriedUser:      "target",
-			wantAccessDenied: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			callerUser, err := types.NewUser(tt.callerUser)
-			require.NoError(t, err)
-			callerUser, err = srv.AuthServer.CreateUser(t.Context(), callerUser)
-			require.NoError(t, err)
-
-			callerIdentity := authz.LocalUser{
-				Username: tt.callerUser,
-				Identity: tlsca.Identity{
-					Username: tt.callerUser,
-					ScopePin: scopesv1.Pin_builder{
-						Kind:  scopesv1.PinKind_PIN_KIND_USER,
-						Scope: "/test",
-					}.Build(),
-				},
-			}
-
-			server := auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, &authz.ScopedContext{
-				User:     callerUser,
-				Identity: callerIdentity,
-			})
-			t.Cleanup(func() { server.Close() })
-
-			_, err = server.GetAccessCapabilities(authz.ContextWithUser(t.Context(), callerIdentity), types.AccessCapabilitiesRequest{
-				User: tt.queriedUser,
-			})
-			if tt.wantAccessDenied {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %T: %v", err, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }

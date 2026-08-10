@@ -74,23 +74,23 @@ func TestUserTask(t *testing.T) {
 	}
 	var userTaskForTest *usertasksv1.UserTask
 	for _, issueType := range issueTypes {
-		userTask, err := usertasks.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
+		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
 			TaskType:    usertasks.TaskTypeDiscoverEC2,
 			IssueType:   issueType,
 			State:       usertasks.TaskStateOpen,
-			DiscoverEc2: usertasksv1.DiscoverEC2_builder{
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
 				AccountId: "123456789012",
 				Region:    "us-east-1",
 				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-					"i-123": usertasksv1.DiscoverEC2Instance_builder{
+					"i-123": {
 						InstanceId:      "i-123",
 						DiscoveryConfig: "dc01",
 						DiscoveryGroup:  "dg01",
-					}.Build(),
+					},
 				},
-			}.Build(),
-		}.Build())
+			},
+		})
 		require.NoError(t, err)
 
 		_, err = adminClient.UserTasksServiceClient().CreateUserTask(ctx, userTask)

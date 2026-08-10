@@ -39,15 +39,15 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
-var scopedRoleSpec = accessv1.ScopedRoleSpec_builder{
+var scopedRoleSpec = &accessv1.ScopedRoleSpec{
 	AssignableScopes: []string{"/staging"},
 	Rules: []*accessv1.ScopedRule{
-		accessv1.ScopedRule_builder{
+		{
 			Resources: []string{"scoped_role"},
-			Verbs:     access.EncodeScopedVerbs(access.Read, access.List),
-		}.Build(),
+			Verbs:     []string{"readnosecrets", "list"},
+		},
 	},
-}.Build()
+}
 
 type scopedRoleTestingPrimitives struct {
 	setup *testSetup
@@ -63,28 +63,28 @@ func (g *scopedRoleTestingPrimitives) SetupTeleportFixtures(ctx context.Context)
 }
 
 func (g *scopedRoleTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	role := accessv1.ScopedRole_builder{
+	role := &accessv1.ScopedRole{
 		Kind:    access.KindScopedRole,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		}.Build(),
+		},
 		Scope: "/staging",
 		Spec:  scopedRoleSpec,
-	}.Build()
-	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRole(ctx, accessv1.CreateScopedRoleRequest_builder{
+	}
+	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
 		Role: role,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 
 func (g *scopedRoleTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*accessv1.ScopedRole, error) {
-	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRole(ctx, accessv1.GetScopedRoleRequest_builder{
+	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRole(ctx, &accessv1.GetScopedRoleRequest{
 		Name: name,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,9 +92,9 @@ func (g *scopedRoleTestingPrimitives) GetTeleportResource(ctx context.Context, n
 }
 
 func (g *scopedRoleTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, accessv1.DeleteScopedRoleRequest_builder{
+	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
 		Name: name,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 

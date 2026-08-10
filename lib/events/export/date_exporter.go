@@ -22,12 +22,12 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
-	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -69,6 +69,8 @@ type DateExporterConfig struct {
 	MaxBackoff time.Duration
 	// PollInterval optionally overrides the default poll interval used to fetch event chunks.
 	PollInterval time.Duration
+	// Clock is an optional parameter used to provide a clock for testing purposes.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates configuration and sets default values for optional parameters.
@@ -95,6 +97,7 @@ func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
 		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
 		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
+	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 	return nil
 }
 
@@ -139,7 +142,9 @@ func (s *DateExporterState) Clone() DateExporterState {
 		Cursors:   make(map[string]string, len(s.Cursors)),
 	}
 	copy(cloned.Completed, s.Completed)
-	maps.Copy(cloned.Cursors, s.Cursors)
+	for chunk, cursor := range s.Cursors {
+		cloned.Cursors[chunk] = cursor
+	}
 	return cloned
 }
 
@@ -342,12 +347,12 @@ func (e *DateExporter) run(ctx context.Context) {
 // to halt.
 func (e *DateExporter) waitForInflightChunks() {
 	// acquire all semaphore tokens to block until all inflight chunks have been processed
-	for range e.cfg.Concurrency {
+	for i := 0; i < e.cfg.Concurrency; i++ {
 		e.sem <- struct{}{}
 	}
 
 	// release all semaphore tokens
-	for range e.cfg.Concurrency {
+	for i := 0; i < e.cfg.Concurrency; i++ {
 		<-e.sem
 	}
 }
@@ -362,9 +367,9 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 	// and/or how many complete export cycles have been performed.
 	defer e.waitForInflightChunks()
 
-	chunks := e.cfg.Client.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
+	chunks := e.cfg.Client.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
 		Date: timestamppb.New(e.cfg.Date),
-	}.Build())
+	})
 
 	var newChunks int
 
@@ -372,7 +377,7 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 		// known chunks should be skipped
 		var skip bool
 		e.withLock(func() {
-			if _, ok := e.chunks[chunks.Item().GetChunk()]; ok {
+			if _, ok := e.chunks[chunks.Item().Chunk]; ok {
 				skip = true
 				return
 			}
@@ -385,7 +390,7 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if ok := e.startProcessingChunk(ctx, chunks.Item().GetChunk(), "" /* cursor */); !ok {
+		if ok := e.startProcessingChunk(ctx, chunks.Item().Chunk, "" /* cursor */); !ok {
 			return newChunks, trace.Wrap(ctx.Err())
 		}
 
@@ -440,11 +445,11 @@ func (e *DateExporter) processChunk(ctx context.Context, chunk string, entry *ch
 Outer:
 	for {
 
-		events := e.cfg.Client.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
+		events := e.cfg.Client.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
 			Date:   timestamppb.New(e.cfg.Date),
 			Chunk:  chunk,
 			Cursor: entry.getCursor(),
-		}.Build())
+		})
 
 		var err error
 		if e.cfg.Export != nil {
@@ -524,7 +529,7 @@ func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stre
 		chunk:   chunk,
 		entry:   entry,
 	}
-	timer := time.NewTimer(e.cfg.BatchExport.MaxDelay)
+	timer := e.cfg.Clock.NewTimer(e.cfg.BatchExport.MaxDelay)
 	defer timer.Stop()
 loop:
 	for {
@@ -539,7 +544,7 @@ loop:
 				continue
 			}
 			unprocessedEvent = exportEvent
-		case <-timer.C:
+		case <-timer.Chan():
 			if batch.isEmpty() {
 				timer.Reset(e.cfg.BatchExport.MaxDelay)
 				continue
@@ -596,7 +601,7 @@ func (e *DateExporter) exportEvents(ctx context.Context, events stream.Stream[*a
 			return trace.Wrap(err)
 		}
 
-		entry.setCursor(events.Item().GetCursor())
+		entry.setCursor(events.Item().Cursor)
 	}
 	return trace.Wrap(events.Done())
 }

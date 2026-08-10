@@ -19,10 +19,9 @@
 import { useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Box } from 'design';
+import { Box, Text } from 'design';
 import { ChevronDown, Logout as LogoutIcon, Moon, Sun } from 'design/Icon';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-import { UserDisplayName } from 'shared/components/UserDisplayName';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import { useTeleport } from 'teleport';
@@ -42,6 +41,10 @@ import session from 'teleport/services/websession';
 import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 import { useUser } from 'teleport/User/UserContext';
+
+interface UserMenuNavProps {
+  username: string;
+}
 
 const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
 
@@ -68,13 +71,13 @@ const UserInfo = styled.div`
   outline: none;
 `;
 
-const CornerUserDisplay = styled(UserDisplayName)`
+const Username = styled(Text)`
+  color: ${props => props.theme.colors.text.main};
+  font-size: 14px;
+  font-weight: 400;
   display: none;
   @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     display: inline-flex;
-  }
-  span {
-    line-height: 1.2;
   }
 `;
 
@@ -114,7 +117,7 @@ const Arrow = styled.div<{ open?: boolean }>`
   }
 `;
 
-export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
+export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
@@ -124,7 +127,6 @@ export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const ctx = useTeleport();
-  const { displayPrimary, displaySecondary, username } = ctx.storeUser.state;
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
   const currentTheme = getCurrentTheme(preferences.theme);
@@ -135,16 +137,12 @@ export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
     setOpen(false);
   };
 
-  const initial = (displayPrimary?.trim() || username.trim())
-    .charAt(0)
-    .toUpperCase();
+  const initial =
+    username && username.length ? username.trim().charAt(0).toUpperCase() : '';
 
-  const topMenuItems = hideFeatures
-    ? []
-    : features.filter(
-        feature =>
-          Boolean(feature.topMenuItem) && feature.category === undefined
-      );
+  const topMenuItems = features.filter(
+    feature => Boolean(feature.topMenuItem) && feature.category === undefined
+  );
 
   const items = [];
 
@@ -199,13 +197,7 @@ export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
       >
         <StyledAvatar>{initial}</StyledAvatar>
 
-        <CornerUserDisplay
-          username={username}
-          primaryText={displayPrimary}
-          // Suppress secondary text if primary is present to avoid cluttering the corner space.
-          secondaryText={displayPrimary ? undefined : displaySecondary}
-          layout="stacked"
-        />
+        <Username>{username}</Username>
         <Box ml={3}>
           <DeviceTrustStatus iconOnly />
         </Box>
@@ -227,7 +219,7 @@ export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
         <DeviceTrustStatus />
         {items}
 
-        {items.length > 0 && <DropdownDivider />}
+        <DropdownDivider />
 
         {/* Hide ability to switch themes if the theme is a custom theme */}
         {!theme.isCustomTheme && (

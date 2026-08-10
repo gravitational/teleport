@@ -556,10 +556,6 @@ const (
 	// CertExtensionDelegationSessionID contains the identifier of the
 	// Delegation Session this certificate was created for.
 	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
-	// CertExtensionBeamID contains the identifier of the Beam this certificate
-	// was created for, derived from the delegation session's
-	// types.BeamIDLabel label.
-	CertExtensionBeamID = "beam-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -574,9 +570,6 @@ const (
 	// CertExtensionImmutableLabelHash is the hash used to verify immutable
 	// labels against a certificate.
 	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
-	// CertExtensionHeadlessAuthenticationID is the ID of the headless
-	// authentication resource this certificate was created for.
-	CertExtensionHeadlessAuthenticationID = "headless-authentication-id@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -1086,11 +1079,4 @@ const (
 	// entity_descriptor_url check preventing following redirects via HTTP originating from
 	// HTTPS route.
 	EnvVarUnstableDisableSAMLRedirectDowngradeCheck = "TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK"
-
-	// EnvVarUnstableForceInBandMFA is the environment variable that, when set to "yes", disables the legacy out-of-band
-	// MFA flow and forces all connections to use in-band MFA. When unset or empty, both flows are supported during the
-	// transition period.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed and in-band MFA is the default.
-	EnvVarUnstableForceInBandMFA = "TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA"
 )

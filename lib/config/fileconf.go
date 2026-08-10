@@ -36,7 +36,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
@@ -52,14 +51,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
@@ -345,7 +343,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		labels, err := parse.LabelSelectorSpec(flags.NodeLabels)
+		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)
 		}
@@ -467,14 +465,13 @@ func roleMapFromFlags(flags SampleFlags) map[string]bool {
 	return m
 }
 
-// YAMLString returns the YAML representation of the config.
-func (conf *FileConfig) YAMLString() (string, error) {
-	raw, err := yaml.Marshal(&conf)
+// DebugDumpToYAML allows for quick YAML dumping of the config
+func (conf *FileConfig) DebugDumpToYAML() string {
+	bytes, err := yaml.Marshal(&conf)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
-
-	return string(raw), nil
+	return string(bytes)
 }
 
 // CheckAndSetDefaults sets defaults and ensures that the ciphers, kex
@@ -622,7 +619,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -707,69 +704,6 @@ type Global struct {
 
 	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
 	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
-
-	// AuditQueue is used for configuration options for the audit log event
-	// queue.
-	AuditQueue AuditQueueConfig `yaml:"audit_queue,omitempty"`
-}
-
-// AuditQueueConfig is used to control the audit log event queue.
-type AuditQueueConfig struct {
-	// SoftLimit is the database file size when we start warning.
-	SoftLimit string `yaml:"soft_limit,omitempty"`
-	// HardLimit is the database file size when we start dropping events.
-	HardLimit string `yaml:"hard_limit,omitempty"`
-	// MaxAttempts is the maximum number of times we retry sending an event
-	// before moving it to the dead-letter queue.
-	MaxAttempts int `yaml:"max_attempts,omitempty"`
-	// DeadLetterTTL is the time to live for an event in the dead-letter queue
-	// before we delete it.
-	DeadLetterTTL types.Duration `yaml:"dead_letter_ttl,omitempty"`
-	// DeadLetterSweepInterval is how often the dead-letter sweeper attempts to
-	// redeliver failed events.
-	DeadLetterSweepInterval types.Duration `yaml:"dead_letter_sweep_interval,omitempty"`
-	// OrphanScanInterval is how often the process scans for orphaned queues.
-	OrphanScanInterval types.Duration `yaml:"orphan_scan_interval,omitempty"`
-	// Backend is the ordered list of preferred audit queue backends.
-	Backend []string `yaml:"backend,omitempty"`
-	// Synchronous can either be NORMAL or FULL, depending on the tradeoffs
-	// between durability and performance we want to make
-	Synchronous string `yaml:"synchronous,omitempty"`
-}
-
-// Parse parses the audit log options from the Teleport config.
-func (a *AuditQueueConfig) Parse() (servicecfg.AuditQueueConfig, error) {
-	out := servicecfg.AuditQueueConfig{
-		MaxAttempts:             a.MaxAttempts,
-		DeadLetterTTL:           a.DeadLetterTTL.Value(),
-		DeadLetterSweepInterval: a.DeadLetterSweepInterval.Value(),
-		OrphanScanInterval:      a.OrphanScanInterval.Value(),
-		Backends:                a.Backend,
-	}
-	if a.SoftLimit != "" {
-		v, err := humanize.ParseBytes(a.SoftLimit)
-		if err != nil {
-			return out, trace.BadParameter("invalid audit_queue.soft_limit %q: %v", a.SoftLimit, err)
-		}
-		out.SoftLimit = int64(v)
-	}
-	if a.HardLimit != "" {
-		v, err := humanize.ParseBytes(a.HardLimit)
-		if err != nil {
-			return out, trace.BadParameter("invalid audit_queue.hard_limit %q: %v", a.HardLimit, err)
-		}
-		out.MaxBytes = int64(v)
-	}
-	switch auditqueue.SynchronousMode(a.Synchronous) {
-	case "", auditqueue.SynchronousNormal:
-		out.Synchronous = auditqueue.SynchronousNormal
-	case auditqueue.SynchronousFull:
-		out.Synchronous = auditqueue.SynchronousFull
-	default:
-		return out, trace.BadParameter("invalid audit_queue.synchronous %q: must be %q or %q",
-			a.Synchronous, auditqueue.SynchronousNormal, auditqueue.SynchronousFull)
-	}
-	return out, nil
 }
 
 // CachePolicy is used to control  local cache
@@ -1176,7 +1110,10 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 	if roles.Include(types.RoleBot) {
-		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
+		slog.WarnContext(
+			context.Background(),
+			"Role 'Bot' is not supported in static token configurations and will not function as expected. In Teleport V19.0.0, this will become an error.",
+		)
 	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
@@ -1230,24 +1167,24 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		scopedToken := joiningv1.ScopedToken_builder{
+		scopedToken := &joiningv1.ScopedToken{
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: st.Name,
-			}.Build(),
+			},
 			Scope: scopes.Root,
-			Spec: joiningv1.ScopedTokenSpec_builder{
+			Spec: &joiningv1.ScopedTokenSpec{
 				Roles:           roles.StringSlice(),
 				AssignedScope:   st.Scope,
 				JoinMethod:      string(types.JoinMethodToken),
 				UsageMode:       string(joining.TokenUsageModeUnlimited),
 				ImmutableLabels: immutableLabels,
-			}.Build(),
-			Status: joiningv1.ScopedTokenStatus_builder{
+			},
+			Status: &joiningv1.ScopedTokenStatus{
 				Secret: st.Secret,
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		if err := joining.StrongValidateToken(scopedToken); err != nil {
 			return nil, trace.Wrap(err)
@@ -1256,17 +1193,17 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		scopedTokens = append(scopedTokens, scopedToken)
 	}
 
-	return joiningv1.StaticScopedTokens_builder{
+	return &joiningv1.StaticScopedTokens{
 		Version: types.V1,
 		Kind:    types.KindStaticScopedTokens,
 		Scope:   scopes.Root,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameStaticScopedTokens,
-		}.Build(),
-		Spec: joiningv1.StaticScopedTokensSpec_builder{
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
 			Tokens: scopedTokens,
-		}.Build(),
-	}.Build(), nil
+		},
+	}, nil
 }
 
 // ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
@@ -1281,9 +1218,9 @@ func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
 		return nil, nil
 	}
 
-	return joiningv1.ImmutableLabels_builder{
+	return &joiningv1.ImmutableLabels{
 		Ssh: il.SSH,
-	}.Build(), nil
+	}, nil
 }
 
 // StaticScopedToken is a statically defined scoped token. It is meant to capture
@@ -1818,7 +1755,11 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1992,14 +1933,11 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// Deprecated: CgroupPath is not consumed and only exists for
-	// backwards compatibility with existing config files that may
-	// have it specified.
+	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// Deprecated: RootPath is not consumed and only exists for
-	// backwards compatibility with existing config files that may
-	// have it specified.
+	// RootPath root directory for the Teleport cgroups.
+	// Optional, defaults to /teleport
 	RootPath string `yaml:"root_path"`
 }
 
@@ -2011,6 +1949,8 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
+		CgroupPath:        b.CgroupPath,
+		RootPath:          b.RootPath,
 	}
 }
 
@@ -2503,14 +2443,6 @@ type Apps struct {
 
 	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
-
-	// AllowedHosts is the list of IP addresses and CIDR ranges that proxied
-	// application targets are allowed to resolve to.
-	AllowedHosts []string `yaml:"allowed_hosts,omitempty"`
-
-	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
-	// application targets are not allowed to resolve to.
-	DeniedHosts []string `yaml:"denied_hosts,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
@@ -3303,8 +3235,7 @@ type JamfService struct {
 // entry.
 // Corresponds to [types.JamfInventoryEntry].
 type JamfInventoryEntry struct {
-	// FilterRSQL is a Jamf Pro API RSQL filter string. The set of filterable
-	// fields depends on DeviceType. Empty means no filter.
+	// FilterRSQL is a Jamf Pro API RSQL filter string.
 	FilterRSQL string `yaml:"filter_rsql,omitempty"`
 	// SyncPeriodPartial is the period for PARTIAL syncs.
 	// Zero means "server default", negative means "disabled".
@@ -3318,10 +3249,6 @@ type JamfInventoryEntry struct {
 	// Custom page size for inventory queries.
 	// A server default is used if zeroed or negative.
 	PageSize int32 `yaml:"page_size,omitempty"`
-	// DeviceType is the Jamf device type to sync.
-	// Valid values are "computers" and "mobile_devices".
-	// If empty, defaults to "computers" for backwards compatibility.
-	DeviceType string `yaml:"device_type,omitempty"`
 }
 
 func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
@@ -3341,7 +3268,6 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
-			DeviceType:        e.DeviceType,
 		}
 	}
 	spec := &types.JamfSpecV1{

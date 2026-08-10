@@ -63,6 +63,7 @@ type IdentityCenterAccountGetter interface {
 	// ListIdentityCenterAccounts provides a paged list of all known identity
 	// center accounts
 	ListIdentityCenterAccounts(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
+	ListIdentityCenterAccounts2(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
 
 	// GetIdentityCenterAccount fetches a specific Identity Center Account
 	GetIdentityCenterAccount(context.Context, string) (*identitycenterv1.Account, error)
@@ -75,10 +76,12 @@ type IdentityCenterAccounts interface {
 
 	// CreateIdentityCenterAccount creates a new Identity Center Account record
 	CreateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
+	CreateIdentityCenterAccount2(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 
 	// UpdateIdentityCenterAccount performs a conditional update on an Identity
 	// Center Account record, returning the updated record on success.
 	UpdateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
+	UpdateIdentityCenterAccount2(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 
 	// UpsertIdentityCenterAccount performs an *unconditional* upsert on an
 	// Identity Center Account record, returning the updated record on success.
@@ -103,6 +106,7 @@ type IdentityCenterPrincipalAssignments interface {
 	// ListPrincipalAssignments lists all PrincipalAssignment records in the
 	// service
 	ListPrincipalAssignments(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
+	ListPrincipalAssignments2(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 
 	// CreatePrincipalAssignment creates a new Principal Assignment record in
 	// the service from the supplied in-memory representation. Returns the
@@ -135,6 +139,7 @@ type PermissionSetID string
 type IdentityCenterPermissionSets interface {
 	// ListPermissionSets list the known Permission Sets
 	ListPermissionSets(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
+	ListPermissionSets2(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
 
 	// CreatePermissionSet creates a new PermissionSet record based on the
 	// supplied in-memory representation, returning the created record on
@@ -205,22 +210,14 @@ type IdentityCenterAccountAssignments interface {
 	// Account Assignment, returning the updated record on success.
 	UpdateIdentityCenterAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
 
-	// UpsertIdentityCenterAccountAssignment performs an unconditional update on the supplied
+	// UpsertAccountAssignment performs an unconditional update on the supplied
 	// Account Assignment, returning the updated record on success.
-	UpsertIdentityCenterAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
-
-	// DeleteIdentityCenterAccountAssignment deletes a specific account assignment
-	DeleteIdentityCenterAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
-
-	// DeleteAllIdentityCenterAccountAssignments deletes all known account assignments
-	DeleteAllIdentityCenterAccountAssignments(context.Context) error
+	UpsertAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
 
 	// DeleteAccountAssignment deletes a specific account assignment
-	// Deprecated: Prefer using DeleteIdentityCenterAccountAssignment
 	DeleteAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
 
 	// DeleteAllAccountAssignments deletes all known account assignments
-	// Deprecated: Prefer using DeleteAllIdentityCenterAccountAssignment
 	DeleteAllAccountAssignments(context.Context) error
 }
 
@@ -237,46 +234,39 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
 	for i, ps := range acct.GetSpec().GetPermissionSetInfo() {
 		pss[i] = &types.IdentityCenterPermissionSet{
-			ARN:          ps.GetArn(),
-			Name:         ps.GetName(),
-			AssignmentID: ps.GetAssignmentId(),
+			ARN:          ps.Arn,
+			Name:         ps.Name,
+			AssignmentID: ps.AssignmentId,
 		}
 	}
 
-	// Identity Center accounts surface in the unified-resource cache as
-	// synthetic AppServers; they never traverse the app write paths
-	// (ValidateApp / ValidateAppServer), so no DNS-1123 normalization
-	// here. The web Launch button (ResourceActionButton.tsx) builds the
-	// SSO launch URL as `${publicAddr}&role_name=...`, which requires
-	// the full StartUrl - scheme, path, and case preserved.
-	metadata := types.Metadata153ToLegacy(acct.GetMetadata())
-	metadata.Description = acct.GetSpec().GetName()
-
-	return &types.AppServerV3{
+	appServer := &types.AppServerV3{
 		Kind:     types.KindAppServer,
 		SubKind:  types.KindIdentityCenterAccount,
 		Version:  types.V3,
-		Metadata: metadata,
+		Metadata: types.Metadata153ToLegacy(acct.Metadata),
 		Spec: types.AppServerSpecV3{
 			App: &types.AppV3{
 				Kind:     types.KindApp,
 				SubKind:  types.KindIdentityCenterAccount,
 				Version:  types.V3,
-				Metadata: metadata,
+				Metadata: types.Metadata153ToLegacy(acct.Metadata),
 				Spec: types.AppSpecV3{
-					URI:        acct.GetSpec().GetStartUrl(),
-					PublicAddr: acct.GetSpec().GetStartUrl(),
+					URI:        acct.Spec.StartUrl,
+					PublicAddr: acct.Spec.StartUrl,
 					AWS: &types.AppAWS{
-						ExternalID: acct.GetSpec().GetId(),
+						ExternalID: acct.Spec.Id,
 					},
 					IdentityCenter: &types.AppIdentityCenter{
-						AccountID:      acct.GetSpec().GetId(),
+						AccountID:      acct.Spec.Id,
 						PermissionSets: pss,
 					},
 				},
 			},
 		},
 	}
+	appServer.Metadata.Description = acct.Spec.Name
+	return appServer
 }
 
 // NewIdentityCenterAppMatcher creates a new [RoleMatcher] configured to
@@ -331,7 +321,7 @@ func (m *IdentityCenterAccountMatcher) String() string {
 func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
 	return &IdentityCenterAccountAssignmentMatcher{
 		accountID:        assignment.GetSpec().GetAccountId(),
-		permissionSetARN: assignment.GetSpec().GetPermissionSet().GetArn(),
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
 	}
 }
 

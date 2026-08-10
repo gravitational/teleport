@@ -54,14 +54,14 @@ func newIdentityCenterAccountCollection(ic services.IdentityCenter, w types.Watc
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.Account {
-			return identitycenterv1.Account_builder{
+			return &identitycenterv1.Account{
 				Kind:    hdr.Kind,
 				SubKind: hdr.SubKind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil
@@ -94,6 +94,18 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pa
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
 	defer span.End()
 
+	accounts, next, err := c.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return accounts, next, nil
+}
+
+func (c *Cache) ListIdentityCenterAccounts2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts2")
+	defer span.End()
+
 	rg, err := acquireReadGuard(c, c.collections.identityCenterAccounts)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -101,7 +113,7 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pa
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		accounts, next, err := c.Config.IdentityCenter.ListIdentityCenterAccounts(ctx, pageSize, pageToken)
+		accounts, next, err := c.Config.IdentityCenter.ListIdentityCenterAccounts2(ctx, pageSize, pageToken)
 		return accounts, next, trace.Wrap(err)
 	}
 
@@ -112,7 +124,7 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pa
 	var accounts []*identitycenterv1.Account
 	for account := range rg.store.resources(identityCenterAccountNameIndex, pageToken, "") {
 		if len(accounts) == pageSize {
-			return accounts, account.GetMetadata().GetName(), nil
+			return accounts, account.Metadata.GetName(), nil
 		}
 
 		accounts = append(accounts, utils.CloneProtoMsg(account))
@@ -144,14 +156,14 @@ func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w 
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.AccountAssignment {
-			return identitycenterv1.AccountAssignment_builder{
+			return &identitycenterv1.AccountAssignment{
 				Kind:    hdr.Kind,
 				SubKind: hdr.SubKind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil
@@ -215,7 +227,7 @@ func (c *Cache) ListIdentityCenterAccountAssignments(ctx context.Context, pageSi
 	var assignments []*identitycenterv1.AccountAssignment
 	for assignment := range rg.store.resources(identityCenterAccountAssignmentNameIndex, pageToken, "") {
 		if len(assignments) == pageSize {
-			return assignments, assignment.GetMetadata().GetName(), nil
+			return assignments, assignment.GetMetadata().Name, nil
 		}
 
 		assignments = append(assignments, proto.CloneOf(assignment))
@@ -246,13 +258,13 @@ func newIdentityCenterPrincipalAssignmentCollection(upstream services.IdentityCe
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.PrincipalAssignment {
-			return identitycenterv1.PrincipalAssignment_builder{
+			return &identitycenterv1.PrincipalAssignment{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil
@@ -279,11 +291,19 @@ func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, page
 	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
 	defer span.End()
 
+	out, next, err := c.ListPrincipalAssignments2(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
+
+func (c *Cache) ListPrincipalAssignments2(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
+
 	lister := genericLister[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
 		cache:        c,
 		collection:   c.collections.identityCenterPrincipalAssignments,
 		index:        identityCenterPrincipalAssignmentNameIndex,
-		upstreamList: c.Config.IdentityCenter.ListPrincipalAssignments,
+		upstreamList: c.Config.IdentityCenter.ListPrincipalAssignments2,
 		nextToken: func(t *identitycenterv1.PrincipalAssignment) string {
 			return t.GetMetadata().GetName()
 		},

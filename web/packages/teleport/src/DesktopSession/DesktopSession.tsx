@@ -51,7 +51,7 @@ export function DesktopSession() {
   }, [clusterId, desktopName, username]);
 
   const linuxDesktop =
-    matchPath(cfg.routes.linuxDesktop, location.pathname) !== null;
+    matchPath(location.pathname, { path: cfg.routes.linuxDesktop }) !== null;
   const addr = linuxDesktop
     ? cfg.api.linuxDesktopWsAddr
     : cfg.api.desktopWsAddr;

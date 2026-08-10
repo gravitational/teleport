@@ -32,7 +32,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -40,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -149,7 +148,13 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	return libslices.ContainsAll(i.Cert.ValidPrincipals, additionalPrincipals) == nil
+	strset := set.New(i.Cert.ValidPrincipals...)
+	for _, principal := range additionalPrincipals {
+		if !strset.Contains(principal) {
+			return false
+		}
+	}
+	return true
 }
 
 // HasDNSNames returns true if TLS certificate has required DNS names or IP
@@ -211,22 +216,18 @@ func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig(fips bool) (apissh.ClientConfig, error) {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: i.getSSHCheckers,
 			FIPS:            fips,
 		})
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return apissh.ClientConfig{
-		User: i.ID.HostUUID,
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{i.KeySigner}, nil
-			},
-		},
+	return &ssh.ClientConfig{
+		User:            i.ID.HostUUID,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
@@ -356,8 +357,10 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	if slices.Contains(cert.ValidPrincipals, "") {
-		return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
 	// check permissions on certificate

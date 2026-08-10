@@ -68,10 +68,6 @@ func (s *Server) handleBoundKeypairJoin(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Validate the requested SystemRole with the payload the client sent.
-	if err := boundKeypairInit.ClientParams.CheckForRole(types.SystemRole(clientInit.SystemRole)); err != nil {
-		return nil, trace.Wrap(err, "validating client parameters")
-	}
 	setDiagnosticClientParams(stream.Diagnostic(), &boundKeypairInit.ClientParams)
 
 	issueChallenge := func(challenge *messages.BoundKeypairChallenge) (*messages.BoundKeypairChallengeSolution, error) {

@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -129,12 +128,12 @@ func (s *ResourceService) GetWorkloadIdentity(
 	// cluster state backend.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Read,
+		&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
@@ -146,7 +145,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 	ruleCtx.Resource153 = resource
 	if err := authCtx.CheckerContext.Decision(
 		ctx, resource.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Read)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets)
 		},
 	); err != nil {
 		// Return NotFound rather than AccessDenied to avoid leaking the
@@ -165,11 +164,11 @@ func (s *ResourceService) ListWorkloadIdentities(
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
 	// V1 cannot express a scope filter, so pin it to mode ALL rather than letting
 	// it inherit the identity-based default and silently hide scoped resources.
-	return s.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+	return s.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
 		PageSize:    req.GetPageSize(),
 		PageToken:   req.GetPageToken(),
 		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
-	}.Build())
+	})
 }
 
 // ListWorkloadIdentitiesV2 returns a list of WorkloadIdentity resources. It
@@ -186,11 +185,12 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 
 	// Check generally if this user may have the ability to list workload
 	// identities - ignoring where conditions.
+	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		new(authCtx.RuleContext()),
+		&ruleCtx,
 		types.KindWorkloadIdentity,
-		scopedaccess.Read,
-		scopedaccess.List,
+		types.VerbReadNoSecrets,
+		types.VerbList,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,8 +235,8 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindWorkloadIdentity,
-				scopedaccess.Read,
-				scopedaccess.List,
+				types.VerbReadNoSecrets,
+				types.VerbList,
 			)
 		}); err != nil {
 			return nil, false
@@ -249,10 +249,10 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		return nil, trace.Wrap(err)
 	}
 
-	return workloadidentityv1pb.ListWorkloadIdentitiesResponse_builder{
+	return &workloadidentityv1pb.ListWorkloadIdentitiesResponse{
 		WorkloadIdentities: resources,
 		NextPageToken:      nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // DeleteWorkloadIdentity deletes a WorkloadIdentity by name.
@@ -265,14 +265,14 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetName() == "" {
+	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Delete)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbDelete)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -325,7 +325,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Create)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -345,7 +345,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 		}
 	}
 
-	created, err := s.backend.CreateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
+	created, err := s.backend.CreateWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -394,7 +394,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Update)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbUpdate)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -414,7 +414,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 		}
 	}
 
-	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.GetWorkloadIdentity())
+	created, err := s.backend.UpdateWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -463,7 +463,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Create, scopedaccess.Update)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -483,7 +483,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 		}
 	}
 
-	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.GetWorkloadIdentity())
+	created, err := s.backend.UpsertWorkloadIdentity(ctx, req.WorkloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

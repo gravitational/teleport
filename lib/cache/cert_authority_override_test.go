@@ -91,9 +91,9 @@ func newCertAuthorityOverride(caType types.CertAuthType, clusterName string) *su
 		Kind:    types.KindCertAuthorityOverride,
 		Version: types.V1,
 		SubKind: string(caType),
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: clusterName,
-		}.Build(),
+		},
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
 	}.Build()
 }

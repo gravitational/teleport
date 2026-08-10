@@ -21,7 +21,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -40,10 +39,8 @@ func NewKubernetesClusterDataSourceType() tfdriver.DataSourceType[apitypes.Kuber
 			ToStateFunc: tfschema.CopyKubernetesClusterV3ToTerraform,
 		},
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(
-			tfdriver.ScopeQualifiedPath{
-				Name:  path.Root("metadata").AtName("name"),
-				Scope: path.Root("scope"),
-			},
+			path.Root("metadata").AtName("name"),
+			path.Root("scope"),
 		),
 	}
 }
@@ -62,15 +59,10 @@ func NewKubernetesClusterResourceType() tfdriver.ResourceType[apitypes.Kubernete
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[apitypes.KubernetesClusterV3](),
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
-			tfdriver.ScopeQualifiedPath{
-				Name:  path.Root("metadata").AtName("name"),
-				Scope: path.Root("scope"),
-			},
-			func(av *apitypes.KubernetesClusterV3) scopes.QualifiedName {
-				return scopes.QualifiedName{
-					Name:  av.GetMetadata().Name,
-					Scope: av.GetScope(),
-				}
+			path.Root("metadata").AtName("name"),
+			path.Root("scope"),
+			func(av *apitypes.KubernetesClusterV3) (string, string) {
+				return av.GetMetadata().Name, av.GetScope()
 			}),
 		ResourceRevision: func(st *apitypes.KubernetesClusterV3) string {
 			return st.GetMetadata().Revision

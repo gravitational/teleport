@@ -46,6 +46,7 @@ import (
 	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -54,7 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -74,7 +75,7 @@ import (
 // and translates X11 protocol messages to TDPB.
 type LinuxService struct {
 	cfg        LinuxServiceConfig
-	middleware *authz.Middleware
+	middleware *auth.Middleware
 
 	// clusterName is the cached local cluster name, to avoid calling
 	// cfg.AccessPoint.GetClusterName multiple times.
@@ -121,7 +122,7 @@ type LinuxServiceConfig struct {
 	// Hostname of the Linux desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
 	ChildLogConfig       *srv.ChildLogConfig
 
@@ -199,7 +200,7 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 	ctx, close := context.WithCancel(context.Background())
 	s := &LinuxService{
 		cfg: cfg,
-		middleware: &authz.Middleware{
+		middleware: &auth.Middleware{
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageLinuxDesktopOnly},
 		},
@@ -898,9 +899,7 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 			return 0, trace.Wrap(err, "couldn't get image from backend")
 		}
 
-		//nolint:staticcheck // TODO(rhammonds): Eventually we'll remove the stubbed out qoiz encoder and restore linting
 		frames, err := rdpclient.EncodeQOIZ(img.Pix, uint16(change.X), uint16(change.Y), change.Width, change.Height)
-		//nolint:staticcheck // TODO(rhammonds): Eventually we'll remove the stubbed out qoiz encoder and restore linting
 		if err != nil {
 			return 0, trace.Wrap(err, "couldn't encode image frame")
 		}

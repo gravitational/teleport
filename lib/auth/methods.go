@@ -89,10 +89,10 @@ func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userSt
 	}
 
 	// set up scope pin (invalid until populated)
-	scopePin := scopesv1.Pin_builder{
+	scopePin := &scopesv1.Pin{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: scope,
-	}.Build()
+	}
 
 	if userState.IsBot() {
 		botScope, _ := userState.GetLabel(types.BotScopeLabel)
@@ -750,7 +750,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	var loginIP, userAgent, proxyGroupID string
-	var maxTouchPoints int
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
@@ -758,14 +757,12 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		}
 		userAgent = cm.UserAgent
 		proxyGroupID = cm.ProxyGroupID
-		maxTouchPoints = cm.MaxTouchPoints
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:                 user.GetName(),
 		LoginIP:              loginIP,
 		LoginUserAgent:       userAgent,
-		LoginMaxTouchPoints:  maxTouchPoints,
 		ProxyGroupID:         proxyGroupID,
 		Roles:                user.GetRoles(),
 		Traits:               user.GetTraits(),
@@ -866,7 +863,6 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		}
 		certReq.MFAVerified = ha.MfaDevice.Metadata.Name
 		certReq.TTL = time.Minute
-		certReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
 	}
 
 	certs, err := a.GenerateUserCerts(ctx, certReq)

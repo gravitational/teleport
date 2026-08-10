@@ -126,13 +126,13 @@ func (p *TestModules) Features() modules.Features {
 	}
 }
 
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-func (p *TestModules) IsFIPSBuild() bool {
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func (p *TestModules) IsBoringBinary() bool {
 	return false
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *TestModules) AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
+func (p *TestModules) AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 

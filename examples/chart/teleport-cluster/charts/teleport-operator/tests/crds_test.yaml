@@ -1,12 +1,6 @@
 suite: Operator CRDs
 templates:
-  # Renamed from crds.yaml: helm-unittest v1.x excludes a template named exactly
-  # crds.yaml from rendering. See templates/crd-resources.yaml for details.
-  - crd-resources.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
+  - crds.yaml
 tests:
   - it: creates no CRDs when installCRDs is "never"
     set:
@@ -21,7 +15,6 @@ tests:
       enabled: false
     asserts:
       - containsDocument:
-          any: true
           apiVersion: apiextensions.k8s.io/v1
           kind: CustomResourceDefinition
           name: teleportrolesv7.resources.teleport.dev
@@ -31,7 +24,7 @@ tests:
       enabled: false
     asserts:
       - equal:
-          path: metadata.labels["teleport.dev/release"]
+          path: metadata.labels.[teleport.dev/release]
           value: NAMESPACE_RELEASE-NAME
   - it: creates CRDs when installCRDs is "dynamic" and operator enabled
     set:
@@ -39,7 +32,6 @@ tests:
       enabled: true
     asserts:
       - containsDocument:
-          any: true
           apiVersion: apiextensions.k8s.io/v1
           kind: CustomResourceDefinition
           name: teleportrolesv7.resources.teleport.dev

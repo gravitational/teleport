@@ -48,7 +48,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 	u, err := user.Current()
 	require.NoError(t, err, "reading current user")
 
-	wantCD := devicepb.DeviceCollectedData_builder{
+	wantCD := &devicepb.DeviceCollectedData{
 		CollectTime:           nil, // Verified by test body.
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
 		SerialNumber:          "PF0A0AAA",
@@ -61,14 +61,14 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		SystemSerialNumber:    "PF0A0AAA",
 		BaseBoardSerialNumber: "L1AA00A00A0",
 		OsId:                  "ubuntu",
-	}.Build()
+	}
 
 	dmiInfoSuccess := func() (*linux.DMIInfo, error) {
 		return &linux.DMIInfo{
-			ProductName:     wantCD.GetModelIdentifier(),
-			ProductSerial:   wantCD.GetSystemSerialNumber(),
-			BoardSerial:     wantCD.GetBaseBoardSerialNumber(),
-			ChassisAssetTag: wantCD.GetReportedAssetTag(),
+			ProductName:     wantCD.ModelIdentifier,
+			ProductSerial:   wantCD.SystemSerialNumber,
+			BoardSerial:     wantCD.BaseBoardSerialNumber,
+			ChassisAssetTag: wantCD.ReportedAssetTag,
 		}, nil
 	}
 	dmiInfoPermissionError := func() (*linux.DMIInfo, error) {
@@ -81,9 +81,9 @@ func TestCollectDeviceData_linux(t *testing.T) {
 	// Default configuration reflects a successful DMI read with an empty cache.
 	cddFuncs.parseOSRelease = func() (*linux.OSRelease, error) {
 		return &linux.OSRelease{
-			VersionID: wantCD.GetOsVersion(),
-			Version:   wantCD.GetOsBuild(),
-			ID:        wantCD.GetOsId(),
+			VersionID: wantCD.OsVersion,
+			Version:   wantCD.OsBuild,
+			ID:        wantCD.OsId,
 		}, nil
 	}
 	cddFuncs.dmiInfoFromSysfs = dmiInfoSuccess
@@ -152,7 +152,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 			mode: CollectedDataNeverEscalate,
 			dmiFromSysfsOverride: func() (*linux.DMIInfo, error) {
 				return &linux.DMIInfo{
-					ProductName: wantCD.GetModelIdentifier(),
+					ProductName: wantCD.ModelIdentifier,
 				}, fs.ErrPermission
 			},
 			dmiFromCacheOverride: dmiInfoCacheNotFound,
@@ -161,10 +161,10 @@ func TestCollectDeviceData_linux(t *testing.T) {
 			},
 			want: func() *devicepb.DeviceCollectedData {
 				cp := proto.Clone(wantCD).(*devicepb.DeviceCollectedData)
-				cp.SetSerialNumber("")
-				cp.SetReportedAssetTag("")
-				cp.SetSystemSerialNumber("")
-				cp.SetBaseBoardSerialNumber("")
+				cp.SerialNumber = ""
+				cp.ReportedAssetTag = ""
+				cp.SystemSerialNumber = ""
+				cp.BaseBoardSerialNumber = ""
 				return cp
 			}(),
 		},
@@ -194,10 +194,10 @@ func TestCollectDeviceData_linux(t *testing.T) {
 
 			got, err := CollectDeviceData(test.mode)
 			require.NoError(t, err, "CollectDeviceData")
-			assert.NotNil(t, got.GetCollectTime(), "CollectTime must not be nil")
+			assert.NotNil(t, got.CollectTime, "CollectTime must not be nil")
 
 			want := test.want
-			want.SetCollectTime(got.GetCollectTime())
+			want.CollectTime = got.CollectTime
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("CollectDeviceData mismatch (-want +got)\n%s", diff)
 			}

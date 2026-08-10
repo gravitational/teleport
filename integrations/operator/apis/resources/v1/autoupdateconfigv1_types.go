@@ -45,10 +45,10 @@ func init() {
 // TeleportAutoupdateConfigV1 holds the kubernetes custom resources for teleport's autoupdate_config v1 resource.
 type TeleportAutoupdateConfigV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   *TeleportAutoupdateConfigV1Spec `json:"spec,omitempty"`
-	Status teleportcr.Status               `json:"status"`
+	Status teleportcr.Status               `json:"status,omitempty"`
 }
 
 // TeleportAutoupdateConfigV1Spec defines the desired state of TeleportAutoupdateConfigV1
@@ -59,22 +59,22 @@ type TeleportAutoupdateConfigV1Spec autoupdatev1pb.AutoUpdateConfigSpec
 // TeleportAutoupdateConfigV1List contains a list of TeleportAutoupdateConfigV1
 type TeleportAutoupdateConfigV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportAutoupdateConfigV1 `json:"items"`
 }
 
 // ToTeleport returns an AutoUpdateConfig that can be sent to Teleport.
 func (l *TeleportAutoupdateConfigV1) ToTeleport() *autoupdatev1pb.AutoUpdateConfig {
-	resource := autoupdatev1pb.AutoUpdateConfig_builder{
+	resource := &autoupdatev1pb.AutoUpdateConfig{
 		Kind:    types.KindAutoUpdateConfig,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		}.Build(),
+		},
 		Spec: (*autoupdatev1pb.AutoUpdateConfigSpec)(l.Spec),
-	}.Build()
+	}
 	return resource
 }
 

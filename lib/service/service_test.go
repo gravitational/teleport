@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -61,6 +60,7 @@ import (
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/storage"
@@ -321,7 +321,12 @@ func TestMonitor(t *testing.T) {
 			resp, err := http.Get(endpoint)
 			require.NoError(t, err)
 			resp.Body.Close()
-			return slices.Contains(statusCodes, resp.StatusCode)
+			for _, c := range statusCodes {
+				if resp.StatusCode == c {
+					return true
+				}
+			}
+			return false
 		}
 	}
 
@@ -969,17 +974,19 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		// This test must use RoleInstance because all other roles wait for the
 		// Instance connector without a timeout.
 		c, err := process.reconnectToAuthService(types.RoleInstance)
 		require.Equal(t, ErrTeleportExited, err)
 		require.Nil(t, c)
-	})
+	}()
 
 	timeout := time.After(10 * time.Second)
 	step := cfg.AuthConnectionConfig.BackoffStepDuration
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
 		case duration := <-process.Config.Testing.ConnectFailureC:
@@ -1217,12 +1224,11 @@ func expectedSSHPrincipals(hostID, hostName, clusterName string) []string {
 
 func TestProxyGRPCServers(t *testing.T) {
 	hostID := uuid.NewString()
-	clock := clockwork.NewFakeClock()
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clock,
+		Clock: clockwork.NewFakeClockAt(time.Now()),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1269,7 +1275,7 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
-	supervisor, err := NewSupervisor(hostID, logtest.NewLogger(), clock)
+	supervisor, err := NewSupervisor(hostID, logtest.NewLogger(), nil)
 	require.NoError(t, err)
 	process := &TeleportProcess{
 		Supervisor: supervisor,
@@ -1279,9 +1285,7 @@ func TestProxyGRPCServers(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			Clock: clock,
 		},
-		Clock:  clock,
 		logger: logtest.NewLogger(),
 	}
 
@@ -1292,7 +1296,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a error channel to collect the errors from the gRPC servers.
 	errC := make(chan error, 2)
 	t.Cleanup(func() {
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			err := <-errC
 			if errors.Is(err, net.ErrClosed) {
 				continue
@@ -1375,7 +1379,7 @@ func TestProxyGRPCServers(t *testing.T) {
 					return tlsCert, nil
 				}
 				tlsConfig.InsecureSkipVerify = true
-				tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, testConnector.ClientGetPool)
+				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
 				return credentials.NewTLS(tlsConfig)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
@@ -1384,9 +1388,10 @@ func TestProxyGRPCServers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			t.Cleanup(cancel)
 			_, err := grpc.DialContext(
 				ctx,
@@ -1461,10 +1466,9 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-
-			tt.config.Modules = &modulestest.Modules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: buildType,
-			}
+			})
 
 			process := &TeleportProcess{
 				Config: tt.config,
@@ -1604,6 +1608,8 @@ func TestDebugService(t *testing.T) {
 		Clock:   fakeClock,
 		DataDir: dataDir,
 	}
+	cfg.Clock = fakeClock
+	cfg.DataDir = dataDir
 
 	log := logtest.NewLogger()
 
@@ -1640,27 +1646,25 @@ func TestDebugService(t *testing.T) {
 	require.NoError(t, process.initDebugService(true))
 	require.NoError(t, process.Start())
 
-	assertStatus := func(t *testing.T, status int, url string) string {
-		t.Helper()
-		resp, err := httpClient.Get(url)
-		if !assert.NoError(t, err) {
-			return ""
-		}
-
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-
-		assert.Equal(t, status, resp.StatusCode, "fetching %s: %s", url, string(body))
-		return string(body)
-	}
-
 	// Testing the debug listener.
 	// Fetch a random path, it should return 404 error.
-	assertStatus(t, http.StatusNotFound, "http://debug/random")
+	req, err := httpClient.Get("http://debug/random")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusNotFound, req.StatusCode)
 
 	// Test the healthcheck endpoints.
-	assertStatus(t, http.StatusOK, "http://debug/healthz") // liveness
-	assertStatus(t, http.StatusOK, "http://debug/readyz")  // readiness
+	// Fetch the liveness path
+	req, err = httpClient.Get("http://debug/healthz")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusOK, req.StatusCode)
+
+	// Fetch the readiness path
+	req, err = httpClient.Get("http://debug/readyz")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusOK, req.StatusCode)
 
 	// Testing the metrics endpoint.
 	// Test setup: create our test metrics.
@@ -1682,25 +1686,37 @@ func TestDebugService(t *testing.T) {
 	require.NoError(t, additionalRegistry.Register(additionalMetric))
 
 	// Test execution: hit the metrics endpoint.
-	body := assertStatus(t, http.StatusOK, "http://debug/metrics")
+	resp, err := httpClient.Get("http://debug/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 
 	// Test validation: check that the metrics server served both the local and global registry.
-	assert.Contains(t, body, "local_metric_"+nonce)
-	assert.Contains(t, body, "global_metric_"+nonce)
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
 	// the additional registry is not yet added
-	assert.NotContains(t, body, "additional_metric_"+nonce)
+	require.NotContains(t, string(body), "additional_metric_"+nonce)
 
 	// Test execution: add the additional registry and lookup again
 	process.AddGatherer(additionalRegistry)
 
 	// Test execution: hit the metrics endpoint.
-	body = assertStatus(t, http.StatusOK, "http://debug/metrics")
+	resp, err = httpClient.Get("http://debug/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 
 	// Test validation: check that the metrics server served both the local and global registry.
-	assert.Contains(t, body, "local_metric_"+nonce)
-	assert.Contains(t, body, "global_metric_"+nonce)
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
 	// Metric has been added
-	assert.Contains(t, body, "additional_metric_"+nonce)
+	require.Contains(t, string(body), "additional_metric_"+nonce)
 }
 
 type mockInstanceMetadata struct {
@@ -1974,14 +1990,14 @@ func TestAgentRolloutController(t *testing.T) {
 
 	// Test execution: create the autoupdate_version resource
 	authServer := process.GetAuthServer()
-	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
-		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
 			StartVersion:  "1.2.3",
 			TargetVersion: "1.2.4",
 			Schedule:      autoupdate.AgentsScheduleImmediate,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	version, err = authServer.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
@@ -1992,7 +2008,7 @@ func TestAgentRolloutController(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return rollout.GetSpec().GetTargetVersion() == version.GetSpec().GetAgents().GetTargetVersion()
+		return rollout.Spec.GetTargetVersion() == version.Spec.GetAgents().GetTargetVersion()
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
@@ -2205,7 +2221,11 @@ func makeTempDir(t *testing.T) string {
 // the instance has malformed system roles using pre-constructed data directories
 // generated by an older teleport version that permitted token mix-and-match.
 func TestInstanceCertReissue(t *testing.T) {
+	t.Setenv("_insecuredevmode_no_parallel", "1") // panic if the test is or will become parallel
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	var eg errgroup.Group
 	defer func() { require.NoError(t, eg.Wait()) }()
 
@@ -2221,7 +2241,6 @@ func TestInstanceCertReissue(t *testing.T) {
 	require.NoError(t, basicDirCopy("testdata/agent", agentDir))
 
 	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.InsecureMode = true
 	authCfg.Version = defaults.TeleportConfigVersionV3
 	authCfg.DataDir = authDir
 	authCfg.Auth.Enabled = true
@@ -2270,7 +2289,6 @@ func TestInstanceCertReissue(t *testing.T) {
 	require.ElementsMatch(t, []string{string(types.RoleAuth), string(types.RoleProxy), string(types.RoleNode)}, authIdentity.SystemRoles)
 
 	agentCfg := servicecfg.MakeDefaultConfig()
-	agentCfg.InsecureMode = true
 	agentCfg.Version = defaults.TeleportConfigVersionV3
 	agentCfg.DataDir = agentDir
 	agentCfg.ProxyServer = utils.NetAddr{
@@ -2450,7 +2468,6 @@ func TestInitAppsFromConfig(t *testing.T) {
 
 	authDir := t.TempDir()
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.InsecureMode = true
 	cfg.Version = defaults.TeleportConfigVersionV3
 	cfg.DataDir = authDir
 	cfg.Auth.Enabled = true
@@ -2655,6 +2672,8 @@ func TestValidateScopedAppRegistration(t *testing.T) {
 }
 
 func TestInitScopedAppsFromConfig(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	const (
 		tokenName   = "scoped-app-token"
 		tokenSecret = "scoped-app-secret"
@@ -2664,7 +2683,6 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	// --- Auth + proxy process ---
 	authDir := makeTempDir(t)
 	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.InsecureMode = true
 	authCfg.Version = defaults.TeleportConfigVersionV3
 	authCfg.DataDir = authDir
 	authCfg.Auth.Enabled = true
@@ -2729,6 +2747,7 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	authC := authProc.GetAuthServer()
+	encodedToken := joining.EncodeScopedToken(tokenName, tokenSecret)
 
 	watchCtx, watchCancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(watchCancel)
@@ -2749,11 +2768,10 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 
 	const appName = "scoped-graf"
 	agentCfg := servicecfg.MakeDefaultConfig()
-	agentCfg.InsecureMode = true
 	agentCfg.Version = defaults.TeleportConfigVersionV3
 	agentCfg.DataDir = makeTempDir(t)
 	agentCfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyAddr}
-	agentCfg.SetToken(scopes.QualifiedName{Scope: scopes.Root, Name: joining.EncodeScopedToken(tokenName, tokenSecret)}.String())
+	agentCfg.SetToken(encodedToken)
 	agentCfg.JoinMethod = types.JoinMethodToken
 	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	agentCfg.Auth.Enabled = false

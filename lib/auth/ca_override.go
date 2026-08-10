@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/subca"
 )
 
@@ -29,7 +30,7 @@ func (a *Server) loadCAOverrideResolverForCA(ctx context.Context, ca types.CertA
 	r, err := subca.LoadCAOverrideResolver(
 		ctx,
 		a.Cache,
-		a.modules.IsEnterpriseBuild(),
+		modules.GetModules().IsEnterpriseBuild(),
 		types.CertAuthorityOverrideID{
 			ClusterName: ca.GetClusterName(),
 			CAType:      string(ca.GetType()),

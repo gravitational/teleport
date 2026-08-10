@@ -162,7 +162,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.EntityAlreadyExistsException{
 				Message: aws.String("resource exists"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
 			},
 		},
@@ -171,7 +171,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.NoSuchEntityException{
 				Message: aws.String("resource not found"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
 			},
 		},
@@ -180,7 +180,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.MalformedPolicyDocumentException{
 				Message: aws.String("malformed document"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got %v", err)
 			},
 		},
@@ -194,7 +194,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got %v", err)
 			},
 		},
@@ -208,7 +208,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
 			},
 		},
@@ -222,7 +222,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
 			},
 		},

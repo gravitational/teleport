@@ -53,13 +53,13 @@ func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.W
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *provisioningv1.PrincipalState {
-			return provisioningv1.PrincipalState_builder{
+			return &provisioningv1.PrincipalState{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil
@@ -86,11 +86,19 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams")
 	defer span.End()
 
+	out, next, err := c.ListProvisioningStatesForAllDownstreams2(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
+
+func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams2")
+	defer span.End()
+
 	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
 		cache:        c,
 		collection:   c.collections.provisioningStates,
 		index:        principalStateNameIndex,
-		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams,
+		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams2,
 		nextToken: func(t *provisioningv1.PrincipalState) string {
 			return t.GetMetadata().GetName()
 		},

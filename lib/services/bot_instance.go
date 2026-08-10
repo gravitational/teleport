@@ -81,19 +81,19 @@ type PatchBotInstanceOpts struct {
 
 // ValidateBotInstance verifies that required fields for a new BotInstance are present
 func ValidateBotInstance(b *machineidv1.BotInstance) error {
-	if !b.HasSpec() {
+	if b.Spec == nil {
 		return trace.BadParameter("spec is required")
 	}
 
-	if b.GetSpec().GetBotName() == "" {
+	if b.Spec.BotName == "" {
 		return trace.BadParameter("spec.bot_name is required")
 	}
 
-	if b.GetSpec().GetInstanceId() == "" {
+	if b.Spec.InstanceId == "" {
 		return trace.BadParameter("spec.instance_id is required")
 	}
 
-	if !b.HasStatus() {
+	if b.Status == nil {
 		return trace.BadParameter("status is required")
 	}
 
@@ -134,12 +134,12 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string,
 	}
 
 	values := []string{
-		b.GetSpec().GetBotName(),
-		b.GetSpec().GetInstanceId(),
+		b.Spec.BotName,
+		b.Spec.InstanceId,
 	}
 
 	if heartbeat != nil {
-		values = append(values, heartbeat.GetHostname(), heartbeat.GetJoinMethod(), heartbeat.GetVersion(), "v"+heartbeat.GetVersion())
+		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
 	}
 
 	return slices.ContainsFunc(values, func(val string) bool {
@@ -261,9 +261,9 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 // given bot. An empty Scope refers to an unscoped bot.
 //
 // Bots are namespaced by their scope, so a scoped bot's name encodes the scope
-// as well as the bot name (bot-<encoded_scope>-<name>), allowing a name to be reused across
-// scopes. An encoded scope only ever contains lowercase alphanumerics, so the "-" separator
-// keeps the two apart and two different scopes cannot yield the same name. Scoped bots are
+// as well as the bot name, allowing a name to be reused across scopes. The
+// encoded scope ends in a "+" separator, which cannot appear inside a valid
+// scope, so two different scopes cannot yield the same name. Scoped bots are
 // reconstructed from User labels rather than by parsing this name, so it serves
 // only as an identity key.
 func BotResourceName(bot scopes.QualifiedName) (string, error) {
@@ -273,7 +273,7 @@ func BotResourceName(bot scopes.QualifiedName) (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err, "encoding scope for bot resource name")
 		}
-		name = encodedScope + "-" + bot.Name
+		name = encodedScope + bot.Name
 	}
 	return BotUserPrefix + strings.ReplaceAll(name, " ", "-"), nil
 }

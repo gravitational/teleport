@@ -65,16 +65,11 @@ EOF
   value = (
     var.create
     ? format(
-      "arn:%v:sts::%v:assumed-role/%v/*",
+      "arn:%s:sts::%s:assumed-role/%s/*",
       one(data.aws_partition.this[*].partition),
       one(data.aws_caller_identity.this[*].account_id),
       one(aws_iam_role.ecs_task[*].name),
     )
     : null
   )
-}
-
-output "teleport_config" {
-  description = "Teleport configuration used by the ECS task."
-  value       = var.create ? var.teleport_config : null
 }

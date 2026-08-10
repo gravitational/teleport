@@ -52,19 +52,19 @@ func setupWorkloadIdentityServiceTest(
 }
 
 func newValidWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentity {
-	return workloadidentityv1pb.WorkloadIdentity_builder{
+	return &workloadidentityv1pb.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
-		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 				Id:   "/test/" + name,
 				Hint: "This is hint " + name,
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 }
 
 func newValidScopedWorkloadIdentity(name, scope string) *workloadidentityv1pb.WorkloadIdentity {
@@ -85,7 +85,7 @@ func TestWorkloadIdentityService_CreateWorkloadIdentity(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -127,7 +127,7 @@ func TestWorkloadIdentityService_UpsertWorkloadIdentity(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -222,7 +222,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -306,15 +306,15 @@ func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {
 			proto.Clone(toCreate).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
-		got.GetSpec().GetSpiffe().SetId("/changed")
+		require.NotEmpty(t, got.Metadata.Revision)
+		got.Spec.Spiffe.Id = "/changed"
 		got2, err := service.UpdateWorkloadIdentity(
 			ctx,
 			// Clone to avoid Marshaling modifying want
 			proto.Clone(got).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got2.GetMetadata().GetRevision())
+		require.NotEmpty(t, got2.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			got,
 			got2,
@@ -331,8 +331,8 @@ func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {
 			proto.Clone(toCreate).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
-		got.GetSpec().GetSpiffe().SetId("")
+		require.NotEmpty(t, got.Metadata.Revision)
+		got.Spec.Spiffe.Id = ""
 		got2, err := service.UpdateWorkloadIdentity(
 			ctx,
 			// Clone to avoid Marshaling modifying want

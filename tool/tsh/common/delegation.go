@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -91,20 +90,22 @@ func buildCreateDelegationSessionRequest(cf *CLIConf) (*delegationv1pb.CreateDel
 			return nil, trace.BadParameter("--bot must not be empty")
 		}
 
-		authorizedUsers = append(authorizedUsers, delegationv1pb.DelegationUserSpec_builder{
-			Kind:    types.KindBot,
-			BotName: proto.String(botName),
-		}.Build())
+		authorizedUsers = append(authorizedUsers, &delegationv1pb.DelegationUserSpec{
+			Kind: types.KindBot,
+			Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+				BotName: botName,
+			},
+		})
 	}
 
-	return delegationv1pb.CreateDelegationSessionRequest_builder{
-		Spec: delegationv1pb.DelegationSessionSpec_builder{
+	return &delegationv1pb.CreateDelegationSessionRequest{
+		Spec: &delegationv1pb.DelegationSessionSpec{
 			User:            cf.Username,
 			Resources:       resources,
 			AuthorizedUsers: authorizedUsers,
-		}.Build(),
+		},
 		Ttl: durationpb.New(cf.SessionTTL),
-	}.Build(), nil
+	}, nil
 }
 
 func buildDelegationResources(cf *CLIConf) ([]*delegationv1pb.DelegationResourceSpec, error) {
@@ -119,10 +120,10 @@ func buildDelegationResources(cf *CLIConf) ([]*delegationv1pb.DelegationResource
 	case cf.DelegationAllowAll && explicitResources != 0:
 		return nil, trace.BadParameter("--allow-all is mutually exclusive with the other --allow-* flags")
 	case cf.DelegationAllowAll:
-		return []*delegationv1pb.DelegationResourceSpec{delegationv1pb.DelegationResourceSpec_builder{
+		return []*delegationv1pb.DelegationResourceSpec{{
 			Kind: types.Wildcard,
 			Name: types.Wildcard,
-		}.Build()}, nil
+		}}, nil
 	case explicitResources == 0:
 		return nil, trace.BadParameter("at least one resource must be provided via --allow-all or an --allow-* flag")
 	}
@@ -132,55 +133,55 @@ func buildDelegationResources(cf *CLIConf) ([]*delegationv1pb.DelegationResource
 		if name == "" {
 			return nil, trace.BadParameter("--allow-node must not be empty")
 		}
-		resources = append(resources, delegationv1pb.DelegationResourceSpec_builder{
+		resources = append(resources, &delegationv1pb.DelegationResourceSpec{
 			Kind: types.KindNode,
 			Name: name,
-		}.Build())
+		})
 	}
 	for _, name := range cf.DelegationAllowDatabases {
 		if name == "" {
 			return nil, trace.BadParameter("--allow-db must not be empty")
 		}
-		resources = append(resources, delegationv1pb.DelegationResourceSpec_builder{
+		resources = append(resources, &delegationv1pb.DelegationResourceSpec{
 			Kind: types.KindDatabase,
 			Name: name,
-		}.Build())
+		})
 	}
 	for _, name := range cf.DelegationAllowApps {
 		if name == "" {
 			return nil, trace.BadParameter("--allow-app must not be empty")
 		}
-		resources = append(resources, delegationv1pb.DelegationResourceSpec_builder{
+		resources = append(resources, &delegationv1pb.DelegationResourceSpec{
 			Kind: types.KindApp,
 			Name: name,
-		}.Build())
+		})
 	}
 	for _, name := range cf.DelegationAllowKubeClusters {
 		if name == "" {
 			return nil, trace.BadParameter("--allow-kube-cluster must not be empty")
 		}
-		resources = append(resources, delegationv1pb.DelegationResourceSpec_builder{
+		resources = append(resources, &delegationv1pb.DelegationResourceSpec{
 			Kind: types.KindKubernetesCluster,
 			Name: name,
-		}.Build())
+		})
 	}
 	for _, name := range cf.DelegationAllowWindowsDesktops {
 		if name == "" {
 			return nil, trace.BadParameter("--allow-windows-desktop must not be empty")
 		}
-		resources = append(resources, delegationv1pb.DelegationResourceSpec_builder{
+		resources = append(resources, &delegationv1pb.DelegationResourceSpec{
 			Kind: types.KindWindowsDesktop,
 			Name: name,
-		}.Build())
+		})
 	}
 	for _, name := range cf.DelegationAllowGitServers {
 		if name == "" {
 			return nil, trace.BadParameter("--allow-git-server must not be empty")
 		}
-		resources = append(resources, delegationv1pb.DelegationResourceSpec_builder{
+		resources = append(resources, &delegationv1pb.DelegationResourceSpec{
 			Kind: types.KindGitServer,
 			Name: name,
-		}.Build())
+		})
 	}
 
 	return resources, nil

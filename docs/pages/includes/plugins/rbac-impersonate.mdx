@@ -1,53 +1,51 @@
-{{ role="access-plugin" }}
-
 As with all Teleport users, the Teleport Auth Service authenticates the
-`{{ role }}` user by issuing short-lived TLS credentials. In this case, we
+`access-plugin` user by issuing short-lived TLS credentials. In this case, we
 will need to request the credentials manually by *impersonating* the
-`{{ role }}` role and user.
+`access-plugin` role and user.
 
 If you are running a self-hosted Teleport Enterprise deployment and are using
 `tctl` from the Auth Service host, you will already have impersonation
 privileges.
 
-To grant your user impersonation privileges for `{{ role }}`, define a user
-named `{{ role }}` and a role named `{{ role }}-impersonator` by adding
-the following YAML document into a file called `{{ role }}-impersonator.yaml`:
+To grant your user impersonation privileges for `access-plugin`, define a user
+named `access-plugin` and a role named `access-plugin-impersonator` by adding
+the following YAML document into a file called `access-plugin-impersonator.yaml`:
 
 ```yaml
 kind: user
 metadata:
-  name: {{ role }}
+  name: access-plugin
 spec:
-  roles: ['{{ role }}']
+  roles: ['access-plugin']
 version: v2
 ---
 kind: role
 version: v7
 metadata:
-  name: {{ role }}-impersonator
+  name: access-plugin-impersonator
 spec:
   allow:
     impersonate:
       roles:
-      - {{ role }}
+      - access-plugin
       users:
-      - {{ role }}
+      - access-plugin
 ```
 
 Create the user and role:
 
 ```code
-$ tctl create -f {{ role }}-impersonator.yaml
-user "{{ role }}" has been created
-role "{{ role }}-impersonator" has been created
+$ tctl create -f access-plugin-impersonator.yaml
+user "access-plugin" has been created
+role "access-plugin-impersonator" has been created
 ```
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
 Assign this role to the user you plan to use to generate credentials for the
-`{{ role }}` role and user:
+`access-plugin` role and user:
 
-(!docs/pages/includes/add-role-to-user.mdx role="{{ role }}-impersonator"!)
+(!docs/pages/includes/add-role-to-user.mdx role="access-plugin-impersonator"!)
 
-You will now be able to generate signed certificates for the `{{ role }}`
+You will now be able to generate signed certificates for the `access-plugin`
 role and user.

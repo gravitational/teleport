@@ -92,9 +92,9 @@ func TestCertificateStoreClient_Update(t *testing.T) {
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.WindowsCA),
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: clusterName,
-		}.Build(),
+		},
 		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcav1.CertificateOverride{
 				subcav1.CertificateOverride_builder{
@@ -230,7 +230,7 @@ func (f *fakeAccessPoint) GetCertAuthorityOverride(ctx context.Context, id types
 	}
 
 	for _, caOverride := range f.caOverrides {
-		if caOverride.GetMetadata().GetName() == id.ClusterName && caOverride.GetSubKind() == id.CAType {
+		if caOverride.GetMetadata().Name == id.ClusterName && caOverride.GetSubKind() == id.CAType {
 			return caOverride, nil
 		}
 	}

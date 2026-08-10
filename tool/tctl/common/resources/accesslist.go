@@ -169,7 +169,6 @@ func deleteAccessList(ctx context.Context, client *authclient.Client, subKind st
 	return nil
 }
 
-// deleteAccessList implements `tctl rm accesslist/my-list` command.
 func deleteUnscopedAccessList(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	return deleteAccessList(ctx, client, ref.SubKind, scopes.QualifiedName{Name: ref.Name})
 }

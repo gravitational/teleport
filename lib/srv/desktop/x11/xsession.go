@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
-	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/reexec"
@@ -182,33 +181,20 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	}()
 
 	cmd, err := reexec.ConfigureCommand(ctx, cfg.Logger, cfg.ChildLogConfig.Writer, cmdmsg, reexecconstants.ExecSubCommand, map[reexec.FileFD]*os.File{
-		reexec.StdinFile:  inr,
-		reexec.StdoutFile: outw,
-		reexec.StderrFile: outw,
+		0: inr,
+		1: outw,
+		2: outw,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	stderrR, stderrW, err := os.Pipe()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer stderrW.Close()
 
-	cmd.Stderr = stderrW
-	go func() {
-		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, nil)
-		if err != nil {
-			cfg.Logger.WarnContext(ctx, "Failed to read child process stderr", "error", err)
-			return
-		}
-		if childErr != "" {
-			cfg.Logger.WarnContext(ctx, "Child process returned error", "error", childErr)
-		}
-	}()
-
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Continue(); err != nil {
+		cmd.Close()
 		return nil, trace.Wrap(err)
 	}
 

@@ -62,11 +62,9 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Computed:      true,
-					Description:   "description is object description.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -74,11 +72,9 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Computed:      true,
-					Description:   "labels is a set of labels.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Computed:      true,
@@ -102,65 +98,49 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 						}),
 						"mode": {
-							Computed:      true,
-							Description:   "mode specifies whether agent autoupdates are enabled, disabled, or paused.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "mode specifies whether agent autoupdates are enabled, disabled, or paused.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"schedules": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"regular": {
 								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									"canary_count": {
-										Computed:      true,
-										Description:   "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										Description: "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 									},
 									"days": {
-										Computed:      true,
-										Description:   "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										Description: "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 									},
 									"name": {
-										Computed:      true,
-										Description:   "name of the group",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Description: "name of the group",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
 									"start_hour": {
-										Computed:      true,
-										Description:   "start_hour to initiate update",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										Description: "start_hour to initiate update",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 									},
 									"wait_hours": {
-										Computed:      true,
-										Description:   "wait_hours after last group succeeds before this group can run. This can only be used when the strategy is \"halt-on-failure\". This field must be positive.",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										Description: "wait_hours after last group succeeds before this group can run. This can only be used when the strategy is \"halt-on-failure\". This field must be positive.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 									},
 								}),
-								Computed:      true,
-								Description:   "regular schedules for non-critical versions.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								Description: "regular schedules for non-critical versions.",
+								Optional:    true,
 							}}),
 							Description: "schedules specifies schedules for updates of grouped agents.",
 							Optional:    true,
 						},
 						"strategy": {
-							Computed:      true,
-							Description:   "strategy to use for updating the agents.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "strategy to use for updating the agents.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "",
@@ -168,11 +148,9 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"tools": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-						Computed:      true,
-						Description:   "Mode defines state of the client tools auto update.",
-						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Description: "Mode defines state of the client tools auto update.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					}}),
 					Description: "",
 					Optional:    true,
@@ -182,11 +160,9 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 			Required:    true,
 		},
 		"sub_kind": {
-			Computed:      true,
-			Description:   "",
-			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description: "",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "",
@@ -216,11 +192,9 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Computed:      true,
-					Description:   "description is object description.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -228,11 +202,9 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Computed:      true,
-					Description:   "labels is a set of labels.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Computed:      true,
@@ -252,32 +224,24 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 				"agents": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"mode": {
-							Computed:      true,
-							Description:   "autoupdate_mode to use for the rollout",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "autoupdate_mode to use for the rollout",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"schedule": {
-							Computed:      true,
-							Description:   "schedule to use for the rollout",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "schedule to use for the rollout",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"start_version": {
-							Computed:      true,
-							Description:   "start_version is the version used for newly installed agents before their update window.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "start_version is the version used for newly installed agents before their update window.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"target_version": {
-							Computed:      true,
-							Description:   "target_version is the version that all agents will update to during their update window.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "target_version is the version that all agents will update to during their update window.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "",
@@ -285,11 +249,9 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 				},
 				"tools": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"target_version": {
-						Computed:      true,
-						Description:   "TargetVersion specifies the semantic version required for tools to establish a connection with the cluster. Client tools after connection to the cluster going to be updated to this version automatically.",
-						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Description: "TargetVersion specifies the semantic version required for tools to establish a connection with the cluster. Client tools after connection to the cluster going to be updated to this version automatically.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					}}),
 					Description: "",
 					Optional:    true,
@@ -299,11 +261,9 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 			Required:    true,
 		},
 		"sub_kind": {
-			Computed:      true,
-			Description:   "",
-			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description: "",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "",
@@ -712,12 +672,6 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 
 // CopyAutoUpdateConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	return CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
-}
-
-// CopyAutoUpdateConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
-// Set preserveUnknown to true to preserve unknown values.
-func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -731,9 +685,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AutoUpdateConfig.kind", err})
@@ -742,13 +693,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Kind) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -759,9 +707,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AutoUpdateConfig.sub_kind", err})
@@ -770,13 +715,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.SubKind) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -787,9 +729,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AutoUpdateConfig.version", err})
@@ -798,13 +737,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Version) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["version"] = v
 		}
 	}
@@ -832,7 +768,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -842,9 +777,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.name", err})
@@ -853,13 +785,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Name) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["name"] = v
 						}
 					}
@@ -870,9 +799,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.description", err})
@@ -881,13 +807,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Description) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["description"] = v
 						}
 					}
@@ -913,14 +836,11 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								{
+								if obj.Labels != nil {
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.labels", err})
@@ -929,20 +849,17 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
+											v.Null = false
 										}
-
-										v.Null = false
 										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Labels) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -952,14 +869,12 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -988,7 +903,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -1015,7 +929,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 								if obj.Tools == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Tools
 									tf := &v
 									{
@@ -1025,9 +938,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 										} else {
 											v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["mode"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.tools.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.tools.mode", err})
@@ -1036,20 +946,15 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.tools.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Mode) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Mode)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["mode"] = v
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["tools"] = v
 							}
 						}
@@ -1078,7 +983,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 								if obj.Agents == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Agents
 									tf := &v
 									{
@@ -1088,9 +992,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 										} else {
 											v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["mode"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.mode", err})
@@ -1099,13 +1000,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Mode) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Mode)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["mode"] = v
 										}
 									}
@@ -1116,9 +1014,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 										} else {
 											v, ok := tf.Attrs["strategy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["strategy"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.strategy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.strategy", err})
@@ -1127,13 +1022,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.strategy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Strategy) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Strategy)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["strategy"] = v
 										}
 									}
@@ -1142,7 +1034,7 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.spec.agents.maintenance_window_duration"})
 										} else {
-											v := CopyToDuration(diags, obj.MaintenanceWindowDuration, t, tf.Attrs["maintenance_window_duration"], preserveUnknown)
+											v := CopyToDuration(diags, obj.MaintenanceWindowDuration, t, tf.Attrs["maintenance_window_duration"])
 											tf.Attrs["maintenance_window_duration"] = v
 										}
 									}
@@ -1170,7 +1062,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 												if obj.Schedules == nil {
 													v.Null = true
 												} else {
-													v.Null = false
 													obj := obj.Schedules
 													tf := &v
 													{
@@ -1195,15 +1086,13 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regular))
 																	}
 																}
-																{
+																if obj.Regular != nil {
 																	o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																	if len(obj.Regular) != len(c.Elems) {
-																		newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regular))
-																		copy(newElems, c.Elems)
-																		c.Elems = newElems
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regular))
 																	}
 																	for k, a := range obj.Regular {
-																		v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		v, ok := tf.Attrs["regular"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																		if !ok {
 																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1218,7 +1107,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																		if a == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := a
 																			tf := &v
 																			{
@@ -1228,9 +1116,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																				} else {
 																					v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["name"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.schedules.regular.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.name", err})
@@ -1239,13 +1124,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.Name) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.Name)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["name"] = v
 																				}
 																			}
@@ -1271,19 +1153,14 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Days))
 																							}
 																						}
-																						{
+																						if obj.Days != nil {
 																							t := o.ElemType
 																							if len(obj.Days) != len(c.Elems) {
-																								newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Days))
-																								copy(newElems, c.Elems)
-																								c.Elems = newElems
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Days))
 																							}
 																							for k, a := range obj.Days {
-																								v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								v, ok := tf.Attrs["days"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																								if !ok {
-																									if c.Elems[k] != nil {
-																										diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.schedules.regular.days", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																									}
 																									i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																									if err != nil {
 																										diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.days", err})
@@ -1292,20 +1169,17 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																									if !ok {
 																										diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.days", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																									}
+																									v.Null = string(a) == ""
 																								}
-
-																								v.Null = false
 																								v.Value = string(a)
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								c.Elems[k] = v
 																							}
+																							if len(obj.Days) > 0 {
+																								c.Null = false
+																							}
 																						}
-																						c.Null = false
-																						if !preserveUnknown {
-																							c.Unknown = false
-																						}
+																						c.Unknown = false
 																						tf.Attrs["days"] = c
 																					}
 																				}
@@ -1317,9 +1191,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																				} else {
 																					v, ok := tf.Attrs["start_hour"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 																					if !ok {
-																						if tf.Attrs["start_hour"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.schedules.regular.start_hour", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.start_hour", err})
@@ -1328,13 +1199,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.start_hour", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																						}
+																						v.Null = int64(obj.StartHour) == 0
 																					}
-
-																					v.Null = false
 																					v.Value = int64(obj.StartHour)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["start_hour"] = v
 																				}
 																			}
@@ -1345,9 +1213,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																				} else {
 																					v, ok := tf.Attrs["wait_hours"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 																					if !ok {
-																						if tf.Attrs["wait_hours"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.schedules.regular.wait_hours", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.wait_hours", err})
@@ -1356,13 +1221,10 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.wait_hours", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																						}
+																						v.Null = int64(obj.WaitHours) == 0
 																					}
-
-																					v.Null = false
 																					v.Value = int64(obj.WaitHours)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["wait_hours"] = v
 																				}
 																			}
@@ -1373,9 +1235,6 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																				} else {
 																					v, ok := tf.Attrs["canary_count"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 																					if !ok {
-																						if tf.Attrs["canary_count"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", err})
@@ -1384,51 +1243,40 @@ func CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																						}
+																						v.Null = int64(obj.CanaryCount) == 0
 																					}
-
-																					v.Null = false
 																					v.Value = int64(obj.CanaryCount)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["canary_count"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		c.Elems[k] = v
 																	}
+																	if len(obj.Regular) > 0 {
+																		c.Null = false
+																	}
 																}
-																c.Null = false
-																if !preserveUnknown {
-																	c.Unknown = false
-																}
+																c.Unknown = false
 																tf.Attrs["regular"] = c
 															}
 														}
 													}
 												}
-												if !preserveUnknown {
-													v.Unknown = false
-												}
+												v.Unknown = false
 												tf.Attrs["schedules"] = v
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["agents"] = v
 							}
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -1720,12 +1568,6 @@ func CopyAutoUpdateVersionFromTerraform(_ context.Context, tf github_com_hashico
 
 // CopyAutoUpdateVersionToTerraform copies contents of the source Terraform object into a target struct
 func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateVersion, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	return CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx, obj, tf, false)
-}
-
-// CopyAutoUpdateVersionToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
-// Set preserveUnknown to true to preserve unknown values.
-func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateVersion, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -1739,9 +1581,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AutoUpdateVersion.kind", err})
@@ -1750,13 +1589,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Kind) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -1767,9 +1603,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AutoUpdateVersion.sub_kind", err})
@@ -1778,13 +1611,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.SubKind) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -1795,9 +1625,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AutoUpdateVersion.version", err})
@@ -1806,13 +1633,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Version) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["version"] = v
 		}
 	}
@@ -1840,7 +1664,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -1850,9 +1673,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.name", err})
@@ -1861,13 +1681,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Name) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["name"] = v
 						}
 					}
@@ -1878,9 +1695,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.description", err})
@@ -1889,13 +1703,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Description) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1921,14 +1732,11 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								{
+								if obj.Labels != nil {
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.labels", err})
@@ -1937,20 +1745,17 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
+											v.Null = false
 										}
-
-										v.Null = false
 										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Labels) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -1960,14 +1765,12 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -1996,7 +1799,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -2023,7 +1825,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 								if obj.Tools == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Tools
 									tf := &v
 									{
@@ -2033,9 +1834,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 										} else {
 											v, ok := tf.Attrs["target_version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["target_version"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.spec.tools.target_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateVersion.spec.tools.target_version", err})
@@ -2044,20 +1842,15 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.spec.tools.target_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.TargetVersion) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.TargetVersion)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["target_version"] = v
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["tools"] = v
 							}
 						}
@@ -2086,7 +1879,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 								if obj.Agents == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Agents
 									tf := &v
 									{
@@ -2096,9 +1888,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 										} else {
 											v, ok := tf.Attrs["start_version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["start_version"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.spec.agents.start_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateVersion.spec.agents.start_version", err})
@@ -2107,13 +1896,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.spec.agents.start_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.StartVersion) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.StartVersion)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["start_version"] = v
 										}
 									}
@@ -2124,9 +1910,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 										} else {
 											v, ok := tf.Attrs["target_version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["target_version"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.spec.agents.target_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateVersion.spec.agents.target_version", err})
@@ -2135,13 +1918,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.spec.agents.target_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.TargetVersion) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.TargetVersion)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["target_version"] = v
 										}
 									}
@@ -2152,9 +1932,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 										} else {
 											v, ok := tf.Attrs["schedule"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["schedule"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.spec.agents.schedule", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateVersion.spec.agents.schedule", err})
@@ -2163,13 +1940,10 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.spec.agents.schedule", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Schedule) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Schedule)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["schedule"] = v
 										}
 									}
@@ -2180,9 +1954,6 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 										} else {
 											v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["mode"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AutoUpdateVersion.spec.agents.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AutoUpdateVersion.spec.agents.mode", err})
@@ -2191,28 +1962,21 @@ func CopyAutoUpdateVersionToTerraformPreserveUnknown(ctx context.Context, obj *g
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.spec.agents.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Mode) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Mode)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["mode"] = v
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["agents"] = v
 							}
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -2325,28 +2089,5 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
-	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
-}
-
-// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
-// type does not match what we'd expect.
-type attrWriteUnexpectedExistingTypeDiag struct {
-	Path string
-	Type string
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
-	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
-	return "Error writing to Terraform object"
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

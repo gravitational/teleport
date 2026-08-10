@@ -40,7 +40,7 @@ func testIdleTimeoutClock(t *testing.T, c1, c2 net.Conn, clock *clockwork.FakeCl
 	errC := make(chan error, 3)
 	go func() {
 		var b [1]byte
-		for range 3 {
+		for i := 0; i < 3; i++ {
 			_, err := io.ReadFull(c1, b[:])
 			errC <- err
 		}

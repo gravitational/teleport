@@ -78,7 +78,7 @@ func (c *IDTokenClaims) GetSubject() string {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsSpacelift {
-	return workloadidentityv1pb.JoinAttrsSpacelift_builder{
+	return &workloadidentityv1pb.JoinAttrsSpacelift{
 		Sub:        c.Sub,
 		SpaceId:    c.SpaceID,
 		CallerType: c.CallerType,
@@ -86,7 +86,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsSpacelift {
 		RunType:    c.RunType,
 		RunId:      c.RunID,
 		Scope:      c.Scope,
-	}.Build()
+	}
 }
 
 // CheckIDTokenParams are parameters used to validate Spacelift OIDC tokens.
@@ -113,7 +113,6 @@ func (p *CheckIDTokenParams) validate() error {
 // rules in the provided provision token.
 func CheckIDToken(
 	ctx context.Context,
-	m modules.Modules,
 	params *CheckIDTokenParams,
 ) (*IDTokenClaims, error) {
 	if err := params.validate(); err != nil {
@@ -125,7 +124,7 @@ func CheckIDToken(
 		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
 	}
 
-	if m.BuildType() != modules.BuildEnterprise {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.Wrap(services.ErrRequiresEnterprise, "spacelift joining")
 	}
 

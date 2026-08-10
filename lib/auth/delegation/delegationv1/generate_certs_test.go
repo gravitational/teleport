@@ -27,10 +27,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	clientproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/proto"
 	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/delegation/delegationv1"
@@ -60,21 +59,23 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				},
 			})
 
-			session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+			session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 				User: "bob",
 				Resources: []*delegationv1pb.DelegationResourceSpec{
-					delegationv1pb.DelegationResourceSpec_builder{
+					{
 						Kind: types.KindApp,
 						Name: "hr-system",
-					}.Build(),
+					},
 				},
 				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					delegationv1pb.DelegationUserSpec_builder{
-						Kind:    types.KindBot,
-						BotName: proto.String("payroll-agent"),
-					}.Build(),
+					{
+						Kind: types.KindBot,
+						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+							BotName: "payroll-agent",
+						},
+					},
 				},
-			}.Build())
+			})
 
 			appSession, err := types.NewWebSession(
 				uuid.NewString(),
@@ -103,7 +104,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				return appSession, nil
 			}
 
-			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
+			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*proto.Certs, error) {
 				require.Equal(t, "bob", req.User.GetName())
 				require.Equal(t, sshPublicKey, req.SSHPublicKey)
 				require.Equal(t, tlsPublicKey, req.TLSPublicKey)
@@ -131,156 +132,36 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				require.Equal(t, appSession.GetName(), req.AppSessionID)
 				require.Equal(t, "payroll-agent", req.BotName)
 
-				return &clientproto.Certs{
+				return &proto.Certs{
 					TLS: tlsCertificate,
 					SSH: sshCertificate,
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")
 
-			rsp, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+			rsp, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
 				Ttl:                 durationpb.New(5 * time.Minute),
-				RouteToApp: delegationv1pb.RouteToApp_builder{
-					Name:        "hr-system",
-					PublicAddr:  "hr-system.test.teleport.sh",
-					ClusterName: "test.teleport.sh",
-					Uri:         "http://localhost:9000",
-					TargetPort:  9000,
-				}.Build(),
-			}.Build())
+				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
+					RouteToApp: &delegationv1pb.RouteToApp{
+						Name:        "hr-system",
+						PublicAddr:  "hr-system.test.teleport.sh",
+						ClusterName: "test.teleport.sh",
+						Uri:         "http://localhost:9000",
+						TargetPort:  9000,
+					},
+				},
+			})
 			require.NoError(t, err)
 			require.Equal(t,
-				delegationv1pb.GenerateCertsResponse_builder{
+				&delegationv1pb.GenerateCertsResponse{
 					Ssh: sshCertificate,
 					Tls: tlsCertificate,
-				}.Build(),
+				},
 				rsp,
 			)
-		})
-	})
-
-	t.Run("beam id label is carried into the certificate", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			service, pack := sessionServiceTestPack(t)
-			pack.createUser(t, "bob", types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					AppLabels: types.Labels{
-						"*": []string{"*"},
-					},
-				},
-			})
-
-			session := pack.createSessionWithLabels(t, delegationv1pb.DelegationSessionSpec_builder{
-				User: "bob",
-				Resources: []*delegationv1pb.DelegationResourceSpec{
-					delegationv1pb.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
-				},
-				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					delegationv1pb.DelegationUserSpec_builder{
-						Kind:    types.KindBot,
-						BotName: proto.String("payroll-agent"),
-					}.Build(),
-				},
-			}.Build(), map[string]string{
-				types.BeamIDLabel: "my-beam",
-			})
-
-			appSession, err := types.NewWebSession(
-				uuid.NewString(),
-				types.KindAppSession,
-				types.WebSessionSpecV2{User: "bob"},
-			)
-			require.NoError(t, err)
-			pack.onCreateAppSession = func(_ context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error) {
-				// The app session started for the delegation also carries the beam
-				// id, so the app-session certificate is attributed to the beam.
-				require.Equal(t, "my-beam", req.BeamID)
-				return appSession, nil
-			}
-
-			// The beam id from the delegation session's label must be threaded
-			// into the issued certificate request.
-			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
-				require.Equal(t, "my-beam", req.BeamID)
-				return &clientproto.Certs{TLS: tlsCertificate, SSH: sshCertificate}, nil
-			}
-			pack.authenticateBot("payroll-agent")
-
-			_, err = service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
-				DelegationSessionId: session.GetMetadata().GetName(),
-				SshPublicKey:        sshPublicKey,
-				TlsPublicKey:        tlsPublicKey,
-				Ttl:                 durationpb.New(5 * time.Minute),
-				RouteToApp: delegationv1pb.RouteToApp_builder{
-					Name:        "hr-system",
-					PublicAddr:  "hr-system.test.teleport.sh",
-					ClusterName: "test.teleport.sh",
-					Uri:         "http://localhost:9000",
-					TargetPort:  9000,
-				}.Build(),
-			}.Build())
-			require.NoError(t, err)
-		})
-	})
-
-	t.Run("no beam id label leaves the certificate beam id empty", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			service, pack := sessionServiceTestPack(t)
-			pack.createUser(t, "bob", types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					AppLabels: types.Labels{
-						"*": []string{"*"},
-					},
-				},
-			})
-
-			// Delegation session without a beam id label.
-			session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
-				User: "bob",
-				Resources: []*delegationv1pb.DelegationResourceSpec{
-					delegationv1pb.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
-				},
-				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					delegationv1pb.DelegationUserSpec_builder{
-						Kind:    types.KindBot,
-						BotName: proto.String("payroll-agent"),
-					}.Build(),
-				},
-			}.Build())
-
-			appSession, err := types.NewWebSession(
-				uuid.NewString(),
-				types.KindAppSession,
-				types.WebSessionSpecV2{User: "bob"},
-			)
-			require.NoError(t, err)
-			pack.onCreateAppSession = func(_ context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error) {
-				require.Empty(t, req.BeamID)
-				return appSession, nil
-			}
-			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
-				require.Empty(t, req.BeamID)
-				return &clientproto.Certs{TLS: tlsCertificate, SSH: sshCertificate}, nil
-			}
-			pack.authenticateBot("payroll-agent")
-
-			_, err = service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
-				DelegationSessionId: session.GetMetadata().GetName(),
-				SshPublicKey:        sshPublicKey,
-				TlsPublicKey:        tlsPublicKey,
-				Ttl:                 durationpb.New(5 * time.Minute),
-				RouteToApp: delegationv1pb.RouteToApp_builder{
-					Name:        "hr-system",
-					PublicAddr:  "hr-system.test.teleport.sh",
-					ClusterName: "test.teleport.sh",
-					Uri:         "http://localhost:9000",
-					TargetPort:  9000,
-				}.Build(),
-			}.Build())
-			require.NoError(t, err)
 		})
 	})
 
@@ -295,18 +176,20 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				},
 			})
 
-			session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+			session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 				User: "bob",
 				Resources: []*delegationv1pb.DelegationResourceSpec{
-					delegationv1pb.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
+					{Kind: types.Wildcard, Name: types.Wildcard},
 				},
 				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					delegationv1pb.DelegationUserSpec_builder{
-						Kind:    types.KindBot,
-						BotName: proto.String("payroll-agent"),
-					}.Build(),
+					{
+						Kind: types.KindBot,
+						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+							BotName: "payroll-agent",
+						},
+					},
 				},
-			}.Build())
+			})
 
 			appSession, err := types.NewWebSession(
 				uuid.NewString(),
@@ -323,37 +206,39 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				return appSession, nil
 			}
 
-			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
+			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*proto.Certs, error) {
 				params := req.CheckerContext.CertParams().UnscopedCertParams()
 				require.NotNil(t, params)
 				require.Empty(t, params.GetAllowedResourceAccessIDs())
 
-				return &clientproto.Certs{
+				return &proto.Certs{
 					TLS: tlsCertificate,
 					SSH: sshCertificate,
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")
 
-			rsp, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+			rsp, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
 				Ttl:                 durationpb.New(5 * time.Minute),
-				RouteToApp: delegationv1pb.RouteToApp_builder{
-					Name:        "hr-system",
-					PublicAddr:  "hr-system.test.teleport.sh",
-					ClusterName: "test.teleport.sh",
-					Uri:         "http://localhost:9000",
-					TargetPort:  9000,
-				}.Build(),
-			}.Build())
+				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
+					RouteToApp: &delegationv1pb.RouteToApp{
+						Name:        "hr-system",
+						PublicAddr:  "hr-system.test.teleport.sh",
+						ClusterName: "test.teleport.sh",
+						Uri:         "http://localhost:9000",
+						TargetPort:  9000,
+					},
+				},
+			})
 			require.NoError(t, err)
 			require.Equal(t,
-				delegationv1pb.GenerateCertsResponse_builder{
+				&delegationv1pb.GenerateCertsResponse{
 					Ssh: sshCertificate,
 					Tls: tlsCertificate,
-				}.Build(),
+				},
 				rsp,
 			)
 		})
@@ -363,12 +248,12 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		service, pack := sessionServiceTestPack(t)
 		pack.authenticateBot("payroll-agent")
 
-		_, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+		_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 			DelegationSessionId: uuid.NewString(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
 			Ttl:                 durationpb.New(1 * time.Hour),
-		}.Build())
+		})
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
 
@@ -383,28 +268,30 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		})
 		pack.authenticateBot("evil-bot")
 
-		session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+		session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 			User: "bob",
 			Resources: []*delegationv1pb.DelegationResourceSpec{
-				delegationv1pb.DelegationResourceSpec_builder{
+				{
 					Kind: types.KindApp,
 					Name: "hr-system",
-				}.Build(),
+				},
 			},
 			AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-				delegationv1pb.DelegationUserSpec_builder{
-					Kind:    types.KindBot,
-					BotName: proto.String("payroll-agent"),
-				}.Build(),
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "payroll-agent",
+					},
+				},
 			},
-		}.Build())
+		})
 
-		_, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+		_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 			DelegationSessionId: session.GetMetadata().GetName(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
 			Ttl:                 durationpb.New(1 * time.Hour),
-		}.Build())
+		})
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
 
@@ -419,28 +306,30 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		})
 		pack.authenticateBotInDelegationSession("payroll-agent", "source-delegation-session")
 
-		session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+		session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 			User: "bob",
 			Resources: []*delegationv1pb.DelegationResourceSpec{
-				delegationv1pb.DelegationResourceSpec_builder{
+				{
 					Kind: types.KindApp,
 					Name: "hr-system",
-				}.Build(),
+				},
 			},
 			AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-				delegationv1pb.DelegationUserSpec_builder{
-					Kind:    types.KindBot,
-					BotName: proto.String("payroll-agent"),
-				}.Build(),
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "payroll-agent",
+					},
+				},
 			},
-		}.Build())
+		})
 
-		_, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+		_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 			DelegationSessionId: session.GetMetadata().GetName(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
 			Ttl:                 durationpb.New(1 * time.Hour),
-		}.Build())
+		})
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
 
@@ -456,31 +345,33 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			})
 			pack.authenticateBot("payroll-agent")
 
-			session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+			session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 				User: "bob",
 				Resources: []*delegationv1pb.DelegationResourceSpec{
-					delegationv1pb.DelegationResourceSpec_builder{
+					{
 						Kind: types.KindApp,
 						Name: "hr-system",
-					}.Build(),
+					},
 				},
 				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					delegationv1pb.DelegationUserSpec_builder{
-						Kind:    types.KindBot,
-						BotName: proto.String("payroll-agent"),
-					}.Build(),
+					{
+						Kind: types.KindBot,
+						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+							BotName: "payroll-agent",
+						},
+					},
 				},
-			}.Build())
+			})
 
 			// This won't actually sleep, thanks to synctest!
 			time.Sleep(time.Until(session.GetMetadata().GetExpires().AsTime().Add(delegationv1.ClockSkewAllowance)))
 
-			_, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+			_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
 				Ttl:                 durationpb.New(1 * time.Hour),
-			}.Build())
+			})
 			require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 		})
 	})
@@ -490,28 +381,30 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		pack.createUser(t, "bob", types.RoleSpecV6{})
 		pack.authenticateBot("payroll-agent")
 
-		session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+		session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 			User: "bob",
 			Resources: []*delegationv1pb.DelegationResourceSpec{
-				delegationv1pb.DelegationResourceSpec_builder{
+				{
 					Kind: types.KindApp,
 					Name: "hr-system",
-				}.Build(),
+				},
 			},
 			AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-				delegationv1pb.DelegationUserSpec_builder{
-					Kind:    types.KindBot,
-					BotName: proto.String("payroll-agent"),
-				}.Build(),
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "payroll-agent",
+					},
+				},
 			},
-		}.Build())
+		})
 
-		_, err := service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+		_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 			DelegationSessionId: session.GetMetadata().GetName(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
 			Ttl:                 durationpb.New(1 * time.Hour),
-		}.Build())
+		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.ErrorContains(t, err, "user does not have permission to delegate access to all of the required resources")
@@ -541,45 +434,49 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				return appSession, nil
 			}
 
-			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
+			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*proto.Certs, error) {
 				require.Equal(t, 1*time.Hour, req.TTL) // This is the session expiry, not the requested TTL.
 
-				return &clientproto.Certs{
+				return &proto.Certs{
 					TLS: tlsCertificate,
 					SSH: sshCertificate,
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")
 
-			session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+			session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
 				User: "bob",
 				Resources: []*delegationv1pb.DelegationResourceSpec{
-					delegationv1pb.DelegationResourceSpec_builder{
+					{
 						Kind: types.KindApp,
 						Name: "hr-system",
-					}.Build(),
+					},
 				},
 				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					delegationv1pb.DelegationUserSpec_builder{
-						Kind:    types.KindBot,
-						BotName: proto.String("payroll-agent"),
-					}.Build(),
+					{
+						Kind: types.KindBot,
+						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+							BotName: "payroll-agent",
+						},
+					},
 				},
-			}.Build())
+			})
 
-			_, err = service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+			_, err = service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
 				Ttl:                 durationpb.New(365 * 24 * 1 * time.Hour),
-				RouteToApp: delegationv1pb.RouteToApp_builder{
-					Name:        "hr-system",
-					PublicAddr:  "hr-system.test.teleport.sh",
-					ClusterName: "test.teleport.sh",
-					Uri:         "http://localhost:9000",
-					TargetPort:  9000,
-				}.Build(),
-			}.Build())
+				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
+					RouteToApp: &delegationv1pb.RouteToApp{
+						Name:        "hr-system",
+						PublicAddr:  "hr-system.test.teleport.sh",
+						ClusterName: "test.teleport.sh",
+						Uri:         "http://localhost:9000",
+						TargetPort:  9000,
+					},
+				},
+			})
 			require.NoError(t, err)
 		})
 	})

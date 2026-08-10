@@ -78,10 +78,10 @@ func (d *desktopProcessor) handleWindowsDesktopSessionStart(evt *apievents.Windo
 	d.startTime = evt.GetTime()
 	d.lastActivityTime = evt.GetTime()
 
-	d.metadata.SetClusterName(evt.ClusterName)
-	d.metadata.SetUser(evt.User)
-	d.metadata.SetResourceName(evt.DesktopName)
-	d.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
+	d.metadata.ClusterName = evt.ClusterName
+	d.metadata.User = evt.User
+	d.metadata.ResourceName = evt.DesktopName
+	d.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP
 
 	return nil
 }
@@ -178,11 +178,11 @@ func desktopActivityMinPixels(screenW, screenH uint16) int {
 }
 
 func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.WindowsDesktopSessionEnd) error {
-	if d.metadata.GetType() == pb.SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED {
-		d.metadata.SetClusterName(evt.ClusterName)
-		d.metadata.SetUser(evt.User)
-		d.metadata.SetResourceName(evt.DesktopName)
-		d.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
+	if d.metadata.Type == pb.SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED {
+		d.metadata.ClusterName = evt.ClusterName
+		d.metadata.User = evt.User
+		d.metadata.ResourceName = evt.DesktopName
+		d.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP
 	}
 
 	// Without the decoder, lastActivityTime never advances past the session start, so this would mark the whole
@@ -201,9 +201,9 @@ func (d *desktopProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionR
 		return nil, nil
 	}
 
-	d.metadata.SetDuration(durationpb.New(d.lastEvent.GetTime().Sub(d.startTime)))
-	d.metadata.SetStartTime(timestamppb.New(d.startTime))
-	d.metadata.SetEndTime(timestamppb.New(d.lastEvent.GetTime()))
+	d.metadata.Duration = durationpb.New(d.lastEvent.GetTime().Sub(d.startTime))
+	d.metadata.StartTime = timestamppb.New(d.startTime)
+	d.metadata.EndTime = timestamppb.New(d.lastEvent.GetTime())
 
 	return d.metadata, d.thumbnail
 }

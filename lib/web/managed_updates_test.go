@@ -61,69 +61,69 @@ func TestGetManagedUpdatesDetails(t *testing.T) {
 	pack := proxy.authPack(t, "testuser", []types.Role{role})
 
 	// Create an auto update config
-	config, err := autoupdate.NewAutoUpdateConfig(autoupdatepb.AutoUpdateConfigSpec_builder{
-		Tools: autoupdatepb.AutoUpdateConfigSpecTools_builder{
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{
+		Tools: &autoupdatepb.AutoUpdateConfigSpecTools{
 			Mode: autoupdate.ToolsUpdateModeEnabled,
-		}.Build(),
-		Agents: autoupdatepb.AutoUpdateConfigSpecAgents_builder{
+		},
+		Agents: &autoupdatepb.AutoUpdateConfigSpecAgents{
 			Mode:                      autoupdate.AgentsUpdateModeEnabled,
 			Strategy:                  autoupdate.AgentsStrategyTimeBased,
 			MaintenanceWindowDuration: durationpb.New(time.Hour),
-			Schedules: autoupdatepb.AgentAutoUpdateSchedules_builder{
+			Schedules: &autoupdatepb.AgentAutoUpdateSchedules{
 				Regular: []*autoupdatepb.AgentAutoUpdateGroup{
-					autoupdatepb.AgentAutoUpdateGroup_builder{Name: "all", Days: []string{"Mon", "Tue", "Wed"}, StartHour: 14}.Build(),
+					{Name: "all", Days: []string{"Mon", "Tue", "Wed"}, StartHour: 14},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 
 	// Create AutoUpdateVersion
-	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
-		Tools: autoupdatepb.AutoUpdateVersionSpecTools_builder{
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Tools: &autoupdatepb.AutoUpdateVersionSpecTools{
 			TargetVersion: "18.2.0",
-		}.Build(),
-		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
+		},
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
 			StartVersion:  "18.1.0",
 			TargetVersion: "18.2.0",
 			Schedule:      autoupdate.AgentsScheduleRegular,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
 	// Create AutoUpdateAgentRollout
-	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+	rollout := &autoupdatepb.AutoUpdateAgentRollout{
 		Kind:    types.KindAutoUpdateAgentRollout,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameAutoUpdateAgentRollout,
-		}.Build(),
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+		},
+		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 			StartVersion:   "18.1.0",
 			TargetVersion:  "18.2.0",
 			Schedule:       autoupdate.AgentsScheduleRegular,
 			AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 			Strategy:       autoupdate.AgentsStrategyTimeBased,
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+		},
+		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+				{
 					Name:            "all",
 					State:           autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					PresentCount:    100,
 					UpToDateCount:   75,
 					ConfigDays:      []string{"Mon", "Tue", "Wed"},
 					ConfigStartHour: 14,
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 	require.NoError(t, err)
 
@@ -185,91 +185,91 @@ func TestGetOrphanedAgentCounts(t *testing.T) {
 	pack := proxy.authPack(t, "testuser", []types.Role{role})
 
 	// Create AutoUpdateConfig with "prod" as the only group
-	config, err := autoupdate.NewAutoUpdateConfig(autoupdatepb.AutoUpdateConfigSpec_builder{
-		Agents: autoupdatepb.AutoUpdateConfigSpecAgents_builder{
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{
+		Agents: &autoupdatepb.AutoUpdateConfigSpecAgents{
 			Mode:                      autoupdate.AgentsUpdateModeEnabled,
 			Strategy:                  autoupdate.AgentsStrategyTimeBased,
 			MaintenanceWindowDuration: durationpb.New(time.Hour),
-			Schedules: autoupdatepb.AgentAutoUpdateSchedules_builder{
+			Schedules: &autoupdatepb.AgentAutoUpdateSchedules{
 				Regular: []*autoupdatepb.AgentAutoUpdateGroup{
-					autoupdatepb.AgentAutoUpdateGroup_builder{Name: "prod", Days: []string{"*"}, StartHour: 10}.Build(),
+					{Name: "prod", Days: []string{"*"}, StartHour: 10},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 
 	// Create AutoUpdateVersion
-	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
-		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
 			StartVersion:  "18.1.0",
 			TargetVersion: "18.2.0",
 			Schedule:      autoupdate.AgentsScheduleRegular,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
 	// Create the AutoUpdateAgentRollout
-	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+	rollout := &autoupdatepb.AutoUpdateAgentRollout{
 		Kind:    types.KindAutoUpdateAgentRollout,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameAutoUpdateAgentRollout,
-		}.Build(),
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+		},
+		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 			StartVersion:   "18.1.0",
 			TargetVersion:  "18.2.0",
 			Schedule:       autoupdate.AgentsScheduleRegular,
 			AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 			Strategy:       autoupdate.AgentsStrategyTimeBased,
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+		},
+		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+				{
 					Name:            "prod",
 					State:           autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					PresentCount:    50,
 					UpToDateCount:   25,
 					ConfigDays:      []string{"*"},
 					ConfigStartHour: 10,
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 	require.NoError(t, err)
 
 	// Create AutoUpdateAgentReport with some agents in "prod" (valid) and some in "invalidgroup" (orphaned)
-	report := autoupdatepb.AutoUpdateAgentReport_builder{
+	report := &autoupdatepb.AutoUpdateAgentReport{
 		Kind:    types.KindAutoUpdateAgentReport,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "test-auth-server",
-		}.Build(),
-		Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
+		},
+		Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
 			Timestamp: timestamppb.Now(),
 			Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-				"prod": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+				"prod": {
 					Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-						"18.1.0": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 30}.Build(),
-						"18.2.0": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 20}.Build(),
+						"18.1.0": {Count: 30},
+						"18.2.0": {Count: 20},
 					},
-				}.Build(),
-				"invalidgroup": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
+				},
+				"invalidgroup": {
 					Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-						"18.1.0": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
-						"18.2.0": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 3}.Build(),
+						"18.1.0": {Count: 5},
+						"18.2.0": {Count: 3},
 					},
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = env.server.Auth().UpsertAutoUpdateAgentReport(ctx, report)
 	require.NoError(t, err)
 
@@ -315,68 +315,68 @@ func TestStartGroupUpdate(t *testing.T) {
 
 	pack := proxy.authPack(t, "testuser", []types.Role{role})
 
-	config, err := autoupdate.NewAutoUpdateConfig(autoupdatepb.AutoUpdateConfigSpec_builder{
-		Agents: autoupdatepb.AutoUpdateConfigSpecAgents_builder{
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{
+		Agents: &autoupdatepb.AutoUpdateConfigSpecAgents{
 			Mode:     autoupdate.AgentsUpdateModeEnabled,
 			Strategy: autoupdate.AgentsStrategyHaltOnError,
-			Schedules: autoupdatepb.AgentAutoUpdateSchedules_builder{
+			Schedules: &autoupdatepb.AgentAutoUpdateSchedules{
 				Regular: []*autoupdatepb.AgentAutoUpdateGroup{
-					autoupdatepb.AgentAutoUpdateGroup_builder{Name: "dev", Days: []string{"*"}, StartHour: 10, WaitHours: 0}.Build(),
-					autoupdatepb.AgentAutoUpdateGroup_builder{Name: "staging", Days: []string{"*"}, StartHour: 10, WaitHours: 24}.Build(),
+					{Name: "dev", Days: []string{"*"}, StartHour: 10, WaitHours: 0},
+					{Name: "staging", Days: []string{"*"}, StartHour: 10, WaitHours: 24},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 
-	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
-		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
 			StartVersion:  "18.0.0",
 			TargetVersion: "18.1.0",
 			Schedule:      autoupdate.AgentsScheduleRegular,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
-	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+	rollout := &autoupdatepb.AutoUpdateAgentRollout{
 		Kind:    types.KindAutoUpdateAgentRollout,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameAutoUpdateAgentRollout,
-		}.Build(),
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+		},
+		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 			StartVersion:   "18.0.0",
 			TargetVersion:  "18.1.0",
 			Schedule:       autoupdate.AgentsScheduleRegular,
 			AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 			Strategy:       autoupdate.AgentsStrategyHaltOnError,
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+		},
+		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+				{
 					Name:            "dev",
 					State:           autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					ConfigDays:      []string{"*"},
 					ConfigStartHour: 10,
 					ConfigWaitHours: 0,
 					CanaryCount:     1,
-				}.Build(),
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+				},
+				{
 					Name:            "staging",
 					State:           autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					ConfigDays:      []string{"*"},
 					ConfigStartHour: 10,
 					ConfigWaitHours: 24,
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 	require.NoError(t, err)
 
@@ -430,59 +430,59 @@ func TestMarkGroupDone(t *testing.T) {
 
 	pack := proxy.authPack(t, "testuser", []types.Role{role})
 
-	config, err := autoupdate.NewAutoUpdateConfig(autoupdatepb.AutoUpdateConfigSpec_builder{
-		Agents: autoupdatepb.AutoUpdateConfigSpecAgents_builder{
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{
+		Agents: &autoupdatepb.AutoUpdateConfigSpecAgents{
 			Mode:     autoupdate.AgentsUpdateModeEnabled,
 			Strategy: autoupdate.AgentsStrategyHaltOnError,
-			Schedules: autoupdatepb.AgentAutoUpdateSchedules_builder{
+			Schedules: &autoupdatepb.AgentAutoUpdateSchedules{
 				Regular: []*autoupdatepb.AgentAutoUpdateGroup{
-					autoupdatepb.AgentAutoUpdateGroup_builder{Name: "dev", Days: []string{"*"}, StartHour: 10, WaitHours: 0}.Build(),
+					{Name: "dev", Days: []string{"*"}, StartHour: 10, WaitHours: 0},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 
-	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
-		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
 			StartVersion:  "18.0.0",
 			TargetVersion: "18.1.0",
 			Schedule:      autoupdate.AgentsScheduleRegular,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
-	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+	rollout := &autoupdatepb.AutoUpdateAgentRollout{
 		Kind:    types.KindAutoUpdateAgentRollout,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameAutoUpdateAgentRollout,
-		}.Build(),
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+		},
+		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 			StartVersion:   "18.0.0",
 			TargetVersion:  "18.1.0",
 			Schedule:       autoupdate.AgentsScheduleRegular,
 			AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 			Strategy:       autoupdate.AgentsStrategyHaltOnError,
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+		},
+		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+				{
 					Name:            "dev",
 					State:           autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					ConfigDays:      []string{"*"},
 					ConfigStartHour: 10,
 					ConfigWaitHours: 0,
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 	require.NoError(t, err)
 
@@ -536,59 +536,59 @@ func TestRollbackGroup(t *testing.T) {
 
 	pack := proxy.authPack(t, "testuser", []types.Role{role})
 
-	config, err := autoupdate.NewAutoUpdateConfig(autoupdatepb.AutoUpdateConfigSpec_builder{
-		Agents: autoupdatepb.AutoUpdateConfigSpecAgents_builder{
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{
+		Agents: &autoupdatepb.AutoUpdateConfigSpecAgents{
 			Mode:     autoupdate.AgentsUpdateModeEnabled,
 			Strategy: autoupdate.AgentsStrategyHaltOnError,
-			Schedules: autoupdatepb.AgentAutoUpdateSchedules_builder{
+			Schedules: &autoupdatepb.AgentAutoUpdateSchedules{
 				Regular: []*autoupdatepb.AgentAutoUpdateGroup{
-					autoupdatepb.AgentAutoUpdateGroup_builder{Name: "prod", Days: []string{"*"}, StartHour: 10, WaitHours: 0}.Build(),
+					{Name: "prod", Days: []string{"*"}, StartHour: 10, WaitHours: 0},
 				},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 
-	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
-		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
+		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
 			StartVersion:  "18.0.0",
 			TargetVersion: "18.1.0",
 			Schedule:      autoupdate.AgentsScheduleRegular,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 
-	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+	rollout := &autoupdatepb.AutoUpdateAgentRollout{
 		Kind:    types.KindAutoUpdateAgentRollout,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: types.MetaNameAutoUpdateAgentRollout,
-		}.Build(),
-		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
+		},
+		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
 			StartVersion:   "18.0.0",
 			TargetVersion:  "18.1.0",
 			Schedule:       autoupdate.AgentsScheduleRegular,
 			AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 			Strategy:       autoupdate.AgentsStrategyHaltOnError,
-		}.Build(),
-		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
+		},
+		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
 			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
+				{
 					Name:            "prod",
 					State:           autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					ConfigDays:      []string{"*"},
 					ConfigStartHour: 10,
 					ConfigWaitHours: 0,
-				}.Build(),
+				},
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 	require.NoError(t, err)
 

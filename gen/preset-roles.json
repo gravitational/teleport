@@ -657,14 +657,6 @@
           },
           {
             "resources": [
-              "mobile_device"
-            ],
-            "verbs": [
-              "create_enroll_token"
-            ]
-          },
-          {
-            "resources": [
               "db_service"
             ],
             "verbs": [
@@ -1193,18 +1185,6 @@
           },
           {
             "resources": [
-              "classifier"
-            ],
-            "verbs": [
-              "list",
-              "create",
-              "read",
-              "update",
-              "delete"
-            ]
-          },
-          {
-            "resources": [
               "retrieval_model"
             ],
             "verbs": [
@@ -1254,18 +1234,6 @@
           {
             "resources": [
               "scoped_token"
-            ],
-            "verbs": [
-              "list",
-              "create",
-              "read",
-              "update",
-              "delete"
-            ]
-          },
-          {
-            "resources": [
-              "app_auth_config"
             ],
             "verbs": [
               "list",

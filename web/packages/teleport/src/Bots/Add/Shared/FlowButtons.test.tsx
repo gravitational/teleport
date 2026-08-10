@@ -16,42 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { ReactNode } from 'react';
-import { createMemoryRouter, RouterProvider } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Router } from 'react-router';
 
-import { CurrentPath, render, screen, userEvent } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 
 import { FlowButtons, FlowButtonsProps } from './FlowButtons';
-
-function renderWithRouter(
-  ui: ReactNode,
-  options?: {
-    initialEntries?: string[];
-    initialIndex?: number;
-  }
-) {
-  const router = createMemoryRouter(
-    [
-      {
-        path: '*',
-        element: (
-          <>
-            {ui}
-            <CurrentPath />
-          </>
-        ),
-      },
-    ],
-    {
-      initialEntries: options?.initialEntries,
-      initialIndex: options?.initialIndex,
-    }
-  );
-
-  return render(<RouterProvider router={router} />);
-}
 
 describe('flowButtons component', () => {
   let props: FlowButtonsProps;
@@ -73,12 +45,14 @@ describe('flowButtons component', () => {
   });
 
   it('disables the buttons according to the props', () => {
-    renderWithRouter(
-      <FlowButtons
-        {...props}
-        backButton={{ disabled: true }}
-        nextButton={{ disabled: true }}
-      />
+    render(
+      <MemoryRouter>
+        <FlowButtons
+          {...props}
+          backButton={{ disabled: true }}
+          nextButton={{ disabled: true }}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.getByTestId('button-back')).toBeDisabled();
@@ -86,12 +60,14 @@ describe('flowButtons component', () => {
   });
 
   it('hides the buttons according to the props', () => {
-    renderWithRouter(
-      <FlowButtons
-        {...props}
-        backButton={{ hidden: true }}
-        nextButton={{ hidden: true }}
-      />
+    render(
+      <MemoryRouter>
+        <FlowButtons
+          {...props}
+          backButton={{ hidden: true }}
+          nextButton={{ hidden: true }}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.queryByTestId('button-back')).not.toBeInTheDocument();
@@ -101,8 +77,10 @@ describe('flowButtons component', () => {
   it('triggers the correct click handler', async () => {
     const prevMock = jest.fn();
     const nextMock = jest.fn();
-    renderWithRouter(
-      <FlowButtons {...props} prevStep={prevMock} nextStep={nextMock} />
+    render(
+      <MemoryRouter>
+        <FlowButtons {...props} prevStep={prevMock} nextStep={nextMock} />
+      </MemoryRouter>
     );
 
     await userEvent.click(screen.getByTestId('button-back'));
@@ -113,21 +91,50 @@ describe('flowButtons component', () => {
   });
 
   test('when there is a previous history location, then back button uses `history.goBack()`', async () => {
-    renderWithRouter(<FlowButtons {...props} isFirstStep={true} />, {
-      initialEntries: ['/', '/step-one'],
-      initialIndex: 1,
+    const history = createMemoryHistory({
+      initialEntries: [
+        {
+          pathname: 'web/random/route',
+        },
+        {
+          pathname: cfg.getBotsNewRoute('github-actions-ssh'),
+        },
+      ],
     });
+    history.push = jest.fn();
+    history.goBack = jest.fn();
+
+    render(
+      <Router history={history}>
+        <FlowButtons {...props} isFirstStep={true} />
+      </Router>
+    );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(screen.getByTestId('current-path')).toHaveTextContent('/');
+    expect(history.push).not.toHaveBeenCalled();
+    expect(history.goBack).toHaveBeenCalled();
   });
 
   test('when there is no previous history location, then back button pushes to integrations list', async () => {
-    renderWithRouter(<FlowButtons {...props} isFirstStep={true} />);
+    const history = createMemoryHistory({
+      initialEntries: [
+        {
+          key: 'default',
+          pathname: cfg.getBotsNewRoute('github-actions-ssh'),
+        },
+      ],
+    });
+    history.push = jest.fn();
+    history.goBack = jest.fn();
+
+    render(
+      <Router history={history}>
+        <FlowButtons {...props} isFirstStep={true} />
+      </Router>
+    );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(screen.getByTestId('current-path')).toHaveTextContent(
-      cfg.getIntegrationsEnrollRoute()
-    );
+    expect(history.goBack).not.toHaveBeenCalled();
+    expect(history.push).toHaveBeenCalledWith(cfg.getIntegrationsEnrollRoute());
   });
 });

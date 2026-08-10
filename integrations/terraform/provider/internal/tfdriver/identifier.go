@@ -165,24 +165,17 @@ func NewPossiblyUnscopedScopeQualifiedNameIdentifier(s string) (ScopeQualifiedNa
 	return ScopeQualifiedNameIdentifier{Name: s}, nil
 }
 
-// ScopeQualifiedPath contains the paths to Terraform
-// name and scope paths.
-type ScopeQualifiedPath struct {
-	Name  path.Path
-	Scope path.Path
-}
-
 // ScopeQualifiedNameIdentifierFromPath returns a scope qualified name extractor.
-func ScopeQualifiedNameIdentifierFromPath(p ScopeQualifiedPath) TerraformIdentifierExtractor[ScopeQualifiedNameIdentifier] {
+func ScopeQualifiedNameIdentifierFromPath(namePath, scopePath path.Path) TerraformIdentifierExtractor[ScopeQualifiedNameIdentifier] {
 	return func(ctx context.Context, reader TerraformAttributeReader) (ScopeQualifiedNameIdentifier, diag.Diagnostics) {
 		var identifier types.String
-		diags := reader.GetAttribute(ctx, p.Name, &identifier)
+		diags := reader.GetAttribute(ctx, namePath, &identifier)
 		if diags.HasError() {
 			return ScopeQualifiedNameIdentifier{}, diags
 		}
 
 		var scope types.String
-		diags.Append(reader.GetAttribute(ctx, p.Scope, &scope)...)
+		diags.Append(reader.GetAttribute(ctx, scopePath, &scope)...)
 		if diags.HasError() {
 			return ScopeQualifiedNameIdentifier{}, diags
 		}
@@ -199,16 +192,16 @@ func ScopeQualifiedNameIdentifierFromPath(p ScopeQualifiedPath) TerraformIdentif
 
 // PossiblyUnscopedScopeQualifiedNameIdentifierFromPath returns an extractor for
 // identifiers that may be either scope-qualified or unscoped.
-func PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(p ScopeQualifiedPath) TerraformIdentifierExtractor[ScopeQualifiedNameIdentifier] {
+func PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(namePath, scopePath path.Path) TerraformIdentifierExtractor[ScopeQualifiedNameIdentifier] {
 	return func(ctx context.Context, reader TerraformAttributeReader) (ScopeQualifiedNameIdentifier, diag.Diagnostics) {
 		var identifier types.String
-		diags := reader.GetAttribute(ctx, p.Name, &identifier)
+		diags := reader.GetAttribute(ctx, namePath, &identifier)
 		if diags.HasError() {
 			return ScopeQualifiedNameIdentifier{}, diags
 		}
 
 		var scope types.String
-		diags.Append(reader.GetAttribute(ctx, p.Scope, &scope)...)
+		diags.Append(reader.GetAttribute(ctx, scopePath, &scope)...)
 		if diags.HasError() {
 			return ScopeQualifiedNameIdentifier{}, diags
 		}
@@ -228,12 +221,12 @@ func PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(p ScopeQualifiedPath) 
 }
 
 // ScopeQualifiedNameIdentifierPolicy returns a policy for scope qualified names.
-func ScopeQualifiedNameIdentifierPolicy[T any](p ScopeQualifiedPath, resourceNameAndScope func(*T) scopes.QualifiedName) IdentifierPolicy[T, ScopeQualifiedNameIdentifier] {
+func ScopeQualifiedNameIdentifierPolicy[T any](namePath, scopePath path.Path, resourceNameAndScope func(*T) (name, scope string)) IdentifierPolicy[T, ScopeQualifiedNameIdentifier] {
 	return IdentifierPolicy[T, ScopeQualifiedNameIdentifier]{
-		FromState: ScopeQualifiedNameIdentifierFromPath(p),
+		FromState: ScopeQualifiedNameIdentifierFromPath(namePath, scopePath),
 		FromResource: func(resource *T) ScopeQualifiedNameIdentifier {
-			sqn := resourceNameAndScope(resource)
-			return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}
+			name, scope := resourceNameAndScope(resource)
+			return ScopeQualifiedNameIdentifier{Name: name, Scope: scope}
 		},
 		FromImportID: NewScopedQualifiedNameIdentifier,
 	}
@@ -241,12 +234,12 @@ func ScopeQualifiedNameIdentifierPolicy[T any](p ScopeQualifiedPath, resourceNam
 
 // PossiblyUnscopedScopeQualifiedNameIdentifierPolicy returns a policy for
 // identifiers that may be either scope-qualified or unscoped.
-func PossiblyUnscopedScopeQualifiedNameIdentifierPolicy[T any](p ScopeQualifiedPath, resourceNameAndScope func(*T) scopes.QualifiedName) IdentifierPolicy[T, ScopeQualifiedNameIdentifier] {
+func PossiblyUnscopedScopeQualifiedNameIdentifierPolicy[T any](namePath, scopePath path.Path, resourceNameAndScope func(*T) (name, scope string)) IdentifierPolicy[T, ScopeQualifiedNameIdentifier] {
 	return IdentifierPolicy[T, ScopeQualifiedNameIdentifier]{
-		FromState: PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(p),
+		FromState: PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(namePath, scopePath),
 		FromResource: func(resource *T) ScopeQualifiedNameIdentifier {
-			sqn := resourceNameAndScope(resource)
-			return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}
+			name, scope := resourceNameAndScope(resource)
+			return ScopeQualifiedNameIdentifier{Name: name, Scope: scope}
 		},
 		FromImportID: NewPossiblyUnscopedScopeQualifiedNameIdentifier,
 	}
@@ -272,24 +265,17 @@ func NewCompositeIdentifier(s string) (CompositeIdentifier, error) {
 	return CompositeIdentifier{Prefix: prefix, Name: name}, nil
 }
 
-// CompositeIdentifierPath contains the Terraform paths
-// to the name and prefix of a Teleport resource.
-type CompositeIdentifierPath struct {
-	Prefix path.Path
-	Name   path.Path
-}
-
 // CompositeIdentifierFromPath returns an extractor for a composite identifier.
-func CompositeIdentifierFromPath(p CompositeIdentifierPath) TerraformIdentifierExtractor[CompositeIdentifier] {
+func CompositeIdentifierFromPath(prefixPath, namePath path.Path) TerraformIdentifierExtractor[CompositeIdentifier] {
 	return func(ctx context.Context, reader TerraformAttributeReader) (CompositeIdentifier, diag.Diagnostics) {
 		var prefix types.String
-		diags := reader.GetAttribute(ctx, p.Prefix, &prefix)
+		diags := reader.GetAttribute(ctx, prefixPath, &prefix)
 		if diags.HasError() {
 			return CompositeIdentifier{}, diags
 		}
 
 		var id types.String
-		diags.Append(reader.GetAttribute(ctx, p.Name, &id)...)
+		diags.Append(reader.GetAttribute(ctx, namePath, &id)...)
 		if diags.HasError() {
 			return CompositeIdentifier{}, diags
 		}
@@ -299,10 +285,13 @@ func CompositeIdentifierFromPath(p CompositeIdentifierPath) TerraformIdentifierE
 }
 
 // CompositeIdentifierPolicy returns an identifier policy for composite identifiers.
-func CompositeIdentifierPolicy[T any](p CompositeIdentifierPath, resourcePrefixAndName func(*T) CompositeIdentifier) IdentifierPolicy[T, CompositeIdentifier] {
+func CompositeIdentifierPolicy[T any](prefixPath, namePath path.Path, resourcePrefixAndName func(*T) (prefix, name string)) IdentifierPolicy[T, CompositeIdentifier] {
 	return IdentifierPolicy[T, CompositeIdentifier]{
-		FromState:    CompositeIdentifierFromPath(p),
-		FromResource: resourcePrefixAndName,
+		FromState: CompositeIdentifierFromPath(prefixPath, namePath),
+		FromResource: func(resource *T) CompositeIdentifier {
+			prefix, name := resourcePrefixAndName(resource)
+			return CompositeIdentifier{Prefix: prefix, Name: name}
+		},
 		FromImportID: NewCompositeIdentifier,
 	}
 }
@@ -369,16 +358,16 @@ func newScopeQualifiedCompositeIdentifier(prefix, name string) (ScopeQualifiedCo
 
 // ScopeQualifiedCompositeIdentifierFromPath returns an extractor for a
 // scope-qualified composite identifier.
-func ScopeQualifiedCompositeIdentifierFromPath(p CompositeIdentifierPath) TerraformIdentifierExtractor[ScopeQualifiedCompositeIdentifier] {
+func ScopeQualifiedCompositeIdentifierFromPath(prefixPath, namePath path.Path) TerraformIdentifierExtractor[ScopeQualifiedCompositeIdentifier] {
 	return func(ctx context.Context, reader TerraformAttributeReader) (ScopeQualifiedCompositeIdentifier, diag.Diagnostics) {
 		var prefix types.String
-		diags := reader.GetAttribute(ctx, p.Prefix, &prefix)
+		diags := reader.GetAttribute(ctx, prefixPath, &prefix)
 		if diags.HasError() {
 			return ScopeQualifiedCompositeIdentifier{}, diags
 		}
 
 		var name types.String
-		diags.Append(reader.GetAttribute(ctx, p.Name, &name)...)
+		diags.Append(reader.GetAttribute(ctx, namePath, &name)...)
 		if diags.HasError() {
 			return ScopeQualifiedCompositeIdentifier{}, diags
 		}
@@ -418,13 +407,13 @@ func scopeQualifiedNameIdentifierFromPossiblyQualifiedString(s string) (ScopeQua
 
 // ScopeQualifiedCompositeIdentifierPolicy returns a policy for scope-qualified
 // composite identifiers.
-func ScopeQualifiedCompositeIdentifierPolicy[T any](p CompositeIdentifierPath, resourcePrefixAndName func(*T) CompositeIdentifier) IdentifierPolicy[T, ScopeQualifiedCompositeIdentifier] {
+func ScopeQualifiedCompositeIdentifierPolicy[T any](prefixPath, namePath path.Path, resourcePrefixAndName func(*T) (prefix, name string)) IdentifierPolicy[T, ScopeQualifiedCompositeIdentifier] {
 	return IdentifierPolicy[T, ScopeQualifiedCompositeIdentifier]{
-		FromState: ScopeQualifiedCompositeIdentifierFromPath(p),
+		FromState: ScopeQualifiedCompositeIdentifierFromPath(prefixPath, namePath),
 		FromResource: func(resource *T) ScopeQualifiedCompositeIdentifier {
-			id := resourcePrefixAndName(resource)
-			prefixID, _ := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(id.Prefix)
-			nameID, _ := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(id.Name)
+			prefix, name := resourcePrefixAndName(resource)
+			prefixID, _ := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(prefix)
+			nameID, _ := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(name)
 			return ScopeQualifiedCompositeIdentifier{Prefix: prefixID, Name: nameID}
 		},
 		FromImportID: NewScopeQualifiedCompositeIdentifier,

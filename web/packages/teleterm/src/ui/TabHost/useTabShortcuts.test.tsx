@@ -59,7 +59,6 @@ function getMockDocuments(): Document[] {
       targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
-      autoUserProvisioning: undefined,
     },
     {
       kind: 'doc.gateway',
@@ -72,7 +71,6 @@ function getMockDocuments(): Document[] {
       targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
-      autoUserProvisioning: undefined,
     },
     makeDocumentCluster({
       uri: '/docs/test_uri_6',

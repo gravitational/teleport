@@ -406,14 +406,7 @@ func TestTerraformJoinScoped(t *testing.T) {
 			Rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedToken},
-					Verbs: scopedaccess.EncodeScopedVerbs(
-						scopedaccess.List,
-						scopedaccess.Read,
-						scopedaccess.Secrets,
-						scopedaccess.Create,
-						scopedaccess.Update,
-						scopedaccess.Delete,
-					),
+					Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbUpdate, types.VerbCreate, types.VerbDelete, types.VerbRead},
 				}.Build(),
 			},
 		}.Build(),
@@ -560,7 +553,7 @@ func TestTerraformJoinScoped(t *testing.T) {
 			kubernetes_token_path = %q
 			scoped = true
 		}
-	`, tt.addr, scopes.QualifiedName{Scope: testRootScope, Name: testTokenName}.String(), types.JoinMethodKubernetes, tokenPath)
+	`, tt.addr, testTokenName, types.JoinMethodKubernetes, tokenPath)
 
 			terraformProvider := provider.New()
 			terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))

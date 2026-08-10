@@ -30,9 +30,6 @@ var reProxyJump = regexp.MustCompile(
 	`(?:(?P<username>[^\:]+)@)?(?P<hostport>[^\@]+)`,
 )
 
-// maxProxyJumpLen is the maximum accepted length of a proxy jump string.
-const maxProxyJumpLen = 4096
-
 // JumpHost is a target jump host
 type JumpHost struct {
 	// Username to login as
@@ -45,9 +42,6 @@ type JumpHost struct {
 func ParseProxyJump(in string) ([]JumpHost, error) {
 	if in == "" {
 		return nil, trace.BadParameter("missing proxyjump")
-	}
-	if len(in) > maxProxyJumpLen {
-		return nil, trace.BadParameter("proxyjump too long: %d bytes (max %d)", len(in), maxProxyJumpLen)
 	}
 	parts := strings.Split(in, ",")
 	out := make([]JumpHost, 0, len(parts))

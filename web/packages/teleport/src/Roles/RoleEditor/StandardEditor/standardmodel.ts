@@ -735,7 +735,7 @@ export function newResourceAccess(
       return {
         kind: 'linux_desktop',
         labels: [],
-        logins: [stringToOption('{{internal.logins}}')],
+        logins: [stringToOption('{{internal.linux_desktop_logins}}')],
         hideValidationErrors: true,
       };
     case 'git_server':
@@ -795,6 +795,9 @@ export function roleToRoleEditorModel(
 ): RoleEditorModel {
   const conversionErrors: ConversionError[] = [];
 
+  // We use destructuring to strip fields from objects and assert that nothing
+  // has been left. Therefore, we don't want Lint to warn us that we didn't use
+  // some of the fields.
   const { kind, metadata, spec, version, ...unsupported } = role;
   conversionErrors.push(...unsupportedFieldErrorsFromObject('', unsupported));
 
@@ -1351,7 +1354,6 @@ const additionalVerbs = new Map<string, Verb[]>([
   [ResourceKind.GithubConnector, ['readnosecrets']],
   [ResourceKind.Semaphore, ['readnosecrets']],
   [ResourceKind.Device, ['create_enroll_token', 'enroll']],
-  [ResourceKind.MobileDevice, ['create_enroll_token']],
   [ResourceKind.AuditQuery, ['use']],
   [ResourceKind.SecurityReport, ['use']],
   [ResourceKind.Integration, ['use']],

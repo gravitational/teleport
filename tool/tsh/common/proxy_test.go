@@ -45,9 +45,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,6 +60,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -86,6 +87,10 @@ func TestSSH(t *testing.T) {
 		t.Skip("the current platform doesn't support adding CAs to the system pool")
 	}
 
+	t.Setenv("_TELEPORT_TEST_NO_PARALLEL", "1")
+	defer lib.SetInsecureDevMode(lib.IsInsecureDevMode())
+	lib.SetInsecureDevMode(false)
+
 	d := t.TempDir()
 	webCertPath := filepath.Join(d, "cert.pem")
 	webKeyPath := filepath.Join(d, "key.pem")
@@ -107,6 +112,9 @@ func TestSSH(t *testing.T) {
 			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 		}),
 	)
+
+	// just in case someone changes newTestSuite
+	require.False(t, lib.IsInsecureDevMode())
 
 	tests := []struct {
 		name string
@@ -330,10 +338,12 @@ func TestWithRsync(t *testing.T) {
 
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
-					require.NoError(t, err)
+					if !assert.NoError(t, err) {
+						return
+					}
 					w, err := pref.GetWebauthn()
-					require.NoError(t, err)
-					require.NotNil(t, w)
+					assert.NoError(t, err)
+					assert.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
@@ -527,6 +537,7 @@ func TestProxySSH(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := newTestSuite(t, tc.opts...)
@@ -623,12 +634,13 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithBootstrap(connector, accessUser),
 					testserver.WithHostname("node01"),
 					testserver.WithClusterName("root"),
-					testserver.WithConfig(func(cfg *servicecfg.Config) {
-						cfg.Auth.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
-						// Load all CAs on login so that leaf CA is trusted by clients.
-						cfg.Auth.LoadAllCAs = true
-						cfg.InsecureMode = true
-					}),
+					testserver.WithAuthConfig(
+						func(cfg *servicecfg.AuthConfig) {
+							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
+							// Load all CAs on login so that leaf CA is trusted by clients.
+							cfg.LoadAllCAs = true
+						},
+					),
 				}
 				rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
 				require.NoError(t, err)
@@ -641,10 +653,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithBootstrap(accessUser),
 					testserver.WithHostname("node02"),
 					testserver.WithClusterName("leaf"),
-					testserver.WithConfig(func(cfg *servicecfg.Config) {
-						cfg.Auth.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
-						cfg.InsecureMode = true
-					}),
+					testserver.WithAuthConfig(
+						func(cfg *servicecfg.AuthConfig) {
+							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
+						},
+					),
 				}
 				leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
 				require.NoError(t, err)
@@ -707,6 +720,9 @@ func TestTSHProxyTemplate(t *testing.T) {
 		t.Skip("Skipping test, no ssh binary found.")
 	}
 
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	tshPath, err := os.Executable()
 	require.NoError(t, err)
 
@@ -716,21 +732,21 @@ func TestTSHProxyTemplate(t *testing.T) {
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
-	require.NoError(t, os.WriteFile(tshConfigFile, fmt.Appendf(nil, `
+	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
 proxy_templates:
 - template: '^(\w+)\.(root):(.+)$'
   proxy: "%v"
   host: "$1:$3"
-`, s.root.Config.Proxy.WebAddr.Addr), 0o644))
+`, s.root.Config.Proxy.WebAddr.Addr)), 0o644))
 
 	// Create SSH config.
 	sshConfigFile := filepath.Join(tshHome, "sshconfig")
-	err = os.WriteFile(sshConfigFile, fmt.Appendf(nil, `
+	err = os.WriteFile(sshConfigFile, []byte(fmt.Sprintf(`
 Host *
   HostName %%h
   StrictHostKeyChecking no
   ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
-`, tshPath), 0o644)
+`, tshPath)), 0o644)
 	require.NoError(t, err)
 
 	// Connect to "rootnode" with OpenSSH.
@@ -747,6 +763,9 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		t.Skip("Skipping no external SSH binary found.")
 	}
 
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	tests := []struct {
 		name string
 		opts []testSuiteOptionFunc
@@ -755,7 +774,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -765,7 +783,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -777,7 +794,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing enabled legacy",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 					cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY)
@@ -788,7 +804,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -798,7 +813,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			name: "proxy recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.InsecureMode = true
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -890,16 +904,20 @@ func TestEnvVarCommand(t *testing.T) {
 
 // TestList verifies "tsh ls" functionality
 func TestList(t *testing.T) {
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
-			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
-			cfg.InsecureMode = true
 		}),
 	)
 	rootNodeAddress, err := s.root.NodeSSHAddr()
@@ -1459,6 +1477,8 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 // correctly given a Machine ID-style identity with a valid RouteToApp.
 func TestProxyAppWithIdentity(t *testing.T) {
 	disableAgent(t)
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 
 	const (
@@ -1474,7 +1494,6 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		testserver.WithClusterName(clusterName),
 		testserver.WithTestApp(appName, appServer.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
@@ -1597,6 +1616,9 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 func TestProxyAppMultiPort(t *testing.T) {
 	disableAgent(t)
+	// Necessary for self-signed certs to be considered valid.
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 
 	const (
@@ -1620,7 +1642,6 @@ func TestProxyAppMultiPort(t *testing.T) {
 		testserver.WithBootstrap(connector, user),
 		testserver.WithClusterName(clusterName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps = servicecfg.AppsConfig{
 				Enabled: true,
@@ -1653,7 +1674,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", net.JoinHostPort(fooProxyPort, strconv.Itoa(fooServerPort)),
+		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo)",
@@ -1686,7 +1707,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"--insecure",
 		"--proxy", process.Config.Proxy.WebAddr.Addr,
 		"proxy", "app", appName,
-		"--port", net.JoinHostPort(barProxyPort, strconv.Itoa(barServerPort)),
+		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
 	}
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (bar)",

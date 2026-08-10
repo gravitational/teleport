@@ -103,13 +103,7 @@ func (a *BaseApp) checkTeleportVersion(ctx context.Context) (proto.PingResponse,
 
 // initTeleport creates a Teleport client and validates Teleport connectivity.
 func (a *BaseApp) initTeleport(ctx context.Context, conf PluginConfiguration) (clusterName, webProxyAddr string, err error) {
-	// Preserve the parent context without deadline for the client and its
-	// goroutines (IdentityFileWatcher) which will outlive init.
-	clientCtx := ctx
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
-	defer cancel()
-
-	clt, err := conf.GetTeleportClient(clientCtx)
+	clt, err := conf.GetTeleportClient(ctx)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -179,19 +173,15 @@ func (a *BaseApp) run(ctx context.Context) error {
 }
 
 func (a *BaseApp) init(ctx context.Context) error {
-	// Preserve the parent context without deadline for the client and its
-	// goroutines (IdentityFileWatcher) which will outlive init.
-	clientCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
-
 	log := logger.Get(ctx)
 
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
 	}
 
-	clusterName, webProxyAddr, err := a.initTeleport(clientCtx, a.Conf)
+	clusterName, webProxyAddr, err := a.initTeleport(ctx, a.Conf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -50,7 +50,6 @@ export const Otp = () => <Login {...sample} auth2faType="otp" />;
 export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
 export const Optional = () => <Login {...sample} auth2faType="optional" />;
 export const On = () => <Login {...sample} auth2faType="on" />;
-export const Scoped = () => <Login {...sample} scope="/prod/west" />;
 export const CommunityAcknowledgement = () => {
   cfg.edition = 'community';
   return <Login {...sample} licenseAcknowledged={false} />;
@@ -109,5 +108,4 @@ const sample: State = {
   acknowledgeMotd: () => null,
   licenseAcknowledged: true,
   setLicenseAcknowledged: () => {},
-  scope: '',
 };

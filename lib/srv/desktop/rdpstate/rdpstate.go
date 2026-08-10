@@ -185,14 +185,14 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "decoding legacy ConnectionActivated")
 		}
 
-		return s.handleServerHello(tdpbv1.ServerHello_builder{
-			ActivationSpec: tdpbv1.ConnectionActivated_builder{
+		return s.handleServerHello(&tdpbv1.ServerHello{
+			ActivationSpec: &tdpbv1.ConnectionActivated{
 				IoChannelId:   uint32(ca.IOChannelID),
 				UserChannelId: uint32(ca.UserChannelID),
 				ScreenWidth:   uint32(ca.ScreenWidth),
 				ScreenHeight:  uint32(ca.ScreenHeight),
-			}.Build(),
-		}.Build())
+			},
+		})
 
 	case legacyTypeRDPFastPathPDU:
 		var dataLen uint32
@@ -209,7 +209,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy RDPFastPathPDU data")
 		}
 
-		return s.handleFastPathPDU(tdpbv1.FastPathPDU_builder{Pdu: pdu}.Build())
+		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
 
 	case legacyTypeMouseMove:
 		var mm struct{ X, Y uint32 }
@@ -217,7 +217,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy MouseMove")
 		}
 
-		return s.handleMouseMove(tdpbv1.MouseMove_builder{X: mm.X, Y: mm.Y}.Build())
+		return s.handleMouseMove(&tdpbv1.MouseMove{X: mm.X, Y: mm.Y})
 	}
 
 	return nil
@@ -246,14 +246,14 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return trace.Wrap(err, "unmarshalling TDPB envelope")
 	}
 
-	switch env.WhichPayload() {
-	case tdpbv1.Envelope_ServerHello_case:
-		return s.handleServerHello(env.GetServerHello())
-	case tdpbv1.Envelope_FastPathPdu_case:
-		return s.handleFastPathPDU(env.GetFastPathPdu())
-	case tdpbv1.Envelope_MouseMove_case:
-		return s.handleMouseMove(env.GetMouseMove())
-	case tdpbv1.Envelope_MouseButton_case:
+	switch m := env.Payload.(type) {
+	case *tdpbv1.Envelope_ServerHello:
+		return s.handleServerHello(m.ServerHello)
+	case *tdpbv1.Envelope_FastPathPdu:
+		return s.handleFastPathPDU(m.FastPathPdu)
+	case *tdpbv1.Envelope_MouseMove:
+		return s.handleMouseMove(m.MouseMove)
+	case *tdpbv1.Envelope_MouseButton:
 		s.mouseButtonInput = true
 		return nil
 	}
@@ -322,8 +322,8 @@ func (s *RDPState) handleFastPathPDU(msg *tdpbv1.FastPathPDU) error {
 }
 
 func (s *RDPState) handleMouseMove(msg *tdpbv1.MouseMove) error {
-	if msg.GetX() > math.MaxUint16 || msg.GetY() > math.MaxUint16 {
-		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.GetX(), msg.GetY())
+	if msg.X > math.MaxUint16 || msg.Y > math.MaxUint16 {
+		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.X, msg.Y)
 	}
 
 	// MouseMove may arrive before ServerHello initializes the decoder, in which case there's nowhere to record

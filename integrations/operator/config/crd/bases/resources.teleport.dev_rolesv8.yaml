@@ -1,8 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  annotations:
-    resources.teleport.dev/scoped: "false"
   name: teleportrolesv8.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -60,19 +58,6 @@ spec:
                     description: AppLabelsExpression is a predicate expression used
                       to allow/deny access to Apps.
                     type: string
-                  app_resources:
-                    description: AppResources is the list of rules controlling access
-                      to an app's resources on each HTTP request. It is valid only
-                      in role version v9 and above, and only under allow.
-                    items:
-                      properties:
-                        allow_all:
-                          description: AllowAll grants unrestricted access to every
-                            path and method. It cannot be combined with any other
-                            field.
-                          type: boolean
-                      type: object
-                    type: array
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.
@@ -726,19 +711,6 @@ spec:
                     description: AppLabelsExpression is a predicate expression used
                       to allow/deny access to Apps.
                     type: string
-                  app_resources:
-                    description: AppResources is the list of rules controlling access
-                      to an app's resources on each HTTP request. It is valid only
-                      in role version v9 and above, and only under allow.
-                    items:
-                      properties:
-                        allow_all:
-                          description: AllowAll grants unrestricted access to every
-                            path and method. It cannot be combined with any other
-                            field.
-                          type: boolean
-                      type: object
-                    type: array
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.

@@ -17,7 +17,8 @@
  */
 
 import { useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Prompt } from 'react-router';
+import { Link } from 'react-router-dom';
 import { Transition } from 'react-transition-group';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
@@ -31,7 +32,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Prompt } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 import {
@@ -232,9 +232,14 @@ export function NewLockView(props: Props) {
             />
           )}
         </Transition>
+        {/* This is a react-router provided prompt when it detects route change.
+         * Prompts user when user navigates away from route, to help avoid losign work.
+         */}
         <Prompt
           when={numAddedResources > 0}
-          message={`${numAddedResources} resource(s) selected for locking will be cleared if you leave this page. Are you sure you want to continue?`}
+          message={() => {
+            return `${numAddedResources} resource(s) selected for locking will be cleared if you leave this page. Are you sure you want to continue?`;
+          }}
         />
       </Box>
     </FeatureBox>

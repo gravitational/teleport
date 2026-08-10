@@ -23,11 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
-	"sort"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -49,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -130,9 +126,6 @@ type RecordingsCommand struct {
 	searchMode string
 	// searchResumeToken resumes a previous JSON/YAML search from a truncated result set.
 	searchResumeToken string
-	// searchReviewReasons filters results to sessions that have at least one of
-	// the specified review reasons. An empty slice disables this filter.
-	searchReviewReasons []string
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -147,7 +140,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.config = config
 	recordings := app.Command("recordings", "View and control session recordings.")
 	c.recordingsList = recordings.Command("ls", "List recorded sessions.")
-	c.recordingsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.recordingsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
 	c.recordingsList.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.fromUTC)
 	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
@@ -173,10 +166,8 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("severity", "Minimum severity level to include (low, medium, high, critical).").StringVar(&c.searchSeverity)
 	c.recordingsSearch.Flag("search-mode", "Search strategy to use when search queries are provided.").Default(searchModeHybrid).EnumVar(&c.searchMode, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
-	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
+	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
 	c.recordingsSearch.Flag("resume-token", "Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).").StringVar(&c.searchResumeToken)
-	c.recordingsSearch.Flag("review-reason", "Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.").
-		EnumsVar(&c.searchReviewReasons, append(reviewReasonFlagOptions(), "any")...)
 
 	c.recordingsEncryption.Initialize(recordings, c.stdout)
 
@@ -301,7 +292,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 
 	var labels map[string]string
 	if c.searchLabel != "" {
-		labels, err = parse.LabelSelectorSpec(c.searchLabel)
+		labels, err = client.ParseLabelSpec(c.searchLabel)
 		if err != nil {
 			return trace.Wrap(err, "parsing --label")
 		}
@@ -310,7 +301,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	if len(c.searchQuery) > 0 {
 		search = []string{strings.Join(c.searchQuery, " ")}
 	}
-	req := sessionsearchv1pb.SearchSessionSummariesRequest_builder{
+	req := &sessionsearchv1pb.SearchSessionSummariesRequest{
 		StartTime:        timestamppb.New(fromUTC),
 		EndTime:          timestamppb.New(toUTC),
 		SearchQueries:    search,
@@ -319,59 +310,34 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		Kinds:            c.searchKinds,
 		UserRoles:        c.searchRoles,
 		MaxResults:       c.searchLimit,
-	}.Build()
+	}
 	resourceProperties, err := c.buildSearchResourceProperties()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req.SetResourceProperties(resourceProperties)
+	req.ResourceProperties = resourceProperties
 	if c.searchUsername != "" {
-		req.SetUsername(c.searchUsername)
+		req.Username = &c.searchUsername
 	}
 	if c.searchResourceKind != "" {
-		req.SetResourceKind(c.searchResourceKind)
+		req.ResourceKind = &c.searchResourceKind
 	}
 	if c.searchResourceName != "" {
-		req.SetResourceName(c.searchResourceName)
+		req.ResourceName = &c.searchResourceName
 	}
 	if c.searchSeverity != "" {
 		level, err := parseSeverity(c.searchSeverity)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SetSeverity(level)
+		req.Severity = &level
 	}
 	if c.searchMode != "" {
 		mode, err := parseSearchMode(c.searchMode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SetSearchMode(mode)
-	}
-	if len(c.searchReviewReasons) > 0 {
-		var reasons []summarizerv1pb.NeedsReviewReason
-		hasAny := false
-		for _, s := range c.searchReviewReasons {
-			if s == "any" {
-				hasAny = true
-				break
-			}
-		}
-		if hasAny {
-			for _, k := range reviewReasonFlagOptions() {
-				reasons = append(reasons, reviewReasonNames[k])
-			}
-		} else {
-			reasons = make([]summarizerv1pb.NeedsReviewReason, 0, len(c.searchReviewReasons))
-			for _, s := range c.searchReviewReasons {
-				r, err := parseReviewReason(s)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				reasons = append(reasons, r)
-			}
-		}
-		req.SetFilterNeedsFurtherReviewReasons(reasons)
+		req.SearchMode = mode
 	}
 
 	// fetcher resends the full request with the batch token set. It is used for
@@ -382,7 +348,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	// alone.
 	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
 		pageReq := proto.CloneOf(req)
-		pageReq.SetBatchToken(token)
+		pageReq.BatchToken = token
 		stream, err := searchClient.SearchSessionSummaries(ctx, pageReq)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -518,31 +484,37 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 	case sshSet:
 		props := &sessionsearchv1pb.SSHProperties{}
 		if c.searchServerHostname != "" {
-			props.SetServerHostname(c.searchServerHostname)
+			props.ServerHostname = &c.searchServerHostname
 		}
 		if c.searchServerAddr != "" {
-			props.SetServerAddr(c.searchServerAddr)
+			props.ServerAddr = &c.searchServerAddr
 		}
-		return sessionsearchv1pb.ResourceProperties_builder{
-			Ssh: proto.ValueOrDefault(props),
-		}.Build(), nil
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
+				Ssh: props,
+			},
+		}, nil
 	case kubernetesSet:
 		props := &sessionsearchv1pb.KubernetesProperties{}
 		if c.searchPodNamespace != "" {
-			props.SetPodNamespace(c.searchPodNamespace)
+			props.PodNamespace = &c.searchPodNamespace
 		}
 		if c.searchPodName != "" {
-			props.SetPodName(c.searchPodName)
+			props.PodName = &c.searchPodName
 		}
-		return sessionsearchv1pb.ResourceProperties_builder{
-			Kubernetes: proto.ValueOrDefault(props),
-		}.Build(), nil
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
+				Kubernetes: props,
+			},
+		}, nil
 	case databaseSet:
-		return sessionsearchv1pb.ResourceProperties_builder{
-			Database: sessionsearchv1pb.DatabaseProperties_builder{
-				DatabaseName: &c.searchDatabaseName,
-			}.Build(),
-		}.Build(), nil
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Database{
+				Database: &sessionsearchv1pb.DatabaseProperties{
+					DatabaseName: &c.searchDatabaseName,
+				},
+			},
+		}, nil
 	default:
 		return nil, nil
 	}
@@ -584,12 +556,12 @@ func collectStream(stream sessionsearchv1pb.SessionSearchService_SearchSessionSu
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		switch resp.WhichPayload() {
-		case sessionsearchv1pb.SearchSessionSummariesResponse_Summary_case:
-			sessions = append(sessions, resp.GetSummary())
-		case sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_case:
-			if resp.GetBatchComplete().GetHasMore() {
-				nextToken = resp.GetBatchComplete().GetNextBatchToken()
+		switch p := resp.Payload.(type) {
+		case *sessionsearchv1pb.SearchSessionSummariesResponse_Summary:
+			sessions = append(sessions, p.Summary)
+		case *sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_:
+			if p.BatchComplete.GetHasMore() {
+				nextToken = p.BatchComplete.GetNextBatchToken()
 			}
 		}
 	}
@@ -624,37 +596,6 @@ func parseSeverity(s string) (summarizerv1pb.RiskLevel, error) {
 	default:
 		return 0, trace.BadParameter("invalid --severity %q: must be one of low, medium, high, critical", s)
 	}
-}
-
-// reviewReasonNames maps every valid --review-reason CLI value to its proto
-// enum counterpart. It is the single source of truth: the flag validates
-// against its keys, and parseReviewReason converts using its values.
-// A parity test asserts that exactly one entry exists per non-UNSPECIFIED
-// NeedsReviewReason enum value.
-var reviewReasonNames = map[string]summarizerv1pb.NeedsReviewReason{
-	"access_request_resource_mismatch": summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH,
-	"command_analysis_failed":          summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
-	"failed_to_fetch_access_request":   summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST,
-	"output_not_fully_captured":        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,
-	"too_large":                        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
-	"classifier_matched":               summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
-}
-
-// reviewReasonFlagOptions returns the valid --review-reason values in
-// alphabetical order, used in flag help text and error messages.
-func reviewReasonFlagOptions() []string {
-	keys := slices.Collect(maps.Keys(reviewReasonNames))
-	sort.Strings(keys)
-	return keys
-}
-
-// parseReviewReason converts a validated --review-reason string to its proto
-// enum value using reviewReasonNames.
-func parseReviewReason(s string) (summarizerv1pb.NeedsReviewReason, error) {
-	if r, ok := reviewReasonNames[s]; ok {
-		return r, nil
-	}
-	return 0, trace.BadParameter("invalid --review-reason %q: must be one of %s", s, strings.Join(reviewReasonFlagOptions(), ", "))
 }
 
 // createFileWriter creates a file-based session event writer that outputs to a file.

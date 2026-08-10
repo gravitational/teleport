@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -101,7 +100,8 @@ func TestUserNotificationsCache(t *testing.T) {
 	svcs, cache := newUserNotificationPack(t)
 	defer cache.Close()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// To test that the streaming of notifications for a user is correct, we will have the mock list of user-specific notifications
 	// contain notifications for two users: alice and bob.
@@ -317,7 +317,8 @@ func TestGlobalNotificationsCache(t *testing.T) {
 	svcs, cache := newGlobalNotificationPack(t)
 	defer cache.Close()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testNotificationTitles := []string{
 		"gn-1",
@@ -422,38 +423,40 @@ func TestGlobalNotificationsCache(t *testing.T) {
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification_builder{
+	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: notificationsv1.NotificationSpec_builder{
+		Spec: &notificationsv1.NotificationSpec{
 			Username: username,
-		}.Build(),
-		Metadata: headerv1.Metadata_builder{
+		},
+		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		}.Build(),
-	}.Build()
+		},
+	}
 
-	return notification
+	return &notification
 }
 
 func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	notification := notificationsv1.GlobalNotification_builder{
-		Spec: notificationsv1.GlobalNotificationSpec_builder{
-			All: proto.Bool(true),
-			Notification: notificationsv1.Notification_builder{
+	notification := notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_All{
+				All: true,
+			},
+			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Labels: map[string]string{
 						types.NotificationTitleLabel: title,
 					},
-				}.Build(),
-			}.Build(),
-		}.Build(),
-	}.Build()
+				},
+			},
+		},
+	}
 
-	return notification
+	return &notification
 }

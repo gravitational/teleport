@@ -43,7 +43,7 @@ func TestCachedParser(t *testing.T) {
 	require.ErrorContains(t, err, "expected type int, got value (hello) with type (string)")
 
 	// Parse $defaultCacheSize unique expressions to fill the cache.
-	for i := range defaultCacheSize {
+	for i := 0; i < defaultCacheSize; i++ {
 		expr := fmt.Sprintf("inc(%d)", i)
 
 		parsed, err := p.Parse(expr)
@@ -66,7 +66,7 @@ func TestCachedParser(t *testing.T) {
 
 	// Parse $logAfterEvictions-1 unique expressions to cause
 	// $logAfterEvictions-1 cache evictions
-	for i := range logAfterEvictions - 1 {
+	for i := 0; i < logAfterEvictions-1; i++ {
 		expr := fmt.Sprintf("inc(%d)", defaultCacheSize+i)
 
 		parsed, err := p.Parse(expr)
@@ -91,7 +91,7 @@ func TestCachedParser(t *testing.T) {
 
 	// Parse another $logAfterEvictions unique expressions to cause
 	// another $logAfterEvictions cache evictions and one more log
-	for i := range logAfterEvictions {
+	for i := 0; i < logAfterEvictions; i++ {
 		expr := fmt.Sprintf("inc(%d)", defaultCacheSize+logAfterEvictions+i+1)
 		_, err := p.Parse(expr)
 		require.NoError(t, err)

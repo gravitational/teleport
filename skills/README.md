@@ -12,15 +12,6 @@ Gemini CLI, and others) using Vercel's [`skills`](https://github.com/vercel-labs
 CLI, which discovers and installs skills straight from this repository:
 
 ```bash
-# Auto-discover and enroll cloud infrastructure
-npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-discovery
-
-# Session recording review
-npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
-
-# Access list review
-npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-review
-
 # Access list lifecycle (create, update, delete)
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-lifecycle
 
@@ -36,18 +27,6 @@ globally or per-project. Review a skill before use — skills run with your agen
 full permissions.
 
 ## Available Skills
-
-### teleport-acl-review
-
-Helps perform bulk reviews of Teleport access lists that are due for periodic
-audit. Categorizes lists into low-risk that agent can auto-review and those
-that require human review.
-
-Example invocations:
-
-- Review my Teleport access lists
-- Which access lists need review?
-- Audit my Teleport ACLs
 
 ### teleport-acl-lifecycle
 
@@ -70,27 +49,6 @@ Example invocations:
 - Add bob as an owner of the Prod Admins list
 - Remove app access from the junior-dev list
 - Delete the Junior Devs access list
-
-### teleport-session-review
-
-Helps browse, search, and investigate Teleport session recordings. Lists recent
-recordings (`tctl recordings ls`), runs semantic and keyword search over session
-summaries (`tctl recordings search`), presents a risk-triage table, and — with
-confirmation — downloads a recording or hands you a playback link.
-
-Install:
-
-```bash
-npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
-```
-
-Example invocations:
-
-- Review my recent Teleport session recordings
-- Search session recordings for sessions that touched production databases
-- What happened in session &lt;id&gt;?
-- Find risky or high-severity sessions from last week
-- Download the recording for session &lt;id&gt;
 
 ### teleport-investigate
 
@@ -121,17 +79,3 @@ Example invocations:
 - Does alice@example.com have any unused standing access?
 - What can the junior-dev role reach in production?
 - Attest who can reach prod-db and which grants are dormant
-
-### teleport-discovery
-
-Connect Teleport to your cloud to automatically discover and enroll your resources. Use Terraform
-to create an OIDC integration in your cloud provider and configure the Teleport
-Discovery Service. Troubleshoot any issues getting your resources enrolled. Supports AWS EC2
-instances, AWS EKS clusters, and Azure VMS.
-
-Example invocations:
-
-- Enroll my AWS EC2 instances into Teleport
-- Set up auto-discovery for my EKS clusters
-- Enroll my Azure VMs into Teleport
-- Why are my resources not enrolling into Teleport?

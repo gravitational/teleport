@@ -1,10 +1,6 @@
 suite: Test service
 templates:
   -  service.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: should be possible to add custom annotations
     set:

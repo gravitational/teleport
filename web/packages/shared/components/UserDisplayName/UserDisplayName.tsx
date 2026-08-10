@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { ComponentProps } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Text } from 'design';
@@ -30,66 +29,39 @@ export function UserDisplayName({
   secondaryText,
   layout = 'tooltip',
   className,
-  primaryTextProps,
-  usernameTextProps,
-  secondaryTextProps,
 }: {
   username: string;
   primaryText?: string;
   secondaryText?: string;
   layout?: UserDisplayNameLayout;
   className?: string;
-  primaryTextProps?: ComponentProps<typeof Text>;
-  usernameTextProps?: ComponentProps<typeof Text>;
-  secondaryTextProps?: ComponentProps<typeof Text>;
 }) {
   const displayPrimary = normalizeText(primaryText);
   const displaySecondary = normalizeText(secondaryText);
   const primary = displayPrimary || username;
-  const tooltipLabel = getTooltipAriaLabel(primary, displaySecondary, username);
 
-  const primaryValue = (ariaLabel?: string) => (
-    <PrimaryValue {...primaryTextProps} title={primary} aria-label={ariaLabel}>
-      {primary}
-    </PrimaryValue>
-  );
+  const primaryValue = <PrimaryValue title={primary}>{primary}</PrimaryValue>;
 
   const secondaryValue = displaySecondary && (
-    <SecondaryValue {...secondaryTextProps} title={displaySecondary}>
-      {displaySecondary}
-    </SecondaryValue>
+    <SecondaryValue title={displaySecondary}>{displaySecondary}</SecondaryValue>
   );
 
-  const separatedSecondaryValue = displaySecondary && (
-    <SeparatedSecondaryValue {...secondaryTextProps} title={displaySecondary}>
-      {displaySecondary}
-    </SeparatedSecondaryValue>
-  );
-
-  const supportingValues = displayPrimary ? (
-    <>
-      <UsernameValue {...usernameTextProps} title={username}>
-        {username}
-      </UsernameValue>
-      {separatedSecondaryValue}
-    </>
-  ) : (
-    secondaryValue
-  );
+  const usernameValue =
+    displayPrimary &&
+    (layout === 'inline' ? (
+      <InlineUsernameValue title={username}>{username}</InlineUsernameValue>
+    ) : (
+      <UsernameValue title={username}>{username}</UsernameValue>
+    ));
 
   switch (layout) {
     case 'inline':
       return (
         <Root className={className}>
           <DisplayLine>
-            {primaryValue()}
-            {displayPrimary ? (
-              <InlineSupportingValues>
-                {supportingValues}
-              </InlineSupportingValues>
-            ) : (
-              supportingValues
-            )}
+            {primaryValue}
+            {secondaryValue}
+            {usernameValue}
           </DisplayLine>
         </Root>
       );
@@ -97,12 +69,9 @@ export function UserDisplayName({
     case 'stacked':
       return (
         <Root className={className}>
-          <DisplayLine>{primaryValue()}</DisplayLine>
-          {displayPrimary ? (
-            <SupportingLine>{supportingValues}</SupportingLine>
-          ) : (
-            supportingValues
-          )}
+          <DisplayLine>{primaryValue}</DisplayLine>
+          {secondaryValue}
+          {usernameValue}
         </Root>
       );
 
@@ -110,13 +79,19 @@ export function UserDisplayName({
       return (
         <Root className={className}>
           {displayPrimary ? (
-            <DisplayLine>
-              <HoverTooltip tipContent={username}>
-                {primaryValue(tooltipLabel)}
-              </HoverTooltip>
-            </DisplayLine>
+            <HoverTooltip tipContent={username}>
+              <DisplayLine
+                aria-label={getTooltipAriaLabel(
+                  primary,
+                  displaySecondary,
+                  username
+                )}
+              >
+                {primaryValue}
+              </DisplayLine>
+            </HoverTooltip>
           ) : (
-            <DisplayLine>{primaryValue()}</DisplayLine>
+            <DisplayLine>{primaryValue}</DisplayLine>
           )}
           {secondaryValue}
         </Root>
@@ -175,12 +150,6 @@ const DisplayLine = styled.span`
   gap: ${props => props.theme.space[1]}px;
 `;
 
-const SupportingLine = styled.span`
-  ${containedContent}
-  display: inline-flex;
-  align-items: baseline;
-`;
-
 const PrimaryValue = styled(singleLineText).attrs({
   typography: 'body2',
 })``;
@@ -195,23 +164,11 @@ const SecondaryValue = styled(singleLineText).attrs({
   typography: 'body3',
 })``;
 
-const SeparatedSecondaryValue = styled(SecondaryValue)`
-  &::before {
-    content: '•';
-    margin: 0 ${props => props.theme.space[1]}px;
-  }
-`;
-
-// Decorative delimiters stay out of textContent
-const InlineSupportingValues = styled(Text).attrs({
-  as: 'span',
-  color: 'text.muted',
-  typography: 'body3',
-})`
-  ${containedContent}
-  display: inline-flex;
-  align-items: baseline;
-
+// The parentheses are decorative wrappers around the inline username — using
+// `::before/::after` keeps them out of the React text content so they don't
+// appear in `textContent`, snapshots, or the accessibility tree, and lets us
+// style them independently from the value itself.
+const InlineUsernameValue = styled(UsernameValue)`
   &::before {
     content: '(';
   }

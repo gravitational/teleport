@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryRouter, RouterProvider } from 'react-router';
+import { MemoryRouter, Route } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 import { validateClientRedirect } from 'shared/redirects/urlValidation';
@@ -64,19 +64,13 @@ function setup({
     .spyOn(auth, 'browserMfaPut')
     .mockImplementation(() => browserMfaPutResponse);
 
-  const router = createMemoryRouter(
-    [
-      {
-        path: cfg.routes.browserMfa,
-        element: <BrowserMfa onRedirect={onRedirect} />,
-      },
-    ],
-    {
-      initialEntries: [path],
-    }
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <Route path={cfg.routes.browserMfa}>
+        <BrowserMfa onRedirect={onRedirect} />
+      </Route>
+    </MemoryRouter>
   );
-
-  render(<RouterProvider router={router} />);
 }
 
 describe('BrowserMFA', () => {

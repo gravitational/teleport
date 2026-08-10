@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -280,14 +279,10 @@ func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	pubKeyBytes, err := pubKey.Bytes()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// First byte is the 0x04 prefix, which can be skipped. The rest are the x and y coordinates.
-	x, y := pubKeyBytes[1:33], pubKeyBytes[33:]
+	x := make([]byte, 32) // x and y must have exactly 32 bytes in EC2PublicKeyData.
+	y := make([]byte, 32)
+	pubKey.X.FillBytes(x)
+	pubKey.Y.FillBytes(y)
 
 	pubKeyCBOR, err := cbor.Marshal(
 		&webauthncose.EC2PublicKeyData{
@@ -323,7 +318,7 @@ func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, er
 	attObj, err := cbor.Marshal(protocol.AttestationObject{
 		RawAuthData: attData.rawAuthData,
 		Format:      "packed",
-		AttStatement: map[string]any{
+		AttStatement: map[string]interface{}{
 			"alg": int64(webauthncose.AlgES256),
 			"sig": sig,
 		},
@@ -592,8 +587,10 @@ func pickCredential(
 	// Is choice a pointer within the slice?
 	// We could work around this requirement, but it seems better to constrain the
 	// picker API from the start.
-	if slices.Contains(deduped, choice) {
-		return choice, nil
+	for _, c := range deduped {
+		if c == choice {
+			return choice, nil
+		}
 	}
 	return nil, fmt.Errorf("picker returned invalid credential: %#v", choice)
 }

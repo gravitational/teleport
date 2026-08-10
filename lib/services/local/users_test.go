@@ -295,27 +295,27 @@ func TestNotificationCleanupOnUserDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a notification for this user.
-	testNotification := notificationsv1.Notification_builder{
+	testNotification := &notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: notificationsv1.NotificationSpec_builder{
+		Spec: &notificationsv1.NotificationSpec{
 			Username: username,
-		}.Build(),
-		Metadata: headerv1.Metadata_builder{
+		},
+		Metadata: &headerv1.Metadata{
 			Labels: map[string]string{types.NotificationTitleLabel: "test"},
-		}.Build(),
-	}.Build()
+		},
+	}
 	notif, err := notificationsSvc.CreateUserNotification(ctx, testNotification)
 	require.NoError(t, err)
 
 	// Create a notification state for this user.
-	userNotificationState := notificationsv1.UserNotificationState_builder{
-		Spec: notificationsv1.UserNotificationStateSpec_builder{
+	userNotificationState := &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
 			NotificationId: notif.GetMetadata().GetName(),
-		}.Build(),
-		Status: notificationsv1.UserNotificationStateStatus_builder{
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		}.Build(),
-	}.Build()
+		},
+	}
 	_, err = notificationsSvc.UpsertUserNotificationState(ctx, username, userNotificationState)
 	require.NoError(t, err)
 
@@ -1399,15 +1399,15 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	// Validate that no users returns an empty page.
 	rsp, err := identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.GetUsers(), "users returned from listing when no users exist")
-	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
-	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
 		WithSecrets: true,
-	}.Build())
+	})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.GetUsers(), "users returned from listing when no users exist")
-	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
 	// Validate that listing works when there is only a single user
 	user, err := types.NewUser("fish0")
@@ -1419,13 +1419,13 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no more users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, rsp.GetUsers(), cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{WithSecrets: true}.Build())
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{WithSecrets: true})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing when no users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, rsp.GetUsers()), "not all users returned from listing operation")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
 
 	// Create a number of users.
 	usernames := []string{"llama", "alpaca", "fox", "fish", "fish+", "fish2"}
@@ -1443,7 +1443,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 			devices = nil
 		case i == 1:
 			devices = append(devices, dev2)
-			for range 20 {
+			for j := 0; j < 20; j++ {
 				dev, err := services.NewTOTPDevice(uuid.NewString(), base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 				require.NoError(t, err, "creating otp device failed")
 				devices = append(devices, dev)
@@ -1465,21 +1465,21 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	// List a few users at a time and validate that all users are eventually returned.
 	var retrieved []*types.UserV2
-	req := userspb.ListUsersRequest_builder{
+	req := userspb.ListUsersRequest{
 		PageSize: 2,
-	}.Build()
+	}
 	for {
-		rsp, err := identity.ListUsers(ctx, req)
+		rsp, err := identity.ListUsers(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		for _, user := range rsp.GetUsers() {
+		for _, user := range rsp.Users {
 			assert.Empty(t, user.GetLocalAuth(), "expected no secrets to be returned with user %s", user.GetName())
 		}
 
-		retrieved = append(retrieved, rsp.GetUsers()...)
+		retrieved = append(retrieved, rsp.Users...)
 
-		req.SetPageToken(rsp.GetNextPageToken())
-		if req.GetPageToken() == "" {
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 
@@ -1494,14 +1494,14 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
 	// Validate that listing all users at once returns all expected users with secrets.
-	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
 		PageSize:    200,
 		WithSecrets: true,
-	}.Build())
+	})
 	require.NoError(t, err, "unexpected error listing users")
-	assert.Empty(t, rsp.GetNextPageToken(), "got a next page token when page size was greater than number of items")
+	assert.Empty(t, rsp.NextPageToken, "got a next page token when page size was greater than number of items")
 
-	users := rsp.GetUsers()
+	users := rsp.Users
 
 	slices.SortFunc(users, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
@@ -1513,18 +1513,18 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	// List a few users at a time and validate that all users are eventually returned with their secrets.
 	retrieved = nil
-	req = userspb.ListUsersRequest_builder{
+	req = userspb.ListUsersRequest{
 		PageSize:    2,
 		WithSecrets: true,
-	}.Build()
+	}
 	for {
-		rsp, err := identity.ListUsers(ctx, req)
+		rsp, err := identity.ListUsers(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		retrieved = append(retrieved, rsp.GetUsers()...)
+		retrieved = append(retrieved, rsp.Users...)
 
-		req.SetPageToken(rsp.GetNextPageToken())
-		if req.GetPageToken() == "" {
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 
@@ -1547,13 +1547,13 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	clock.Advance(time.Hour)
 
-	rsp, err = identity.ListUsers(ctx, userspb.ListUsersRequest_builder{
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
 		WithSecrets: true,
-	}.Build())
+	})
 	assert.NoError(t, err, "got an error while listing over an expired user")
-	assert.Empty(t, rsp.GetNextPageToken(), "next page token returned from listing all users")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing all users")
 
-	retrieved = rsp.GetUsers()
+	retrieved = rsp.Users
 
 	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
@@ -1624,22 +1624,22 @@ func TestCompareAndSwapUser(t *testing.T) {
 	require.NoError(err)
 	bob2.SetLogins([]string{"bob", "alice"})
 
-	require.False(bob1.IsEqual(bob2))
+	require.False(services.UsersEquals(bob1, bob2))
 
 	currentBob, err := identity.UpsertUser(ctx, bob1)
 	require.NoError(err)
-	require.True(currentBob.IsEqual(bob1))
+	require.True(services.UsersEquals(currentBob, bob1))
 
 	currentBob, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(currentBob.IsEqual(bob1))
+	require.True(services.UsersEquals(currentBob, bob1))
 
 	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
 	require.NoError(err)
 
 	bob2, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(currentBob.IsEqual(bob1))
+	require.True(services.UsersEquals(currentBob, bob1))
 
 	item, err := identity.Backend.Get(ctx, backend.NewKey(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
 	require.NoError(err)
@@ -1653,14 +1653,14 @@ func TestCompareAndSwapUser(t *testing.T) {
 
 	currentBob, err = identity.GetUser(ctx, "bob", true)
 	require.NoError(err)
-	require.True(currentBob.IsEqual(bob2))
+	require.True(services.UsersEquals(currentBob, bob2))
 	bob2.SetWeakestDevice(currentBob.GetWeakestDevice())
 	err = identity.CompareAndSwapUser(ctx, bob1, bob2)
 	require.NoError(err)
 
 	currentBob, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(currentBob.IsEqual(bob1))
+	require.True(services.UsersEquals(currentBob, bob1))
 }
 
 func TestWeakestMFADeviceKind(t *testing.T) {

@@ -34,6 +34,7 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 			name: "full",
 			in: HostOutputConfig{
 				Destination: dest,
+				Roles:       []string{"access"},
 				Principals:  []string{"host.example.com"},
 				CAType:      types.UserCA,
 				CredentialLifetime: bot.CredentialLifetime{
@@ -60,22 +61,11 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *HostOutputConfig {
 				return &HostOutputConfig{
 					Destination: destination.NewMemory(),
+					Roles:       []string{"access"},
 					Principals:  []string{"host.example.com"},
 					CAType:      types.OpenSSHCA,
 				}
 			},
-		},
-		{
-			name: "roles is no longer supported",
-			in: func() *HostOutputConfig {
-				return &HostOutputConfig{
-					Destination:     destination.NewMemory(),
-					Principals:      []string{"host.example.com"},
-					CAType:          types.OpenSSHCA,
-					DeprecatedRoles: []string{"access"},
-				}
-			},
-			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name: "default ca_type",

@@ -32,20 +32,28 @@ import (
 
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type
 func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	attr.Optional = true
-	attr.Type = types.BoolType
-	return attr
+	return tfsdk.Attribute{
+		Optional:      true,
+		Type:          types.BoolType,
+		Description:   attr.Description,
+		Computed:      attr.Computed,
+		PlanModifiers: attr.PlanModifiers,
+	}
 }
 
 // GenSchemaTraits returns Terraform schema for Traits type
 func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	attr.Optional = true
-	attr.Type = types.MapType{
-		ElemType: types.ListType{
-			ElemType: types.StringType,
+	return tfsdk.Attribute{
+		Optional: true,
+		Type: types.MapType{
+			ElemType: types.ListType{
+				ElemType: types.StringType,
+			},
 		},
+		Description:        attr.Description,
+		DeprecationMessage: attr.DeprecationMessage,
+		Validators:         attr.Validators,
 	}
-	return attr
 }
 
 // GenSchemaBoolOptions returns Terraform schema for Labels type
@@ -60,38 +68,34 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 		return
 	}
 
-	if v.IsNull() || v.IsUnknown() {
-		*o = nil
-		return
+	if !v.Null && !v.Unknown {
+		value := apitypes.BoolOption{Value: v.Value}
+		*o = &value
 	}
-
-	value := apitypes.BoolOption{Value: v.Value}
-	*o = &value
 }
 
-// CopyToBoolOption converts a Teleport [apitypes.BoolOption] into a Terraform
-// [types.Bool] value. Set `preserveUnknown` to preserve unknown values.
-func CopyToBoolOption(_ diag.Diagnostics, o *apitypes.BoolOption, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	if preserveUnknown && v != nil && v.IsUnknown() {
-		return types.Bool{Unknown: true}
+func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Type, v attr.Value) attr.Value {
+	value, ok := v.(types.Bool)
+	if !ok {
+		value = types.Bool{}
 	}
 
 	if o == nil {
-		return types.Bool{Null: true}
+		value.Null = true
+		return value
 	}
 
-	return types.Bool{Value: o.Value}
+	value.Null = false
+	value.Unknown = false
+	value.Value = o.Value
+
+	return value
 }
 
 func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 	value, ok := v.(types.Map)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Map", v))
-		return
-	}
-
-	if value.IsNull() || value.IsUnknown() {
-		*o = nil
 		return
 	}
 
@@ -117,40 +121,38 @@ func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 	}
 }
 
-// CopyToLabels converts a Teleport [apitypes.Labels] into a Terraform
-// [types.Map] value. Set `preserveUnknown` to preserve unknown values.
-func CopyToLabels(_ diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
+func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value) attr.Value {
 	typ := t.(types.MapType) // By the convention, t comes type-asserted so there would be no failure
 
-	if preserveUnknown && v != nil && v.IsUnknown() {
-		return types.Map{
-			ElemType: typ.ElemType,
-			Unknown:  true,
+	value, ok := v.(types.Map)
+	if !ok {
+		value = types.Map{ElemType: typ.ElemType}
+	}
+
+	if value.Elems == nil {
+		value.Elems = make(map[string]attr.Value, len(o))
+	}
+
+	for k, l := range o {
+		row := types.List{
+			ElemType: types.StringType,
+			Elems:    make([]attr.Value, len(l)),
 		}
+
+		for i, e := range l {
+			row.Elems[i] = types.String{Value: e}
+		}
+
+		value.Elems[k] = row
 	}
 
-	value, _ := v.(types.Map)
-
-	elems := make(map[string]attr.Value, len(o))
-	for k, labels := range o {
-		elems[k] = copyToList(labels, value.Elems[k], preserveUnknown)
-	}
-
-	return types.Map{
-		ElemType: typ.ElemType,
-		Elems:    elems,
-	}
+	return value
 }
 
 func CopyFromTraits(diags diag.Diagnostics, v attr.Value, o *wrappers.Traits) {
 	value, ok := v.(types.Map)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Map", v))
-		return
-	}
-
-	if value.IsNull() || value.IsUnknown() {
-		*o = nil
 		return
 	}
 
@@ -176,38 +178,43 @@ func CopyFromTraits(diags diag.Diagnostics, v attr.Value, o *wrappers.Traits) {
 	}
 }
 
-// CopyToTraits converts a Teleport [wrappers.Traits] into a Terraform
-// [types.Map] value. Set `preserveUnknown` to preserve unknown values.
-func CopyToTraits(_ diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
+func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr.Value) attr.Value {
 	typ := t.(types.MapType) // By the convention, t comes type-asserted so there would be no failure
 
-	if preserveUnknown && v != nil && v.IsUnknown() {
-		return types.Map{
-			ElemType: typ.ElemType,
-			Unknown:  true,
+	value, ok := v.(types.Map)
+	if !ok {
+		value = types.Map{ElemType: typ.ElemType}
+	}
+
+	if value.Elems == nil {
+		value.Elems = make(map[string]attr.Value, len(o))
+	}
+
+	for k, l := range o {
+		row := types.List{
+			ElemType: types.StringType,
+			Elems:    make([]attr.Value, len(l)),
 		}
+
+		for i, e := range l {
+			row.Elems[i] = types.String{Value: e}
+		}
+
+		value.Elems[k] = row
 	}
 
-	value, _ := v.(types.Map)
-
-	elems := make(map[string]attr.Value, len(o))
-	for k, labels := range o {
-		elems[k] = copyToList(labels, value.Elems[k], preserveUnknown)
-	}
-
-	return types.Map{
-		ElemType: typ.ElemType,
-		Elems:    elems,
-	}
+	return value
 }
 
 // GenSchemaStrings returns Terraform schema for Strings type
 func GenSchemaStrings(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	attr.Optional = true
-	attr.Type = types.ListType{
-		ElemType: types.StringType,
+	return tfsdk.Attribute{
+		Optional: true,
+		Type: types.ListType{
+			ElemType: types.StringType,
+		},
+		Description: attr.Description,
 	}
-	return attr
 }
 
 // CopyFromStrings converts from a Terraform value into a Teleport wrappers.Strings
@@ -216,11 +223,6 @@ func CopyFromStrings(diags diag.Diagnostics, v attr.Value, o *wrappers.Strings) 
 	value, ok := v.(types.List)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.List", v))
-		return
-	}
-
-	if value.IsNull() || value.IsUnknown() {
-		*o = nil
 		return
 	}
 
@@ -237,36 +239,23 @@ func CopyFromStrings(diags diag.Diagnostics, v attr.Value, o *wrappers.Strings) 
 }
 
 // CopyFromStrings converts from a Teleport wrappers.Strings into a Terraform List with ElemType of String
-// Set `preserveUnknown` to preserve unknown values.
-func CopyToStrings(_ diag.Diagnostics, o wrappers.Strings, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	return copyToList(o, v, preserveUnknown)
-}
+func CopyToStrings(diags diag.Diagnostics, o wrappers.Strings, t attr.Type, v attr.Value) attr.Value {
+	typ := t.(types.ListType) // By the convention, t comes type-asserted so there would be no failure
 
-func copyToList(strList []string, v attr.Value, preserveUnknown bool) attr.Value {
-	listVal, _ := v.(types.List)
+	value, ok := v.(types.List)
+	if !ok {
+		value = types.List{ElemType: typ.ElemType}
+	}
 
-	if preserveUnknown && listVal.IsUnknown() {
-		return types.List{
-			ElemType: types.StringType,
-			Unknown:  true,
+	if value.Elems == nil {
+		value.Elems = make([]attr.Value, len(o))
+	}
+
+	for k, l := range o {
+		value.Elems[k] = types.String{
+			Value: l,
 		}
 	}
 
-	elems := make([]attr.Value, len(strList))
-	for i, str := range strList {
-		if preserveUnknown &&
-			i < len(listVal.Elems) &&
-			listVal.Elems[i] != nil &&
-			listVal.Elems[i].IsUnknown() {
-			elems[i] = types.String{Unknown: true}
-			continue
-		}
-
-		elems[i] = types.String{Value: str}
-	}
-
-	return types.List{
-		ElemType: types.StringType,
-		Elems:    elems,
-	}
+	return value
 }

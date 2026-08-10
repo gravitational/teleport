@@ -141,10 +141,8 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		})
 	}
 
-	if options.WithAttributesToRoles {
-		if len(sc.GetAttributesToRoles()) == 0 {
-			return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
-		}
+	if len(sc.GetAttributesToRoles()) == 0 {
+		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
 	}
 
 	if rg != nil {
@@ -318,6 +316,15 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 		return "", nil, trace.BadParameter("failed to parse entity_descriptor XML: %s", err)
 	}
 	return rawEntityDescriptor, entityDescriptor, nil
+}
+
+// GetAttributeNames returns a list of claim names from the claim values
+func GetAttributeNames(attributes map[string]samltypes.Attribute) []string {
+	var out []string
+	for _, attr := range attributes {
+		out = append(out, attr.Name)
+	}
+	return out
 }
 
 // SAMLAssertionsToTraits converts saml assertions to traits
@@ -509,7 +516,7 @@ func UnmarshalSAMLConnectorWithValidationOptions(bytes []byte, validationOpts []
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateSAMLConnector(samlConnector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
+	if err := ValidateSAMLConnector(samlConnector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

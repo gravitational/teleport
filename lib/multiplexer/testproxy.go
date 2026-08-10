@@ -106,7 +106,7 @@ func (p *TestProxy) handleConnection(clientConn net.Conn) error {
 		errCh <- trace.Wrap(err)
 	}()
 	var errs []error
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
 			if err != nil && !utils.IsOKNetworkError(err) {

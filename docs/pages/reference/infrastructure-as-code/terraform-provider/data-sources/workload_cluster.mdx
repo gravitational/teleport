@@ -8,10 +8,6 @@ page_type: reference
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-{/* Disable the outdated name check since data source fields occasionally need
-to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This page lists the supported values of the `teleport_workload_cluster` data source of the
 Teleport Terraform provider.
 
@@ -30,6 +26,7 @@ Teleport Terraform provider.
 
 ### Optional
 
+- `status` (Attributes) (see [below for nested schema](#nested-schema-for-status))
 - `sub_kind` (String)
 
 ### Nested Schema for `metadata`
@@ -80,4 +77,14 @@ Optional:
 
 - `aws_account` (String)
 - `aws_arn` (String)
+
+
+
+
+### Nested Schema for `status`
+
+Optional:
+
+- `domain` (String) domain is the Teleport Proxy address of the child Teleport Cloud cluster
+- `state` (String) state is the status of the child cluster running in Teleport Cloud
 

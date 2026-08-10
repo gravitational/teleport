@@ -53,9 +53,9 @@ func TestKubernetes(t *testing.T) {
 				}, types.KubernetesClusterSpecV3{})
 			},
 			create:    p.kubernetes.CreateKubernetesCluster,
-			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
+			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
 			cacheGet:  cacheGetKubeClusterWithScope(p.cache, ""),
-			cacheList: getAllAdapter(p.cache.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
+			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 		}, withSkipPaginationTest())
@@ -97,9 +97,9 @@ func TestKubernetes(t *testing.T) {
 				}, types.KubernetesClusterSpecV3{}, types.KubeClusterWithScope(scope))
 			},
 			create:    p.kubernetes.CreateKubernetesCluster,
-			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
+			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
 			cacheGet:  cacheGetKubeClusterWithScope(p.cache, scope),
-			cacheList: getAllAdapter(p.cache.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
+			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 		}, withSkipPaginationTest())
@@ -368,7 +368,7 @@ func TestKubernetesWaitingContainers(t *testing.T) {
 		newResource: func(name string) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
 			waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
 				name,
-				kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
+				&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 					Username:      "user",
 					Cluster:       "cluster",
 					Namespace:     "namespace",
@@ -376,7 +376,7 @@ func TestKubernetesWaitingContainers(t *testing.T) {
 					ContainerName: name,
 					Patch:         []byte("{}"),
 					PatchType:     "application/json-patch+json",
-				}.Build())
+				})
 
 			return waitingCont, trace.Wrap(err)
 		},
@@ -385,13 +385,13 @@ func TestKubernetesWaitingContainers(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		cacheGet: func(ctx context.Context, name string) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-			return p.cache.GetKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest_builder{
+			return p.cache.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
 				Username:      "user",
 				Cluster:       "cluster",
 				Namespace:     "namespace",
 				PodName:       "pod",
 				ContainerName: name,
-			}.Build())
+			})
 		},
 		list: func(ctx context.Context, i int, s string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 			return p.kubeWaitingContainers.ListKubernetesWaitingContainers(ctx, i, s)
@@ -400,13 +400,13 @@ func TestKubernetesWaitingContainers(t *testing.T) {
 			return p.cache.ListKubernetesWaitingContainers(ctx, i, s)
 		},
 		delete: func(ctx context.Context, s string) error {
-			return p.kubeWaitingContainers.DeleteKubernetesWaitingContainer(ctx, kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest_builder{
+			return p.kubeWaitingContainers.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
 				Username:      "user",
 				Cluster:       "cluster",
 				Namespace:     "namespace",
 				PodName:       "pod",
 				ContainerName: s,
-			}.Build())
+			})
 		},
 		deleteAll: func(ctx context.Context) error {
 			return p.kubeWaitingContainers.DeleteAllKubernetesWaitingContainers(ctx)

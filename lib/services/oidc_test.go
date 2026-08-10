@@ -104,25 +104,6 @@ func TestOIDCUnmarshal(t *testing.T) {
 					"https://other.proxy.example.com/v1/webapi/oidc/callback",
 				},
 			},
-		}, {
-			desc: "no claims_to_roles",
-			input: `{
-				"version": "v3",
-				"kind": "oidc",
-				"metadata": {
-					"name": "google"
-				},
-				"spec": {
-					"client_id": "id-from-google.apps.googleusercontent.com",
-					"client_secret": "secret-key-from-google",
-					"redirect_url": ["https://other.proxy.example.com/v1/webapi/oidc/callback"]
-				}
-			}`,
-			expectSpec: types.OIDCConnectorSpecV3{
-				ClientID:     "id-from-google.apps.googleusercontent.com",
-				ClientSecret: "secret-key-from-google",
-				RedirectURLs: []string{"https://other.proxy.example.com/v1/webapi/oidc/callback"},
-			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

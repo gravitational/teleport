@@ -1,10 +1,6 @@
 suite: PodSecurityPolicy
 templates:
   - psp.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: creates a PodSecurityPolicy when enabled in values and supported
     capabilities:

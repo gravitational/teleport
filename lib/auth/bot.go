@@ -184,7 +184,7 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, username string, newValue uint64) error {
 	var err error
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		user, err := a.Services.GetUser(ctx, username, false)
 		if err != nil {
 			return trace.Wrap(err)
@@ -342,10 +342,10 @@ func (a *Server) updateBotInstance(
 			return trace.Wrap(err)
 		} else {
 			// We have an existing instance, so fetch its generation.
-			auths := existingInstance.GetStatus().GetLatestAuthentications()
+			auths := existingInstance.Status.LatestAuthentications
 			if len(auths) > 0 {
 				latest := auths[len(auths)-1]
-				instanceGeneration = latest.GetGeneration()
+				instanceGeneration = latest.Generation
 			}
 		}
 	}
@@ -362,19 +362,19 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	authRecord := machineidv1pb.BotInstanceStatusAuthentication_builder{
+	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		PublicKey:       publicKeyPEM,
 
 		// Note: This is presumed to be a token join. If not, a
 		// `templateAuthRecord` should be provided to override this value.
 		JoinMethod: string(types.JoinMethodToken),
-	}.Build()
+	}
 
 	if templateAuthRecord != nil {
-		authRecord.SetJoinToken(templateAuthRecord.GetJoinToken())
-		authRecord.SetJoinMethod(templateAuthRecord.GetJoinMethod())
-		authRecord.SetJoinAttrs(templateAuthRecord.GetJoinAttrs())
+		authRecord.JoinToken = templateAuthRecord.JoinToken
+		authRecord.JoinMethod = templateAuthRecord.JoinMethod
+		authRecord.JoinAttrs = templateAuthRecord.JoinAttrs
 	}
 
 	// An empty bot instance most likely means a bot is rejoining after an
@@ -408,7 +408,7 @@ func (a *Server) updateBotInstance(
 			}
 
 			// Copy the value from the request into the auth record.
-			authRecord.SetGeneration(int32(req.Generation))
+			authRecord.Generation = int32(req.Generation)
 		} else {
 			if currentIdentityGeneration > 0 {
 				a.logger.WarnContext(ctx, "bot rejoined with a nonzero generation but its instance record was not found, a fresh instance will be issued",
@@ -419,7 +419,7 @@ func (a *Server) updateBotInstance(
 				)
 			}
 			req.Generation = 1
-			authRecord.SetGeneration(1)
+			authRecord.Generation = 1
 		}
 
 		a.logger.InfoContext(ctx, "bot has no valid instance ID, a new instance will be generated",
@@ -430,11 +430,11 @@ func (a *Server) updateBotInstance(
 
 		expires := a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)
 
-		bi := newBotInstance(machineidv1pb.BotInstanceSpec_builder{
+		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
 			BotName:    botName,
 			InstanceId: instanceID.String(),
-		}.Build(), authRecord, expires)
-		bi.SetScope(scope)
+		}, authRecord, expires)
+		bi.Scope = scope
 
 		if _, err := a.BotInstance.CreateBotInstance(ctx, bi); err != nil {
 			return trace.Wrap(err)
@@ -459,7 +459,7 @@ func (a *Server) updateBotInstance(
 	} else if currentIdentityGeneration > 0 && currentIdentityGeneration != instanceGeneration {
 		// Generation counter enforcement depends on the type of cert and join
 		// method (if any - token renewals technically have no join method.)
-		if shouldEnforceGenerationCounter(req.Renewable, authRecord.GetJoinMethod()) {
+		if shouldEnforceGenerationCounter(req.Renewable, authRecord.JoinMethod) {
 			if err := a.tryLockBotDueToGenerationMismatch(ctx, botName, botInstanceID, req.JoinToken, req.Renewable); err != nil {
 				log.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected", "error", err)
 			}
@@ -478,7 +478,7 @@ func (a *Server) updateBotInstance(
 			log.WarnContext(ctx, msg,
 				"bot_instance_generation", instanceGeneration,
 				"bot_identity_generation", currentIdentityGeneration,
-				"bot_join_method", authRecord.GetJoinMethod(),
+				"bot_join_method", authRecord.JoinMethod,
 			)
 		}
 	}
@@ -486,7 +486,7 @@ func (a *Server) updateBotInstance(
 	// Increment the generation counter the cert and bot instance. The counter
 	// should be incremented and stored even if it is not validated above.
 	newGeneration := instanceGeneration + 1
-	authRecord.SetGeneration(newGeneration)
+	authRecord.Generation = newGeneration
 	req.Generation = uint64(newGeneration)
 
 	// Commit the generation counter to the bot user for downgrade
@@ -505,29 +505,29 @@ func (a *Server) updateBotInstance(
 		Bot:        scopes.QualifiedName{Scope: scope, Name: botName},
 		InstanceID: botInstanceID,
 		UpdateFn: func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
-			if !bi.HasStatus() {
-				bi.SetStatus(&machineidv1pb.BotInstanceStatus{})
+			if bi.Status == nil {
+				bi.Status = &machineidv1pb.BotInstanceStatus{}
 			}
 
 			// Update the record's expiration timestamp based on the request TTL
 			// plus an expiry margin.
-			bi.GetMetadata().SetExpires(timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)))
+			bi.Metadata.Expires = timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin))
 
 			// If we're at or above the limit, remove enough of the front elements
 			// to make room for the new one at the end.
-			if len(bi.GetStatus().GetLatestAuthentications()) >= machineidv1.AuthenticationHistoryLimit {
-				toRemove := len(bi.GetStatus().GetLatestAuthentications()) - machineidv1.AuthenticationHistoryLimit + 1
-				bi.GetStatus().SetLatestAuthentications(bi.GetStatus().GetLatestAuthentications()[toRemove:])
+			if len(bi.Status.LatestAuthentications) >= machineidv1.AuthenticationHistoryLimit {
+				toRemove := len(bi.Status.LatestAuthentications) - machineidv1.AuthenticationHistoryLimit + 1
+				bi.Status.LatestAuthentications = bi.Status.LatestAuthentications[toRemove:]
 			}
 
 			// An initial auth record should have been added during initial join,
 			// but if not, add it now.
-			if !bi.GetStatus().HasInitialAuthentication() {
+			if bi.Status.InitialAuthentication == nil {
 				log.WarnContext(ctx, "bot instance is missing its initial authentication record, a new one will be added")
-				bi.GetStatus().SetInitialAuthentication(authRecord)
+				bi.Status.InitialAuthentication = authRecord
 			}
 
-			bi.GetStatus().SetLatestAuthentications(append(bi.GetStatus().GetLatestAuthentications(), authRecord))
+			bi.Status.LatestAuthentications = append(bi.Status.LatestAuthentications, authRecord)
 
 			return bi, nil
 		},
@@ -542,18 +542,18 @@ func newBotInstance(
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	expires time.Time,
 ) *machineidv1pb.BotInstance {
-	return machineidv1pb.BotInstance_builder{
+	return &machineidv1pb.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Expires: timestamppb.New(expires),
-		}.Build(),
+		},
 		Spec: spec,
-		Status: machineidv1pb.BotInstanceStatus_builder{
+		Status: &machineidv1pb.BotInstanceStatus{
 			InitialAuthentication: initialAuth,
 			LatestAuthentications: []*machineidv1pb.BotInstanceStatusAuthentication{initialAuth},
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 // generateInitialBotCerts is used to generate bot certs and overlaps
@@ -637,7 +637,7 @@ func (a *Server) generateInitialBotCerts(
 	// token-joined bots and it's a secret value, so we don't bother setting it.
 	// (The renewable flag implies token joining.)
 	if !renewable {
-		certReq.JoinToken = initialAuth.GetJoinToken()
+		certReq.JoinToken = initialAuth.JoinToken
 	}
 
 	if existingInstanceID == "" {
@@ -647,14 +647,14 @@ func (a *Server) generateInitialBotCerts(
 			return nil, "", trace.Wrap(err)
 		}
 
-		initialAuth.SetGeneration(1)
+		initialAuth.Generation = 1
 
-		bi := newBotInstance(machineidv1pb.BotInstanceSpec_builder{
+		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
 			BotName:            botName,
 			InstanceId:         uuid.String(),
 			PreviousInstanceId: previousInstanceID,
-		}.Build(), initialAuth, expires.Add(machineidv1.ExpiryMargin))
-		bi.SetScope(botScope)
+		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+		bi.Scope = botScope
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 		if err != nil {

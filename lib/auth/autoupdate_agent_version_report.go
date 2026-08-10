@@ -112,7 +112,7 @@ func filterHandler(handle inventory.UpstreamHandle, now time.Time) autoUpdateFil
 	hello := handle.Hello()
 
 	// If the machine has no updater, we skip it
-	switch hello.GetExternalUpgrader() {
+	switch hello.ExternalUpgrader {
 	case "":
 		return autoUpdateFilterResultNoUpdater
 	case types.UpgraderKindSystemdUnit:
@@ -160,7 +160,7 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 
 	// No need to check for UpdaterInfo being nil, it would have been filtered
 	// out by filterHandler().
-	updateGroup := handle.Hello().GetUpdaterInfo().UpdateGroup
+	updateGroup := handle.Hello().UpdaterInfo.UpdateGroup
 
 	if _, ok := ir.data[updateGroup]; !ok {
 		ir.data[updateGroup] = instanceGroupReport{}
@@ -174,14 +174,14 @@ type instanceGroupReport map[string]instanceGroupVersionReport
 func (ir instanceGroupReport) collectInstance(handle inventory.UpstreamHandle) {
 	hello := handle.Hello()
 
-	stats, ok := ir[hello.GetVersion()]
+	stats, ok := ir[hello.Version]
 	if !ok {
 		stats = instanceGroupVersionReport{}
 	}
 
 	stats.count += 1
 
-	ir[hello.GetVersion()] = stats
+	ir[hello.Version] = stats
 }
 
 type instanceGroupVersionReport struct {
@@ -201,11 +201,11 @@ func (a *Server) generateAgentVersionReport(ctx context.Context) (*autoupdatev1p
 	a.inventory.AllHandles(rawreport.collectInstance)
 
 	a.logger.DebugContext(ctx, "Building the agent version report")
-	spec := autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
+	spec := &autoupdatev1pb.AutoUpdateAgentReportSpec{
 		Timestamp: timestamppb.New(a.clock.Now()),
 		Groups:    make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup, len(rawreport.data)),
 		Omitted:   make([]*autoupdatev1pb.AutoUpdateAgentReportSpecOmitted, 0, len(rawreport.omissions)),
-	}.Build()
+	}
 
 	// TODO(hugoShaka): gracefully handle too many groups or versions (sort and report only the largest ones).
 	// Currently the agent version report will just fail validation if there are too many groups.
@@ -213,20 +213,20 @@ func (a *Server) generateAgentVersionReport(ctx context.Context) (*autoupdatev1p
 	for groupName, groupData := range rawreport.data {
 		versions := make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion, len(groupData))
 		for versionName, groupVersionData := range groupData {
-			versions[versionName] = autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{
+			versions[versionName] = &autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
 				Count: int32(groupVersionData.count),
-			}.Build()
+			}
 		}
-		spec.GetGroups()[groupName] = autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
+		spec.Groups[groupName] = &autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
 			Versions: versions,
-		}.Build()
+		}
 	}
 
 	for reason, count := range rawreport.omissions {
-		spec.SetOmitted(append(spec.GetOmitted(), autoupdatev1pb.AutoUpdateAgentReportSpecOmitted_builder{
+		spec.Omitted = append(spec.Omitted, &autoupdatev1pb.AutoUpdateAgentReportSpecOmitted{
 			Reason: reason,
 			Count:  int64(count),
-		}.Build()))
+		})
 	}
 
 	report, err := autoupdate.NewAutoUpdateAgentReport(spec, a.ServerID)

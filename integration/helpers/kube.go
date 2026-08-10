@@ -22,7 +22,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
@@ -85,64 +83,6 @@ func genKubeConfig(t *testing.T, kubeconfigPath, clusterName string) {
 	}
 	err = kubeconfig.Save(kubeconfigPath, cfg)
 	require.NoError(t, err)
-}
-
-// WaitForKubeClusters blocks until every kubernetes cluster in this instance's
-// kubeconfig is visible in the Proxy Service cache.
-func (i *TeleInstance) WaitForKubeClusters(ctx context.Context) error {
-	const (
-		deadline     = 30 * time.Second
-		iterWaitTime = 100 * time.Millisecond
-	)
-
-	if i.Config == nil || !i.Config.Auth.Enabled || !i.Config.Proxy.Enabled || !i.Config.Kube.Enabled {
-		return nil
-	}
-
-	// No kubeconfig means we're only supporting dynanmically registered clusters,
-	// so there's nothing to wait for.
-	if i.Config.Kube.KubeconfigPath == "" {
-		return nil
-	}
-
-	kubeConfig, err := kubeconfig.Load(i.Config.Kube.KubeconfigPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(kubeConfig.Contexts) == 0 {
-		return nil
-	}
-
-	err = retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
-		cluster, err := i.Tunnel.Cluster(ctx, i.Secrets.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		accessPoint, err := cluster.CachingAccessPoint()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		kubeServers, err := accessPoint.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		registered := make(map[string]struct{}, len(kubeServers))
-		for _, ks := range kubeServers {
-			registered[ks.GetCluster().GetName()] = struct{}{}
-		}
-
-		for name := range kubeConfig.Contexts {
-			if _, ok := registered[name]; !ok {
-				return trace.NotFound("kubernetes cluster %q is not registered in the proxy cache yet", name)
-			}
-		}
-
-		return nil
-	})
-	return trace.Wrap(err)
 }
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.

@@ -21,7 +21,6 @@ package webauthn
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/x509"
 
 	"github.com/fxamacker/cbor/v2"
@@ -117,17 +116,11 @@ func u2fDERKeyToCBOR(der []byte) ([]byte, error) {
 
 // U2FKeyToCBOR transforms a DER-encoded U2F into its CBOR counterpart.
 func U2FKeyToCBOR(pubKey *ecdsa.PublicKey) ([]byte, error) {
-	if pubKey.Curve != elliptic.P256() {
-		return nil, trace.BadParameter("unsupported curve %T", pubKey.Curve)
-	}
-
-	pubKeyBytes, err := pubKey.Bytes()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// First byte is the 0x04 prefix, which can be skipped. The rest are the x and y coordinates.
-	x, y := pubKeyBytes[1:33], pubKeyBytes[33:]
+	// X and Y coordinates must be exactly 32 bytes.
+	xBytes := make([]byte, 32)
+	yBytes := make([]byte, 32)
+	pubKey.X.FillBytes(xBytes)
+	pubKey.Y.FillBytes(yBytes)
 
 	pubKeyCBOR, err := cbor.Marshal(&webauthncose.EC2PublicKeyData{
 		PublicKeyData: webauthncose.PublicKeyData{
@@ -135,8 +128,8 @@ func U2FKeyToCBOR(pubKey *ecdsa.PublicKey) ([]byte, error) {
 			Algorithm: int64(webauthncose.AlgES256),
 		},
 		Curve:  curveP256CBOR,
-		XCoord: x,
-		YCoord: y,
+		XCoord: xBytes,
+		YCoord: yBytes,
 	})
 	return pubKeyCBOR, trace.Wrap(err)
 }

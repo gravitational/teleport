@@ -16,47 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createBrowserHistory, type History } from 'history';
 import { matchPath } from 'react-router';
 
 import cfg from 'teleport/config';
 
-interface NavigationFunctions {
-  navigate: (to: string, options?: { replace?: boolean }) => void;
-  getLocation: () => { pathname: string; search: string; hash: string };
-}
-
-let _nav: NavigationFunctions | null = null;
-
-export type LoginOptions = {
-  rememberLocation?: boolean;
-  withAccessChangedMessage?: boolean;
-  scope?: string;
-};
+let _inst: History = null;
 
 const history = {
-  /**
-   * Initialize with navigation functions from React Router.
-   */
-  init(nav: NavigationFunctions | null) {
-    _nav = nav;
+  original() {
+    return _inst;
+  },
+
+  init(history?: History) {
+    _inst = history || createBrowserHistory();
   },
 
   replace(route = '') {
     route = this.ensureKnownRoute(route);
-    if (_nav) {
-      _nav.navigate(route, { replace: true });
-      return;
-    }
-
-    this._pageRefresh(route);
+    _inst.replace(route);
   },
 
-  push(route: string, withRefresh = false) {
+  push(route, withRefresh = false) {
     route = this.ensureKnownRoute(route);
-    if (withRefresh || !_nav) {
+    if (withRefresh) {
       this._pageRefresh(route);
     } else {
-      _nav.navigate(route);
+      _inst.push(route);
     }
   },
 
@@ -67,62 +53,38 @@ const history = {
   goToLogin({
     rememberLocation = false,
     withAccessChangedMessage = false,
-    scope = '',
-  }: LoginOptions = {}) {
-    const params = new URLSearchParams();
+  } = {}) {
+    const params: string[] = [];
 
     // withAccessChangedMessage determines whether the login page the user is redirected to should include a notice that
     // they were logged out due to their roles having changed.
     if (withAccessChangedMessage) {
-      params.set('access_changed', '');
+      params.push('access_changed');
     }
 
     if (rememberLocation) {
-      const { search, pathname } = this.getLocation();
+      const { search, pathname } = _inst.location;
       const knownRoute = this.ensureKnownRoute(pathname);
       const knownRedirect = this.ensureBaseUrl(knownRoute);
-      params.set('redirect_uri', knownRedirect + search);
+      const query = search ? encodeURIComponent(search) : '';
+      params.push(`redirect_uri=${knownRedirect}${query}`);
     }
 
-    if (scope) {
-      params.set('scope', scope);
-    }
-
-    const queryString = params.toString();
+    const queryString = params.join('&');
     const url = queryString
       ? `${cfg.routes.login}?${queryString}`
       : cfg.routes.login;
 
-    this._pageRefresh(url.toString());
-  },
-
-  /**
-   * Returns an URL to a scope picker that redirects to the current URL once
-   * the scope has been picked.
-   */
-  getScopePickerUrl() {
-    const params = new URLSearchParams();
-
-    const { search, pathname } = this.getLocation();
-    const knownRoute = this.ensureKnownRoute(pathname);
-    const knownRedirect = this.ensureBaseUrl(knownRoute);
-    params.set(`redirect_uri`, knownRedirect + search);
-
-    const queryString = params.toString();
-    const url = queryString
-      ? `${cfg.routes.scopePicker}?${queryString}`
-      : cfg.routes.scopePicker;
-
-    return url;
+    this._pageRefresh(url);
   },
 
   // TODO (avatus): make this return a path only if a full URI is present
   getRedirectParam() {
-    return getUrlParameter('redirect_uri', this.getLocation().search);
+    return getUrlParameter('redirect_uri', this.original().location.search);
   },
 
   hasAccessChangedParam() {
-    return hasUrlParameter('access_changed', this.getLocation().search);
+    return hasUrlParameter('access_changed', this.original().location.search);
   },
 
   ensureKnownRoute(route = '') {
@@ -149,19 +111,7 @@ const history = {
   },
 
   getLocation() {
-    if (_nav) {
-      return _nav.getLocation();
-    }
-
-    if (typeof window !== 'undefined' && window.location) {
-      return {
-        pathname: window.location.pathname,
-        search: window.location.search,
-        hash: window.location.hash,
-      };
-    }
-
-    return { pathname: '', search: '', hash: '' };
+    return this.original().location;
   },
 
   _canPush(route: string) {
@@ -172,32 +122,16 @@ const history = {
 
     const match = (known: string) =>
       // only match against pathname
-      matchPath(
-        { path: known, end: !nonExactRoutes.includes(known) },
-        pathname
-      );
+      matchPath(pathname, {
+        path: known,
+        exact: !nonExactRoutes.includes(known),
+      });
 
     return knownRoutes.some(match);
   },
 
   _pageRefresh(route: string) {
     window.location.href = this.ensureBaseUrl(route);
-  },
-
-  /**
-   * getEntryRoute returns a base ensured redirect URL value that is safe
-   * for redirect.
-   * @returns base ensured URL string.
-   */
-  getEntryRoute() {
-    let entryUrl = this.getRedirectParam();
-    if (entryUrl) {
-      entryUrl = this.ensureKnownRoute(entryUrl);
-    } else {
-      entryUrl = cfg.routes.root;
-    }
-
-    return this.ensureBaseUrl(entryUrl);
   },
 };
 

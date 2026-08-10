@@ -298,13 +298,13 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 			syncStart = timestamppb.New(*groupResult.syncStart)
 		}
 
-		resourcesSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
 			Found:     uint64(groupResult.found),
 			Enrolled:  uint64(groupResult.enrolled),
 			Failed:    uint64(groupResult.failed),
 			SyncStart: syncStart,
 			SyncEnd:   syncEnd,
-		}.Build()
+		}
 
 		integrationDiscoveredSummaryUpdate(existingIntegrationResources, ars.resourceType, resourcesSummary)
 
@@ -407,14 +407,14 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			ssmDocument:     result.SSMDocumentName,
 			installerScript: result.InstallerScript,
 		},
-		usertasksv1.DiscoverEC2Instance_builder{
+		&usertasksv1.DiscoverEC2Instance{
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(s.clock.Now()),
 			InstanceId:      result.SSMRunEvent.InstanceID,
 			Name:            result.InstanceName,
-		}.Build(),
+		},
 	)
 
 	return nil
@@ -478,13 +478,13 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 		d.instancesIssues = make(map[awsEC2TaskKey]*usertasksv1.DiscoverEC2)
 	}
 	if _, ok := d.instancesIssues[g]; !ok {
-		d.instancesIssues[g] = usertasksv1.DiscoverEC2_builder{
+		d.instancesIssues[g] = &usertasksv1.DiscoverEC2{
 			Instances:       make(map[string]*usertasksv1.DiscoverEC2Instance),
 			AccountId:       g.accountID,
 			Region:          g.region,
 			SsmDocument:     g.ssmDocument,
 			InstallerScript: g.installerScript,
-		}.Build()
+		}
 	}
 	if instance != nil {
 		d.instancesIssues[g].GetInstances()[instance.GetInstanceId()] = instance
@@ -551,14 +551,14 @@ func (d *awsEKSTasks) addFailedEnrollment(g awsEKSTaskKey, cluster *usertasksv1.
 		d.clusterIssues = make(map[awsEKSTaskKey]*usertasksv1.DiscoverEKS)
 	}
 	if _, ok := d.clusterIssues[g]; !ok {
-		d.clusterIssues[g] = usertasksv1.DiscoverEKS_builder{
+		d.clusterIssues[g] = &usertasksv1.DiscoverEKS{
 			Clusters:        make(map[string]*usertasksv1.DiscoverEKSCluster),
 			AccountId:       g.accountID,
 			Region:          g.region,
 			AppAutoDiscover: g.appAutoDiscover,
-		}.Build()
+		}
 	}
-	d.clusterIssues[g].GetClusters()[cluster.GetName()] = cluster
+	d.clusterIssues[g].Clusters[cluster.Name] = cluster
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
@@ -614,13 +614,13 @@ func (d *awsRDSTasks) addFailedEnrollment(g awsRDSTaskKey, database *usertasksv1
 		d.databaseIssues = make(map[awsRDSTaskKey]*usertasksv1.DiscoverRDS)
 	}
 	if _, ok := d.databaseIssues[g]; !ok {
-		d.databaseIssues[g] = usertasksv1.DiscoverRDS_builder{
+		d.databaseIssues[g] = &usertasksv1.DiscoverRDS{
 			Databases: make(map[string]*usertasksv1.DiscoverRDSDatabase),
 			AccountId: g.accountID,
 			Region:    g.region,
-		}.Build()
+		}
 	}
-	d.databaseIssues[g].GetDatabases()[database.GetName()] = database
+	d.databaseIssues[g].Databases[database.Name] = database
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsRDSTaskKey]struct{})
@@ -707,7 +707,7 @@ func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failed
 	case err != nil:
 		return trace.Wrap(err)
 	default:
-		mergeExistingInstances(s, currentUserTask.GetSpec().GetDiscoverEc2().GetInstances(), failedInstances.GetInstances())
+		mergeExistingInstances(s, currentUserTask.Spec.DiscoverEc2.Instances, failedInstances.Instances)
 	}
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
@@ -715,13 +715,13 @@ func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failed
 	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
 
 	task, err := usertasks.NewDiscoverEC2UserTask(
-		usertasksv1.UserTaskSpec_builder{
+		&usertasksv1.UserTaskSpec{
 			Integration: taskGroup.integration,
 			TaskType:    usertasks.TaskTypeDiscoverEC2,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverEc2: failedInstances,
-		}.Build(),
+		},
 		usertasks.WithExpiration(taskExpiration),
 	)
 	if err != nil {
@@ -778,7 +778,7 @@ func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *taskUpdater) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters *usertasksv1.DiscoverEKS) error {
-	if len(failedClusters.GetClusters()) == 0 {
+	if len(failedClusters.Clusters) == 0 {
 		return nil
 	}
 
@@ -803,7 +803,7 @@ func (s *taskUpdater) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failed
 	case err != nil:
 		return trace.Wrap(err)
 	default:
-		mergeExistingInstances(s, currentUserTask.GetSpec().GetDiscoverEks().GetClusters(), failedClusters.GetClusters())
+		mergeExistingInstances(s, currentUserTask.Spec.DiscoverEks.Clusters, failedClusters.Clusters)
 	}
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
@@ -811,13 +811,13 @@ func (s *taskUpdater) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failed
 	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
 
 	task, err := usertasks.NewDiscoverEKSUserTask(
-		usertasksv1.UserTaskSpec_builder{
+		&usertasksv1.UserTaskSpec{
 			Integration: taskGroup.integration,
 			TaskType:    usertasks.TaskTypeDiscoverEKS,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverEks: failedClusters,
-		}.Build(),
+		},
 		usertasks.WithExpiration(taskExpiration),
 	)
 	if err != nil {
@@ -855,7 +855,7 @@ func (s *Server) upsertTasksForAWSRDSFailedEnrollments() {
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *taskUpdater) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failedDatabases *usertasksv1.DiscoverRDS) error {
-	if len(failedDatabases.GetDatabases()) == 0 {
+	if len(failedDatabases.Databases) == 0 {
 		return nil
 	}
 
@@ -879,7 +879,7 @@ func (s *taskUpdater) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failed
 	case err != nil:
 		return trace.Wrap(err)
 	default:
-		mergeExistingInstances(s, currentUserTask.GetSpec().GetDiscoverRds().GetDatabases(), failedDatabases.GetDatabases())
+		mergeExistingInstances(s, currentUserTask.Spec.DiscoverRds.Databases, failedDatabases.Databases)
 	}
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
@@ -887,13 +887,13 @@ func (s *taskUpdater) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failed
 	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
 
 	task, err := usertasks.NewDiscoverRDSUserTask(
-		usertasksv1.UserTaskSpec_builder{
+		&usertasksv1.UserTaskSpec{
 			Integration: taskGroup.integration,
 			TaskType:    usertasks.TaskTypeDiscoverRDS,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverRds: failedDatabases,
-		}.Build(),
+		},
 		usertasks.WithExpiration(taskExpiration),
 	)
 	if err != nil {
@@ -973,16 +973,16 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 
 	data := tgMap[key]
 	if data == nil {
-		data = usertasksv1.DiscoverAzureVM_builder{
+		data = &usertasksv1.DiscoverAzureVM{
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
-		}.Build()
+		}
 		tgMap[key] = data
 	}
 
-	data.GetInstances()[vm.GetVmId()] = vm
+	data.Instances[vm.VmId] = vm
 }
 
 // upsertAll upserts all collected Azure VM user tasks to the backend.
@@ -1049,24 +1049,6 @@ type taskUpdater struct {
 	Log            *slog.Logger
 }
 
-func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType string) error {
-	task, err := usertasks.NewDiscoverAzureVMUserTask(
-		usertasks.TaskGroup{
-			Integration: integration,
-			IssueType:   issueType,
-		},
-		s.clock.Now().Add(2*s.PollInterval),
-		usertasksv1.DiscoverAzureVM_builder{
-			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
-		}.Build(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(s.mergeUpsertUserTask(task, s.mergeAzure))
-}
-
 func (s *taskUpdater) mergeUpsertUserTask(newTask *usertasksv1.UserTask, mergeUserTasks func(oldTask *usertasksv1.UserTaskSpec, newTask *usertasksv1.UserTaskSpec)) error {
 	taskName := newTask.GetMetadata().GetName()
 
@@ -1082,7 +1064,7 @@ func (s *taskUpdater) mergeUpsertUserTask(newTask *usertasksv1.UserTask, mergeUs
 		return trace.Wrap(err)
 	}
 
-	if oldTask != nil && oldTask.HasSpec() {
+	if oldTask != nil && oldTask.Spec != nil {
 		mergeUserTasks(oldTask.GetSpec(), newTask.GetSpec())
 	}
 
@@ -1091,22 +1073,22 @@ func (s *taskUpdater) mergeUpsertUserTask(newTask *usertasksv1.UserTask, mergeUs
 		return trace.Wrap(err)
 	}
 
-	s.Log.InfoContext(s.ctx, "Upserted user task", "task", taskName, "issue_type", newTask.GetSpec().GetIssueType(), "integration", newTask.GetSpec().GetIntegration())
+	s.Log.InfoContext(s.ctx, "Upserted user task", "task", taskName, "issue_type", newTask.GetSpec().IssueType, "integration", newTask.GetSpec().Integration)
 
 	return nil
 }
 
 func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *usertasksv1.UserTaskSpec) {
-	if oldSpec == nil || !oldSpec.HasDiscoverAzureVm() {
+	if oldSpec == nil || oldSpec.DiscoverAzureVm == nil {
 		return
 	}
-	if !newSpec.HasDiscoverAzureVm() {
-		newSpec.SetDiscoverAzureVm(&usertasksv1.DiscoverAzureVM{})
+	if newSpec.DiscoverAzureVm == nil {
+		newSpec.DiscoverAzureVm = &usertasksv1.DiscoverAzureVM{}
 	}
-	if newSpec.GetDiscoverAzureVm().GetInstances() == nil {
-		newSpec.GetDiscoverAzureVm().SetInstances(make(map[string]*usertasksv1.DiscoverAzureVMInstance))
+	if newSpec.DiscoverAzureVm.Instances == nil {
+		newSpec.DiscoverAzureVm.Instances = make(map[string]*usertasksv1.DiscoverAzureVMInstance)
 	}
-	mergeExistingInstances(s, oldSpec.GetDiscoverAzureVm().GetInstances(), newSpec.GetDiscoverAzureVm().GetInstances())
+	mergeExistingInstances(s, oldSpec.DiscoverAzureVm.Instances, newSpec.DiscoverAzureVm.Instances)
 }
 
 type discoveryGroupStatusKey struct {
@@ -1195,13 +1177,13 @@ func (s *discoveryStatus) mergeIntoGlobalStatus(discoveryConfigName string, exis
 			syncEnd = timestamppb.New(*s.syncEnd)
 		}
 
-		resourcesSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
 			Found:     uint64(status.found),
 			Enrolled:  uint64(status.enrolled),
 			Failed:    uint64(status.failed),
 			SyncStart: syncStart,
 			SyncEnd:   syncEnd,
-		}.Build()
+		}
 
 		integrationDiscoveredSummaryUpdate(summary, s.resourceType, resourcesSummary)
 

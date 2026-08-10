@@ -40,10 +40,10 @@ func init() {
 // WorkloadIdentity
 type TeleportWorkloadIdentityV1 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   *TeleportWorkloadIdentityV1Spec `json:"spec,omitempty"`
-	Status teleportcr.Status               `json:"status"`
+	Status teleportcr.Status               `json:"status,omitempty"`
 }
 
 // TeleportWorkloadIdentityV1Spec defines the desired state of TeleportWorkloadIdentityV1
@@ -54,7 +54,7 @@ type TeleportWorkloadIdentityV1Spec workloadidentityv1.WorkloadIdentitySpec
 // TeleportWorkloadIdentityV1List contains a list of TeleportWorkloadIdentityV1
 type TeleportWorkloadIdentityV1List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TeleportWorkloadIdentityV1 `json:"items"`
 }
 
@@ -62,16 +62,16 @@ type TeleportWorkloadIdentityV1List struct {
 // [workloadidentityv1.WorkloadIdentity] and implements the necessary interface
 // methods used by the TeleportResourceReconciler.
 func (l *TeleportWorkloadIdentityV1) ToTeleport() *workloadidentityv1.WorkloadIdentity {
-	resource := workloadidentityv1.WorkloadIdentity_builder{
+	resource := &workloadidentityv1.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		}.Build(),
+		},
 		Spec: (*workloadidentityv1.WorkloadIdentitySpec)(l.Spec),
-	}.Build()
+	}
 	return resource
 }
 

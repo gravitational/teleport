@@ -33,9 +33,11 @@ import (
 )
 
 func GenSchemaTimestamp(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	attr.Optional = true
-	attr.Type = tfschema.UseRFC3339Time()
-	return attr
+	return tfsdk.Attribute{
+		Optional:    true,
+		Type:        tfschema.UseRFC3339Time(),
+		Description: attr.Description,
+	}
 }
 
 func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Timestamp) {
@@ -45,39 +47,36 @@ func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Tim
 		return
 	}
 
-	if value.IsNull() || value.IsUnknown() {
+	if value.IsNull() {
 		*o = nil
 	} else {
 		*o = timestamppb.New(value.Value)
 	}
 }
 
-// CopyToTimestamp converts a Teleport [timestamppb.Timestamp] into a Terraform
-// [tfschema.TimeValue]. Set `preserveUnknown` to preserve unknown values.
-func CopyToTimestamp(_ diag.Diagnostics, o *timestamppb.Timestamp, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	if preserveUnknown && v != nil && v.IsUnknown() {
-		return tfschema.TimeValue{Unknown: true}
+func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Type, v attr.Value) attr.Value {
+	value, ok := v.(tfschema.TimeValue)
+	if !ok {
+		value = tfschema.TimeValue{}
 	}
-
-	format := time.RFC3339
 
 	if o == nil {
-		return tfschema.TimeValue{
-			Null:   true,
-			Format: format,
-		}
+		value.Null = true
+		return value
 	}
 
-	return tfschema.TimeValue{
-		Value:  o.AsTime(),
-		Format: format,
-	}
+	value.Value = (*o).AsTime()
+	value.Format = time.RFC3339
+
+	return value
 }
 
 func GenSchemaDuration(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	attr.Optional = true
-	attr.Type = tfschema.DurationType{}
-	return attr
+	return tfsdk.Attribute{
+		Optional:    true,
+		Type:        tfschema.DurationType{},
+		Description: attr.Description,
+	}
 }
 
 func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Duration) {
@@ -87,38 +86,22 @@ func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Durat
 		return
 	}
 
-	if value.IsNull() || value.IsUnknown() {
-		*o = nil
-		return
-	}
-
 	*o = durationpb.New(value.Value)
 }
 
-// CopyToDuration converts a Teleport [durationpb.Duration] into a Terraform
-// [tfschema.DurationValue]. Set `preserveUnknown` to preserve unknown values.
-func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-
-	if preserveUnknown && v != nil && v.IsUnknown() {
-		return tfschema.DurationValue{Unknown: true}
-	}
-
-	if o == nil {
-		return tfschema.DurationValue{
-			Null: true,
-		}
-	}
-
-	// Note: Prior Terraform attribute value is returned if possible to preserve
-	// the rawValue, which contains the original string value.
+func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type, v attr.Value) attr.Value {
 	value, ok := v.(tfschema.DurationValue)
 	if !ok {
 		value = tfschema.DurationValue{}
 	}
 
-	value.Null = false
-	value.Value = o.AsDuration()
-	value.Unknown = false
+	if o == nil {
+		value.Null = true
+		return value
+	}
+
+	value.Value = (*o).AsDuration()
+
 	return value
 }
 
@@ -130,8 +113,6 @@ func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 	tfschema.CopyFromLabels(diags, v, o)
 }
 
-// CopyToLabels converts a Teleport [apitypes.Labels] into a Terraform
-// `types.Map` value. Set `preserveUnknown` to preserve unknown values.
-func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-	return tfschema.CopyToLabels(diags, o, t, v, preserveUnknown)
+func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value) attr.Value {
+	return tfschema.CopyToLabels(diags, o, t, v)
 }

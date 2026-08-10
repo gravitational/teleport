@@ -15,8 +15,7 @@ resource "teleport_trusted_cluster" "cluster" {
       remote = "test"
       local  = ["admin"]
     }]
-    token          = "salami"
-    tunnel_addr    = "rootcluster.example.com:443"
-    web_proxy_addr = "rootcluster.example.com:443"
+    proxy_addr = "localhost:3080"
+    token      = "salami"
   }
 }

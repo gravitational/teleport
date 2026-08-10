@@ -55,19 +55,19 @@ type Notifications interface {
 
 // ValidateNotification verifies that the necessary fields are configured for a notification object.
 func ValidateNotification(notification *notificationsv1.Notification) error {
-	if notification.GetSubKind() == "" {
+	if notification.SubKind == "" {
 		return trace.BadParameter("notification subkind is missing")
 	}
 
-	if !notification.HasSpec() {
+	if notification.Spec == nil {
 		return trace.BadParameter("notification spec is missing")
 	}
 
-	if !notification.HasMetadata() {
+	if notification.Metadata == nil {
 		return trace.BadParameter("notification metadata is missing")
 	}
 
-	if _, exists := notification.GetMetadata().GetLabels()[types.NotificationTitleLabel]; !exists {
+	if _, exists := notification.Metadata.GetLabels()[types.NotificationTitleLabel]; !exists {
 		return trace.BadParameter("notification title label is missing")
 	}
 
@@ -90,19 +90,19 @@ func UnmarshalNotification(data []byte, opts ...MarshalOption) (*notificationsv1
 
 // ValidateGlobalNotification verifies that the necessary fields are configured for a global notification object.
 func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotification) error {
-	if !globalNotification.HasSpec() {
+	if globalNotification.Spec == nil {
 		return trace.BadParameter("notification spec is missing")
 	}
 
-	if !globalNotification.GetSpec().HasMatcher() {
+	if globalNotification.Spec.Matcher == nil {
 		return trace.BadParameter("matcher is missing, a matcher is required for a global notification")
 	}
 
-	if err := ValidateNotification(globalNotification.GetSpec().GetNotification()); err != nil {
+	if err := ValidateNotification(globalNotification.Spec.Notification); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if globalNotification.GetSpec().GetNotification().GetSpec().GetUsername() != "" {
+	if globalNotification.Spec.Notification.Spec.Username != "" {
 		return trace.BadParameter("a global notification cannot have a username")
 	}
 
@@ -125,11 +125,11 @@ func UnmarshalGlobalNotification(data []byte, opts ...MarshalOption) (*notificat
 
 // ValidateUserNotificationState verifies that the necessary fields are configured for user notification state object.
 func ValidateUserNotificationState(notificationState *notificationsv1.UserNotificationState) error {
-	if notificationState.GetSpec().GetNotificationId() == "" {
+	if notificationState.Spec.NotificationId == "" {
 		return trace.BadParameter("notification id is missing")
 	}
 
-	if !notificationState.HasStatus() {
+	if notificationState.Status == nil {
 		return trace.BadParameter("notification state status is missing")
 	}
 
@@ -152,7 +152,7 @@ func UnmarshalUserNotificationState(data []byte, opts ...MarshalOption) (*notifi
 
 // ValidateUserLastSeenNotification verifies that the necessary fields are configured for a user's last seen notification timestamp object.
 func ValidateUserLastSeenNotification(lastSeenNotification *notificationsv1.UserLastSeenNotification) error {
-	if !lastSeenNotification.GetStatus().HasLastSeenTime() {
+	if lastSeenNotification.Status.LastSeenTime == nil {
 		return trace.BadParameter("last seen time is missing")
 	}
 
@@ -175,7 +175,7 @@ func UnmarshalUserLastSeenNotification(data []byte, opts ...MarshalOption) (*not
 
 // ValidateUniqueNotificationIdentifier verifies that the necessary fields are configured for a unique notification identifier object.
 func ValidateUniqueNotificationIdentifier(uni *notificationsv1.UniqueNotificationIdentifier) error {
-	if uni.GetSpec().GetUniqueIdentifier() == "" {
+	if uni.Spec.UniqueIdentifier == "" {
 		return trace.BadParameter("unique notification identifier key is missing")
 	}
 

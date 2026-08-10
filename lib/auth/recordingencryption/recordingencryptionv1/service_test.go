@@ -67,9 +67,9 @@ func newFakeService(t *testing.T, rotater *fakeKeyRotater) *recordingencryptionv
 		Logger:                    logtest.NewLogger(),
 		Uploader:                  fakeUploader{},
 		KeyRotater:                rotater,
+		OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 		RecordingMetadataProvider: recordingmetadata.NewProvider(),
 		SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
-		OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 	})
 	require.NoError(t, err)
 	return service
@@ -178,7 +178,7 @@ func TestGetRotationState(t *testing.T) {
 			res, err := service.GetRotationState(withAuthCtx(t.Context(), c.ctx), nil)
 			c.assertErr(t, err)
 			if err == nil {
-				require.Len(t, res.GetKeyPairStates(), 1)
+				require.Len(t, res.KeyPairStates, 1)
 			} else {
 				require.Nil(t, res)
 			}
@@ -245,10 +245,10 @@ type fakeKeyRotater struct {
 func newFakeKeyRotater() *fakeKeyRotater {
 	return &fakeKeyRotater{
 		keys: []*recordingencryptionv1pb.FingerprintWithState{
-			recordingencryptionv1pb.FingerprintWithState_builder{
+			{
 				Fingerprint: uuid.New().String(),
 				State:       recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ACTIVE,
-			}.Build(),
+			},
 		},
 	}
 }
@@ -258,15 +258,15 @@ func (f *fakeKeyRotater) RotateKey(ctx context.Context) error {
 		return errors.New("rotation in progress")
 	}
 
-	if f.keys[0].GetState() != recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ACTIVE {
-		return fmt.Errorf("keys in unexpected state: %v", f.keys[0].GetState())
+	if f.keys[0].State != recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ACTIVE {
+		return fmt.Errorf("keys in unexpected state: %v", f.keys[0].State)
 	}
 
-	f.keys[0].SetState(recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ROTATING)
-	f.keys = append(f.keys, recordingencryptionv1pb.FingerprintWithState_builder{
+	f.keys[0].State = recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ROTATING
+	f.keys = append(f.keys, &recordingencryptionv1pb.FingerprintWithState{
 		Fingerprint: uuid.New().String(),
 		State:       recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ACTIVE,
-	}.Build())
+	})
 
 	return nil
 }
@@ -274,7 +274,7 @@ func (f *fakeKeyRotater) RotateKey(ctx context.Context) error {
 func (f *fakeKeyRotater) CompleteRotation(ctx context.Context) error {
 	var keys []*recordingencryptionv1pb.FingerprintWithState
 	for _, key := range f.keys {
-		if key.GetState() == recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ACTIVE {
+		if key.State == recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ACTIVE {
 			keys = append(keys, key)
 		}
 	}
@@ -286,7 +286,7 @@ func (f *fakeKeyRotater) CompleteRotation(ctx context.Context) error {
 func (f *fakeKeyRotater) RollbackRotation(ctx context.Context) error {
 	var keys []*recordingencryptionv1pb.FingerprintWithState
 	for _, key := range f.keys {
-		if key.GetState() == recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ROTATING {
+		if key.State == recordingencryptionv1pb.KeyPairState_KEY_PAIR_STATE_ROTATING {
 			keys = append(keys, key)
 		}
 	}
@@ -335,13 +335,13 @@ func TestSessionCompleter(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := withAuthCtx(t.Context(), newServiceAuthCtx(t))
-	_, err = service.CompleteUpload(ctx, recordingencryptionv1pb.CompleteUploadRequest_builder{
-		Upload: recordingencryptionv1pb.Upload_builder{
+	_, err = service.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
+		Upload: &recordingencryptionv1pb.Upload{
 			SessionId:   string(sessionID),
 			InitiatedAt: timestamppb.Now(),
 			UploadId:    uuid.NewString(),
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	recorderMetadata.AssertExpectations(t)
@@ -432,13 +432,13 @@ func TestCompleteUploadRecoversMissingSessionEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := withAuthCtx(t.Context(), newServiceAuthCtx(t))
-	_, err = service.CompleteUpload(ctx, recordingencryptionv1pb.CompleteUploadRequest_builder{
-		Upload: recordingencryptionv1pb.Upload_builder{
+	_, err = service.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
+		Upload: &recordingencryptionv1pb.Upload{
 			SessionId:   string(sessionID),
 			InitiatedAt: timestamppb.Now(),
 			UploadId:    uuid.NewString(),
-		}.Build(),
-	}.Build())
+		},
+	})
 	require.NoError(t, err)
 
 	// The recovered session end event must have been emitted to the audit log.
@@ -491,21 +491,21 @@ func TestUploadValidation(t *testing.T) {
 		},
 		{
 			name: "missing upload_id",
-			uploadPartReq: recordingencryptionv1pb.UploadPartRequest_builder{
-				Upload: recordingencryptionv1pb.Upload_builder{SessionId: uuid.NewString()}.Build(),
-			}.Build(),
-			completeReq: recordingencryptionv1pb.CompleteUploadRequest_builder{
-				Upload: recordingencryptionv1pb.Upload_builder{SessionId: uuid.NewString()}.Build(),
-			}.Build(),
+			uploadPartReq: &recordingencryptionv1pb.UploadPartRequest{
+				Upload: &recordingencryptionv1pb.Upload{SessionId: uuid.NewString()},
+			},
+			completeReq: &recordingencryptionv1pb.CompleteUploadRequest{
+				Upload: &recordingencryptionv1pb.Upload{SessionId: uuid.NewString()},
+			},
 		},
 		{
 			name: "missing session_id",
-			uploadPartReq: recordingencryptionv1pb.UploadPartRequest_builder{
-				Upload: recordingencryptionv1pb.Upload_builder{UploadId: uuid.NewString()}.Build(),
-			}.Build(),
-			completeReq: recordingencryptionv1pb.CompleteUploadRequest_builder{
-				Upload: recordingencryptionv1pb.Upload_builder{UploadId: uuid.NewString()}.Build(),
-			}.Build(),
+			uploadPartReq: &recordingencryptionv1pb.UploadPartRequest{
+				Upload: &recordingencryptionv1pb.Upload{UploadId: uuid.NewString()},
+			},
+			completeReq: &recordingencryptionv1pb.CompleteUploadRequest{
+				Upload: &recordingencryptionv1pb.Upload{UploadId: uuid.NewString()},
+			},
 		},
 	}
 
@@ -526,14 +526,14 @@ func TestUploadValidation(t *testing.T) {
 
 func TestAuthorizeUpload(t *testing.T) {
 	newUpload := func() *recordingencryptionv1pb.Upload {
-		return recordingencryptionv1pb.Upload_builder{
+		return &recordingencryptionv1pb.Upload{
 			SessionId:   uuid.NewString(),
 			UploadId:    uuid.NewString(),
 			InitiatedAt: timestamppb.Now(),
-		}.Build()
+		}
 	}
 	newUploadReq := func() *recordingencryptionv1pb.CreateUploadRequest {
-		return recordingencryptionv1pb.CreateUploadRequest_builder{SessionId: uuid.NewString()}.Build()
+		return &recordingencryptionv1pb.CreateUploadRequest{SessionId: uuid.NewString()}
 	}
 
 	accessDeniedAssert := func(t require.TestingT, err error, i ...any) {
@@ -585,7 +585,16 @@ func TestAuthorizeUpload(t *testing.T) {
 
 	newService := func(t *testing.T) *recordingencryptionv1.Service {
 		t.Helper()
-		svc := newFakeService(t, newFakeKeyRotater())
+		svc, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
+			Authorizer:                &fakeAuthorizer{},
+			Logger:                    logtest.NewLogger(),
+			Uploader:                  fakeUploader{},
+			KeyRotater:                newFakeKeyRotater(),
+			RecordingMetadataProvider: recordingmetadata.NewProvider(),
+			SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+			OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
+		})
+		require.NoError(t, err)
 		return svc
 	}
 
@@ -598,10 +607,10 @@ func TestAuthorizeUpload(t *testing.T) {
 			_, err := svc.CreateUpload(ctx, newUploadReq())
 			c.errAssertFunc(t, err)
 
-			_, err = svc.UploadPart(ctx, recordingencryptionv1pb.UploadPartRequest_builder{Upload: newUpload(), IsLast: true}.Build())
+			_, err = svc.UploadPart(ctx, &recordingencryptionv1pb.UploadPartRequest{Upload: newUpload(), IsLast: true})
 			c.errAssertFunc(t, err)
 
-			_, err = svc.CompleteUpload(ctx, recordingencryptionv1pb.CompleteUploadRequest_builder{Upload: newUpload()}.Build())
+			_, err = svc.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{Upload: newUpload()})
 			c.errAssertFunc(t, err)
 		})
 	}
@@ -697,29 +706,29 @@ func TestRecordingEncryptionService(t *testing.T) {
 
 			cli := authClient.RecordingEncryptionServiceClient()
 
-			upload := recordingencryptionv1pb.Upload_builder{
+			upload := &recordingencryptionv1pb.Upload{
 				UploadId:    uuid.NewString(),
 				SessionId:   uuid.NewString(),
 				InitiatedAt: timestamppb.Now(),
-			}.Build()
-
-			createResp, err := cli.CreateUpload(t.Context(), recordingencryptionv1pb.CreateUploadRequest_builder{
-				SessionId: uuid.NewString(),
-			}.Build())
-			c.assertErr(t, err)
-			if err == nil {
-				upload = createResp.GetUpload()
 			}
 
-			_, err = cli.UploadPart(t.Context(), recordingencryptionv1pb.UploadPartRequest_builder{
+			createResp, err := cli.CreateUpload(t.Context(), &recordingencryptionv1pb.CreateUploadRequest{
+				SessionId: uuid.NewString(),
+			})
+			c.assertErr(t, err)
+			if err == nil {
+				upload = createResp.Upload
+			}
+
+			_, err = cli.UploadPart(t.Context(), &recordingencryptionv1pb.UploadPartRequest{
 				Upload: upload,
 				IsLast: true,
-			}.Build())
+			})
 			c.assertErr(t, err)
 
-			_, err = cli.CompleteUpload(t.Context(), recordingencryptionv1pb.CompleteUploadRequest_builder{
+			_, err = cli.CompleteUpload(t.Context(), &recordingencryptionv1pb.CompleteUploadRequest{
 				Upload: upload,
-			}.Build())
+			})
 			c.assertErr(t, err)
 		})
 	}

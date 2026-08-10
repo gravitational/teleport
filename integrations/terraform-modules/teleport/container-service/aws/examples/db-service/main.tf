@@ -27,6 +27,7 @@ module "teleport_database_service" {
   ecs_service_name       = "${local.namespace}-svc"
   ecs_service_subnets    = module.vpc.public_subnets
   ecs_task_desired_count = 1
+  ecs_task_name          = "${local.namespace}-task"
   environment_vars       = { EXAMPLE_VAR = "EXAMPLE_VALUE" }
   vpc_id                 = module.vpc.vpc_id
 

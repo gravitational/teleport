@@ -65,79 +65,79 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 	t.Cleanup(func() { _ = clt.Close() })
 
 	assignments := map[string]*scopedaccessv1.ScopedRoleAssignment{
-		"alice-role1": scopedaccessv1.ScopedRoleAssignment_builder{
+		"alice-role1": {
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "alice-role1",
-			}.Build(),
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			},
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/testscope::role1",
 					Scope: "/testscope",
 				}.Build()},
-			}.Build(),
-		}.Build(),
-		"bob-role1": scopedaccessv1.ScopedRoleAssignment_builder{
+			},
+		},
+		"bob-role1": {
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "bob-role1",
-			}.Build(),
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			},
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/testscope::role1",
 					Scope: "/testscope",
 				}.Build()},
-			}.Build(),
-		}.Build(),
-		"charlie-role2": scopedaccessv1.ScopedRoleAssignment_builder{
+			},
+		},
+		"charlie-role2": {
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "charlie-role2",
-			}.Build(),
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			},
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "charlie",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/testscope::role2",
 					Scope: "/testscope",
 				}.Build()},
-			}.Build(),
-		}.Build(),
-		"charlie-role3": scopedaccessv1.ScopedRoleAssignment_builder{
+			},
+		},
+		"charlie-role3": {
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "charlie-role3",
-			}.Build(),
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			},
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "charlie",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "/testscope::role3",
 					Scope: "/testscope",
 				}.Build()},
-			}.Build(),
-		}.Build(),
+			},
+		},
 	}
 
 	scopedClt := clt.ScopedAccessServiceClient()
 	for name, assignment := range assignments {
-		created, err := scopedClt.CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		created, err := scopedClt.CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-		}.Build())
+		})
 		require.NoError(t, err)
-		assignments[name] = created.GetAssignment()
+		assignments[name] = created.Assignment
 	}
 
 	allAssignmentNames := slices.Collect(maps.Keys(assignments))
@@ -158,7 +158,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.GetAssignments(), len(assignments))
+		require.Len(t, resp.Assignments, len(assignments))
 	}, 10*time.Second, 50*time.Millisecond, "waiting for scoped role assignments to be present in cache")
 
 	for _, tc := range []struct {

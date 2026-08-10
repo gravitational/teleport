@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // App describes an application
@@ -89,7 +88,7 @@ type App struct {
 	LLM *LLM `json:"llm,omitempty"`
 
 	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
-	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
+	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -145,9 +144,12 @@ type MakeAppsConfig struct {
 	// AppsToUserGroups is a mapping of application names to user groups.
 	AppsToUserGroups        map[string]types.UserGroups
 	SAMLIdPServiceProviders types.SAMLIdPServiceProviders
-	// AWSRoles holds the visible and granted AWS role ARNs for this app.
+	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
 	// Only used for AWS Console Apps.
-	AWSRoles *PrincipalSet
+	AllowedAWSRolesLookup map[string][]string
+	// GrantedAWSRolesLookup is a map of AWS IAM Role ARNs that the logged user has been granted
+	// for each App. Only used for AWS Console Apps.
+	GrantedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
@@ -208,23 +210,39 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
+		SupportedFeatureIDs:   componentfeatures.ToIntegers(c.SupportedFeatures),
 	}
 
-	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
-		resultApp.SupportedFeatureIDs = f
-	}
+	if app.IsAWSConsole() {
+		// TODO(kiosion): This visible/granted role handling is quite bad. Ideally, modify AccessChecker's [GetAllowedLoginsForResource]
+		// to return a struct containing all visible roles, plus a subset of granted (if present), out-of-the-box, rather than having to
+		// invoke [GetAllowedLoginsForResource] twice to diff visible vs granted roles.
+		visible := c.AllowedAWSRolesLookup[app.GetName()]
+		visibleRoles := aws.FilterAWSRoles(visible, app.GetAWSAccountID())
 
-	if app.IsAWSConsole() && c.AWSRoles != nil {
-		var visibleRoles []aws.Role
-		if componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, c.SupportedFeatures) {
-			visibleRoles = aws.FilterAWSRoles(c.AWSRoles.All.Elements(), app.GetAWSAccountID())
-		} else {
-			visibleRoles = aws.FilterAWSRoles(c.AWSRoles.Granted.Elements(), app.GetAWSAccountID())
+		granted := c.GrantedAWSRolesLookup[app.GetName()]
+		grantedRoles := aws.FilterAWSRoles(granted, app.GetAWSAccountID())
+		grantedSet := make(map[string]struct{}, len(grantedRoles))
+		for _, gr := range grantedRoles {
+			grantedSet[gr.ARN] = struct{}{}
 		}
-		resultApp.AWSRoles = slices.Map(visibleRoles, func(r aws.Role) aws.Role {
-			r.RequiresRequest = !c.AWSRoles.Granted.Contains(r.ARN)
-			return r
-		})
+
+		supportsResourceConstraints := componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, c.SupportedFeatures)
+		uiRoles := make([]aws.Role, 0, len(visibleRoles))
+		for _, r := range visibleRoles {
+			_, isGranted := grantedSet[r.ARN]
+			if !supportsResourceConstraints && !isGranted {
+				continue
+			}
+			uiRoles = append(uiRoles, aws.Role{
+				Name:            r.Name,
+				Display:         r.Display,
+				ARN:             r.ARN,
+				AccountID:       r.AccountID,
+				RequiresRequest: !isGranted,
+			})
+		}
+		resultApp.AWSRoles = uiRoles
 	}
 
 	if mcpSpec := app.GetMCP(); mcpSpec != nil {

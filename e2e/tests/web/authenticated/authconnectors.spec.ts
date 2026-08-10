@@ -27,7 +27,11 @@ const SET_DEFAULT_PATH = '/v1/webapi/authconnector/default';
 
 const isMfaChallenge = (req: Request) => req.url().includes(MFA_CHALLENGE_PATH);
 
-test('lists, creates, views, and deletes a connector', async ({ page }) => {
+// TODO(@rudream): re-enable once #67593 (auth connector MFA papercuts) is
+// backported. Until then v18 still requires MFA to list connectors.
+test.skip('lists, creates, views, and deletes a connector', async ({
+  page,
+}) => {
   const name = `testconnector-${randomUUID()}`;
   const tile = page.getByTestId(`${name}-tile`);
 
@@ -68,7 +72,9 @@ test('lists, creates, views, and deletes a connector', async ({ page }) => {
   }
 });
 
-test.describe('default connector fallback', () => {
+// TODO(@rudream): re-enable once #67593 (auth connector MFA papercuts) is
+// backported. The fallback path depends on the reusable MFA response it adds.
+test.describe.skip('default connector fallback', () => {
   const name = `testconnector-${randomUUID()}`;
 
   test.afterEach(async ({ page }) => {

@@ -175,32 +175,6 @@ func TestGetTokens(t *testing.T) {
 			},
 		},
 		{
-			name: "system tokens are shown but marked as system resources",
-			tokenData: []tokenData{
-				{
-					name: "beam-system-token",
-					spec: types.ProvisionTokenSpecV2{
-						Roles: types.SystemRoles{types.RoleNode},
-					},
-					labels: map[string]string{
-						types.TeleportInternalResourceType: types.SystemResource,
-					},
-					expiry: expiry,
-				},
-			},
-			expected: []ui.JoinToken{
-				{
-					ID:               "beam-system-token",
-					SafeName:         "************token",
-					Expiry:           expiry,
-					Roles:            types.SystemRoles{types.RoleNode},
-					IsSystemResource: true,
-					Method:           "token",
-				},
-				staticUIToken,
-			},
-		},
-		{
 			name: "all tokens",
 			tokenData: []tokenData{
 				{
@@ -660,9 +634,18 @@ func TestEditToken(t *testing.T) {
 }
 
 func TestCreateTokenExpiry(t *testing.T) {
-	ctx := t.Context()
+	// Can't t.Parallel because of modules.SetTestModules.
+	// Use enterprise build to access token types such as TPM and Spacelift
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: false,
+		},
+	})
+
+	ctx := context.Background()
 	username := "test-user@example.com"
-	env := newWebPack(t, 1, withModules(modulestest.EnterpriseModules()))
+	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, username, nil /* roles */)
 
@@ -1510,6 +1493,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 
 	log := logtest.NewLogger()
+	modulestest.SetTestModules(t, *config.testModules)
 	r, err := autoupdatelookup.NewResolver(
 		autoupdatelookup.Config{
 			RolloutGetter: ap,
@@ -1525,7 +1509,6 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			AccessPoint:     ap,
 			PublicProxyAddr: addr,
 			ProxyClient:     clt,
-			Modules:         config.testModules,
 		},
 		logger:             log,
 		autoUpdateResolver: r,
@@ -1691,6 +1674,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {
@@ -2154,14 +2138,14 @@ func TestJoinScript(t *testing.T) {
 		})
 	})
 	t.Run("using teleport-update", func(t *testing.T) {
-		testRollout := autoupdatev1pb.AutoUpdateAgentRollout_builder{Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
+		testRollout := &autoupdatev1pb.AutoUpdateAgentRollout{Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
 			StartVersion:              "1.2.2",
 			TargetVersion:             "1.2.3",
 			Schedule:                  autoupdate.AgentsScheduleImmediate,
 			AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 			Strategy:                  autoupdate.AgentsStrategyTimeBased,
 			MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-		}.Build()}.Build()
+		}}
 		t.Run("rollout exists and autoupdates are on", func(t *testing.T) {
 			currentStableCloudVersion := "1.1.1"
 			config := autoupdateTestHandlerConfig{
@@ -2179,7 +2163,7 @@ func TestJoinScript(t *testing.T) {
 
 			// list of packages must include the updater
 			require.Contains(t, script, "UPDATER_STYLE='binary'")
-			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.GetSpec().GetTargetVersion()))
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))
 		})
 		t.Run("rollout exists and autoupdates are off", func(t *testing.T) {
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
@@ -2189,38 +2173,45 @@ func TestJoinScript(t *testing.T) {
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 			require.Contains(t, script, "UPDATER_STYLE='binary'")
-			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.GetSpec().GetTargetVersion()))
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))
 		})
 	})
 }
 
 func TestAutomaticUpgrades(t *testing.T) {
 	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
-		features := modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: true,
-		}
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: true,
+			},
+		})
 
-		got := automaticUpgrades(*features.ToProto())
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.True(t, got)
 	})
 	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-		features := modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: false,
-		}
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: false,
+			},
+		})
 
-		got := automaticUpgrades(*features.ToProto())
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.False(t, got)
 	})
 
 	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
-		features := modules.Features{
-			Cloud:             false,
-			AutomaticUpgrades: true,
-		}
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud:             false,
+				AutomaticUpgrades: true,
+			},
+		})
 
-		got := automaticUpgrades(*features.ToProto())
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.False(t, got)
 	})
 }

@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -468,7 +468,7 @@ func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
 
 	// fetch tunnel connections for the cluster to update runtime status
-	connections, err := a.GetTunnelConnections(ctx, remoteCluster.GetName())
+	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -612,7 +612,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
-		meta.Labels = maps.Clone(tokenLabels)
+		meta.Labels = utils.CopyStringsMap(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
@@ -684,7 +684,7 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 		roundtrip.SanitizerEnabled(true),
 	}
 
-	if a.insecureMode {
+	if lib.IsInsecureDevMode() {
 		a.logger.WarnContext(ctx, "The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// Get the default transport, this allows picking up proxy from the
@@ -742,7 +742,7 @@ func (a *Server) validateTrustedClusterName(ctx context.Context, trustedCluster 
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: trustedCluster.GetProxyAddress(),
-		Insecure:  a.insecureMode,
+		Insecure:  lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

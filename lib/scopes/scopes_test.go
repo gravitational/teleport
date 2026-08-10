@@ -46,7 +46,7 @@ func TestValidateSegment(t *testing.T) {
 			name:     "empty segment",
 			segment:  "",
 			strongOk: false,
-			weakOk:   false,
+			weakOk:   true,
 		},
 		{
 			name:     "segment with leading symbol",
@@ -350,9 +350,9 @@ func TestWeakValidate(t *testing.T) {
 			ok:    true,
 		},
 		{
-			name:  "empty segment rejected",
+			name:  "empty segment passes",
 			scope: "/aa//bb/cc",
-			ok:    false,
+			ok:    true,
 		},
 		{
 			name:  "dangling separator passes",

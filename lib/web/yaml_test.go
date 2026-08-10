@@ -78,21 +78,21 @@ spec:
 `
 
 func getAccessMonitoringRuleResource() *accessmonitoringrulesv1.AccessMonitoringRule {
-	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
+	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "foo",
-		}.Build(),
-		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Subjects:  []string{types.KindAccessRequest},
 			Condition: "some-condition",
-			Notification: accessmonitoringrulesv1.Notification_builder{
+			Notification: &accessmonitoringrulesv1.Notification{
 				Name:       "mattermost",
 				Recipients: []string{"apple"},
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 }
 
 func getTokenResource() *types.ProvisionTokenV2 {

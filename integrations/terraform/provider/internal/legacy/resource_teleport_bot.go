@@ -120,7 +120,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Type:        types.StringType,
 					},
 				}),
-				Description: "Common metadata that all resources share",
+				Description: "Requires provider v18.4.0 or newer. Common metadata that all resources share",
 				Optional:    true,
 				Validators: []tfsdk.AttributeValidator{
 					requiredUnlessLegacyValidator{},
@@ -143,7 +143,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Type:        tfschema.DurationType{},
 					},
 				}),
-				Description: "The configured properties of a bot.",
+				Description: "Requires provider v18.4.0 or newer. The configured properties of a bot.",
 				Optional:    true,
 				Validators: []tfsdk.AttributeValidator{
 					requiredUnlessLegacyValidator{},
@@ -162,14 +162,8 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Computed:    true,
 					},
 				}),
-				Description: "Fields that are set by the server as results of operations. These should not be modified by users.",
+				Description: "Requires provider v18.4.0 or newer. Fields that are set by the server as results of operations. These should not be modified by users.",
 				Computed:    true,
-			},
-			"scope": {
-				Description:   "Scope is the scope of the bot resource. Leave empty for unscoped bots.",
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.RequiresReplace()},
-				Optional:      true,
-				Type:          types.StringType,
 			},
 
 			// Deprecated fields.
@@ -177,7 +171,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Type:               types.StringType,
 				Optional:           true,
 				Description:        "The name of the bot, i.e. the unprefixed User name",
-				DeprecationMessage: "Deprecated. Used `metadata.name` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Used `metadata.name` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},
@@ -187,19 +181,19 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Type:               types.StringType,
 				Computed:           true,
 				Description:        "The name of the generated bot user",
-				DeprecationMessage: "Deprecated. Use `status.user_name` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `status.user_name` instead.",
 			},
 			"role_name": {
 				Type:               types.StringType,
 				Computed:           true,
 				Description:        "The name of the generated bot role",
-				DeprecationMessage: "Deprecated. Use `status.role_name` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `status.role_name` instead.",
 			},
 			"token_ttl": {
 				Type:               types.StringType,
 				Optional:           true,
 				Computed:           true,
-				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. This field is not required anymore and has no effect.",
 			},
 			"token_id": {
 				Type: types.StringType,
@@ -207,7 +201,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				// This will go away eventually when we'll generate the bot provider instead
 				Optional:           true,
 				Sensitive:          true,
-				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. This field is not required anymore and has no effect.",
 			},
 			"roles": {
 				Type: types.ListType{
@@ -215,13 +209,13 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				},
 				Optional:           true,
 				Description:        "A list of roles the created bot should be allowed to assume via role impersonation.",
-				DeprecationMessage: "Deprecated. Use `spec.roles` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `spec.roles` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},
 			},
 			"traits": tfschema.GenSchemaTraits(ctx, tfsdk.Attribute{
-				DeprecationMessage: "Deprecated. Use `spec.traits` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `spec.traits` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},
@@ -355,7 +349,6 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		// user provided legacy or RFD 153-style attributes.
 		Metadata: types.Object{AttrTypes: attrTypes("metadata")},
 		Spec:     types.Object{AttrTypes: attrTypes("spec")},
-		Scope:    stringValue(bot.GetScope()),
 
 		// Deprecated user-provided attributes.
 		Name: types.String{},
@@ -388,7 +381,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	// If the plan or state includes the metadata or spec attribute, it means
 	// the user has "opted in" to the new RFD 153-style attributes. Otherwise,
 	// for backward-compatibility we'll populate the old fields.
-	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec) || attrPresent(base.Scope)
+	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec)
 
 	if rfd153Style {
 		result.Name.Null = true
@@ -459,13 +452,9 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		// returned.
 		if attrPresent(base.Spec) {
 			if prev, ok := base.Spec.Attrs["max_session_ttl"]; ok {
-				// Scoped bots don't have a max_session_ttl. We don't want to replace the new value by the old one
-				// if the old one is Unknown.
-				if !prev.IsUnknown() {
-					if dur, ok := prev.(tfschema.DurationValue); ok {
-						if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
-							result.Spec.Attrs["max_session_ttl"] = prev
-						}
+				if dur, ok := prev.(tfschema.DurationValue); ok {
+					if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
+						result.Spec.Attrs["max_session_ttl"] = prev
 					}
 				}
 			}
@@ -565,16 +554,14 @@ func (v rfd153OnlyValidator) Validate(ctx context.Context, req tfsdk.ValidateAtt
 	}
 
 	var meta, spec types.Object
-	var scope types.String
 	req.Config.GetAttribute(ctx, path.Root("metadata"), &meta)
 	req.Config.GetAttribute(ctx, path.Root("spec"), &spec)
-	req.Config.GetAttribute(ctx, path.Root("scope"), &scope)
 
-	if attrPresent(meta) || attrPresent(spec) || attrPresent(scope) {
+	if attrPresent(meta) || attrPresent(spec) {
 		rsp.Diagnostics.AddAttributeError(
 			req.AttributePath,
 			"Attribute Validation Error",
-			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec`, `metadata`, or `scope`.", req.AttributePath),
+			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec` or `metadata`.", req.AttributePath),
 		)
 	}
 }
@@ -632,7 +619,6 @@ type Bot struct {
 	Metadata types.Object `tfsdk:"metadata"`
 	Spec     types.Object `tfsdk:"spec"`
 	Status   types.Object `tfsdk:"status"`
-	Scope    types.String `tfsdk:"scope"`
 
 	// Deprecated fields
 	Name     types.String   `tfsdk:"name"`
@@ -650,7 +636,6 @@ func (b Bot) ToProto() *machineidv1.Bot {
 		Version:  apitypes.V1,
 		Metadata: b.GetMetadata(),
 		Spec:     b.GetSpec(),
-		Scope:    b.GetScope(),
 	}
 }
 
@@ -818,13 +803,6 @@ func (b Bot) GetMaxSessionTTL() *durationpb.Duration {
 	}
 
 	return durationpb.New(dur.Value)
-}
-
-func (b Bot) GetScope() string {
-	if !attrPresent(b.Scope) {
-		return ""
-	}
-	return b.Scope.Value
 }
 
 func attrPresent(v attr.Value) bool {

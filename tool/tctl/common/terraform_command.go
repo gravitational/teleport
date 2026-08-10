@@ -210,7 +210,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		}()
 
 		onboard = onboarding.Config{
-			TokenValue: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
+			TokenValue: token.GetMetadata().GetName(),
 			JoinMethod: types.JoinMethodBoundKeypair,
 			BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 				RegistrationSecretValue: token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret(),
@@ -312,22 +312,22 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 	}
 
 	// Create bot
-	bot := machineidv1pb.Bot_builder{
+	bot := &machineidv1pb.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
 			Labels:  terraformEnvCommandLabels,
-		}.Build(),
-		Spec: machineidv1pb.BotSpec_builder{
+		},
+		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
-		}.Build(),
-	}.Build()
+		},
+	}
 
-	_, err = client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+	_, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: bot,
-	}.Build())
+	})
 	if err != nil {
 		return "", trace.Wrap(err, "creating bot")
 	}

@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -195,7 +194,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
-			parser = newKubeClusterParser(kind.LoadSecrets)
+			parser = newKubeClusterParser()
 		case types.KindCrownJewel:
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
@@ -289,24 +288,18 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRelayServerParser()
 		case types.KindScopedToken:
 			parser = newScopedTokenParser()
-		case types.KindAppAuthConfig:
-			parser = newAppAuthConfigParser()
 		case types.KindInferenceModel:
 			parser = newInferenceModelParser()
 		case types.KindInferencePolicy:
 			parser = newInferencePolicyParser()
 		case types.KindInferenceSecret:
 			parser = newInferenceSecretParser()
-		case types.KindClassifier:
-			parser = newClassifierParser()
 		case types.KindRetrievalModel:
 			parser = newRetrievalModelParser()
 		case types.KindCertAuthorityOverride:
 			parser = newCertAuthorityOverrideParser()
 		case types.KindPendingCSRRequest:
 			parser = newPendingCSRRequestParser()
-		case types.KindValidatedMFAChallenge:
-			parser = newValidatedMFAChallengeParser(kind.Filter)
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -476,7 +469,12 @@ func (p baseParser) prefixes() []backend.Key {
 }
 
 func (p baseParser) match(key backend.Key) bool {
-	return slices.ContainsFunc(p.matchPrefixes, key.HasPrefix)
+	for _, prefix := range p.matchPrefixes {
+		if key.HasPrefix(prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {
@@ -1809,9 +1807,8 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 	}
 }
 
-func newKubeClusterParser(loadSecrets bool) *kubeClusterParser {
+func newKubeClusterParser() *kubeClusterParser {
 	return &kubeClusterParser{
-		loadSecrets: loadSecrets,
 		baseParser: newBaseParser(
 			kubeUnscopedPrefix(),
 			kubeScopedPrefix(),
@@ -1821,7 +1818,6 @@ func newKubeClusterParser(loadSecrets bool) *kubeClusterParser {
 
 type kubeClusterParser struct {
 	baseParser
-	loadSecrets bool
 }
 
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
@@ -1842,17 +1838,10 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 			Scope: sqn.Scope,
 		}, nil
 	case types.OpPut:
-		cluster, err := services.UnmarshalKubeCluster(event.Item.Value,
+		return services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !p.loadSecrets {
-			return cluster.WithoutSecrets(), nil
-		}
-		return cluster, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -3126,7 +3115,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 
 		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
 			parts[5],
-			kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
+			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 				Username:      parts[1],
 				Cluster:       parts[2],
 				Namespace:     parts[3],
@@ -3134,7 +3123,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 				ContainerName: parts[5],
 				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
 				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
-			}.Build(),
+			},
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3213,16 +3202,16 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
 
-		notification := notificationsv1.Notification_builder{
+		notification := &notificationsv1.Notification{
 			Kind:    types.KindNotification,
 			Version: types.V1,
-			Spec: notificationsv1.NotificationSpec_builder{
+			Spec: &notificationsv1.NotificationSpec{
 				Username: parts[2],
-			}.Build(),
-			Metadata: headerv1.Metadata_builder{
+			},
+			Metadata: &headerv1.Metadata{
 				Name: parts[3],
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		return types.Resource153ToLegacy(notification), nil
 	case types.OpPut:
@@ -3257,18 +3246,18 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
 
-		globalNotification := notificationsv1.GlobalNotification_builder{
+		globalNotification := &notificationsv1.GlobalNotification{
 			Kind:    types.KindGlobalNotification,
 			Version: types.V1,
-			Spec: notificationsv1.GlobalNotificationSpec_builder{
-				Notification: notificationsv1.Notification_builder{
+			Spec: &notificationsv1.GlobalNotificationSpec{
+				Notification: &notificationsv1.Notification{
 					Spec: &notificationsv1.NotificationSpec{},
-				}.Build(),
-			}.Build(),
-			Metadata: headerv1.Metadata_builder{
+				},
+			},
+			Metadata: &headerv1.Metadata{
 				Name: parts[2],
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		return types.Resource153ToLegacy(globalNotification), nil
 	case types.OpPut:
@@ -3305,18 +3294,18 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		botInstance := machineidv1.BotInstance_builder{
+		botInstance := &machineidv1.BotInstance{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
 			Scope:   bot.Scope,
-			Spec: machineidv1.BotInstanceSpec_builder{
+			Spec: &machineidv1.BotInstanceSpec{
 				BotName:    bot.Name,
 				InstanceId: instanceID,
-			}.Build(),
-			Metadata: headerv1.Metadata_builder{
+			},
+			Metadata: &headerv1.Metadata{
 				Name: instanceID,
-			}.Build(),
-		}.Build()
+			},
+		}
 		return types.Resource153ToLegacy(botInstance), nil
 	case types.OpPut:
 		botInstance, err := services.UnmarshalBotInstance(
@@ -3552,16 +3541,16 @@ func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Re
 		}
 		deviceID := key.Components()[0]
 
-		privateKey := accessgraphsecretsv1pb.PrivateKey_builder{
+		privateKey := &accessgraphsecretsv1pb.PrivateKey{
 			Kind:    types.KindAccessGraphSecretPrivateKey,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(deviceID)).String(), backend.SeparatorString),
-			}.Build(),
-			Spec: accessgraphsecretsv1pb.PrivateKeySpec_builder{
+			},
+			Spec: &accessgraphsecretsv1pb.PrivateKeySpec{
 				DeviceId: deviceID,
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		return types.Resource153ToLegacy(privateKey), nil
 	case types.OpPut:
@@ -3597,16 +3586,16 @@ func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types
 		}
 		hostID := key.Components()[0]
 
-		authorizedKey := accessgraphsecretsv1pb.AuthorizedKey_builder{
+		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
 			Kind:    types.KindAccessGraphSecretAuthorizedKey,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
-			}.Build(),
-			Spec: accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
+			},
+			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
 				HostId: hostID,
-			}.Build(),
-		}.Build()
+			},
+		}
 
 		return types.Resource153ToLegacy(authorizedKey), nil
 	case types.OpPut:
@@ -3701,16 +3690,16 @@ func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, er
 		downstreamID := keyComponents[0]
 		resourceID := keyComponents[1]
 
-		pseudoState := provisioningv1.PrincipalState_builder{
+		pseudoState := &provisioningv1.PrincipalState{
 			Kind:    types.KindProvisioningPrincipalState,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: resourceID,
-			}.Build(),
-			Spec: provisioningv1.PrincipalStateSpec_builder{
+			},
+			Spec: &provisioningv1.PrincipalStateSpec{
 				DownstreamId: downstreamID,
-			}.Build(),
-		}.Build()
+			},
+		}
 		return types.Resource153ToLegacy(pseudoState), nil
 
 	case types.OpPut:

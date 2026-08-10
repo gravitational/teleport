@@ -68,11 +68,11 @@ type ValidatedTPM struct {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *ValidatedTPM) JoinAttrs() *workloadidentityv1pb.JoinAttrsTPM {
-	attrs := workloadidentityv1pb.JoinAttrsTPM_builder{
+	attrs := &workloadidentityv1pb.JoinAttrsTPM{
 		EkPubHash:      c.EKPubHash,
 		EkCertSerial:   c.EKCertSerial,
 		EkCertVerified: c.EKCertVerified,
-	}.Build()
+	}
 
 	return attrs
 }
@@ -147,8 +147,7 @@ func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error)
 func parseEK(
 	ctx context.Context, params ValidateParams,
 ) (*x509.Certificate, crypto.PublicKey, error) {
-	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
-	ctx, span := tracer.Start(ctx, "parseEK")
+	_, span := tracer.Start(ctx, "parseEK")
 	defer span.End()
 
 	ekCertPresent := len(params.EKCert) > 0
@@ -176,8 +175,7 @@ func verifyEKCert(
 	allowedCAs *x509.CertPool,
 	ekCert *x509.Certificate,
 ) error {
-	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
-	ctx, span := tracer.Start(ctx, "verifyEKCert")
+	_, span := tracer.Start(ctx, "verifyEKCert")
 	defer span.End()
 
 	if ekCert == nil {

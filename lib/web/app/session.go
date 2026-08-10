@@ -93,7 +93,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return !isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if len(servers) == 0 {
-		return nil, trace.NotFound("all app servers unhealthy")
+		return nil, trace.NotFound("all app servers unheatlhy")
 	}
 
 	rand.Shuffle(len(servers), func(i, j int) {

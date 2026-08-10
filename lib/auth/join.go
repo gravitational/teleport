@@ -228,7 +228,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitHubJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetGithub(claims.JoinAttrs())
+			attrs.Github = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -237,7 +237,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitLabJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetGitlab(claims.JoinAttrs())
+			attrs.Gitlab = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -246,7 +246,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkCircleCIJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetCircleci(claims.JoinAttrs())
+			attrs.Circleci = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -255,7 +255,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkKubernetesJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetKubernetes(claims.JoinAttrs())
+			attrs.Kubernetes = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -264,7 +264,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGCPJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetGcp(claims.JoinAttrs())
+			attrs.Gcp = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -273,7 +273,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkSpaceliftJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetSpacelift(claims.JoinAttrs())
+			attrs.Spacelift = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -282,7 +282,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetTerraformCloud(claims.JoinAttrs())
+			attrs.TerraformCloud = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -291,7 +291,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.SetBitbucket(claims.JoinAttrs())
+			attrs.Bitbucket = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -300,7 +300,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims.ForAudit()
-			attrs.SetAzureDevops(claims.JoinAttrs())
+			attrs.AzureDevops = claims.JoinAttrs()
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -411,23 +411,23 @@ func (a *Server) GenerateBotCertsForJoin(
 	if params.Attrs == nil {
 		params.Attrs = &workloadidentityv1pb.JoinAttrs{}
 	}
-	params.Attrs.SetMeta(workloadidentityv1pb.JoinAttrsMeta_builder{
+	params.Attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
 		JoinMethod: string(joinMethod),
-	}.Build())
+	}
 	if joinMethod != types.JoinMethodToken {
-		params.Attrs.GetMeta().SetJoinTokenName(token.GetName())
+		params.Attrs.Meta.JoinTokenName = token.GetName()
 	}
 
-	auth := machineidv1pb.BotInstanceStatusAuthentication_builder{
+	auth := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
 		// secrets. Should we hash it?
-		JoinToken:  scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetSafeName()}.String(),
+		JoinToken:  token.GetSafeName(),
 		JoinMethod: string(token.GetJoinMethod()),
 		PublicKey:  params.PublicTLSKey,
 		JoinAttrs:  params.Attrs,
-	}.Build()
+	}
 
 	var err error
 	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
@@ -566,7 +566,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			// plaintext and we don't automatically target locks at `token`-type
 			// tokens. Other join methods (especially bound_keypair) return the
 			// full token name.
-			JoinToken: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetSafeName()}.String(),
+			JoinToken: token.GetSafeName(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

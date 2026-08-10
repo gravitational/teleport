@@ -73,7 +73,7 @@ type Config struct {
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSessionReader
-	Applications            services.Applications
+	Apps                    services.Applications
 	Beams                   services.BeamReader
 	BeamsConfig             services.BeamsConfigGetter
 	BotInstance             services.BotInstance
@@ -117,9 +117,8 @@ type Config struct {
 	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
 	HealthCheckConfig       services.HealthCheckConfigReader
-	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
-	AppAuthConfig           services.AppAuthConfigReader
+	RecordingEncryption     services.RecordingEncryption
 	Summarizer              services.Summarizer
 	SubCAService            services.SubCAServiceGetter
 }
@@ -167,7 +166,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
-		Apps:                    cfg.Applications,
+		Apps:                    cfg.Apps,
 		Beams:                   cfg.Beams,
 		BeamsConfig:             cfg.BeamsConfig,
 		ClusterConfig:           cfg.ClusterConfig,
@@ -210,9 +209,8 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		GitServers:              cfg.GitServers,
 		HealthCheckConfig:       cfg.HealthCheckConfig,
 		BotInstanceService:      cfg.BotInstance,
-		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
-		AppAuthConfig:           cfg.AppAuthConfig,
+		RecordingEncryption:     cfg.RecordingEncryption,
 		Summarizer:              cfg.Summarizer,
 		SubCAService:            cfg.SubCAService,
 	}

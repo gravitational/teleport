@@ -216,7 +216,9 @@ func (s *KeyAgentService) renewIdentity(ctx context.Context, privKey crypto.Sign
 		generateOpts = append(generateOpts, identity.WithPrivateKey(privKey))
 	}
 
-	if s.cfg.DelegationSessionID != "" {
+	if s.cfg.DelegationSessionID == "" {
+		generateOpts = append(generateOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
 		generateOpts = append(generateOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 

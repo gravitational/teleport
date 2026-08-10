@@ -181,10 +181,10 @@ Outer:
 		}
 	}
 
-	return scopedaccessv1.ListScopedRoleAssignmentsResponse_builder{
+	return &scopedaccessv1.ListScopedRoleAssignmentsResponse{
 		Assignments:   out,
 		NextPageToken: nextPageToken,
-	}.Build(), nil
+	}, nil
 }
 
 // Put adds a new assignment to the cache. It will overwrite any existing assignment with the same name.

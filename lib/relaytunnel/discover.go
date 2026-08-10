@@ -50,11 +50,11 @@ var _ relaytunnelv1alpha.DiscoveryServiceServer = (*StaticDiscoverServiceServer)
 
 // Discover implements [relaytunnelv1alpha.DiscoveryServiceServer].
 func (d *StaticDiscoverServiceServer) Discover(ctx context.Context, req *relaytunnelv1alpha.DiscoverRequest) (*relaytunnelv1alpha.DiscoverResponse, error) {
-	return relaytunnelv1alpha.DiscoverResponse_builder{
+	return &relaytunnelv1alpha.DiscoverResponse{
 		RelayGroup:            d.RelayGroup,
 		TargetConnectionCount: d.TargetConnectionCount,
 		SupportedTunnelTypes:  d.SupportedTunnelTypes,
-	}.Build(), nil
+	}, nil
 }
 
 type DiscoverParams struct {

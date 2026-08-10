@@ -36,14 +36,14 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
-var accessMonitoringRuleSpec = accessmonitoringrulesv1pb.AccessMonitoringRuleSpec_builder{
+var accessMonitoringRuleSpec = &accessmonitoringrulesv1pb.AccessMonitoringRuleSpec{
 	Subjects:  []string{types.KindAccessRequest},
 	Condition: "access_request.spec.roles.contains(\"your_role_name\")",
-	Notification: accessmonitoringrulesv1pb.Notification_builder{
+	Notification: &accessmonitoringrulesv1pb.Notification{
 		Name:       "slack",
 		Recipients: []string{"your-slack-channel"},
-	}.Build(),
-}.Build()
+	},
+}
 
 type accessMonitoringRuleTestingPrimitives struct {
 	setup *testSetup
@@ -59,17 +59,17 @@ func (g *accessMonitoringRuleTestingPrimitives) SetupTeleportFixtures(ctx contex
 }
 
 func (g *accessMonitoringRuleTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	accessMonitoringRule := accessmonitoringrulesv1pb.AccessMonitoringRule_builder{
+	accessMonitoringRule := &accessmonitoringrulesv1pb.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		}.Build(),
+		},
 		Spec: accessMonitoringRuleSpec,
-	}.Build()
+	}
 	_, err := g.setup.TeleportClient.AccessMonitoringRulesClient().
 		CreateAccessMonitoringRule(ctx, accessMonitoringRule)
 	return trace.Wrap(err)
@@ -124,7 +124,7 @@ func (g *accessMonitoringRuleTestingPrimitives) ModifyKubernetesResource(ctx con
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessMonitoringRule.Spec.Notification.SetRecipients([]string{"your-slack-channel", "your-other-slack-channel"})
+	accessMonitoringRule.Spec.Notification.Recipients = []string{"your-slack-channel", "your-other-slack-channel"}
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, accessMonitoringRule))
 }
 

@@ -63,18 +63,18 @@ func NewFakeMacOSDevice() (*FakeMacOSDevice, error) {
 }
 
 func (f *FakeMacOSDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	return devicepb.DeviceCollectedData_builder{
+	return &devicepb.DeviceCollectedData{
 		CollectTime:  timestamppb.Now(),
 		OsType:       devicepb.OSType_OS_TYPE_MACOS,
 		SerialNumber: f.SerialNumber,
-	}.Build(), nil
+	}, nil
 }
 
 func (f *FakeMacOSDevice) GetDeviceCredential() *devicepb.DeviceCredential {
-	return devicepb.DeviceCredential_builder{
+	return &devicepb.DeviceCredential{
 		Id:           f.ID,
 		PublicKeyDer: f.PubKeyDER,
-	}.Build()
+	}
 }
 
 func (f *FakeMacOSDevice) GetDeviceOSType() devicepb.OSType {
@@ -83,14 +83,14 @@ func (f *FakeMacOSDevice) GetDeviceOSType() devicepb.OSType {
 
 func (f *FakeMacOSDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	cd, _ := f.CollectDeviceData(native.CollectedDataAlwaysEscalate)
-	return devicepb.EnrollDeviceInit_builder{
+	return &devicepb.EnrollDeviceInit{
 		Token:        "",
 		CredentialId: f.ID,
 		DeviceData:   cd,
-		Macos: devicepb.MacOSEnrollPayload_builder{
+		Macos: &devicepb.MacOSEnrollPayload{
 			PublicKeyDer: f.PubKeyDER,
-		}.Build(),
-	}.Build(), nil
+		},
+	}, nil
 }
 
 func (f *FakeMacOSDevice) SignChallenge(chal []byte) (sig []byte, err error) {

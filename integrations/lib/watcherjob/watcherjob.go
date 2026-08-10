@@ -27,11 +27,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
@@ -114,15 +115,7 @@ func newJobWithEvents(events types.Events, config Config, fn EventFunc, watchIni
 			return nil
 		})
 
-		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-			Driver: retryutils.NewExponentialDriver(20 * time.Millisecond),
-			First:  20 * time.Millisecond,
-			Max:    5 * time.Second,
-			Jitter: retryutils.HalfJitter,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		bk := backoff.NewDecorr(20*time.Millisecond, 5*time.Second, clockwork.NewRealClock())
 
 		log := logger.Get(ctx)
 		for {
@@ -152,11 +145,9 @@ func newJobWithEvents(events types.Events, config Config, fn EventFunc, watchIni
 			}
 
 			// To mitigate a potentially aggressive retry loop, we wait
-			select {
-			case <-retry.After():
-			case <-ctx.Done():
+			if err := bk.Do(ctx); err != nil {
 				log.DebugContext(ctx, "Watcher context was canceled while waiting before a reconnection")
-				return trace.Wrap(ctx.Err())
+				return trace.Wrap(err)
 			}
 		}
 	})

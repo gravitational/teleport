@@ -26,8 +26,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 )
 
 const (
@@ -112,15 +113,7 @@ func (c *tokenWithTTL) getToken(ctx context.Context, scope string, config Config
 	r.Header.Add("Host", u.Host)
 	r.Header.Add("Content-Type", getTokenContentType)
 
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(backoffBase),
-		First:  backoffBase,
-		Max:    backoffMax,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return t, trace.Wrap(err)
-	}
+	backoff := backoff.NewDecorr(backoffBase, backoffMax, clockwork.NewRealClock())
 	for {
 		resp, err := client.Do(r)
 		if err != nil {
@@ -134,12 +127,11 @@ func (c *tokenWithTTL) getToken(ctx context.Context, scope string, config Config
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			select {
-			case <-ctx.Done():
+			err = backoff.Do(ctx)
+			if err != nil {
 				return t, trace.Errorf("Failed to get auth token %v %v %v", resp.StatusCode, scope, string(b))
-			case <-retry.After():
-				continue
 			}
+			continue
 		}
 
 		err = json.NewDecoder(bytes.NewReader(b)).Decode(&t)

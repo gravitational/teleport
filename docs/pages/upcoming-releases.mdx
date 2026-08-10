@@ -32,65 +32,80 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.3.0  | Week of October 27, 2025   |
-| 18.4.0  | Week of November 10, 2025  |
-| 19.0.0  | August 2026                |
+| 18.11.0 | Week of August 17, 2026    |
+| 19.0.0  | Week of September 21, 2026 |
 
-### 18.3.0
+### 18.11.0
 
-#### Web UI Workload ID
+#### Agentic UX for Access Configuration
 
-Teleport's web UI will list all workload identity resources registered in the cluster.
+Teleport will provide a custom agent skill for configuring access to connected
+resources using access lists.
 
-#### Relay Service
+#### Linux Desktop Access
 
-Teleport will ship with a new Relay Service that acts as a lightweight Proxy Service,
-receiving connections from both SSH clients and agents.
+Teleport will support remote desktop sessions to Linux hosts.
 
-The Relay Service can be used to avoid routing SSH connections through the broader Teleport
-control plane, providing the ability to optimize network flows in large or complex deployments.
+_Delayed from Teleport 18.10.0._
 
-#### Multi-cluster Discovery
+#### Desktop Session Recording Export
 
-Teleport EC2 auto-discovery will support a use-case in which multiple Teleport clusters
-discover the same EC2 instances without interfering with each other.
+Desktop session recordings can be exported to video files with the revamped
+`tsh recordings export` command.
 
-#### Kubernetes Health Checks
+#### Identity Security CLI
 
-The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
-Health status will be reported in the Teleport web UI and reflected in kube_server resources.
-Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
+Teleport will add commands to `tctl` for querying Identity Security, letting you
+explore identities, resources, and their access relationships from the command
+line.
 
-#### ElastiCache Serverless
+#### Generic OIDC Join Method
 
-Teleport will support connecting to ElastiCache Serverless databases.
+Teleport will include a new generic OIDC join method for bots and agents.
+Generic OIDC joining is offered as a fallback for spec-compliant OIDC providers
+that lack a dedicated Teleport join method.
 
-### 18.4.0
+#### Auto-Discovery Improvements
 
-#### Streamable-HTTP and SSE support for MCP Zero-Trust Access
+Teleport will extend AWS EC2 and Azure VM auto-discovery to support enrollment
+at an organization/tenant level in addition to a single account.
 
-MCP Zero-Trust Access users will be able to secure and audit connections to MCP
-servers that use HTTP-based transport protocols in addition to stdio.
+In addition, Teleport will extend cloud database auto-discovery support to
+GCP CloudSQL.
 
-#### Improved Bot Instances Dashboard
+### 19.0.0
 
-The Bot Instances dashboard will now provide a more intuitive interface
-for managing a fleet of Machine & Workload Identity bot instances. This will
-include improved filtering, sorting and searching capabilities, and a high-level
-overview of the versions of all bot instances in the cluster.
+#### Amazon Aurora DSQL Cluster State Backend
 
-#### Kubernetes support for Relay Service
+Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
 
-The relay service will be extended to facilitate Kubernetes connections.
+#### Audit Log Reliability Improvements
+
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
+
+_Delayed from Teleport 18.11.0._
+
+#### Improved Principal Selection for Access Requests
+
+Teleport will improve access requests experience by allowing users to pick specific
+principals for SSH nodes, Kubernetes clusters, databases and Windows desktop to better
+support scenarios like just-in-time access elevation requests.
+
+#### In-band Per-Session MFA for SSH and Desktops
+
+Added in-band MFA for SSH and Desktop sessions, moving MFA checks into session establishment 
+so challenges are bound to the specific session. This removes per-session MFA SSH certificates 
+and reduces MFA bypass risk.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of            | Description                                                  |
-|--------------------|--------------------------------------------------------------|
-| October 20, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
-| October 20, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
+| Week of       | Description                                                     |
+|---------------|-----------------------------------------------------------------|
+| July 13, 2026 | Teleport 18.10.0 will begin rollout on Cloud.                   |
+| July 20, 2026 | Teleport 18.10.0 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

@@ -62,23 +62,21 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Computed:      true,
-					Description:   "description is object description.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Description: "expires is a global expiry time header can be set on any resource in the system.",
-					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
-				}),
-				"labels": {
 					Computed:      true,
-					Description:   "labels is a set of labels.",
+					Description:   "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -106,70 +104,52 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"assigned_scope": {
-					Computed:      true,
-					Description:   "The scope to which this token is assigned.  Must be equivalent or descendent to the scope of the token itself.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Description: "The scope to which this token is assigned.  Must be equivalent or descendent to the scope of the token itself.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"aws": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"aws_account": {
-									Computed:      true,
-									Description:   "The AWS account ID.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The AWS account ID.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"aws_arn": {
-									Computed:      true,
-									Description:   "The ARN of the joining identity for use with the IAM join method. Supports wildcards \"*\" and \"?\".",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The ARN of the joining identity for use with the IAM join method. Supports wildcards \"*\" and \"?\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"aws_organization_id": {
-									Computed:      true,
-									Description:   "The organization ID that the joining AWS identity must belong to when using the IAM join method.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The organization ID that the joining AWS identity must belong to when using the IAM join method.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"aws_regions": {
-									Computed:      true,
-									Description:   "List of AWS regions a node is allowed to join from when using the EC2 join method.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Description: "List of AWS regions a node is allowed to join from when using the EC2 join method.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 								"aws_role": {
-									Computed:      true,
-									Description:   "The ARN of the role the Auth Service will assume in order to call the EC2 API when using the EC2 join method.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The ARN of the role the Auth Service will assume in order to call the EC2 API when using the EC2 join method.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
 						},
 						"iid_ttl": {
-							Computed:      true,
-							Description:   "The TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token. This should be a duration string such as \"8h\" or \"6mo\".",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "The TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token. This should be a duration string such as \"8h\" or \"6mo\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"integration": {
-							Computed:      true,
-							Description:   "Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "The AWS-specific configuration used with the \"ec2\" and \"iam\" join methods.",
@@ -179,31 +159,23 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							"resource_groups": {
-								Computed:      true,
-								Description:   "A list of Azure resource groups the node is allowed to join from.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of Azure resource groups the node is allowed to join from.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"subscription": {
-								Computed:      true,
-								Description:   "The Azure subscription.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Description: "The Azure subscription.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
 							"tenant": {
-								Computed:      true,
-								Description:   "Tenant is the Azure Tenant ID.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Description: "Tenant is the Azure Tenant ID.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
 						}),
-						Computed:      true,
-						Description:   "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+						Optional:    true,
 					}}),
 					Description: "The Azure-specific configuration used with the \"azure\" join method.",
 					Optional:    true,
@@ -213,107 +185,81 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"definition_id": {
-									Computed:      true,
-									Description:   "The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"pipeline_name": {
-									Computed:      true,
-									Description:   "The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"project_id": {
-									Computed:      true,
-									Description:   "The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"project_name": {
-									Computed:      true,
-									Description:   "The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository_ref": {
-									Computed:      true,
-									Description:   "The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository_uri": {
-									Computed:      true,
-									Description:   "The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository_version": {
-									Computed:      true,
-									Description:   "The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sub": {
-									Computed:      true,
-									Description:   "The subject string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The subject string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
 						},
 						"organization_id": {
-							Computed:      true,
-							Description:   "The UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "The UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "The Azure Devops-specific configuration used with the \"azure_devops\" join method.",
 					Optional:    true,
 				},
 				"bot": {
-					Computed:      true,
-					Description:   "The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Description: "The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"bound_keypair": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"onboarding": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"initial_public_key": {
-									Computed:      true,
-									Description:   "The initial public key is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The initial public key is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"must_register_before": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Description: "An optional time before which registration via registration join secret must be performed. Attempts to register using a registration secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
 									Optional:    true,
 								}),
 								"registration_secret": {
-									Computed:      true,
-									Description:   "A secret that joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Sensitive:     true,
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "A secret that joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
+									Optional:    true,
+									Sensitive:   true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "Parameters related to initial onboarding and keypair registration.",
@@ -322,18 +268,14 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 						"recovery": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"limit": {
-									Computed:      true,
-									Description:   "The maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Description: "The maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"mode": {
-									Computed:      true,
-									Description:   "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "Parameters related to recovery after identity expiration, including the initial join.",
@@ -351,31 +293,23 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							"locations": {
-								Computed:      true,
-								Description:   "A list of regions (e.g. \"us-west1\") and/or zones (e.g. \"us-west1-b\").",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of regions (e.g. \"us-west1\") and/or zones (e.g. \"us-west1-b\").",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"project_ids": {
-								Computed:      true,
-								Description:   "A list of project IDs (e.g. `<example-id-123456>`).",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of project IDs (e.g. `<example-id-123456>`).",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"service_accounts": {
-								Computed:      true,
-								Description:   "A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 						}),
-						Computed:      true,
-						Description:   "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+						Optional:    true,
 					}}),
 					Description: "The GCP-specific configuration used with the \"gcp\" join method.",
 					Optional:    true,
@@ -387,109 +321,83 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 								"conditions": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"attribute": {
-											Computed:      true,
-											Description:   "The name of the field this condition should check, separated by \".\" for nested fields.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "The name of the field this condition should check, separated by \".\" for nested fields.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"eq": {
 											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-												Computed:      true,
-												Description:   "The value to compare the attribute against.",
-												Optional:      true,
-												PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-												Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+												Description: "The value to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 											}}),
 											Description: "An \"equals\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 										"in": {
 											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-												Computed:      true,
-												Description:   "The list of values to compare the attribute against.",
-												Optional:      true,
-												PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-												Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+												Description: "The list of values to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 											}}),
 											Description: "An \"in\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 										"not_eq": {
 											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-												Computed:      true,
-												Description:   "The value to compare the attribute against.",
-												Optional:      true,
-												PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-												Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+												Description: "The value to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 											}}),
 											Description: "A \"not equals\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 										"not_in": {
 											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-												Computed:      true,
-												Description:   "The list of values to compare the attribute against.",
-												Optional:      true,
-												PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-												Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+												Description: "The list of values to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 											}}),
 											Description: "A \"not in\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 									}),
-									Computed:      true,
-									Description:   "Conditions are simple eq/not_eq/in/not_in conditions that check individual fields. All conditions must be satisfied for a join attempt to be allowed. Mutually exclusive with `expression`.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Description: "Conditions are simple eq/not_eq/in/not_in conditions that check individual fields. All conditions must be satisfied for a join attempt to be allowed. Mutually exclusive with `expression`.",
+									Optional:    true,
 								},
 								"expression": {
-									Computed:      true,
-									Description:   "A predicate expression that must evaluate to `true` for the join attempt to be allowed. It is mutually exclusive with `conditions`. TODO: Include name of variable available to the expr in docs",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "A predicate expression that must evaluate to `true` for the join attempt to be allowed. It is mutually exclusive with `conditions`. TODO: Include name of variable available to the expr in docs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "Complex rules evaluated using \"OR\" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt/ to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Complex rules evaluated using \"OR\" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt/ to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.",
+							Optional:    true,
 						},
 						"audience": {
-							Computed:      true,
-							Description:   "The expected JWT audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining.  For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName  For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "The expected JWT audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining.  For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName  For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"insecure_allow_http_issuer": {
-							Computed:      true,
-							Description:   "If set, disables the requirement that the issuer must use HTTPS.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+							Description: "If set, disables the requirement that the issuer must use HTTPS.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"issuer": {
-							Computed:      true,
-							Description:   "The expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "The expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"static_jwks": {
-							Computed:      true,
-							Description:   "An optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "An optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"tls_ca": {
-							Computed:      true,
-							Description:   "A TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. If unset, the standard web PKI root certificates will be used to verify the connection to the issuer when fetching OIDC metadata. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "A TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. If unset, the standard web PKI root certificates will be used to verify the connection to the issuer when fetching OIDC metadata. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Configuration specific to the \"generic_oidc\" join method.",
@@ -500,101 +408,73 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"actor": {
-									Computed:      true,
-									Description:   "actor is the personal account that initiated the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "actor is the personal account that initiated the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"enterprise": {
-									Computed:      true,
-									Description:   "enterprise name in which the repository is stored.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "enterprise name in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"enterprise_id": {
-									Computed:      true,
-									Description:   "enterprise_id in which the repository is stored.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "enterprise_id in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"environment": {
-									Computed:      true,
-									Description:   "environment name used by the job.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "environment name used by the job.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"ref": {
-									Computed:      true,
-									Description:   "ref (git) that triggered the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "ref (git) that triggered the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"ref_type": {
-									Computed:      true,
-									Description:   "ref_type for example: \"branch\".",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "ref_type for example: \"branch\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository": {
-									Computed:      true,
-									Description:   "repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"repository_owner": {
-									Computed:      true,
-									Description:   "repository_owner is the name of the organization in which the repository is stored.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "repository_owner is the name of the organization in which the repository is stored.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sub": {
-									Computed:      true,
-									Description:   "sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"workflow": {
-									Computed:      true,
-									Description:   "workflow name.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "workflow name.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "allow is a set of claim-matching fields evaluated against the GitHub Actions OIDC token.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "allow is a set of claim-matching fields evaluated against the GitHub Actions OIDC token.",
+							Optional:    true,
 						},
 						"enterprise_server_host": {
-							Computed:      true,
-							Description:   "enterprise_server_host allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "enterprise_server_host allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"enterprise_slug": {
-							Computed:      true,
-							Description:   "enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"static_jwks": {
-							Computed:      true,
-							Description:   "static_jwks disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "static_jwks disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Configuration specific to the \"github\" join method.",
@@ -602,11 +482,9 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 				},
 				"immutable_labels": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"ssh": {
-						Computed:      true,
-						Description:   "Labels that should be applied to SSH nodes.",
-						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-						Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						Description: "Labels that should be applied to SSH nodes.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 					}}),
 					Description: "Immutable labels that should be applied to any resulting resources provisioned using this token.",
 					Optional:    true,
@@ -621,47 +499,35 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"service_account": {
-									Computed:      true,
-									Description:   "The namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"service_account_name": {
-									Computed:      true,
-									Description:   "The name of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The name of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"service_account_namespace": {
-									Computed:      true,
-									Description:   "The namespace of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The namespace of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
 						},
 						"oidc": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"insecure_allow_http_issuer": {
-									Computed:      true,
-									Description:   "If set, disables the requirement that the issuer must use HTTPS.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									Description: "If set, disables the requirement that the issuer must use HTTPS.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"issuer": {
-									Computed:      true,
-									Description:   "The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "The configuration specific to the `oidc` type.",
@@ -669,21 +535,17 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 						},
 						"static_jwks": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"jwks": {
-								Computed:      true,
-								Description:   "The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Description: "The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
 							Description: "The configuration specific to the `static_jwks` type.",
 							Optional:    true,
 						},
 						"type": {
-							Computed:      true,
-							Description:   "Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "The Kubernetes-specific configuration used with the \"kubernetes\" join method.",
@@ -693,38 +555,28 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							"instances": {
-								Computed:      true,
-								Description:   "A list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"parent_compartments": {
-								Computed:      true,
-								Description:   "A list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"regions": {
-								Computed:      true,
-								Description:   "A list of regions an instance is allowed to join from. Both full region names (\"us-phoenix-1\") and abbreviations (\"phx\") are allowed. If empty, any region is allowed.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								Description: "A list of regions an instance is allowed to join from. Both full region names (\"us-phoenix-1\") and abbreviations (\"phx\") are allowed. If empty, any region is allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"tenancy": {
-								Computed:      true,
-								Description:   "The OCID of the instance's tenancy. Required.",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Description: "The OCID of the instance's tenancy. Required.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
 						}),
-						Computed:      true,
-						Description:   "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
-						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+						Optional:    true,
 					}}),
 					Description: "The Oracle-specific configuration used with the \"oracle\" join method.",
 					Optional:    true,
@@ -744,11 +596,9 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 			Required:    true,
 		},
 		"sub_kind": {
-			Computed:      true,
-			Description:   "SubKind is the resource sub-kind.",
-			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description: "SubKind is the resource sub-kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "Version is the resource version.",
@@ -2813,12 +2663,6 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 
 // CopyScopedTokenToTerraform copies contents of the source Terraform object into a target struct
 func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.ScopedToken, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	return CopyScopedTokenToTerraformPreserveUnknown(ctx, obj, tf, false)
-}
-
-// CopyScopedTokenToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
-// Set preserveUnknown to true to preserve unknown values.
-func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.ScopedToken, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2832,9 +2676,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedToken.kind", err})
@@ -2843,13 +2684,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedToken.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Kind) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -2860,9 +2698,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedToken.sub_kind", err})
@@ -2871,13 +2706,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedToken.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.SubKind) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -2888,9 +2720,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedToken.version", err})
@@ -2899,13 +2728,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedToken.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Version) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["version"] = v
 		}
 	}
@@ -2933,7 +2759,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -2943,9 +2768,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.metadata.name", err})
@@ -2954,13 +2776,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Name) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["name"] = v
 						}
 					}
@@ -2971,9 +2790,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["namespace"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.metadata.namespace", err})
@@ -2982,13 +2798,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Namespace) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Namespace)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -2999,9 +2812,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.metadata.description", err})
@@ -3010,13 +2820,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Description) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["description"] = v
 						}
 					}
@@ -3042,14 +2849,11 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								{
+								if obj.Labels != nil {
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"ScopedToken.metadata.labels", err})
@@ -3058,20 +2862,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
+											v.Null = false
 										}
-
-										v.Null = false
 										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Labels) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -3081,14 +2882,12 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"ScopedToken.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -3100,9 +2899,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 		} else {
 			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
-				if tf.Attrs["scope"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedToken.scope", err})
@@ -3111,13 +2907,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedToken.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
+				v.Null = string(obj.Scope) == ""
 			}
-
-			v.Null = false
 			v.Value = string(obj.Scope)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
+			v.Unknown = false
 			tf.Attrs["scope"] = v
 		}
 	}
@@ -3145,7 +2938,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -3155,9 +2947,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["assigned_scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["assigned_scope"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.assigned_scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.spec.assigned_scope", err})
@@ -3166,13 +2955,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.assigned_scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.AssignedScope) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.AssignedScope)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["assigned_scope"] = v
 						}
 					}
@@ -3198,19 +2984,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
 									}
 								}
-								{
+								if obj.Roles != nil {
 									t := o.ElemType
 									if len(obj.Roles) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
 									}
 									for k, a := range obj.Roles {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := tf.Attrs["roles"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"ScopedToken.spec.roles", err})
@@ -3219,20 +3000,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
+											v.Null = string(a) == ""
 										}
-
-										v.Null = false
 										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Roles) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["roles"] = c
 							}
 						}
@@ -3244,9 +3022,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["join_method"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.join_method", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.spec.join_method", err})
@@ -3255,13 +3030,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.join_method", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.JoinMethod) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.JoinMethod)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["join_method"] = v
 						}
 					}
@@ -3272,9 +3044,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["usage_mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["usage_mode"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.usage_mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.spec.usage_mode", err})
@@ -3283,13 +3052,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.usage_mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.UsageMode) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.UsageMode)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["usage_mode"] = v
 						}
 					}
@@ -3317,7 +3083,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.ImmutableLabels == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.ImmutableLabels
 									tf := &v
 									{
@@ -3342,14 +3107,11 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Ssh))
 													}
 												}
-												{
+												if obj.Ssh != nil {
 													t := o.ElemType
 													for k, a := range obj.Ssh {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := tf.Attrs["ssh"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
-															if c.Elems[k] != nil {
-																diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.immutable_labels.ssh", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"ScopedToken.spec.immutable_labels.ssh", err})
@@ -3358,28 +3120,23 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.immutable_labels.ssh", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
+															v.Null = false
 														}
-
-														v.Null = false
 														v.Value = string(a)
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Ssh) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["ssh"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["immutable_labels"] = v
 							}
 						}
@@ -3408,7 +3165,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.Aws == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Aws
 									tf := &v
 									{
@@ -3433,15 +3189,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -3456,7 +3210,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -3466,9 +3219,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["aws_account"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["aws_account"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.allow.aws_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.allow.aws_account", err})
@@ -3477,13 +3227,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.allow.aws_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.AwsAccount) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.AwsAccount)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["aws_account"] = v
 																}
 															}
@@ -3509,19 +3256,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AwsRegions))
 																			}
 																		}
-																		{
+																		if obj.AwsRegions != nil {
 																			t := o.ElemType
 																			if len(obj.AwsRegions) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AwsRegions))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AwsRegions))
 																			}
 																			for k, a := range obj.AwsRegions {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["aws_regions"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.allow.aws_regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.allow.aws_regions", err})
@@ -3530,20 +3272,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.allow.aws_regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.AwsRegions) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["aws_regions"] = c
 																	}
 																}
@@ -3555,9 +3294,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["aws_role"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["aws_role"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.allow.aws_role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.allow.aws_role", err})
@@ -3566,13 +3302,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.allow.aws_role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.AwsRole) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.AwsRole)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["aws_role"] = v
 																}
 															}
@@ -3583,9 +3316,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["aws_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["aws_arn"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.allow.aws_arn", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.allow.aws_arn", err})
@@ -3594,13 +3324,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.allow.aws_arn", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.AwsArn) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.AwsArn)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["aws_arn"] = v
 																}
 															}
@@ -3611,9 +3338,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["aws_organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["aws_organization_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.allow.aws_organization_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.allow.aws_organization_id", err})
@@ -3622,27 +3346,22 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.allow.aws_organization_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.AwsOrganizationId) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.AwsOrganizationId)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["aws_organization_id"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
@@ -3654,9 +3373,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["iid_ttl"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["iid_ttl"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.iid_ttl", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.iid_ttl", err})
@@ -3665,13 +3381,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.iid_ttl", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.IidTtl) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.IidTtl)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["iid_ttl"] = v
 										}
 									}
@@ -3682,9 +3395,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["integration"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.aws.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.aws.integration", err})
@@ -3693,20 +3403,15 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.aws.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Integration) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Integration)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["integration"] = v
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["aws"] = v
 							}
 						}
@@ -3735,7 +3440,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.Gcp == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Gcp
 									tf := &v
 									{
@@ -3760,15 +3464,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -3783,7 +3485,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -3808,19 +3509,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIds))
 																			}
 																		}
-																		{
+																		if obj.ProjectIds != nil {
 																			t := o.ElemType
 																			if len(obj.ProjectIds) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIds))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIds))
 																			}
 																			for k, a := range obj.ProjectIds {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["project_ids"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.gcp.allow.project_ids", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.gcp.allow.project_ids", err})
@@ -3829,20 +3525,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.gcp.allow.project_ids", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.ProjectIds) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["project_ids"] = c
 																	}
 																}
@@ -3869,19 +3562,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
 																			}
 																		}
-																		{
+																		if obj.Locations != nil {
 																			t := o.ElemType
 																			if len(obj.Locations) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
 																			}
 																			for k, a := range obj.Locations {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["locations"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.gcp.allow.locations", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.gcp.allow.locations", err})
@@ -3890,20 +3578,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.gcp.allow.locations", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.Locations) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["locations"] = c
 																	}
 																}
@@ -3930,19 +3615,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
 																			}
 																		}
-																		{
+																		if obj.ServiceAccounts != nil {
 																			t := o.ElemType
 																			if len(obj.ServiceAccounts) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
 																			}
 																			for k, a := range obj.ServiceAccounts {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["service_accounts"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.gcp.allow.service_accounts", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.gcp.allow.service_accounts", err})
@@ -3951,43 +3631,36 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.gcp.allow.service_accounts", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.ServiceAccounts) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["service_accounts"] = c
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["gcp"] = v
 							}
 						}
@@ -4016,7 +3689,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.Azure == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Azure
 									tf := &v
 									{
@@ -4041,15 +3713,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4064,7 +3734,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -4074,9 +3743,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["subscription"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["subscription"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure.allow.subscription", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure.allow.subscription", err})
@@ -4085,13 +3751,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure.allow.subscription", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Subscription) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Subscription)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["subscription"] = v
 																}
 															}
@@ -4117,19 +3780,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
 																			}
 																		}
-																		{
+																		if obj.ResourceGroups != nil {
 																			t := o.ElemType
 																			if len(obj.ResourceGroups) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
 																			}
 																			for k, a := range obj.ResourceGroups {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["resource_groups"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure.allow.resource_groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure.allow.resource_groups", err})
@@ -4138,20 +3796,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure.allow.resource_groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.ResourceGroups) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["resource_groups"] = c
 																	}
 																}
@@ -4163,9 +3818,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["tenant"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["tenant"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure.allow.tenant", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure.allow.tenant", err})
@@ -4174,35 +3826,28 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure.allow.tenant", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Tenant) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Tenant)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["tenant"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["azure"] = v
 							}
 						}
@@ -4231,7 +3876,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.AzureDevops == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.AzureDevops
 									tf := &v
 									{
@@ -4256,15 +3900,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4279,7 +3921,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -4289,9 +3930,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["sub"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["sub"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.sub", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.sub", err})
@@ -4300,13 +3938,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.sub", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Sub) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Sub)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["sub"] = v
 																}
 															}
@@ -4317,9 +3952,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["project_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["project_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.project_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.project_name", err})
@@ -4328,13 +3960,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.project_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ProjectName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ProjectName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["project_name"] = v
 																}
 															}
@@ -4345,9 +3974,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["pipeline_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["pipeline_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.pipeline_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.pipeline_name", err})
@@ -4356,13 +3982,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.pipeline_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.PipelineName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.PipelineName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["pipeline_name"] = v
 																}
 															}
@@ -4373,9 +3996,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["project_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["project_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.project_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.project_id", err})
@@ -4384,13 +4004,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.project_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ProjectId) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ProjectId)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["project_id"] = v
 																}
 															}
@@ -4401,9 +4018,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["definition_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["definition_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.definition_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.definition_id", err})
@@ -4412,13 +4026,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.definition_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.DefinitionId) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.DefinitionId)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["definition_id"] = v
 																}
 															}
@@ -4429,9 +4040,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["repository_uri"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["repository_uri"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.repository_uri", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.repository_uri", err})
@@ -4440,13 +4048,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.repository_uri", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RepositoryUri) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RepositoryUri)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["repository_uri"] = v
 																}
 															}
@@ -4457,9 +4062,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["repository_version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["repository_version"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.repository_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.repository_version", err})
@@ -4468,13 +4070,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.repository_version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RepositoryVersion) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RepositoryVersion)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["repository_version"] = v
 																}
 															}
@@ -4485,9 +4084,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["repository_ref"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["repository_ref"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.allow.repository_ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.allow.repository_ref", err})
@@ -4496,27 +4092,22 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.allow.repository_ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RepositoryRef) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RepositoryRef)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["repository_ref"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
@@ -4528,9 +4119,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["organization_id"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.azure_devops.organization_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.azure_devops.organization_id", err})
@@ -4539,20 +4127,15 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.azure_devops.organization_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.OrganizationId) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.OrganizationId)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["organization_id"] = v
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["azure_devops"] = v
 							}
 						}
@@ -4581,7 +4164,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.Oracle == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Oracle
 									tf := &v
 									{
@@ -4606,15 +4188,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4629,7 +4209,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -4639,9 +4218,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["tenancy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["tenancy"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.oracle.allow.tenancy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.oracle.allow.tenancy", err})
@@ -4650,13 +4226,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.oracle.allow.tenancy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Tenancy) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Tenancy)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["tenancy"] = v
 																}
 															}
@@ -4682,19 +4255,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ParentCompartments))
 																			}
 																		}
-																		{
+																		if obj.ParentCompartments != nil {
 																			t := o.ElemType
 																			if len(obj.ParentCompartments) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ParentCompartments))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ParentCompartments))
 																			}
 																			for k, a := range obj.ParentCompartments {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["parent_compartments"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.oracle.allow.parent_compartments", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.oracle.allow.parent_compartments", err})
@@ -4703,20 +4271,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.oracle.allow.parent_compartments", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.ParentCompartments) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["parent_compartments"] = c
 																	}
 																}
@@ -4743,19 +4308,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 																			}
 																		}
-																		{
+																		if obj.Regions != nil {
 																			t := o.ElemType
 																			if len(obj.Regions) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 																			}
 																			for k, a := range obj.Regions {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["regions"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.oracle.allow.regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.oracle.allow.regions", err})
@@ -4764,20 +4324,17 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.oracle.allow.regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.Regions) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["regions"] = c
 																	}
 																}
@@ -4804,19 +4361,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Instances))
 																			}
 																		}
-																		{
+																		if obj.Instances != nil {
 																			t := o.ElemType
 																			if len(obj.Instances) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Instances))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Instances))
 																			}
 																			for k, a := range obj.Instances {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["instances"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.oracle.allow.instances", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedToken.spec.oracle.allow.instances", err})
@@ -4825,43 +4377,36 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.oracle.allow.instances", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.Instances) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["instances"] = c
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["oracle"] = v
 							}
 						}
@@ -4890,7 +4435,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.Kubernetes == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Kubernetes
 									tf := &v
 									{
@@ -4915,15 +4459,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4938,7 +4480,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -4948,9 +4489,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["service_account"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["service_account"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.allow.service_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.allow.service_account", err})
@@ -4959,13 +4497,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ServiceAccount) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ServiceAccount)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["service_account"] = v
 																}
 															}
@@ -4976,9 +4511,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["service_account_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["service_account_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.allow.service_account_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.allow.service_account_name", err})
@@ -4987,13 +4519,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ServiceAccountName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ServiceAccountName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["service_account_name"] = v
 																}
 															}
@@ -5004,9 +4533,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["service_account_namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["service_account_namespace"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.allow.service_account_namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.allow.service_account_namespace", err})
@@ -5015,27 +4541,22 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account_namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ServiceAccountNamespace) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ServiceAccountNamespace)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["service_account_namespace"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
@@ -5047,9 +4568,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["type"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.type", err})
@@ -5058,13 +4576,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Type) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Type)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["type"] = v
 										}
 									}
@@ -5092,7 +4607,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if obj.StaticJwks == nil {
 													v.Null = true
 												} else {
-													v.Null = false
 													obj := obj.StaticJwks
 													tf := &v
 													{
@@ -5102,9 +4616,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["jwks"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
-																if tf.Attrs["jwks"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.static_jwks.jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.static_jwks.jwks", err})
@@ -5113,20 +4624,15 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.static_jwks.jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
+																v.Null = string(obj.Jwks) == ""
 															}
-
-															v.Null = false
 															v.Value = string(obj.Jwks)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["jwks"] = v
 														}
 													}
 												}
-												if !preserveUnknown {
-													v.Unknown = false
-												}
+												v.Unknown = false
 												tf.Attrs["static_jwks"] = v
 											}
 										}
@@ -5155,7 +4661,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if obj.Oidc == nil {
 													v.Null = true
 												} else {
-													v.Null = false
 													obj := obj.Oidc
 													tf := &v
 													{
@@ -5165,9 +4670,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["issuer"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
-																if tf.Attrs["issuer"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.oidc.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.oidc.issuer", err})
@@ -5176,13 +4678,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
+																v.Null = string(obj.Issuer) == ""
 															}
-
-															v.Null = false
 															v.Value = string(obj.Issuer)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["issuer"] = v
 														}
 													}
@@ -5193,9 +4692,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["insecure_allow_http_issuer"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 															if !ok {
-																if tf.Attrs["insecure_allow_http_issuer"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer", err})
@@ -5204,28 +4700,21 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																}
+																v.Null = bool(obj.InsecureAllowHttpIssuer) == false
 															}
-
-															v.Null = false
 															v.Value = bool(obj.InsecureAllowHttpIssuer)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["insecure_allow_http_issuer"] = v
 														}
 													}
 												}
-												if !preserveUnknown {
-													v.Unknown = false
-												}
+												v.Unknown = false
 												tf.Attrs["oidc"] = v
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["kubernetes"] = v
 							}
 						}
@@ -5254,7 +4743,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.BoundKeypair == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.BoundKeypair
 									tf := &v
 									{
@@ -5281,7 +4769,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if obj.Onboarding == nil {
 													v.Null = true
 												} else {
-													v.Null = false
 													obj := obj.Onboarding
 													tf := &v
 													{
@@ -5291,9 +4778,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["initial_public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
-																if tf.Attrs["initial_public_key"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.bound_keypair.onboarding.initial_public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.bound_keypair.onboarding.initial_public_key", err})
@@ -5302,13 +4786,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bound_keypair.onboarding.initial_public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
+																v.Null = string(obj.InitialPublicKey) == ""
 															}
-
-															v.Null = false
 															v.Value = string(obj.InitialPublicKey)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["initial_public_key"] = v
 														}
 													}
@@ -5319,9 +4800,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["registration_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
-																if tf.Attrs["registration_secret"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.bound_keypair.onboarding.registration_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.bound_keypair.onboarding.registration_secret", err})
@@ -5330,13 +4808,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bound_keypair.onboarding.registration_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
+																v.Null = string(obj.RegistrationSecret) == ""
 															}
-
-															v.Null = false
 															v.Value = string(obj.RegistrationSecret)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["registration_secret"] = v
 														}
 													}
@@ -5345,14 +4820,12 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bound_keypair.onboarding.must_register_before"})
 														} else {
-															v := CopyToTimestamp(diags, obj.MustRegisterBefore, t, tf.Attrs["must_register_before"], preserveUnknown)
+															v := CopyToTimestamp(diags, obj.MustRegisterBefore, t, tf.Attrs["must_register_before"])
 															tf.Attrs["must_register_before"] = v
 														}
 													}
 												}
-												if !preserveUnknown {
-													v.Unknown = false
-												}
+												v.Unknown = false
 												tf.Attrs["onboarding"] = v
 											}
 										}
@@ -5381,7 +4854,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if obj.Recovery == nil {
 													v.Null = true
 												} else {
-													v.Null = false
 													obj := obj.Recovery
 													tf := &v
 													{
@@ -5391,9 +4863,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["limit"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 															if !ok {
-																if tf.Attrs["limit"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.bound_keypair.recovery.limit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.bound_keypair.recovery.limit", err})
@@ -5402,13 +4871,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bound_keypair.recovery.limit", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																}
+																v.Null = int64(obj.Limit) == 0
 															}
-
-															v.Null = false
 															v.Value = int64(obj.Limit)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["limit"] = v
 														}
 													}
@@ -5419,9 +4885,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														} else {
 															v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
-																if tf.Attrs["mode"] != nil {
-																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.bound_keypair.recovery.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.bound_keypair.recovery.mode", err})
@@ -5430,20 +4893,15 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bound_keypair.recovery.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
+																v.Null = string(obj.Mode) == ""
 															}
-
-															v.Null = false
 															v.Value = string(obj.Mode)
-															if !preserveUnknown {
-																v.Unknown = false
-															}
+															v.Unknown = false
 															tf.Attrs["mode"] = v
 														}
 													}
 												}
-												if !preserveUnknown {
-													v.Unknown = false
-												}
+												v.Unknown = false
 												tf.Attrs["recovery"] = v
 											}
 										}
@@ -5453,14 +4911,12 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bound_keypair.rotate_after"})
 										} else {
-											v := CopyToTimestamp(diags, obj.RotateAfter, t, tf.Attrs["rotate_after"], preserveUnknown)
+											v := CopyToTimestamp(diags, obj.RotateAfter, t, tf.Attrs["rotate_after"])
 											tf.Attrs["rotate_after"] = v
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["bound_keypair"] = v
 							}
 						}
@@ -5472,9 +4928,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 						} else {
 							v, ok := tf.Attrs["bot"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["bot"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.bot", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedToken.spec.bot", err})
@@ -5483,13 +4936,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bot", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Bot) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Bot)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["bot"] = v
 						}
 					}
@@ -5517,7 +4967,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.GenericOidc == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.GenericOidc
 									tf := &v
 									{
@@ -5527,9 +4976,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["issuer"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["issuer"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.issuer", err})
@@ -5538,13 +4984,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Issuer) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Issuer)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["issuer"] = v
 										}
 									}
@@ -5555,9 +4998,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["insecure_allow_http_issuer"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 											if !ok {
-												if tf.Attrs["insecure_allow_http_issuer"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.insecure_allow_http_issuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.insecure_allow_http_issuer", err})
@@ -5566,13 +5006,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.insecure_allow_http_issuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 												}
+												v.Null = bool(obj.InsecureAllowHttpIssuer) == false
 											}
-
-											v.Null = false
 											v.Value = bool(obj.InsecureAllowHttpIssuer)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["insecure_allow_http_issuer"] = v
 										}
 									}
@@ -5583,9 +5020,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["audience"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["audience"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.audience", err})
@@ -5594,13 +5028,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Audience) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Audience)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["audience"] = v
 										}
 									}
@@ -5611,9 +5042,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["static_jwks"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["static_jwks"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.static_jwks", err})
@@ -5622,13 +5050,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.StaticJwks) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.StaticJwks)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["static_jwks"] = v
 										}
 									}
@@ -5639,9 +5064,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["tls_ca"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["tls_ca"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.tls_ca", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.tls_ca", err})
@@ -5650,13 +5072,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.tls_ca", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.TlsCa) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.TlsCa)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["tls_ca"] = v
 										}
 									}
@@ -5682,15 +5101,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowAny))
 													}
 												}
-												{
+												if obj.AllowAny != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.AllowAny) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowAny))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowAny))
 													}
 													for k, a := range obj.AllowAny {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow_any"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -5705,7 +5122,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -5730,15 +5146,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
 																			}
 																		}
-																		{
+																		if obj.Conditions != nil {
 																			o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																			if len(obj.Conditions) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
 																			}
 																			for k, a := range obj.Conditions {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																				v, ok := tf.Attrs["conditions"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																				if !ok {
 																					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -5753,7 +5167,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																				if a == nil {
 																					v.Null = true
 																				} else {
-																					v.Null = false
 																					obj := a
 																					tf := &v
 																					{
@@ -5763,9 +5176,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																						} else {
 																							v, ok := tf.Attrs["attribute"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																							if !ok {
-																								if tf.Attrs["attribute"] != nil {
-																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.attribute", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
 																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																								if err != nil {
 																									diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.allow_any.conditions.attribute", err})
@@ -5774,13 +5184,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																								if !ok {
 																									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.attribute", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																								}
+																								v.Null = string(obj.Attribute) == ""
 																							}
-
-																							v.Null = false
 																							v.Value = string(obj.Attribute)
-																							if !preserveUnknown {
-																								v.Unknown = false
-																							}
+																							v.Unknown = false
 																							tf.Attrs["attribute"] = v
 																						}
 																					}
@@ -5808,7 +5215,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																								if obj.Eq == nil {
 																									v.Null = true
 																								} else {
-																									v.Null = false
 																									obj := obj.Eq
 																									tf := &v
 																									{
@@ -5818,9 +5224,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																										} else {
 																											v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																											if !ok {
-																												if tf.Attrs["value"] != nil {
-																													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																												}
 																												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																												if err != nil {
 																													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.allow_any.conditions.eq.value", err})
@@ -5829,20 +5232,15 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																												if !ok {
 																													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																												}
+																												v.Null = string(obj.Value) == ""
 																											}
-
-																											v.Null = false
 																											v.Value = string(obj.Value)
-																											if !preserveUnknown {
-																												v.Unknown = false
-																											}
+																											v.Unknown = false
 																											tf.Attrs["value"] = v
 																										}
 																									}
 																								}
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								tf.Attrs["eq"] = v
 																							}
 																						}
@@ -5871,7 +5269,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																								if obj.NotEq == nil {
 																									v.Null = true
 																								} else {
-																									v.Null = false
 																									obj := obj.NotEq
 																									tf := &v
 																									{
@@ -5881,9 +5278,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																										} else {
 																											v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																											if !ok {
-																												if tf.Attrs["value"] != nil {
-																													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																												}
 																												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																												if err != nil {
 																													diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_eq.value", err})
@@ -5892,20 +5286,15 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																												if !ok {
 																													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																												}
+																												v.Null = string(obj.Value) == ""
 																											}
-
-																											v.Null = false
 																											v.Value = string(obj.Value)
-																											if !preserveUnknown {
-																												v.Unknown = false
-																											}
+																											v.Unknown = false
 																											tf.Attrs["value"] = v
 																										}
 																									}
 																								}
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								tf.Attrs["not_eq"] = v
 																							}
 																						}
@@ -5934,7 +5323,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																								if obj.In == nil {
 																									v.Null = true
 																								} else {
-																									v.Null = false
 																									obj := obj.In
 																									tf := &v
 																									{
@@ -5959,19 +5347,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																												}
-																												{
+																												if obj.Values != nil {
 																													t := o.ElemType
 																													if len(obj.Values) != len(c.Elems) {
-																														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																														copy(newElems, c.Elems)
-																														c.Elems = newElems
+																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																													for k, a := range obj.Values {
-																														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																														v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																														if !ok {
-																															if c.Elems[k] != nil {
-																																diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																															}
 																															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																															if err != nil {
 																																diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.allow_any.conditions.in.values", err})
@@ -5980,28 +5363,23 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																															if !ok {
 																																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																															}
+																															v.Null = string(a) == ""
 																														}
-
-																														v.Null = false
 																														v.Value = string(a)
-																														if !preserveUnknown {
-																															v.Unknown = false
-																														}
+																														v.Unknown = false
 																														c.Elems[k] = v
 																													}
+																													if len(obj.Values) > 0 {
+																														c.Null = false
+																													}
 																												}
-																												c.Null = false
-																												if !preserveUnknown {
-																													c.Unknown = false
-																												}
+																												c.Unknown = false
 																												tf.Attrs["values"] = c
 																											}
 																										}
 																									}
 																								}
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								tf.Attrs["in"] = v
 																							}
 																						}
@@ -6030,7 +5408,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																								if obj.NotIn == nil {
 																									v.Null = true
 																								} else {
-																									v.Null = false
 																									obj := obj.NotIn
 																									tf := &v
 																									{
@@ -6055,19 +5432,14 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																												}
-																												{
+																												if obj.Values != nil {
 																													t := o.ElemType
 																													if len(obj.Values) != len(c.Elems) {
-																														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																														copy(newElems, c.Elems)
-																														c.Elems = newElems
+																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																													for k, a := range obj.Values {
-																														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																														v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																														if !ok {
-																															if c.Elems[k] != nil {
-																																diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																															}
 																															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																															if err != nil {
 																																diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_in.values", err})
@@ -6076,43 +5448,36 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																															if !ok {
 																																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																															}
+																															v.Null = string(a) == ""
 																														}
-
-																														v.Null = false
 																														v.Value = string(a)
-																														if !preserveUnknown {
-																															v.Unknown = false
-																														}
+																														v.Unknown = false
 																														c.Elems[k] = v
 																													}
+																													if len(obj.Values) > 0 {
+																														c.Null = false
+																													}
 																												}
-																												c.Null = false
-																												if !preserveUnknown {
-																													c.Unknown = false
-																												}
+																												c.Unknown = false
 																												tf.Attrs["values"] = c
 																											}
 																										}
 																									}
 																								}
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								tf.Attrs["not_in"] = v
 																							}
 																						}
 																					}
 																				}
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.Conditions) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["conditions"] = c
 																	}
 																}
@@ -6124,9 +5489,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["expression"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.generic_oidc.allow_any.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.generic_oidc.allow_any.expression", err})
@@ -6135,35 +5497,28 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Expression) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Expression)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["expression"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.AllowAny) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow_any"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["generic_oidc"] = v
 							}
 						}
@@ -6192,7 +5547,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 								if obj.Github == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Github
 									tf := &v
 									{
@@ -6202,9 +5556,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["enterprise_server_host"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["enterprise_server_host"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.enterprise_server_host", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.enterprise_server_host", err})
@@ -6213,13 +5564,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.enterprise_server_host", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.EnterpriseServerHost) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.EnterpriseServerHost)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["enterprise_server_host"] = v
 										}
 									}
@@ -6230,9 +5578,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["enterprise_slug"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["enterprise_slug"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.enterprise_slug", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.enterprise_slug", err})
@@ -6241,13 +5586,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.enterprise_slug", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.EnterpriseSlug) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.EnterpriseSlug)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["enterprise_slug"] = v
 										}
 									}
@@ -6258,9 +5600,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 										} else {
 											v, ok := tf.Attrs["static_jwks"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["static_jwks"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.static_jwks", err})
@@ -6269,13 +5608,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.StaticJwks) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.StaticJwks)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["static_jwks"] = v
 										}
 									}
@@ -6301,15 +5637,13 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												{
+												if obj.Allow != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -6324,7 +5658,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -6334,9 +5667,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["sub"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["sub"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.sub", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.sub", err})
@@ -6345,13 +5675,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.sub", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Sub) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Sub)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["sub"] = v
 																}
 															}
@@ -6362,9 +5689,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["repository"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["repository"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.repository", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.repository", err})
@@ -6373,13 +5697,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.repository", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Repository) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Repository)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["repository"] = v
 																}
 															}
@@ -6390,9 +5711,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["repository_owner"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["repository_owner"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.repository_owner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.repository_owner", err})
@@ -6401,13 +5719,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.repository_owner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RepositoryOwner) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RepositoryOwner)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["repository_owner"] = v
 																}
 															}
@@ -6418,9 +5733,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["workflow"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["workflow"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.workflow", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.workflow", err})
@@ -6429,13 +5741,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.workflow", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Workflow) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Workflow)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["workflow"] = v
 																}
 															}
@@ -6446,9 +5755,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["environment"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["environment"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.environment", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.environment", err})
@@ -6457,13 +5763,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.environment", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Environment) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Environment)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["environment"] = v
 																}
 															}
@@ -6474,9 +5777,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["actor"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["actor"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.actor", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.actor", err})
@@ -6485,13 +5785,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.actor", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Actor) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Actor)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["actor"] = v
 																}
 															}
@@ -6502,9 +5799,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["ref"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["ref"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.ref", err})
@@ -6513,13 +5807,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.ref", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Ref) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Ref)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["ref"] = v
 																}
 															}
@@ -6530,9 +5821,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["ref_type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["ref_type"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.ref_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.ref_type", err})
@@ -6541,13 +5829,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.ref_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RefType) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RefType)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["ref_type"] = v
 																}
 															}
@@ -6558,9 +5843,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["enterprise"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["enterprise"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.enterprise", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.enterprise", err})
@@ -6569,13 +5851,10 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.enterprise", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Enterprise) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Enterprise)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["enterprise"] = v
 																}
 															}
@@ -6586,9 +5865,6 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																} else {
 																	v, ok := tf.Attrs["enterprise_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["enterprise_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.github.allow.enterprise_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.github.allow.enterprise_id", err})
@@ -6597,43 +5873,34 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.github.allow.enterprise_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.EnterpriseId) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.EnterpriseId)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["enterprise_id"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["github"] = v
 							}
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -6746,28 +6013,5 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
-	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
-}
-
-// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
-// type does not match what we'd expect.
-type attrWriteUnexpectedExistingTypeDiag struct {
-	Path string
-	Type string
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
-	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
-	return "Error writing to Terraform object"
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

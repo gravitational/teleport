@@ -129,11 +129,11 @@ allow:
 	require.NoError(t, err)
 
 	for _, tc := range tests {
-		// capture range variable
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-			roleManifest := map[string]any{}
+			roleManifest := map[string]interface{}{}
 			err := yaml.Unmarshal([]byte(tc.roleSpecYAML), &roleManifest)
 			require.NoError(t, err)
 

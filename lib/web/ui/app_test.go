@@ -24,11 +24,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func newApp(t *testing.T, name, publicAddr, description string, labels map[string]string) types.Application {
@@ -81,7 +79,7 @@ func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
 
 		out := MakeApp(app, cfg)
 
-		require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{componentfeaturesv1.ComponentFeatureID(f1), componentfeaturesv1.ComponentFeatureID(f2)}, out.SupportedFeatureIDs)
+		require.ElementsMatch(t, []int{int(f1), int(f2)}, out.SupportedFeatureIDs)
 	})
 }
 
@@ -168,14 +166,12 @@ func TestMakeApp_AWSRolesVisibility(t *testing.T) {
 	grantedARN := "arn:aws:iam::123456789012:role/granted"
 	requestableARN := "arn:aws:iam::123456789012:role/requestable"
 	baseCfg := MakeAppsConfig{
-		LocalClusterName:  "root",
-		LocalProxyDNSName: "proxy.example.com",
-		AppClusterName:    "root",
-		UserGroupLookup:   map[string]types.UserGroup{},
-		AWSRoles: &PrincipalSet{
-			All:     set.New(grantedARN, requestableARN),
-			Granted: set.New(grantedARN),
-		},
+		LocalClusterName:      "root",
+		LocalProxyDNSName:     "proxy.example.com",
+		AppClusterName:        "root",
+		UserGroupLookup:       map[string]types.UserGroup{},
+		GrantedAWSRolesLookup: map[string][]string{"aws-console": {grantedARN}},
+		AllowedAWSRolesLookup: map[string][]string{"aws-console": {grantedARN, requestableARN}},
 	}
 
 	t.Run("with constraint support returns granted and requestable", func(t *testing.T) {
@@ -255,6 +251,7 @@ func TestMakeAppTypeFromSAMLApp(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			apps := MakeAppTypeFromSAMLApp(&test.sp, MakeAppsConfig{})

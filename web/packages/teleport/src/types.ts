@@ -174,11 +174,6 @@ export interface TeleportFeature {
   showInDashboard?: boolean;
   /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
   isHyperLink?: boolean;
-  /**
-   * supportsScopes indicates whether this feature should be enabled in scoped
-   * sessions.
-   */
-  supportsScopes?: boolean;
 }
 
 export type StickyCluster = {

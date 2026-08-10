@@ -115,7 +115,7 @@ func TestSendReceive(t *testing.T) {
 	_, err = stream.Recv()
 	require.NoError(t, err)
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		send := append(send, byte(i))
 		err = stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
 			Bytes: send,

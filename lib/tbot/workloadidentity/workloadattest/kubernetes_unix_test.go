@@ -204,8 +204,8 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 			defer cancel()
 
 			att, err := attestor.Attest(ctx, mockPID)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(workloadidentityv1pb.WorkloadAttrsKubernetes_builder{
+			assert.NoError(t, err)
+			assert.Empty(t, cmp.Diff(&workloadidentityv1pb.WorkloadAttrsKubernetes{
 				Attested:       true,
 				ServiceAccount: "my-service-account",
 				Namespace:      "default",
@@ -214,12 +214,12 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 				Labels: map[string]string{
 					"my-label": "my-label-value",
 				},
-				Container: workloadidentityv1pb.WorkloadAttrsKubernetesContainer_builder{
+				Container: &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
 					Name:        "container-1",
 					Image:       "my.registry.io/my-app:v1",
 					ImageDigest: "sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
-				}.Build(),
-			}.Build(), att, protocmp.Transform()))
+				},
+			}, att, protocmp.Transform()))
 			require.EqualValues(t, tc.wantRequests, requests.Load())
 		})
 	}

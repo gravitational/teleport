@@ -42,9 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
-	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -55,7 +53,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -357,7 +354,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 
 // SearchEvents allows searching for audit events with pagination support.
 func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey, req.Search)
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -372,24 +369,6 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 		return nil, "", trace.Wrap(err)
 	}
 
-	return events, lastKey, nil
-}
-
-// SearchUnstructuredEvents allows searching for audit events with pagination support and returns unstructured events.
-func (c *Client) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	events, lastKey, err := c.APIClient.SearchUnstructuredEvents(
-		ctx,
-		req.From,
-		req.To,
-		apidefaults.Namespace,
-		req.EventTypes,
-		req.Limit,
-		req.Order,
-		req.StartKey,
-	)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
 	return events, lastKey, nil
 }
 
@@ -620,11 +599,6 @@ func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return c.APIClient.AccessMonitoringRulesClient()
 }
 
-// ClientIPRestrictionClient returns the client IP restriction client.
-func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
-	return c.APIClient.ClientIPRestrictionClient()
-}
-
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 	return c.APIClient.ExternalAuditStorageClient()
 }
@@ -656,18 +630,6 @@ func (c *Client) UserTasksClient() services.UserTasks {
 
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
-}
-
-// MFAServiceClient returns a client for the MFA v1 service.
-//
-// Deprecated: Use MFAServiceClientV2 for new code.
-func (c *Client) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
-	return mfav1.NewMFAServiceClient(c.APIClient.GetConnection())
-}
-
-// MFAServiceClientV2 returns a client for the MFA v2 service.
-func (c *Client) MFAServiceClientV2() mfav2.MFAServiceClient {
-	return mfav2.NewMFAServiceClient(c.APIClient.GetConnection())
 }
 
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
@@ -713,50 +675,50 @@ func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, uns *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
-	return c.APIClient.UpsertUserNotificationState(ctx, notificationsv1.UpsertUserNotificationStateRequest_builder{
+	return c.APIClient.UpsertUserNotificationState(ctx, &notificationsv1.UpsertUserNotificationStateRequest{
 		Username:              username,
 		UserNotificationState: uns,
-	}.Build())
+	})
 }
 
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
 func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
-	return c.APIClient.UpsertUserLastSeenNotification(ctx, notificationsv1.UpsertUserLastSeenNotificationRequest_builder{
+	return c.APIClient.UpsertUserLastSeenNotification(ctx, &notificationsv1.UpsertUserLastSeenNotificationRequest{
 		Username:                 username,
 		UserLastSeenNotification: ulsn,
-	}.Build())
+	})
 }
 
 // CreateGlobalNotification creates a global notification.
 func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	rsp, err := c.APIClient.CreateGlobalNotification(ctx, notificationsv1.CreateGlobalNotificationRequest_builder{
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
 		GlobalNotification: gn,
-	}.Build())
+	})
 	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	rsp, err := c.APIClient.CreateUserNotification(ctx, notificationsv1.CreateUserNotificationRequest_builder{
+	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
 		Notification: notification,
-	}.Build())
+	})
 	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	err := c.APIClient.DeleteGlobalNotification(ctx, notificationsv1.DeleteGlobalNotificationRequest_builder{
+	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
 		NotificationId: notificationId,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 
 // DeleteUserNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
-	err := c.APIClient.DeleteUserNotification(ctx, notificationsv1.DeleteUserNotificationRequest_builder{
+	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
 		Username:       username,
 		NotificationId: notificationId,
-	}.Build())
+	})
 	return trace.Wrap(err)
 }
 
@@ -850,11 +812,6 @@ func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertAuthServer is used by auth servers to report their presence.
-func (c *Client) UpsertAuthServer(ctx context.Context, s types.Server) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -872,6 +829,9 @@ type WebSessionReq struct {
 
 // WebService implements features used by Web UI clients
 type WebService interface {
+	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
+	// it is valid, or error otherwise.
+	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
@@ -1286,41 +1246,6 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}, nil
 }
 
-func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
-	// Convert from interface type.
-	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
-	for _, certAuthority := range v.CAs {
-		cast, ok := certAuthority.(*types.CertAuthorityV2)
-		if !ok {
-			return nil, trace.BadParameter(
-				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
-				certAuthority,
-			)
-		}
-		cas = append(cas, cast)
-	}
-
-	return &proto.ValidateTrustedClusterRequest{
-		Token:           v.Token,
-		TeleportVersion: v.TeleportVersion,
-		CertAuthorities: cas,
-	}, nil
-}
-
-func ValidateTrustedClusterRequestFromProto(
-	req *proto.ValidateTrustedClusterRequest,
-) *ValidateTrustedClusterRequest {
-	cas := make([]types.CertAuthority, 0, len(req.CertAuthorities))
-	for _, certAuthority := range req.CertAuthorities {
-		cas = append(cas, certAuthority)
-	}
-	return &ValidateTrustedClusterRequest{
-		Token:           req.Token,
-		CAs:             cas,
-		TeleportVersion: req.TeleportVersion,
-	}
-}
-
 type ValidateTrustedClusterRequestRaw struct {
 	Token           string   `json:"token"`
 	CAs             [][]byte `json:"certificate_authorities"`
@@ -1365,39 +1290,6 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	return &ValidateTrustedClusterResponseRaw{
 		CAs: cas,
 	}, nil
-}
-
-// ToProto converts ValidateTrustedClusterResponse to its proto representation.
-func (v *ValidateTrustedClusterResponse) ToProto() (*proto.ValidateTrustedClusterResponse, error) {
-	// Cast interface to underlying type.
-	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
-	for _, certAuthority := range v.CAs {
-		cast, ok := certAuthority.(*types.CertAuthorityV2)
-		if !ok {
-			return nil, trace.BadParameter(
-				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
-				certAuthority,
-			)
-		}
-		cas = append(cas, cast)
-	}
-	return &proto.ValidateTrustedClusterResponse{
-		CertAuthorities: cas,
-	}, nil
-}
-
-// ValidateTrustedClusterResponseFromProto converts the proto representation of
-// ValidateTrustedClusterResponse to its native representation.
-func ValidateTrustedClusterResponseFromProto(
-	resp *proto.ValidateTrustedClusterResponse,
-) *ValidateTrustedClusterResponse {
-	cas := make([]types.CertAuthority, 0, len(resp.CertAuthorities))
-	for _, certAuthority := range resp.CertAuthorities {
-		cas = append(cas, certAuthority)
-	}
-	return &ValidateTrustedClusterResponse{
-		CAs: cas,
-	}
 }
 
 type ValidateTrustedClusterResponseRaw struct {
@@ -1464,14 +1356,6 @@ type ForwardedClientMetadata struct {
 	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
 	// in proxy peering mode.
 	ProxyGroupID string `json:"proxy_group_id,omitempty"`
-	// MaxTouchPoints indicates whether the client device supports touch controls. It is reported by
-	// JavaScript in the browser and sent by the frontend app through the Max-Touch-Points header. It
-	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
-	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
-	// successful login.
-	//
-	// Available only in select endpoints which lead to the Device Trust prompt in the Web UI.
-	MaxTouchPoints int `json:"max_touch_points,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -1650,22 +1534,12 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
-	services.AppAuthConfig
-	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
 	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
-
-	// UpsertProxyServerWithoutReturn registers a proxy server heartbeat.
-	// The upserted server is not returned because the HTTP fallback path
-	// cannot provide it.
-	//
-	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once
-	// the HTTP fallback is removed.
-	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
 
 	types.WebSessionsGetter
 	services.WebToken
@@ -1838,12 +1712,6 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessMonitoringRuleClient() services.AccessMonitoringRules
 
-	// ClientIPRestrictionClient returns a client IP restriction client.
-	// Clients connecting to older Teleport versions still get a client when calling
-	// this method, but all RPCs will return "not implemented" errors (as per the
-	// default gRPC behavior).
-	ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient
-
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
 
@@ -1903,6 +1771,12 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
 
+	// WorkloadIdentityServiceClient returns a workload identity service client.
+	// Clients connecting to  older Teleport versions, still get a client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
+
 	// WorkloadIdentityIssuanceClient returns a workload identity issuance service client.
 	// Clients connecting to  older Teleport versions, still get a client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -1935,10 +1809,7 @@ type ClientI interface {
 	StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient
 
 	// MFAServiceClient returns a client for the MFA service.
-	MFAServiceClient() mfav1.MFAServiceClient //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
-
-	// MFAServiceClientV2 returns a client for the MFA v2 service.
-	MFAServiceClientV2() mfav2.MFAServiceClient
+	MFAServiceClient() mfav1.MFAServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
@@ -1989,9 +1860,6 @@ type ClientI interface {
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 
-	// ListRequestableRoles is a paginated requestable role getter.
-	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
-
 	// RecordingMetadataServiceClient returns a client for the session recording
 	// metadata service.
 	RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient
@@ -2000,9 +1868,15 @@ type ClientI interface {
 	// summarizer service.
 	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
 
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+
 	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
 	// are of the scoped access API available in agent access points to only what is necessary.
 	ScopedRoleReader() services.ScopedRoleReader
+
+	// BeamServiceClient returns a client for the beam service.
+	BeamServiceClient() beamsv1.BeamServiceClient
 
 	// DelegationSessionServiceClient returns a client for the delegation
 	// session service.
@@ -2011,7 +1885,4 @@ type ClientI interface {
 	// SessionSearchServiceClient returns a client for the session search
 	// service.
 	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
-
-	// BeamServiceClient returns a client for the beam service.
-	BeamServiceClient() beamsv1.BeamServiceClient
 }

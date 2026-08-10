@@ -17,7 +17,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Flex, P3, Text } from 'design';

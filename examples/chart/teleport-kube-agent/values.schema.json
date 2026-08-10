@@ -71,6 +71,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenSecret",
+                    "type": "string",
+                    "default": ""
+                },
                 "method": {
                     "$id": "#/properties/joinParams/method",
                     "type": "string",
@@ -433,7 +438,7 @@
                             "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/unhealthyPodEvictionPolicy",
                             "type": "string",
                             "enum": ["", "AlwaysAllow", "IfHealthyBudget"],
-                            "default": "AlwaysAllow"
+                            "default": ""
                         }
                     }
                 },

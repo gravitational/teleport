@@ -1,10 +1,6 @@
 suite: Test cert-manager issuer
 templates:
   - issuer.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: should create CA Issuer if certManager.enabled is true
     values:
@@ -13,17 +9,14 @@ tests:
       - hasDocuments:
           count: 3
       - containsDocument:
-          any: true
           kind: Issuer
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-selfsigned-issuer
       - containsDocument:
-          any: true
           kind: Certificate
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-selfsigned-ca
       - containsDocument:
-          any: true
           kind: Issuer
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-ca-issuer

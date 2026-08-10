@@ -20,17 +20,11 @@ package resources
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 
-	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -45,60 +39,4 @@ func TestBeamsConfigCollection_WriteText(t *testing.T) {
 		golden.Set(t, buf.Bytes())
 	}
 	require.Equal(t, string(golden.Get(t)), buf.String())
-}
-
-type mockBeamsConfigServiceServer struct {
-	beamsv1.UnimplementedBeamsConfigServiceServer
-
-	storage *local.BeamsConfigService
-}
-
-func newMockBeamsConfigServiceServer(t *testing.T) *mockBeamsConfigServiceServer {
-	t.Helper()
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	storage, err := local.NewBeamsConfigService(bk)
-	require.NoError(t, err)
-	return &mockBeamsConfigServiceServer{storage: storage}
-}
-
-func (m *mockBeamsConfigServiceServer) register(svc grpc.ServiceRegistrar) {
-	beamsv1.RegisterBeamsConfigServiceServer(svc, m)
-}
-
-func (m *mockBeamsConfigServiceServer) GetBeamsConfig(ctx context.Context, _ *beamsv1.GetBeamsConfigRequest) (*beamsv1.GetBeamsConfigResponse, error) {
-	config, err := m.storage.GetBeamsConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return beamsv1.GetBeamsConfigResponse_builder{
-		BeamsConfig: config,
-	}.Build(), nil
-}
-
-func (m *mockBeamsConfigServiceServer) CreateBeamsConfig(ctx context.Context, req *beamsv1.CreateBeamsConfigRequest) (*beamsv1.CreateBeamsConfigResponse, error) {
-	config, err := m.storage.CreateBeamsConfig(ctx, req.GetBeamsConfig())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return beamsv1.CreateBeamsConfigResponse_builder{
-		BeamsConfig: config,
-	}.Build(), nil
-}
-
-func (m *mockBeamsConfigServiceServer) UpdateBeamsConfig(ctx context.Context, req *beamsv1.UpdateBeamsConfigRequest) (*beamsv1.UpdateBeamsConfigResponse, error) {
-	config, err := m.storage.UpdateBeamsConfig(ctx, req.GetBeamsConfig())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return beamsv1.UpdateBeamsConfigResponse_builder{
-		BeamsConfig: config,
-	}.Build(), nil
-}
-
-func (m *mockBeamsConfigServiceServer) DeleteBeamsConfig(ctx context.Context, _ *beamsv1.DeleteBeamsConfigRequest) (*beamsv1.DeleteBeamsConfigResponse, error) {
-	if err := m.storage.DeleteBeamsConfig(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return beamsv1.DeleteBeamsConfigResponse_builder{}.Build(), nil
 }

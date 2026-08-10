@@ -295,6 +295,14 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 	return license.Data, nil
 }
 
+// ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
+// key storage (dataDir).
+//
+// TODO(nklaassen): delete this after ref has been removed from teleport.e
+func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, error) {
+	return ReadLocalIdentityForRole(context.TODO(), dataDir, id.Role)
+}
+
 // ReadBoundKeypairItem reads an arbitrary key with the bound keypair prefix
 func (p *ProcessStorage) ReadBoundKeypairItem(ctx context.Context, name string) ([]byte, error) {
 	item, err := p.stateStorage.Get(ctx, backend.NewKey(boundKeypairPrefix, name))

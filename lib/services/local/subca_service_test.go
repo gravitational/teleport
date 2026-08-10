@@ -79,7 +79,7 @@ func TestSubCAService_CRUD(t *testing.T) {
 		// Upsert and verify response.
 		created, err := service.UpsertCertAuthorityOverride(t.Context(), caOverride)
 		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
-		want.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
+		want.GetMetadata().Revision = created.GetMetadata().Revision
 		if diff := cmp.Diff(want, created, protocmp.Transform()); diff != "" {
 			t.Errorf("Upsert mismatch (-want +got)\n%s", diff)
 		}
@@ -110,9 +110,9 @@ func TestSubCAService_CRUD(t *testing.T) {
 			updated, err := service.UpsertCertAuthorityOverride(t.Context(), created)
 			require.NoError(t, err, "UpsertCertAuthorityOverride errored")
 			assert.NotEqual(t,
-				want.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision(),
+				want.GetMetadata().Revision, updated.GetMetadata().Revision,
 				"Revision unchanged after update")
-			want.GetMetadata().SetRevision(updated.GetMetadata().GetRevision())
+			want.GetMetadata().Revision = updated.GetMetadata().Revision
 			if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 				t.Errorf("Upsert mismatch (-want +got)\n%s", diff)
 			}
@@ -142,9 +142,9 @@ func TestSubCAService_CRUD(t *testing.T) {
 			updated, err := service.UpdateCertAuthorityOverride(ctx, in)
 			require.NoError(t, err, "UpdateCertAuthorityOverride errored")
 			assert.NotEqual(t,
-				want.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision(),
+				want.GetMetadata().Revision, updated.GetMetadata().Revision,
 				"Revision unchanged after update")
-			want.GetMetadata().SetRevision(updated.GetMetadata().GetRevision())
+			want.GetMetadata().Revision = updated.GetMetadata().Revision
 			if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 				t.Errorf("Upsert mismatch (-want +got)\n%s", diff)
 			}
@@ -252,7 +252,7 @@ func TestSubCAService_Create(t *testing.T) {
 		wantKey := backend.NewKey(
 			"cert_authority_overrides",
 			"cluster",
-			caOverride.GetMetadata().GetName(),
+			caOverride.GetMetadata().Name,
 			caOverride.GetSubKind(),
 		)
 
@@ -264,7 +264,7 @@ func TestSubCAService_Create(t *testing.T) {
 		notWantKey := backend.NewKey(
 			"cert_authority_overrides",
 			"cluster",
-			caOverride.GetMetadata().GetName(),
+			caOverride.GetMetadata().Name,
 		)
 		_, err = be.Get(ctx, notWantKey)
 		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Read resource by notWantKey")
@@ -308,7 +308,7 @@ func TestSubCAService_Create(t *testing.T) {
 			}
 			// Assert success.
 			require.NoError(t, err, "CreateCertAuthorityOverride errored")
-			want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
+			want.GetMetadata().Revision = got.GetMetadata().Revision
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("Create mismatch (-want +got)\n%s", diff)
 			}
@@ -336,15 +336,15 @@ func TestSubCAService_Update_wrongRevision(t *testing.T) {
 	caOverride := env.NewOverrideForCAType(t, caType)
 	caOverride, err := service.CreateCertAuthorityOverride(ctx, caOverride)
 	require.NoError(t, err)
-	rev1 := caOverride.GetMetadata().GetRevision()
+	rev1 := caOverride.GetMetadata().Revision
 
 	caOverride, err = service.UpdateCertAuthorityOverride(ctx, caOverride)
 	require.NoError(t, err)
-	rev2 := caOverride.GetMetadata().GetRevision()
+	rev2 := caOverride.GetMetadata().Revision
 	require.NotEqual(t, rev1, rev2, "Revision didn't change on update")
 
 	// Update using an old revision.
-	caOverride.GetMetadata().SetRevision(rev1)
+	caOverride.GetMetadata().Revision = rev1
 	_, err = service.UpdateCertAuthorityOverride(ctx, caOverride)
 	assert.ErrorAs(t, err, new(*trace.CompareFailedError),
 		"UpdateCertAuthorityOverride() revision mismatch error")
@@ -516,9 +516,9 @@ func TestCreateResource_CertAuthorityOverride(t *testing.T) {
 			Kind:    types.KindCertAuthorityOverride,
 			SubKind: string(types.DatabaseClientCA),
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: env.ClusterName,
-			}.Build(),
+			},
 			Spec: &subcav1.CertAuthorityOverrideSpec{},
 		}.Build()
 
@@ -532,7 +532,7 @@ func TestCreateResource_CertAuthorityOverride(t *testing.T) {
 		got, err := service.GetCertAuthorityOverride(
 			t.Context(), local.CertAuthorityOverrideIDFromResource(want))
 		require.NoError(t, err)
-		want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
+		want.GetMetadata().Revision = got.GetMetadata().Revision
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("CertAuthorityOverride mismatch (-want +got)\n%s", diff)
 		}

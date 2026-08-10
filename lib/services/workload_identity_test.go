@@ -41,18 +41,18 @@ func TestWorkloadIdentityMarshaling(t *testing.T) {
 	}{
 		{
 			name: "normal",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 		},
 	}
 	for _, tc := range testCases {
@@ -142,7 +142,7 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
 	var errContains = func(contains string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, msgAndArgs ...any) {
+		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 			require.ErrorContains(t, err, contains, msgAndArgs...)
 		}
 	}
@@ -154,268 +154,274 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 	}{
 		{
 			name: "success - full",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "example",
-										Eq: workloadidentityv1pb.WorkloadIdentityConditionEq_builder{
-											Value: "foo",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-						X509: workloadidentityv1pb.WorkloadIdentitySPIFFEX509_builder{
+						X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 							MaximumTtl: durationpb.New(time.Hour * 24 * 14),
-						}.Build(),
-						Jwt: workloadidentityv1pb.WorkloadIdentitySPIFFEJWT_builder{
+						},
+						Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
 							MaximumTtl: durationpb.New(time.Hour * 24),
-						}.Build(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
+						},
+					},
+				},
+			},
 			requireErr: require.NoError,
 		},
 		{
 			name: "success - minimal",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: require.NoError,
 		},
 		{
 			name: "missing name",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:     types.KindWorkloadIdentity,
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{},
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains("metadata.name: is required"),
 		},
 		{
 			name: "missing spiffe id",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{},
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("spec.spiffe.id: is required"),
 		},
 		{
 			name: "spiffe id must have leading /",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains("spec.spiffe.id: must start with a /"),
 		},
 		{
 			name: "missing attribute",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "",
-										Eq: workloadidentityv1pb.WorkloadIdentityConditionEq_builder{
-											Value: "foo",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains("spec.rules.allow[0].conditions[0].attribute: must be non-empty"),
 		},
 		{
 			name: "missing operator",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "example",
-									}.Build(),
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains("spec.rules.allow[0].conditions[0]: operator must be specified"),
 		},
 		{
 			name: "expression and conditions",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Expression: `user.name == "Alan Partridge"`,
 								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
-									workloadidentityv1pb.WorkloadIdentityCondition_builder{
+									{
 										Attribute: "example",
-										Eq: workloadidentityv1pb.WorkloadIdentityConditionEq_builder{
-											Value: "foo",
-										}.Build(),
-									}.Build(),
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
+									},
 								},
-							}.Build(),
+							},
 						},
-					}.Build(),
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains("spec.rules.allow[0].conditions: is mutually exclusive with expression"),
 		},
 		{
 			name: "neither expression or conditions",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
 							{}, // Empty rule.
 						},
-					}.Build(),
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains("spec.rules.allow[0].conditions: must be non-empty"),
 		},
 		{
 			name: "invalid expression",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
 						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-							workloadidentityv1pb.WorkloadIdentityRule_builder{
+							{
 								Expression: `does_not_exist`,
-							}.Build(),
+							},
 						},
-					}.Build(),
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-					}.Build(),
-				}.Build(),
-			}.Build(),
+					},
+				},
+			},
 			requireErr: errContains(`unknown identifier: "does_not_exist"`),
 		},
 		{
 			name: "maximum x509 ttl too large",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-						X509: workloadidentityv1pb.WorkloadIdentitySPIFFEX509_builder{
+						X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 							MaximumTtl: durationpb.New(time.Hour * 24 * 365),
-						}.Build(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
+						},
+					},
+				},
+			},
 			requireErr: errContains(`spec.spiffe.x509.maximum_ttl: must be less than 336h0m0s`),
 		},
 		{
 			name: "maximum jwt ttl too large",
-			in: workloadidentityv1pb.WorkloadIdentity_builder{
+			in: &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "example",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/example",
-						Jwt: workloadidentityv1pb.WorkloadIdentitySPIFFEJWT_builder{
+						Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
 							MaximumTtl: durationpb.New(time.Hour * 24 * 365),
-						}.Build(),
-					}.Build(),
-				}.Build(),
-			}.Build(),
+						},
+					},
+				},
+			},
 			requireErr: errContains(`spec.spiffe.jwt.maximum_ttl: must be less than 24h0m0s`),
 		},
 		{

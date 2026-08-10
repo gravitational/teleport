@@ -18,7 +18,6 @@
 
 import { Option } from 'shared/components/Select';
 import { Rule } from 'shared/components/Validation/rules';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { RefType } from 'teleport/services/bot/types';
 
@@ -114,6 +113,6 @@ export const requireValidRepository: Rule = value => () => {
 
     return { valid: true };
   } catch (e) {
-    return { valid: false, message: getErrorMessage(e) };
+    return { valid: false, message: e?.message };
   }
 };

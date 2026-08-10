@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestCreateWebSession(t *testing.T) {
@@ -178,23 +177,19 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	})
 
 	authServer := testAuthServer.AuthServer
+	ctx := context.Background()
 
-	var storedWebTokens utils.SyncMap[string, *devicepb.DeviceWebToken]
+	// Wire a fake CreateDeviceWebTokenFunc to authServer.
+	fakeWebToken := &devicepb.DeviceWebToken{
+		Id:    "423f10ed-c3c1-4de7-99dc-3bc5b9ab7fd5",
+		Token: "409d21e4-9563-497f-9393-1209f9e4289c",
+	}
+	wantToken := &types.DeviceWebToken{
+		Id:    fakeWebToken.Id,
+		Token: fakeWebToken.Token,
+	}
 	authServer.SetCreateDeviceWebTokenFunc(func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-		if dwt.GetBrowserMaxTouchPoints() > 1 {
-			// Simulate CreateDeviceWebToken not creating tokens for iPads.
-			return nil, nil
-		}
-
-		dwt.SetId(uuid.NewString())
-		dwt.SetToken(uuid.NewString())
-
-		storedWebTokens.Store(dwt.GetId(), dwt)
-
-		return devicepb.DeviceWebToken_builder{
-			Id:    dwt.GetId(),
-			Token: dwt.GetToken(),
-		}.Build(), nil
+		return fakeWebToken, nil
 	})
 
 	const userLlama = "llama"
@@ -205,54 +200,22 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	const loginIP = "40.89.244.232"
 	const loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 
-	tests := []struct {
-		name                string
-		loginMaxTouchPoints int
-		wantWebToken        bool
-	}{
-		{
-			name:                "macOS",
-			loginMaxTouchPoints: 0,
-			wantWebToken:        true,
-		},
-		{
-			name:                "iPadOS",
-			loginMaxTouchPoints: 5,
-			wantWebToken:        false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			session, err := authServer.CreateWebSessionFromReq(t.Context(), auth.NewWebSessionRequest{
-				User:                 userLlama,
-				LoginIP:              loginIP,
-				LoginUserAgent:       loginUserAgent,
-				LoginMaxTouchPoints:  test.loginMaxTouchPoints,
-				Roles:                user.GetRoles(),
-				Traits:               user.GetTraits(),
-				SessionTTL:           1 * time.Minute,
-				LoginTime:            time.Now(),
-				CreateDeviceWebToken: true,
-			})
-			require.NoError(t, err, "CreateWebSessionFromReq failed")
-
-			gotToken := session.GetDeviceWebToken()
-			if !test.wantWebToken {
-				require.Nil(t, gotToken, "device web token was created for this session")
-				return
-			}
-
-			require.NotNil(t, gotToken, "device web token was not created for this session")
-			storedWebToken, ok := storedWebTokens.Load(gotToken.Id)
-			require.True(t, ok, "created web token was not found")
-
-			require.Equal(t, storedWebToken.GetToken(), gotToken.Token)
-			require.Equal(t, loginIP, storedWebToken.GetBrowserIp())
-			require.Equal(t, loginUserAgent, storedWebToken.GetBrowserUserAgent())
-			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.GetBrowserMaxTouchPoints()))
+	t.Run("ok", func(t *testing.T) {
+		session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
+			User:                 userLlama,
+			LoginIP:              loginIP,
+			LoginUserAgent:       loginUserAgent,
+			Roles:                user.GetRoles(),
+			Traits:               user.GetTraits(),
+			SessionTTL:           1 * time.Minute,
+			LoginTime:            time.Now(),
+			CreateDeviceWebToken: true,
 		})
-	}
+		require.NoError(t, err, "CreateWebSessionFromReq failed")
+
+		gotToken := session.GetDeviceWebToken()
+		if diff := cmp.Diff(wantToken, gotToken); diff != "" {
+			t.Errorf("CreateWebSessionFromReq DeviceWebToken mismatch (-want +got)\n%s", diff)
+		}
+	})
 }

@@ -26,11 +26,10 @@ import (
 
 func TestOIDCValidate(t *testing.T) {
 	tests := []struct {
-		name            string
-		connectorName   string
-		entra           *EntraIDGroupsProvider
-		noClaimsToRoles bool
-		errAssertion    require.ErrorAssertionFunc
+		name          string
+		connectorName string
+		entra         *EntraIDGroupsProvider
+		errAssertion  require.ErrorAssertionFunc
 	}{
 		{
 			name: "invalid group type",
@@ -75,32 +74,22 @@ func TestOIDCValidate(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
-		{
-			name:            "no claims_to_roles",
-			noClaimsToRoles: true,
-			errAssertion:    require.Error,
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			claimsToRoles := []ClaimMapping{
-				{
-					Claim: "groups",
-					Value: "*",
-					Roles: []string{"requester"},
-				},
-			}
-			if test.noClaimsToRoles {
-				claimsToRoles = nil
-			}
-
 			connector, err := NewOIDCConnector(
 				cmp.Or(test.connectorName, "test-connector"),
 				OIDCConnectorSpecV3{
-					ClientID:      "testid",
-					ClientSecret:  "secret",
-					ClaimsToRoles: claimsToRoles,
+					ClientID:     "testid",
+					ClientSecret: "secret",
+					ClaimsToRoles: []ClaimMapping{
+						{
+							Claim: "groups",
+							Value: "*",
+							Roles: []string{"requester"},
+						},
+					},
 					RedirectURLs: wrappers.Strings{
 						"https://example.com/proxy/oidc/callback",
 					},

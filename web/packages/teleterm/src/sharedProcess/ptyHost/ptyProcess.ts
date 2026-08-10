@@ -24,7 +24,6 @@ import { promisify } from 'node:util';
 import * as nodePTY from 'node-pty';
 import which from 'which';
 
-import { getErrorMessage } from 'shared/utils/error';
 import { wait } from 'shared/utils/wait';
 
 import Logger from 'teleterm/logger';
@@ -258,11 +257,11 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     }
   }
 
-  private handleStartError(error: unknown) {
+  private handleStartError(error: Error) {
     const command = `${this.options.path} ${this.options.args.join(' ')}`;
     this.emit(
       TermEventEnum.StartError,
-      `Cannot execute ${command}: ${getErrorMessage(error)}`
+      `Cannot execute ${command}: ${error.message}`
     );
   }
 

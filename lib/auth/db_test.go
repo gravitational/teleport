@@ -113,7 +113,10 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 }
 
 func TestDBCertSigning(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
+
+	// Required for CA override tests.
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	const clusterName = "local.me"
@@ -121,8 +124,6 @@ func TestDBCertSigning(t *testing.T) {
 		Clock:       clock,
 		ClusterName: clusterName,
 		Dir:         t.TempDir(),
-		// Required for CA override tests.
-		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
@@ -206,9 +207,9 @@ func TestDBCertSigning(t *testing.T) {
 			Kind:    types.KindCertAuthorityOverride,
 			SubKind: string(types.DatabaseClientCA),
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: clusterName,
-			}.Build(),
+			},
 			Spec: subcav1.CertAuthorityOverrideSpec_builder{
 				CertificateOverrides: []*subcav1.CertificateOverride{
 					subCAEnv.NewDisabledCertificateOverride(t, parsedActiveDBClientCert, nil),
@@ -252,7 +253,7 @@ func TestDBCertSigning(t *testing.T) {
 	mustDeleteCAOverrides := func(t *testing.T) {
 		t.Helper()
 		err := authServer.DeleteCertAuthorityOverride(t.Context(), types.CertAuthorityOverrideID{
-			ClusterName: dbClientCAOverride.GetMetadata().GetName(),
+			ClusterName: dbClientCAOverride.GetMetadata().Name,
 			CAType:      dbClientCAOverride.GetSubKind(),
 		})
 		require.NoError(t, err, "DeleteCertAuthorityOverride errored")

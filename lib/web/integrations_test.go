@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
@@ -312,14 +313,14 @@ func TestCollectIntegrationStats(t *testing.T) {
 		var userTasksList []*usertasksv1.UserTask
 		ec2UserTasks := 10
 		for range ec2UserTasks {
-			userTasksList = append(userTasksList, usertasksv1.UserTask_builder{Spec: usertasksv1.UserTaskSpec_builder{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverEC2}.Build()}.Build())
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverEC2}})
 		}
 		rdsUserTasks := 20
 		for range rdsUserTasks {
-			userTasksList = append(userTasksList, usertasksv1.UserTask_builder{Spec: usertasksv1.UserTaskSpec_builder{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverRDS}.Build()}.Build())
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverRDS}})
 		}
 		for range 100 {
-			userTasksList = append(userTasksList, usertasksv1.UserTask_builder{Spec: usertasksv1.UserTaskSpec_builder{State: usertasks.TaskStateResolved, TaskType: usertasks.TaskTypeDiscoverEC2}.Build()}.Build())
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved, TaskType: usertasks.TaskTypeDiscoverEC2}})
 		}
 
 		var openUserTasksList []*usertasksv1.UserTask
@@ -376,15 +377,15 @@ func TestCollectIntegrationStats(t *testing.T) {
 				DiscoveredResources: 2,
 				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
 					"server-1": {
-						DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
 							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: discoveryconfigv1.DiscoverSummary_builder{
-									AwsEc2: discoveryconfigv1.ResourceSummary_builder{
-										Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd}.Build(),
-									}.Build(),
-								}.Build(),
+								integrationName: {
+									AwsEc2: &discoveryconfigv1.ResourceSummary{
+										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd},
+									},
+								},
 							},
-						}.Build(),
+						},
 					},
 				},
 			},
@@ -400,15 +401,15 @@ func TestCollectIntegrationStats(t *testing.T) {
 				DiscoveredResources: 2,
 				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
 					"server-1": {
-						DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
 							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: discoveryconfigv1.DiscoverSummary_builder{
-									AwsRds: discoveryconfigv1.ResourceSummary_builder{
-										Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd}.Build(),
-									}.Build(),
-								}.Build(),
+								integrationName: {
+									AwsRds: &discoveryconfigv1.ResourceSummary{
+										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd},
+									},
+								},
 							},
-						}.Build(),
+						},
 					},
 				},
 			},
@@ -424,15 +425,15 @@ func TestCollectIntegrationStats(t *testing.T) {
 				DiscoveredResources: 2,
 				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
 					"server-1": {
-						DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
 							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: discoveryconfigv1.DiscoverSummary_builder{
-									AwsEks: discoveryconfigv1.ResourceSummary_builder{
-										Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 4, Enrolled: 0, Failed: 0, SyncStart: syncEnd, SyncEnd: syncEnd}.Build(),
-									}.Build(),
-								}.Build(),
+								integrationName: {
+									AwsEks: &discoveryconfigv1.ResourceSummary{
+										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0, SyncStart: syncEnd, SyncEnd: syncEnd},
+									},
+								},
 							},
-						}.Build(),
+						},
 					},
 				},
 			},
@@ -508,15 +509,15 @@ func TestCollectIntegrationStats(t *testing.T) {
 				DiscoveredResources: 2,
 				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
 					"server-1": {
-						DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
 							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: discoveryconfigv1.DiscoverSummary_builder{
-									AwsRds: discoveryconfigv1.ResourceSummary_builder{
-										Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd}.Build(),
-									}.Build(),
-								}.Build(),
+								integrationName: {
+									AwsRds: &discoveryconfigv1.ResourceSummary{
+										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd},
+									},
+								},
 							},
-						}.Build(),
+						},
 					},
 				},
 			},
@@ -723,21 +724,21 @@ func TestCollectIntegrationStats(t *testing.T) {
 				LastSyncTime: syncTime,
 				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
 					"server-1": {
-						DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
 							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: discoveryconfigv1.DiscoverSummary_builder{
-									AzureVms: discoveryconfigv1.ResourceSummary_builder{
-										Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+								integrationName: {
+									AzureVms: &discoveryconfigv1.ResourceSummary{
+										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{
 											Found:     5,
 											Enrolled:  3,
 											Failed:    1,
 											SyncStart: syncEnd,
 											SyncEnd:   syncEnd,
-										}.Build(),
-									}.Build(),
-								}.Build(),
+										},
+									},
+								},
 							},
-						}.Build(),
+						},
 					},
 				},
 			},
@@ -745,7 +746,7 @@ func TestCollectIntegrationStats(t *testing.T) {
 
 		var userTasksList []*usertasksv1.UserTask
 		for range 10 {
-			userTasksList = append(userTasksList, usertasksv1.UserTask_builder{Spec: usertasksv1.UserTaskSpec_builder{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverAzureVM}.Build()}.Build())
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverAzureVM}})
 		}
 
 		clt := &mockRelevantAWSRegionsClient{
@@ -1159,8 +1160,9 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 // The test cases in this test are performed sequentially and each test case
 // depends on the previous state.
 func TestGitHubIntegration(t *testing.T) {
-	t.Parallel()
-	wPack := newWebPack(t, 1 /* proxies */, withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
 	ctx := context.Background()
@@ -1296,31 +1298,31 @@ func TestBuildBriefSummaries(t *testing.T) {
 	mockGithubInt := newMockGitHubIntegration(t, "gh")
 
 	mockUserTasks := []*usertasksv1.UserTask{
-		usertasksv1.UserTask_builder{
-			Spec: usertasksv1.UserTaskSpec_builder{
+		{
+			Spec: &usertasksv1.UserTaskSpec{
 				Integration: mockAwsInt.GetName(),
 				TaskType:    usertasks.TaskTypeDiscoverEC2,
 				State:       usertasks.TaskStateOpen,
-			}.Build(),
-		}.Build(),
-		usertasksv1.UserTask_builder{
-			Spec: usertasksv1.UserTaskSpec_builder{
+			},
+		},
+		{
+			Spec: &usertasksv1.UserTaskSpec{
 				Integration: mockAwsInt.GetName(),
 				TaskType:    usertasks.TaskTypeDiscoverEKS,
 				State:       usertasks.TaskStateOpen,
-			}.Build(),
-		}.Build(),
+			},
+		},
 	}
 
 	mockDC1 := &discoveryconfig.DiscoveryConfig{
 		Status: discoveryconfig.Status{
 			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 				mockAwsInt.GetName(): {
-					IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
-						AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 2, Enrolled: 1, Failed: 0}.Build(),
-						AwsEks: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 3, Enrolled: 0, Failed: 1}.Build(),
-						AwsRds: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 5, Enrolled: 2, Failed: 2}.Build(),
-					}.Build(),
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 3, Enrolled: 0, Failed: 1},
+						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 5, Enrolled: 2, Failed: 2},
+					},
 				},
 			},
 		},
@@ -1329,9 +1331,9 @@ func TestBuildBriefSummaries(t *testing.T) {
 		Status: discoveryconfig.Status{
 			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 				mockAwsInt.GetName(): {
-					IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
-						AzureVms: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 2, Enrolled: 1, Failed: 0}.Build(),
-					}.Build(),
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+					},
 				},
 			},
 		},

@@ -29,7 +29,6 @@ injected_fields:
 exclude_fields:
     # Metadata (we id resources by name on our side)
     - "Metadata.ID"
-    - "Metadata.Revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -40,7 +39,6 @@ computed_fields:
 required_fields:
     # LoginRule
     - "Metadata.Name"
-    - "LoginRule.metadata"
     - "LoginRule.version"
     - "LoginRule.priority"
 

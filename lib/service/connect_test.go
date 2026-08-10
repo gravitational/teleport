@@ -20,17 +20,12 @@ package service
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -38,18 +33,15 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	apiconstants "github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
@@ -57,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -66,7 +57,8 @@ import (
 // TestTeleportProcessJoinVersionCheck covers version enforcement during a
 // fresh instance's join.
 func TestTeleportProcessJoinVersionCheck(t *testing.T) {
-	t.Parallel()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	// The skew is induced from the server side: the stub advertises requirements
 	// the running build can't satisfy, so the client-side check trips against the
@@ -89,7 +81,6 @@ func TestTeleportProcessJoinVersionCheck(t *testing.T) {
 		cfg := servicecfg.MakeDefaultConfig()
 		cfg.Version = defaults.TeleportConfigVersionV3
 		cfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")}
-		cfg.InsecureMode = true
 		cfg.DataDir = makeTempDir(t)
 		cfg.SetToken("join-token")
 		cfg.Auth.Enabled = false
@@ -183,7 +174,7 @@ type fakeAuthPingServer struct {
 }
 
 func (f *fakeAuthPingServer) Ping(context.Context, *proto.PingRequest) (*proto.PingResponse, error) {
-	return &proto.PingResponse{ServerVersion: f.serverVersion}, nil
+	return &proto.PingResponse{ServerVersion: f.serverVersion, ServerFeatures: &proto.Features{}}, nil
 }
 
 // TestGetConnectorVersionCheck covers the startup too-new check for an
@@ -277,7 +268,8 @@ func TestGetConnectorVersionCheck(t *testing.T) {
 // version information, including the fail-open behavior that keeps a transient or
 // unreachable web API from blocking an otherwise-valid instance.
 func TestProxyVersionInfo(t *testing.T) {
-	t.Parallel()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	newProcess := func(t *testing.T, handler http.HandlerFunc) *TeleportProcess {
 		srv := httptest.NewTLSServer(handler)
@@ -285,9 +277,8 @@ func TestProxyVersionInfo(t *testing.T) {
 		return &TeleportProcess{
 			Supervisor: &LocalSupervisor{exitContext: t.Context()},
 			Config: &servicecfg.Config{
-				Version:      defaults.TeleportConfigVersionV3,
-				InsecureMode: true,
-				ProxyServer:  utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")},
+				Version:     defaults.TeleportConfigVersionV3,
+				ProxyServer: utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")},
 			},
 			logger: logtest.NewLogger(),
 		}
@@ -456,91 +447,4 @@ func TestMakeJoinParams_BoundKeypair(t *testing.T) {
 			tt.assertJoinParams(t, params)
 		})
 	}
-}
-
-func TestUnwrappedConnection(t *testing.T) {
-	t.Setenv(apidefaults.TLSRoutingConnUpgradeEnvVar, "false")
-
-	l, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	defer l.Close()
-
-	p := &TeleportProcess{
-		Supervisor: &LocalSupervisor{
-			exitContext: t.Context(),
-		},
-		Config:   &servicecfg.Config{},
-		logger:   logtest.NewLogger(),
-		resolver: reversetunnelclient.StaticResolver(l.Addr().String(), types.ProxyListenerMode_Multiplex),
-	}
-
-	var eg errgroup.Group
-	eg.Go(func() error {
-		c, err := l.Accept()
-		if err != nil {
-			return err
-		}
-		defer c.Close()
-
-		var clientHelloInfo *tls.ClientHelloInfo
-		_ = tls.Server(c, &tls.Config{
-			GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-				clientHelloInfo = chi
-				return nil, errors.New("no")
-			},
-		}).Handshake()
-		if clientHelloInfo == nil {
-			return errors.New("missing client hello")
-		}
-		if len(clientHelloInfo.SupportedProtos) < 1 || !strings.HasPrefix(clientHelloInfo.SupportedProtos[0], apiconstants.ALPNSNIAuthProtocol) {
-			return fmt.Errorf("expected teleport-auth@, got %+q next protos", clientHelloInfo.SupportedProtos)
-		}
-		return nil
-	})
-
-	_, _, err = p.newClientThroughProxy(
-		&tls.Config{},
-		apissh.ClientConfig{},
-		types.RoleNode,
-		"foo",
-		func() (*x509.CertPool, error) { return nil, nil },
-	)
-	require.Error(t, err)
-	require.NoError(t, eg.Wait())
-
-	eg = *new(errgroup.Group)
-	eg.Go(func() error {
-		c, err := l.Accept()
-		if err != nil {
-			return err
-		}
-		defer c.Close()
-
-		var clientHelloInfo *tls.ClientHelloInfo
-		_ = tls.Server(c, &tls.Config{
-			GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-				clientHelloInfo = chi
-				return nil, errors.New("no")
-			},
-		}).Handshake()
-		if clientHelloInfo == nil {
-			return errors.New("missing client hello")
-		}
-
-		if slices.ContainsFunc(clientHelloInfo.SupportedProtos, func(s string) bool {
-			return strings.HasPrefix(s, apiconstants.ALPNSNIAuthProtocol)
-		}) {
-			return errors.New("expected direct connection, got teleport-auth@ alpn")
-		}
-
-		return nil
-	})
-
-	_, _, err = p.newClientDirect(
-		[]utils.NetAddr{{Addr: l.Addr().String(), AddrNetwork: l.Addr().Network()}},
-		&tls.Config{},
-		types.RoleNode,
-	)
-	require.Error(t, err)
-	require.NoError(t, eg.Wait())
 }

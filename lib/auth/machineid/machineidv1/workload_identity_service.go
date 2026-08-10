@@ -242,10 +242,10 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			},
 			UserMetadata:       authz.ClientUserMetadata(ctx),
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
-			Hint:               req.GetHint(),
+			Hint:               req.Hint,
 			SVIDType:           "x509",
-			DNSSANs:            req.GetDnsSans(),
-			IPSANs:             req.GetIpSans(),
+			DNSSANs:            req.DnsSans,
+			IPSANs:             req.IpSans,
 		}
 		if err != nil {
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
@@ -265,25 +265,25 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	// Parse and validate parameters
 	switch {
-	case req.GetSpiffeIdPath() == "":
+	case req.SpiffeIdPath == "":
 		return nil, trace.BadParameter("spiffeIdPath: must be non-empty")
-	case !strings.HasPrefix(req.GetSpiffeIdPath(), "/"):
+	case !strings.HasPrefix(req.SpiffeIdPath, "/"):
 		return nil, trace.BadParameter("spiffeIdPath: must start with '/'")
-	case len(req.GetPublicKey()) == 0:
+	case len(req.PublicKey) == 0:
 		return nil, trace.BadParameter("publicKey: must be non-empty")
 	}
 
 	spiffeID, err = spiffeid.FromURI(&url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
-		Path:   req.GetSpiffeIdPath(),
+		Path:   req.SpiffeIdPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating SPIFFE ID")
 	}
 
 	ipSans := []net.IP{}
-	for i, stringIP := range req.GetIpSans() {
+	for i, stringIP := range req.IpSans {
 		ip := net.ParseIP(stringIP)
 		if ip == nil {
 			return nil, trace.BadParameter(
@@ -296,7 +296,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	// Default TTL is 1 hour - maximum is 24 hours. If TTL is greater than max,
 	// we will use the max.
 	ttl := defaultX509SVIDTTL
-	if reqTTL := req.GetTtl().AsDuration(); reqTTL > 0 {
+	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
 		ttl = reqTTL
 	}
 	if ttl > maxSVIDTTL {
@@ -310,8 +310,8 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	// Perform authz checks. They must be allowed to issue the SPIFFE ID and
 	// any listed SANs.
 	if err := authCtx.Checker.CheckSPIFFESVID(
-		req.GetSpiffeIdPath(),
-		req.GetDnsSans(),
+		req.SpiffeIdPath,
+		req.DnsSans,
 		ipSans,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -319,21 +319,21 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	var pemBytes []byte
 	pemBytes, serialNumber, err = signx509SVID(
-		notBefore, notAfter, ca, req.GetPublicKey(), spiffeID.URL(), req.GetDnsSans(), ipSans,
+		notBefore, notAfter, ca, req.PublicKey, spiffeID.URL(), req.DnsSans, ipSans,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return pb.SVIDResponse_builder{
+	return &pb.SVIDResponse{
 		SpiffeId:    spiffeID.String(),
-		Hint:        req.GetHint(),
+		Hint:        req.Hint,
 		Certificate: pemBytes,
-	}.Build(), nil
+	}, nil
 }
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
-	if len(req.GetSvids()) == 0 {
+	if len(req.Svids) == 0 {
 		return nil, trace.BadParameter("svids: must be non-empty")
 	}
 
@@ -364,14 +364,14 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	res := &pb.SignX509SVIDsResponse{}
-	for i, svidReq := range req.GetSvids() {
+	for i, svidReq := range req.Svids {
 		svidRes, err := wis.signX509SVID(
 			ctx, authCtx, svidReq, clusterName.GetClusterName(), tlsCA,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "signing svid %d", i)
 		}
-		res.SetSvids(append(res.GetSvids(), svidRes))
+		res.Svids = append(res.Svids, svidRes)
 	}
 
 	wis.logger.WarnContext(
@@ -400,9 +400,9 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 			},
 			UserMetadata:       authz.ClientUserMetadata(ctx),
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
-			Hint:               req.GetHint(),
+			Hint:               req.Hint,
 			SVIDType:           "jwt",
-			Audiences:          req.GetAudiences(),
+			Audiences:          req.Audiences,
 		}
 		if err != nil {
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
@@ -423,18 +423,18 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 	}()
 
 	switch {
-	case req.GetSpiffeIdPath() == "":
+	case req.SpiffeIdPath == "":
 		return nil, trace.BadParameter("spiffe_id_path: must be non-empty")
-	case !strings.HasPrefix(req.GetSpiffeIdPath(), "/"):
+	case !strings.HasPrefix(req.SpiffeIdPath, "/"):
 		return nil, trace.BadParameter("spiffe_id_path: must start with '/'")
-	case len(req.GetAudiences()) == 0:
+	case len(req.Audiences) == 0:
 		return nil, trace.BadParameter("audiences: must be non-empty")
 	}
 
 	// Perform authz checks. They must be allowed to issue the SPIFFE ID. Since
 	// this is a JWT SVID, there are no SANs to check.
 	if err := authCtx.Checker.CheckSPIFFESVID(
-		req.GetSpiffeIdPath(),
+		req.SpiffeIdPath,
 		[]string{},
 		[]net.IP{},
 	); err != nil {
@@ -450,14 +450,14 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 	spiffeID, err = spiffeid.FromURI(&url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
-		Path:   req.GetSpiffeIdPath(),
+		Path:   req.SpiffeIdPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating SPIFFE ID")
 	}
 
 	ttl := defaultJWTSVIDTTL
-	if reqTTL := req.GetTtl().AsDuration(); reqTTL > 0 {
+	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
 		ttl = reqTTL
 	}
 	if ttl > maxSVIDTTL {
@@ -465,7 +465,7 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 	}
 
 	signed, err := key.SignJWTSVID(jwt.SignParamsJWTSVID{
-		Audiences: req.GetAudiences(),
+		Audiences: req.Audiences,
 		SPIFFEID:  spiffeID,
 		TTL:       ttl,
 		JTI:       jti,
@@ -475,20 +475,20 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	return pb.JWTSVIDResponse_builder{
-		Audiences: req.GetAudiences(),
+	return &pb.JWTSVIDResponse{
+		Audiences: req.Audiences,
 		Jwt:       signed,
 		SpiffeId:  spiffeID.String(),
 		Jti:       jti,
-		Hint:      req.GetHint(),
-	}.Build(), nil
+		Hint:      req.Hint,
+	}, nil
 }
 
 // SignJWTSVIDs signs and returns the requested JWT SVIDs.
 func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	ctx context.Context, req *pb.SignJWTSVIDsRequest,
 ) (*pb.SignJWTSVIDsResponse, error) {
-	if len(req.GetSvids()) == 0 {
+	if len(req.Svids) == 0 {
 		return nil, trace.BadParameter("svids: must be non-empty")
 	}
 
@@ -528,14 +528,14 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	}
 
 	res := &pb.SignJWTSVIDsResponse{}
-	for i, svidReq := range req.GetSvids() {
+	for i, svidReq := range req.Svids {
 		svidRes, err := wis.signJWTSVID(
 			ctx, authCtx, clusterName.GetClusterName(), issuer, jwtKey, svidReq,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "signing svid %d", i)
 		}
-		res.SetSvids(append(res.GetSvids(), svidRes))
+		res.Svids = append(res.Svids, svidRes)
 	}
 
 	wis.logger.WarnContext(

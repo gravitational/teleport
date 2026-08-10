@@ -27,8 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/scopes"
-
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
 )
 
@@ -186,12 +184,7 @@ func TestScopeQualifiedNameIdentifierFromPath(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			identifier, d := tfdriver.ScopeQualifiedNameIdentifierFromPath(
-				tfdriver.ScopeQualifiedPath{
-					Name:  path.Root("name"),
-					Scope: path.Root("scope"),
-				})(t.Context(), test.attributer)
-
+			identifier, d := tfdriver.ScopeQualifiedNameIdentifierFromPath(path.Root("name"), path.Root("scope"))(t.Context(), test.attributer)
 			assert.Equal(t, test.expectError, d.HasError())
 			assert.Equal(t, test.expectedIdentifier, identifier)
 		})
@@ -285,11 +278,7 @@ func TestPossiblyUnscopedScopeQualifiedNameIdentifierFromPath(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			identifier, d := tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(
-				tfdriver.ScopeQualifiedPath{
-					Name:  path.Root("name"),
-					Scope: path.Root("scope"),
-				})(t.Context(), test.attributer)
+			identifier, d := tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(path.Root("name"), path.Root("scope"))(t.Context(), test.attributer)
 			assert.Equal(t, test.expectError, d.HasError())
 			assert.Equal(t, test.expectedIdentifier, identifier)
 		})
@@ -373,12 +362,10 @@ func TestPossiblyUnscopedScopeQualifiedNameIdentifierPolicy(t *testing.T) {
 	}
 
 	policy := tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
-		tfdriver.ScopeQualifiedPath{
-			Name:  path.Root("name"),
-			Scope: path.Root("scope"),
-		},
-		func(resource *testResource) scopes.QualifiedName {
-			return scopes.QualifiedName{Name: resource.Name, Scope: resource.Scope}
+		path.Root("name"),
+		path.Root("scope"),
+		func(resource *testResource) (string, string) {
+			return resource.Name, resource.Scope
 		},
 	)
 
@@ -478,11 +465,7 @@ func TestCompositeIdentifierFromPath(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			identifier, d := tfdriver.CompositeIdentifierFromPath(
-				tfdriver.CompositeIdentifierPath{
-					Prefix: path.Root("prefix"),
-					Name:   path.Root("name"),
-				})(t.Context(), test.attributer)
+			identifier, d := tfdriver.CompositeIdentifierFromPath(path.Root("prefix"), path.Root("name"))(t.Context(), test.attributer)
 			assert.Equal(t, test.expectError, d.HasError())
 			assert.Equal(t, test.expectedIdentifier, identifier)
 		})
@@ -569,12 +552,10 @@ func TestCompositeIdentifierPolicy(t *testing.T) {
 		name   string
 	}
 	policy := tfdriver.CompositeIdentifierPolicy(
-		tfdriver.CompositeIdentifierPath{Prefix: path.Root("prefix"), Name: path.Root("name")},
-		func(r *resource) tfdriver.CompositeIdentifier {
-			return tfdriver.CompositeIdentifier{
-				Prefix: r.prefix,
-				Name:   r.name,
-			}
+		path.Root("prefix"),
+		path.Root("name"),
+		func(r *resource) (prefix, name string) {
+			return r.prefix, r.name
 		},
 	)
 
@@ -610,12 +591,10 @@ func TestScopeQualifiedCompositeIdentifierPolicy(t *testing.T) {
 		name   string
 	}
 	policy := tfdriver.ScopeQualifiedCompositeIdentifierPolicy(
-		tfdriver.CompositeIdentifierPath{
-			Prefix: path.Root("prefix"),
-			Name:   path.Root("name"),
-		},
-		func(r *resource) tfdriver.CompositeIdentifier {
-			return tfdriver.CompositeIdentifier{Prefix: r.prefix, Name: r.name}
+		path.Root("prefix"),
+		path.Root("name"),
+		func(r *resource) (prefix, name string) {
+			return r.prefix, r.name
 		},
 	)
 
@@ -670,12 +649,10 @@ func TestScopeQualifiedNameIdentifierPolicy(t *testing.T) {
 		scope string
 	}
 	policy := tfdriver.ScopeQualifiedNameIdentifierPolicy(
-		tfdriver.ScopeQualifiedPath{
-			Name:  path.Root("name"),
-			Scope: path.Root("scope"),
-		},
-		func(r *resource) scopes.QualifiedName {
-			return scopes.QualifiedName{Name: r.name, Scope: r.scope}
+		path.Root("name"),
+		path.Root("scope"),
+		func(r *resource) (name, scope string) {
+			return r.name, r.scope
 		},
 	)
 

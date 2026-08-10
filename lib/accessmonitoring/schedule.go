@@ -56,18 +56,18 @@ func inSchedule(schedule *accessmonitoringrulesv1.Schedule, timestamp time.Time)
 	weekday := timestamp.Weekday().String()
 
 	for _, shift := range schedule.GetTime().GetShifts() {
-		if weekday != shift.GetWeekday() {
+		if weekday != shift.Weekday {
 			continue
 		}
 
-		startTime, err := ClockTime(timestamp, shift.GetStart())
+		startTime, err := ClockTime(timestamp, shift.Start)
 		if err != nil {
-			return false, trace.Wrap(err, "invalid start time: %q", shift.GetStart())
+			return false, trace.Wrap(err, "invalid start time: %q", shift.Start)
 		}
 
-		endTime, err := ClockTime(timestamp, shift.GetEnd())
+		endTime, err := ClockTime(timestamp, shift.End)
 		if err != nil {
-			return false, trace.Wrap(err, "invalid end time: %q", shift.GetEnd())
+			return false, trace.Wrap(err, "invalid end time: %q", shift.End)
 		}
 
 		if !timestamp.Before(startTime) && !timestamp.After(endTime) {

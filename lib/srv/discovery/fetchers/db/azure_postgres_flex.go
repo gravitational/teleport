@@ -32,7 +32,7 @@ import (
 
 // newAzurePostgresFlexServerFetcher creates a fetcher for Azure PostgreSQL Flexible server.
 func newAzurePostgresFlexServerFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher(config, &azurePostgresFlexServerFetcher{})
+	return newAzureFetcher[*armpostgresqlflexibleservers.Server, azure.PostgresFlexServersClient](config, &azurePostgresFlexServerFetcher{})
 }
 
 // newAzurePostgresFlexServerFetcher implements azureFetcherPlugin for Azure PostgreSQL Flexible server.

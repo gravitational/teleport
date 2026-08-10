@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -152,13 +151,11 @@ type collections struct {
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
 	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
-	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
-	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
+	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	inferenceModels                    *collection[*summarizerv1.InferenceModel, inferenceModelIndex]
 	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
 	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
-	classifiers                        *collection[*summarizerv1.Classifier, classifierIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
 	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
 }
@@ -172,8 +169,7 @@ func isKnownUncollectedKind(kind string) bool {
 		types.KindHeadlessAuthentication,
 		types.KindPendingCSRRequest,
 		scopedaccess.KindScopedRole,
-		scopedaccess.KindScopedRoleAssignment,
-		types.KindValidatedMFAChallenge:
+		scopedaccess.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
@@ -806,6 +802,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		case types.KindRecordingEncryption:
 			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
 			if err != nil {
@@ -814,21 +817,6 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.recordingEncryption = collect
 			out.byKind[resourceKind] = out.recordingEncryption
-		case types.KindPlugin:
-			collect, err := newPluginsCollection(c.Plugin, watch)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			out.plugins = collect
-			out.byKind[resourceKind] = out.plugins
-		case types.KindAppAuthConfig:
-			collect, err := newAppAuthConfigCollection(c.AppAuthConfig, watch)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			out.appAuthConfig = collect
-			out.byKind[resourceKind] = out.appAuthConfig
 		case types.KindInferenceModel:
 			collect, err := newInferenceModelCollection(c.Summarizer, watch)
 			if err != nil {
@@ -853,14 +841,6 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.inferencePolicies = collect
 			out.byKind[resourceKind] = out.inferencePolicies
-		case types.KindClassifier:
-			collect, err := newClassifierCollection(c.Summarizer, watch)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			out.classifiers = collect
-			out.byKind[resourceKind] = out.classifiers
 		case types.KindRetrievalModel:
 			collect, err := newRetrievalModelCollection(c.Summarizer, watch)
 			if err != nil {

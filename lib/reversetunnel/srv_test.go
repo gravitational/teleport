@@ -37,7 +37,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -197,7 +196,7 @@ func TestServerKeyAuth(t *testing.T) {
 						Username:   con.User(),
 						Principals: []string{con.User()},
 						Roles:      []string{"dev", "admin"},
-						ScopePin:   scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"}.Build(),
+						ScopePin:   &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"},
 					},
 				})
 				require.NoError(t, err)
@@ -340,13 +339,13 @@ func TestServerKeyAuth(t *testing.T) {
 					NodeName:      con.User(),
 					Identity: sshca.Identity{
 						ClusterName: "root",
-						ScopePin: scopesv1.Pin_builder{
+						ScopePin: &scopesv1.Pin{
 							Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 							Scope: "test-scope",
-							SystemRoles: scopesv1.SystemRoles_builder{
+							SystemRoles: &scopesv1.SystemRoles{
 								Primary: string(types.RoleNode),
-							}.Build(),
-						}.Build(),
+							},
+						},
 					},
 				})
 				require.NoError(t, err)
@@ -464,6 +463,7 @@ func TestOnlyAuthDial(t *testing.T) {
 		"RemoteAuthServer": constants.RemoteAuthServer,
 		"ArbitraryDial":    badListenerAddr,
 	} {
+		addr := addr
 		t.Run(name, func(t *testing.T) {
 			ch, reqC, err := clientConn.conn.OpenChannel(constants.ChanTransport, nil)
 			require.NoError(t, err)
@@ -572,13 +572,8 @@ func sshPipe(t *testing.T) (sshConn, sshConn) {
 		}
 	}()
 	go func() {
-		c, nc, r, err := apissh.NewClientConn(t.Context(), c2, "", apissh.ClientConfig{
-			User: "a",
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{signer}, nil
-				},
-			},
+		c, nc, r, err := ssh.NewClientConn(c2, "", &ssh.ClientConfig{
+			User:            "a",
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 		assert.NoError(t, err)

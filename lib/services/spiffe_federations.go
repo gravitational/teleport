@@ -74,26 +74,26 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("object cannot be nil")
-	case s.GetVersion() != types.V1:
+	case s.Version != types.V1:
 		return trace.BadParameter("version: only %q is supported", types.V1)
-	case s.GetKind() != types.KindSPIFFEFederation:
+	case s.Kind != types.KindSPIFFEFederation:
 		return trace.BadParameter("kind: must be %q", types.KindSPIFFEFederation)
-	case !s.HasMetadata():
+	case s.Metadata == nil:
 		return trace.BadParameter("metadata: is required")
-	case s.GetMetadata().GetName() == "":
+	case s.Metadata.Name == "":
 		return trace.BadParameter("metadata.name: is required")
-	case !s.HasSpec():
+	case s.Spec == nil:
 		return trace.BadParameter("spec: is required")
-	case !s.GetSpec().HasBundleSource():
+	case s.Spec.BundleSource == nil:
 		return trace.BadParameter("spec.bundle_source: is required")
-	case s.GetSpec().GetBundleSource().HasHttpsWeb() && s.GetSpec().GetBundleSource().HasStatic():
+	case s.Spec.BundleSource.HttpsWeb != nil && s.Spec.BundleSource.Static != nil:
 		return trace.BadParameter("spec.bundle_source: at most one of https_web or static can be set")
-	case !s.GetSpec().GetBundleSource().HasHttpsWeb() && !s.GetSpec().GetBundleSource().HasStatic():
+	case s.Spec.BundleSource.HttpsWeb == nil && s.Spec.BundleSource.Static == nil:
 		return trace.BadParameter("spec.bundle_source: at least one of https_web or static must be set")
 	}
 
 	// Validate name is valid SPIFFE Trust Domain name without the "spiffe://"
-	name := s.GetMetadata().GetName()
+	name := s.Metadata.Name
 	if strings.HasPrefix(name, "spiffe://") {
 		return trace.BadParameter(
 			"metadata.name: must not include the spiffe:// prefix",
@@ -105,25 +105,25 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 	}
 
 	// Validate Static
-	if s.GetSpec().GetBundleSource().HasStatic() {
-		if s.GetSpec().GetBundleSource().GetStatic().GetBundle() == "" {
+	if s.Spec.BundleSource.Static != nil {
+		if s.Spec.BundleSource.Static.Bundle == "" {
 			return trace.BadParameter("spec.bundle_source.static.bundle: is required")
 		}
 		// Validate contents
 		// TODO(noah): Is this a bit intense to run on every validation?
 		// This could easily be moved into reconciliation...
-		_, err := spiffebundle.Parse(td, []byte(s.GetSpec().GetBundleSource().GetStatic().GetBundle()))
+		_, err := spiffebundle.Parse(td, []byte(s.Spec.BundleSource.Static.Bundle))
 		if err != nil {
 			return trace.Wrap(err, "validating spec.bundle_source.static.bundle")
 		}
 	}
 
 	// Validate HTTPSWeb
-	if s.GetSpec().GetBundleSource().HasHttpsWeb() {
-		if s.GetSpec().GetBundleSource().GetHttpsWeb().GetBundleEndpointUrl() == "" {
+	if s.Spec.BundleSource.HttpsWeb != nil {
+		if s.Spec.BundleSource.HttpsWeb.BundleEndpointUrl == "" {
 			return trace.BadParameter("spec.bundle_source.https_web.bundle_endpoint_url: is required")
 		}
-		_, err := url.Parse(s.GetSpec().GetBundleSource().GetHttpsWeb().GetBundleEndpointUrl())
+		_, err := url.Parse(s.Spec.BundleSource.HttpsWeb.BundleEndpointUrl)
 		if err != nil {
 			return trace.Wrap(err, "validating spec.bundle_source.https_web.bundle_endpoint_url")
 		}
@@ -131,9 +131,9 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 
 	// Ensure that all key status fields are set if any are set. This is a safeguard against weird inconsistent states
 	// where some fields are set and others are not.
-	currentBundleSet := s.GetStatus().GetCurrentBundle() != ""
-	currentBundledSyncedAtSet := s.GetStatus().GetCurrentBundleSyncedAt() != nil
-	currentBundleSyncedFromSet := s.GetStatus().GetCurrentBundleSyncedFrom() != nil
+	currentBundleSet := s.Status.GetCurrentBundle() != ""
+	currentBundledSyncedAtSet := s.Status.GetCurrentBundleSyncedAt() != nil
+	currentBundleSyncedFromSet := s.Status.GetCurrentBundleSyncedFrom() != nil
 	anyStatusFieldSet := currentBundleSet || currentBundledSyncedAtSet || currentBundleSyncedFromSet
 	allStatusFieldsSet := currentBundleSet && currentBundledSyncedAtSet && currentBundleSyncedFromSet
 	if anyStatusFieldSet && !allStatusFieldsSet {

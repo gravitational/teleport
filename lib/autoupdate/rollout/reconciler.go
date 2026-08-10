@@ -189,7 +189,7 @@ func (r *reconciler) tryReconcile(ctx context.Context) (err error) {
 	if !rolloutExists {
 		r.log.DebugContext(ctx, "creating rollout")
 		rollout, err = update.NewAutoUpdateAgentRollout(newSpec)
-		rollout.SetStatus(newStatus)
+		rollout.Status = newStatus
 		if err != nil {
 			return trace.Wrap(err, "validating new rollout")
 		}
@@ -200,8 +200,8 @@ func (r *reconciler) tryReconcile(ctx context.Context) (err error) {
 	r.log.DebugContext(ctx, "updating rollout")
 	// If there was a previous rollout, we update its spec and status and do an update.
 	// We don't create a new resource to keep the metadata containing the revision ID.
-	rollout.SetSpec(newSpec)
-	rollout.SetStatus(newStatus)
+	rollout.Spec = newSpec
+	rollout.Status = newStatus
 	err = update.ValidateAutoUpdateAgentRollout(rollout)
 	if err != nil {
 		return trace.Wrap(err, "validating mutated rollout")
@@ -222,14 +222,14 @@ func (r *reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAge
 		strategy = defaultStrategy
 	}
 
-	return autoupdate.AutoUpdateAgentRolloutSpec_builder{
+	return &autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:              version.GetStartVersion(),
 		TargetVersion:             version.GetTargetVersion(),
 		Schedule:                  version.GetSchedule(),
 		AutoupdateMode:            mode,
 		Strategy:                  strategy,
 		MaintenanceWindowDuration: config.GetMaintenanceWindowDuration(),
-	}.Build(), nil
+	}, nil
 
 }
 
@@ -298,7 +298,7 @@ func (r *reconciler) computeStatus(
 	if shouldResetRollout || existingRollout.GetStatus() == nil {
 		status = new(autoupdate.AutoUpdateAgentRolloutStatus)
 		// We set the start time if this is a new rollout
-		status.SetStartTime(timestamppb.New(r.clock.Now()))
+		status.StartTime = timestamppb.New(r.clock.Now())
 	} else {
 		status = utils.CloneProtoMsg(existingRollout.GetStatus())
 	}
@@ -307,7 +307,7 @@ func (r *reconciler) computeStatus(
 	switch newSpec.GetSchedule() {
 	case update.AgentsScheduleImmediate:
 		// There are no groups with the immediate schedule, we must clean them
-		status.SetGroups(nil)
+		status.Groups = nil
 		return status, nil
 	case update.AgentsScheduleRegular:
 		// Regular schedule has groups, we will compute them after
@@ -338,7 +338,7 @@ func (r *reconciler) computeStatus(
 			return nil, trace.Wrap(err, "creating groups status")
 		}
 	}
-	status.SetGroups(groups)
+	status.Groups = groups
 
 	err = r.progressRollout(ctx, newSpec, status, now)
 	// Failing to progress the update is not a hard failure.
@@ -348,7 +348,7 @@ func (r *reconciler) computeStatus(
 			"error", err)
 	}
 
-	status.SetState(computeRolloutState(groups))
+	status.State = computeRolloutState(groups)
 	return status, nil
 }
 
@@ -379,17 +379,17 @@ func (r *reconciler) makeGroupsStatus(ctx context.Context, schedules *autoupdate
 
 	groups := make([]*autoupdate.AutoUpdateAgentRolloutStatusGroup, len(configGroups))
 	for i, group := range configGroups {
-		groups[i] = autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
-			Name:             group.GetName(),
+		groups[i] = &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			Name:             group.Name,
 			StartTime:        nil,
 			State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			LastUpdateTime:   timestamppb.New(now),
 			LastUpdateReason: updateReasonCreated,
-			ConfigDays:       group.GetDays(),
-			ConfigStartHour:  group.GetStartHour(),
-			ConfigWaitHours:  group.GetWaitHours(),
-			CanaryCount:      uint64(group.GetCanaryCount()),
-		}.Build()
+			ConfigDays:       group.Days,
+			ConfigStartHour:  group.StartHour,
+			ConfigWaitHours:  group.WaitHours,
+			CanaryCount:      uint64(group.CanaryCount),
+		}
 	}
 	return groups, nil
 }
@@ -422,20 +422,20 @@ func (r *reconciler) defaultConfigGroup(ctx context.Context) (*autoupdate.AgentA
 		weekdays = []string{types.Wildcard}
 	}
 
-	return autoupdate.AgentAutoUpdateGroup_builder{
+	return &autoupdate.AgentAutoUpdateGroup{
 		Name:      defaultCMCGroupName,
 		Days:      weekdays,
 		StartHour: int32(upgradeWindow.UTCStartHour),
 		WaitHours: 0,
-	}.Build(), nil
+	}, nil
 
 }
 
 func defaultGroup() *autoupdate.AgentAutoUpdateGroup {
-	return autoupdate.AgentAutoUpdateGroup_builder{
+	return &autoupdate.AgentAutoUpdateGroup{
 		Name:      defaultGroupName,
 		Days:      defaultUpdateDays,
 		StartHour: defaultStartHour,
 		WaitHours: 0,
-	}.Build()
+	}
 }

@@ -69,13 +69,13 @@ func (a *DockerAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 		return nil, trace.Wrap(err, "inspecting container")
 	}
 
-	return workloadidentityv1pb.WorkloadAttrsDocker_builder{
+	return &workloadidentityv1pb.WorkloadAttrsDocker{
 		Attested: true,
-		Container: workloadidentityv1pb.WorkloadAttrsDockerContainer_builder{
+		Container: &workloadidentityv1pb.WorkloadAttrsDockerContainer{
 			Name:        res.Container.Name,
 			Image:       res.Container.Config.Image,
 			ImageDigest: res.Container.Image,
 			Labels:      res.Container.Config.Labels,
-		}.Build(),
-	}.Build(), nil
+		},
+	}, nil
 }

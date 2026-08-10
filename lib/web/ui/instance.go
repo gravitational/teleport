@@ -111,16 +111,16 @@ func makeInstanceUnifiedItem(instance *types.InstanceV1) UnifiedInstance {
 
 func makeBotInstanceUnifiedItem(botInstance *machineidv1.BotInstance) UnifiedInstance {
 	botData := &BotInstanceData{
-		Name: botInstance.GetSpec().GetBotName(),
+		Name: botInstance.Spec.BotName,
 	}
 
-	if botInstance.HasStatus() && len(botInstance.GetStatus().GetLatestHeartbeats()) > 0 {
-		heartbeat := botInstance.GetStatus().GetLatestHeartbeats()[0]
-		botData.Version = strings.TrimPrefix(heartbeat.GetVersion(), "v")
+	if botInstance.Status != nil && len(botInstance.Status.LatestHeartbeats) > 0 {
+		heartbeat := botInstance.Status.LatestHeartbeats[0]
+		botData.Version = strings.TrimPrefix(heartbeat.Version, "v")
 	}
 
 	return UnifiedInstance{
-		ID:          botInstance.GetMetadata().GetName(),
+		ID:          botInstance.Metadata.Name,
 		Type:        "bot_instance",
 		BotInstance: botData,
 	}

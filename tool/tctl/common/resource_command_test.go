@@ -23,13 +23,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -68,39 +64,12 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
-
-func TestListKindsStructuredOutput(t *testing.T) {
-	rows := resourceKindRows()
-	require.NotEmpty(t, rows)
-
-	var jsonBuf bytes.Buffer
-	rc := ResourceCommand{
-		Stdout: &jsonBuf,
-		format: "json",
-	}
-	require.NoError(t, rc.listKinds())
-	gotJSON := mustDecodeJSON[[]resourceKindRow](t, &jsonBuf)
-	require.Equal(t, rows, gotJSON)
-
-	var yamlBuf bytes.Buffer
-	rc = ResourceCommand{
-		Stdout: &yamlBuf,
-		format: "yaml",
-	}
-	require.NoError(t, rc.listKinds())
-	yamlJSON, err := utils.ToJSON(yamlBuf.Bytes())
-	require.NoError(t, err)
-	gotYAML := mustDecodeJSON[[]resourceKindRow](t, bytes.NewReader(yamlJSON))
-	require.Equal(t, rows, gotYAML)
-}
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
@@ -324,7 +293,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := range totalDBServices {
+	for i := 0; i < totalDBServices; i++ {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -411,7 +380,6 @@ version: v1
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
 
 	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
 	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
@@ -446,17 +414,17 @@ version: v1
 	require.Len(t, rs, 1)
 
 	// Compare with expected value
-	expected := scopedaccessv1.ScopedRole_builder{
+	expected := &scopedaccessv1.ScopedRole{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: "some-role",
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/foo"},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
@@ -502,6 +470,11 @@ version: v1
 
 	// Create the valid scoped role assignment
 	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
+
+	// Create the scoped role assignment. The confirmation message is written
+	// to os.Stdout by the resource handler (not the captured rc.Stdout), and
+	// the assignment name is generated server-side, so recover it by listing
+	// assignments rather than parsing the create output.
 	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
 	require.NoError(t, err)
 
@@ -559,14 +532,14 @@ version: v1
 	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
-	expectedAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
+	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: assignmentName,
-		}.Build(),
+		},
 		Scope: "/",
-		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
@@ -574,9 +547,9 @@ version: v1
 					Scope: "/foo",
 				}.Build(),
 			},
-		}.Build(),
+		},
 		Version: types.V1,
-	}.Build()
+	}
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
@@ -794,8 +767,8 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Using --force should succeed and act as an upsert
-	allTokens[0].GetMetadata().SetLabels(map[string]string{"env": "staging"})
-	allTokens[0].GetSpec().SetAssignedScope("/bar")
+	allTokens[0].Metadata.Labels = map[string]string{"env": "staging"}
+	allTokens[0].Spec.AssignedScope = "/bar"
 	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, updatedBytes, 0644))
@@ -854,7 +827,7 @@ spec:
 	// to provide hints as namespacing may prevent it.
 	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/other-scope::gcp-test-token", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch, got: %v", err)
-	require.ErrorContains(t, err, `scoped_token "gcp-test-token" doesn't exist`)
+	require.ErrorContains(t, err, "tctl get scoped_token /::gcp-test-token")
 }
 
 // TestScopedAndUnscopedNodeResource exercises tctl get/rm on nodes which are double
@@ -1515,7 +1488,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalIntegrations {
+		for i := 0; i < totalIntegrations; i++ {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -1631,7 +1604,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalDiscoveryConfigs {
+		for i := 0; i < totalDiscoveryConfigs; i++ {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -2321,6 +2294,7 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
@@ -2399,10 +2373,117 @@ func TestAppResource(t *testing.T) {
 	test.run(t)
 }
 
+func TestGetOneResourceNameToDelete(t *testing.T) {
+	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
+	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
+	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
+	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
+	tests := []struct {
+		desc            string
+		refName         string
+		wantErrContains string
+		resources       []types.KubeServer
+		wantName        string
+	}{
+		{
+			desc:      "one resource is ok",
+			refName:   "foo-bar-eks-us-west-1",
+			resources: []types.KubeServer{fooBar1},
+			wantName:  "foo-bar-eks-us-west-1",
+		},
+		{
+			desc:      "multiple resources with same name is ok",
+			refName:   "foo",
+			resources: []types.KubeServer{foo1, foo2},
+			wantName:  "foo-eks",
+		},
+		{
+			desc:            "zero resources is an error",
+			refName:         "xxx",
+			wantErrContains: `kubernetes server "xxx" not found`,
+		},
+		{
+			desc:            "multiple resources with different names is an error",
+			refName:         "foo-bar",
+			resources:       []types.KubeServer{fooBar1, fooBar2},
+			wantErrContains: "matches multiple",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
+			resDesc := "kubernetes server"
+			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				return
+			}
+			require.Equal(t, test.wantName, name)
+		})
+	}
+}
+
+func TestFilterByNameOrDiscoveredName(t *testing.T) {
+	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
+	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
+	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
+	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
+	resources := []types.KubeServer{
+		foo1, foo2, fooBar1, fooBar2,
+	}
+	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
+	tests := []struct {
+		desc           string
+		filter         string
+		altNameGetters []altNameFn[types.KubeServer]
+		want           []types.KubeServer
+	}{
+		{
+			desc:   "filters by exact name",
+			filter: "foo-eks-us-west-1",
+			want:   []types.KubeServer{foo1},
+		},
+		{
+			desc:   "filters by exact name over discovered names",
+			filter: "foo-bar",
+			want:   []types.KubeServer{fooBar1},
+		},
+		{
+			desc:   "filters by discovered name",
+			filter: "foo",
+			want:   []types.KubeServer{foo1, foo2},
+		},
+		{
+			desc:           "checks alt names for exact matches",
+			filter:         "host-foo",
+			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
+			want:           []types.KubeServer{foo1, foo2},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := filterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
+			require.Empty(t, cmp.Diff(test.want, got))
+		})
+	}
+}
+
+func TestFormatAmbiguousDeleteMessage(t *testing.T) {
+	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
+	resDesc := "database"
+	names := []string{"xbbb", "xaaa", "xccc", "xb"}
+	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
+	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
+		"should have formatted the ref used and pluralized the resource description")
+	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
+	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
+	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
+}
+
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -3175,143 +3256,23 @@ version: v1
 	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
-func TestSAMLCommandsWithUnavailableMetadata(t *testing.T) {
-	const (
-		connectorName = "unavailable-metadata"
-		metadata      = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.example.com/metadata">
-  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
-  </md:IDPSSODescriptor>
-</md:EntityDescriptor>`
-	)
-
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
-		cfg.Modules = &modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.SAML: {Enabled: true},
-				},
-			},
-		}
-	}))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
-
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-
-	var unavailable atomic.Bool
-	var metadataRequests atomic.Int64
-	metadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		metadataRequests.Add(1)
-		if unavailable.Load() {
-			http.Error(w, "metadata unavailable", http.StatusNotFound)
-			return
-		}
-		_, _ = io.WriteString(w, metadata)
-	}))
-	t.Cleanup(metadataServer.Close)
-
-	connector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
-		Display:                  "Unavailable metadata",
-		AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
-		Audience:                 "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
-		ServiceProviderIssuer:    "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
-		EntityDescriptorURL:      metadataServer.URL,
-		AttributesToRoles: []types.AttributeMapping{
-			{Name: "groups", Value: "developers", Roles: []string{"access"}},
-		},
-	})
-	require.NoError(t, err)
-	_, err = clt.CreateSAMLConnector(t.Context(), connector)
-	require.NoError(t, err)
-
-	unavailable.Store(true)
-
-	t.Run("list", func(t *testing.T) {
-		requestCount := metadataRequests.Load()
-		out, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector, "--format=json"})
-		require.NoError(t, err)
-		require.Contains(t, out.String(), connectorName)
-		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
-	})
-
-	t.Run("get", func(t *testing.T) {
-		requestCount := metadataRequests.Load()
-		out, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector + "/" + connectorName, "--format=json"})
-		require.NoError(t, err)
-		require.Contains(t, out.String(), connectorName)
-		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
-	})
-
-	t.Run("export", func(t *testing.T) {
-		requestCount := metadataRequests.Load()
-		var exportErr error
-		var closeErr error
-		stdoutReader, stdoutWriter, err := os.Pipe()
-		require.NoError(t, err)
-		previousStdout := os.Stdout
-		os.Stdout = stdoutWriter
-		func() {
-			defer func() { os.Stdout = previousStdout }()
-			exportErr = (&SAMLCommand{connectorName: connectorName}).export(t.Context(), clt)
-			closeErr = stdoutWriter.Close()
-		}()
-		require.NoError(t, exportErr)
-		require.NoError(t, closeErr)
-		exportedCert, err := io.ReadAll(stdoutReader)
-		require.NoError(t, err)
-		require.NoError(t, stdoutReader.Close())
-		require.Contains(t, string(exportedCert), "BEGIN CERTIFICATE")
-		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
-	})
-
-	t.Run("force replace", func(t *testing.T) {
-		requestCount := metadataRequests.Load()
-		replacement, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
-			Display:                  "Replacement",
-			AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
-			Audience:                 "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
-			ServiceProviderIssuer:    "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
-			EntityDescriptor:         metadata,
-			AttributesToRoles: []types.AttributeMapping{
-				{Name: "groups", Value: "developers", Roles: []string{"access"}},
-			},
-		})
-		require.NoError(t, err)
-		replacementYAML, err := services.MarshalSAMLConnector(replacement)
-		require.NoError(t, err)
-		replacementPath := filepath.Join(t.TempDir(), "replacement.yaml")
-		require.NoError(t, os.WriteFile(replacementPath, replacementYAML, 0o600))
-		_, err = runResourceCommand(t, clt, []string{"create", "-f", replacementPath})
-		require.NoError(t, err)
-		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
-	})
-}
-
 // TestCreateEnterpriseResources asserts that tctl create
-// behaves as expected for enterprise resources. The tests are
-// grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. These resources cannot
+// be tested in parallel because they alter the modules to enable features.
+// The tests are grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	t.Parallel()
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
-		cfg.Modules = &modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.OIDC: {Enabled: true},
-					entitlements.SAML: {Enabled: true},
-				},
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
 			},
-		}
-	}))
+		},
+	})
+
+	process, err := testenv.NewTeleportProcess(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -3537,7 +3498,7 @@ spec:
 
 	// Explicitly change the revision and try creating the user with and without
 	// the force flag.
-	expected.GetMetadata().SetRevision(uuid.NewString())
+	expected.GetMetadata().Revision = uuid.NewString()
 	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))

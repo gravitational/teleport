@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Location, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 
 import { Validator } from 'shared/components/Validation';
 import {
@@ -63,7 +63,7 @@ export function useAwsOidcIntegration() {
     useState<IntegrationAwsOidc>();
   const { clusterId } = useStickyClusterId();
 
-  const location = useLocation() as Location<DiscoverUrlLocationState>;
+  const location = useLocation<DiscoverUrlLocationState>();
 
   const [eventData] = useState<IntegrationEnrollEventData>({
     id: crypto.randomUUID(),

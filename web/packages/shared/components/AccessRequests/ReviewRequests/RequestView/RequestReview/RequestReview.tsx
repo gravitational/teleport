@@ -26,7 +26,6 @@ import { HoverTooltip } from 'design/Tooltip';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
-import { UserDisplayName } from 'shared/components/UserDisplayName';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -34,7 +33,6 @@ import {
   AccessRequest,
   RequestKind,
   RequestState,
-  UserDisplay,
 } from 'shared/services/accessRequests';
 
 import { AccessDurationReview } from '../../../AccessDuration';
@@ -52,7 +50,6 @@ export interface RequestReviewProps {
   fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>;
   shortTermDuration: string;
   user: string;
-  userDisplay?: UserDisplay;
   submitReviewAttempt: Attempt<AccessRequest>;
   request: AccessRequest;
 }
@@ -61,7 +58,6 @@ export default function RequestReview({
   submitReviewAttempt,
   submitReview,
   user,
-  userDisplay,
   fetchSuggestedAccessListsAttempt,
   shortTermDuration,
   request,
@@ -129,15 +125,7 @@ export default function RequestReview({
           style={{ position: 'relative' }}
         >
           <Box bg="levels.sunken" py={1} px={3}>
-            <H3 mr={3}>
-              <UserDisplayName
-                username={user}
-                primaryText={userDisplay?.primary}
-                primaryTextProps={{ fontWeight: 'bold' }}
-                layout="inline"
-              />
-              {' - add a review'}
-            </H3>
+            <H3 mr={3}>{user} - add a review</H3>
           </Box>
           <Box p={3} bg="levels.elevated">
             {submitReviewAttempt.status === 'error' && (
@@ -322,7 +310,10 @@ function makeReviewStateOptions(
       // Connect) means the reviewer can't see the eligible Access Lists, which
       // is distinct from there being none. Detect it by status code rather than
       // message text so it survives across versions; surface other errors as-is.
-      msg = isPermissionDeniedError(fetchSuggestedAccessListsAttempt.error)
+      const err = fetchSuggestedAccessListsAttempt.error;
+      const isPermissionError =
+        err?.response?.status === 403 || err?.code === 'PERMISSION_DENIED';
+      msg = isPermissionError
         ? "You don't have permission to view the Access Lists eligible for long-term approval of this request. You can still reject it."
         : fetchSuggestedAccessListsAttempt.statusText;
     } else if (request.resources.length === 0) {
@@ -403,27 +394,4 @@ const HorizontalLine = styled.div<{ height?: number }>`
 // This was copied from `AccessListManagement`.
 function makeTraitLabel(traitKey: string, traitVals: string[]) {
   return `${traitKey}: ${traitVals.sort().join(', ')}`;
-}
-
-/**
- * Checks whether an error represents a permission denial from either the Web
- * API or a gRPC service.
- *
- * TODO(gzdunek): Consider passing a permission-error predicate so that Web UI and Connect
- * can identify their own native error type.
- */
-function isPermissionDeniedError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-  if ('code' in error && error.code === 'PERMISSION_DENIED') {
-    return true;
-  }
-  return (
-    'response' in error &&
-    typeof error.response === 'object' &&
-    error.response !== null &&
-    'status' in error.response &&
-    error.response.status === 403
-  );
 }

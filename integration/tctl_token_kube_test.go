@@ -127,18 +127,18 @@ func TestTCTLTokenConfigureKubeCommand_OIDC(t *testing.T) {
 	pong, err := clt.Ping(ctx)
 	require.NoError(t, err)
 
-	_, err = clt.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
-		Bot: machineidv1.Bot_builder{
+	_, err = clt.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+		Bot: &machineidv1.Bot{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: testBotName,
-			}.Build(),
-			Spec: machineidv1.BotSpec_builder{
+			},
+			Spec: &machineidv1.BotSpec{
 				Roles: []string{testRoleName},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	addr, err := rc.Process.ProxyWebAddr()
@@ -244,18 +244,18 @@ func TestTCTLTokenConfigureKubeCommand_JWKS(t *testing.T) {
 	pong, err := clt.Ping(ctx)
 	require.NoError(t, err)
 
-	_, err = clt.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
-		Bot: machineidv1.Bot_builder{
+	_, err = clt.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+		Bot: &machineidv1.Bot{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: testBotName,
-			}.Build(),
-			Spec: machineidv1.BotSpec_builder{
+			},
+			Spec: &machineidv1.BotSpec{
 				Roles: []string{testRoleName},
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	addr, err := rc.Process.ProxyWebAddr()

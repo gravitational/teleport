@@ -408,7 +408,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				}),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
+			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -488,7 +488,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				}),
 			},
 			errAssertion: require.NoError,
-			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
+			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
 				require.Equal(requireT, identityResourceID(t, "identity"), value)
 			},
 		},
@@ -850,6 +850,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	require.NoError(t, err)
 
 	for name, tt := range tests {
+		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tt.checkGetAuthFn(t, auth)

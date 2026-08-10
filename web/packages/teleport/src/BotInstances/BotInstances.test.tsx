@@ -17,11 +17,14 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryHistory } from 'history';
 import { PropsWithChildren } from 'react';
+import { MemoryRouter, Route, Router } from 'react-router';
 
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
+  render,
   screen,
   server,
   testQueryClient,
@@ -32,7 +35,6 @@ import {
   within,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-import 'shared/components/TextEditor/TextEditor.mock';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -44,7 +46,7 @@ import {
   listBotInstancesError,
   listBotInstancesSuccess,
 } from 'teleport/test/helpers/botInstances';
-import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
+import 'shared/components/TextEditor/TextEditor.mock';
 
 import { ContextProvider } from '..';
 import { BotInstances } from './BotInstances';
@@ -351,7 +353,8 @@ describe('BotInstances', () => {
     );
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
-    const { user, router } = renderComponent();
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'push');
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -389,8 +392,10 @@ describe('BotInstances', () => {
     await userEvent.type(search, 'test-search-term');
     await userEvent.type(search, '{enter}');
 
-    expect(router.state.location.pathname).toBe('/web/bots/instances');
-    expect(router.state.location.search).toContain('query=test-search-term');
+    expect(history.push).toHaveBeenLastCalledWith({
+      pathname: '/web/bots/instances',
+      search: 'query=test-search-term',
+    });
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
@@ -428,7 +433,8 @@ describe('BotInstances', () => {
     );
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
-    const { user, router } = renderComponent();
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'push');
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -471,9 +477,10 @@ describe('BotInstances', () => {
     await userEvent.type(search, 'test-query');
     await userEvent.type(search, '{enter}');
 
-    expect(router.state.location.pathname).toBe('/web/bots/instances');
-    expect(router.state.location.search).toContain('query=test-query');
-    expect(router.state.location.search).toContain('is_advanced=1');
+    expect(history.push).toHaveBeenLastCalledWith({
+      pathname: '/web/bots/instances',
+      search: 'query=test-query&is_advanced=1',
+    });
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
@@ -501,7 +508,8 @@ describe('BotInstances', () => {
         })
     );
 
-    const { user, router } = renderComponent();
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'push');
 
     await waitForElementToBeRemoved(() =>
       screen.queryByTestId('loading-dashboard')
@@ -523,8 +531,10 @@ describe('BotInstances', () => {
     const item = screen.getByLabelText('Up to date');
     await user.click(item);
 
-    expect(router.state.location.pathname).toBe('/web/bots/instances');
-    expect(router.state.location.search).toContain('is_advanced=1');
+    expect(history.push).toHaveBeenLastCalledWith({
+      pathname: '/web/bots/instances',
+      search: 'query=up+to+date+filter+goes+here&is_advanced=1',
+    });
     expect(listBotInstances).toHaveBeenCalledTimes(2);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
@@ -629,28 +639,43 @@ function renderComponent(options?: { customAcl?: ReturnType<typeof makeAcl> }) {
     }),
   } = options ?? {};
 
-  return renderWithMemoryRouter(<BotInstances />, {
-    path: cfg.routes.botInstances,
+  const user = userEvent.setup();
+  const history = createMemoryHistory({
     initialEntries: ['/web/bots/instances'],
-    wrapper: makeWrapper({ customAcl }),
   });
+  return {
+    ...render(<BotInstances />, {
+      wrapper: makeWrapper({ customAcl, history }),
+    }),
+    user,
+    history,
+  };
 }
 
-function makeWrapper(options: { customAcl: ReturnType<typeof makeAcl> }) {
-  const { customAcl } = options ?? {};
+function makeWrapper(options: {
+  customAcl: ReturnType<typeof makeAcl>;
+  history: ReturnType<typeof createMemoryHistory>;
+}) {
+  const { customAcl, history } = options ?? {};
 
   return ({ children }: PropsWithChildren) => {
     const ctx = createTeleportContext({
       customAcl,
     });
     return (
-      <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={theme}>
-          <InfoGuidePanelProvider data-testid="blah">
-            <ContextProvider ctx={ctx}>{children}</ContextProvider>
-          </InfoGuidePanelProvider>
-        </ConfiguredThemeProvider>
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={testQueryClient}>
+          <ConfiguredThemeProvider theme={theme}>
+            <InfoGuidePanelProvider data-testid="blah">
+              <ContextProvider ctx={ctx}>
+                <Router history={history}>
+                  <Route path={cfg.routes.botInstances}>{children}</Route>
+                </Router>
+              </ContextProvider>
+            </InfoGuidePanelProvider>
+          </ConfiguredThemeProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
     );
   };
 }

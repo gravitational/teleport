@@ -66,10 +66,7 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 	)
 
 	tlsConfig := &tls.Config{
-		NextProtos: []string{
-			constants.ALPNSNIProtocolReverseTunnelV2,
-			constants.ALPNSNIProtocolReverseTunnel,
-		},
+		NextProtos:         []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 		InsecureSkipVerify: insecure,
 	}
 	testConn, err := tlsutils.TLSDial(ctx, baseDialer, "tcp", addr, tlsConfig)

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -41,11 +42,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
@@ -58,7 +60,6 @@ import (
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -219,8 +220,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		if role == types.RoleAdmin || role == types.RoleAuth {
 			return newConnector(identity, identity)
 		}
-		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.",
-			"cluster", identity.ClusterName, "role", role.String())
+		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.", "cluster", identity.ClusterName)
 		connector, err := process.getConnector(identity, identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to
@@ -356,7 +356,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		newIdentity.ImmutableLabels = rejoinResult.ImmutableLabels
 	}
 
-	newSystemRoles := set.New(newIdentity.SystemRoles...)
+	newSystemRoles := utils.NewSet(newIdentity.SystemRoles...)
 
 	// Sanity check we didn't lose any system roles.
 	if lostRoles := currentSystemRoles.Clone().Subtract(newSystemRoles); len(lostRoles) > 0 {
@@ -758,22 +758,9 @@ func (process *TeleportProcess) makeJoinParams(
 	}
 
 	tokenName, tokenSecret := token, ""
-	if scopes.MaybeSQN(token) {
-		qn, err := scopes.ParseQualifiedName(token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if name, secret, ok := joining.DecodeScopedToken(qn.Name); ok {
-			qn.Name = name
-			tokenName = qn.String()
-			tokenSecret = secret
-		}
-	} else {
-		if name, secret, ok := joining.DecodeScopedToken(token); ok {
-			tokenName = name
-			tokenSecret = secret
-		}
+	if name, secret, ok := joining.DecodeScopedToken(token); ok {
+		tokenName = name
+		tokenSecret = secret
 	}
 
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
@@ -795,7 +782,7 @@ func (process *TeleportProcess) makeJoinParams(
 		// requests before closing
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
-		Insecure:             process.Config.InsecureMode,
+		Insecure:             lib.IsInsecureDevMode(),
 		OnVersionCallback:    process.enforceVersionPolicy,
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
@@ -1303,7 +1290,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			conn.serverState.Store(connState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		default:
-			return nil, trace.BadParameter("unsupported state: %v", localState)
+			return nil, trace.BadParameter("unsupported state: %q", localState)
 		}
 	case types.RotationStateInProgress:
 		switch remote.Phase {
@@ -1426,7 +1413,10 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	}
 
 	// Set cluster features and return successfully with a working connector.
-	process.setClusterFeatures(pingResponse.GetServerFeatures())
+	// TODO(michellescripts) remove clone & compatibility check in v18
+	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
+	entitlements.BackfillFeatures(cloned)
+	process.setClusterFeatures(cloned)
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
 
@@ -1450,7 +1440,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 	}
 	tlsConfig.ServerName = apiutils.EncodeClusterName(connector.ClusterName())
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, connector.ClientGetPool)
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(connector.ClientGetPool)
 
 	sshClientConfig, err := connector.clientSSHClientConfig(process.Config.FIPS)
 	if err != nil {
@@ -1491,7 +1481,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		logger.DebugContext(process.ExitContext(), "Attempting to discover reverse tunnel address.")
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
+		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
 		if err != nil {
 			process.logger.ErrorContext(process.ExitContext(), "Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.logger.ErrorContext(process.ExitContext(), "- connecting to auth server directly", "error", directErr)
@@ -1515,7 +1505,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		if !proxyServer.IsEmpty() {
 			logger := process.logger.With("proxy_server", proxyServer.String())
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
-			tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
+			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
 			if err != nil {
 				return nil, nil, trace.Wrap(err, "Failed to connect to Proxy Server through tunnel")
 			}
@@ -1559,7 +1549,7 @@ func (process *TeleportProcess) proxyVersionInfo() joinclient.VersionInfo {
 	findResp, err := webclient.Find(&webclient.Config{
 		Context:   process.ExitContext(),
 		ProxyAddr: proxyAddr.String(),
-		Insecure:  process.Config.InsecureMode,
+		Insecure:  lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		process.logger.WarnContext(process.ExitContext(),
@@ -1575,21 +1565,19 @@ func (process *TeleportProcess) proxyVersionInfo() joinclient.VersionInfo {
 	}
 }
 
-func (process *TeleportProcess) newClientThroughProxy(tlsConfig *tls.Config, sshConfig ssh.ClientConfig, role types.SystemRole, clusterName string, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
 	versionInfo := process.proxyVersionInfo()
 	if err := process.enforceVersionPolicy(process.ExitContext(), versionInfo); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.logger,
-		InsecureSkipTLSVerify: process.Config.InsecureMode,
+		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
 		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
 			return getClusterCAs()
 		},
-		AllowALPNRouting: true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1602,11 +1590,6 @@ func (process *TeleportProcess) newClientThroughProxy(tlsConfig *tls.Config, ssh
 		},
 		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialTimeout:          process.Config.Testing.ClientTimeout,
-		// we are using a dialer that's confirming that we are connecting to an
-		// address that responds to /webapi/find by virtue of using a resolver,
-		// so there's no chance that we're going to get confused if we are
-		// accidentally pointed to an auth as if it was a proxy
-		ALPNSNIAuthDialClusterName: clusterName,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

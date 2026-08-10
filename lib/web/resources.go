@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,13 +109,13 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	rolesReq := proto.ListRequestableRolesRequest_builder{
+	rolesReq := &proto.ListRequestableRolesRequest{
 		PageSize:  limit,
 		PageToken: values.Get("startKey"),
-		Filter: proto.ListRequestableRolesRequest_Filter_builder{
+		Filter: &proto.ListRequestableRolesRequest_Filter{
 			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
-		}.Build(),
-	}.Build()
+		},
+	}
 
 	resp, err := clt.ListRequestableRoles(r.Context(), rolesReq)
 	if err != nil {
@@ -123,12 +123,12 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	return &listResourcesWithoutCountGetResponse{
-		Items:    ui.RequestableRolesFromProto(resp.GetRoles()),
-		StartKey: resp.GetNextPageToken(),
+		Items:    ui.RequestableRolesFromProto(resp.Roles),
+		StartKey: resp.NextPageToken,
 	}, nil
 }
 
-func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,7 +142,7 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -152,7 +152,7 @@ func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, param
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -168,7 +168,7 @@ func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprou
 	return ri, trace.Wrap(err)
 }
 
-func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -188,7 +188,7 @@ func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 // getGithubConnectorHandle returns a GitHub connector by name.
-func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -202,7 +202,7 @@ func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return ui.NewResourceItem(connector)
 }
 
-func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -274,10 +274,10 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
 	connectors, err := clientutils.CollectWithFallback(ctx,
 		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
-			return clt.ListGithubConnectors(ctx, limit, start, false)
+			return clt.ListGithubConnectors(ctx, limit, start, true)
 		},
 		func(ctx context.Context) ([]types.GithubConnector, error) {
-			return clt.GetGithubConnectors(ctx, false)
+			return clt.GetGithubConnectors(ctx, true)
 		},
 	)
 	if err != nil {
@@ -287,7 +287,7 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	return ui.NewGithubConnectors(connectors)
 }
 
-func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -321,7 +321,7 @@ func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, 
 	return OK(), nil
 }
 
-func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -331,7 +331,7 @@ func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -341,7 +341,7 @@ func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -368,7 +368,7 @@ func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resou
 	return ui.NewTrustedClusters(trustedClusters)
 }
 
-func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -382,7 +382,7 @@ func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, p
 	return OK(), nil
 }
 
-func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -648,7 +648,7 @@ func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeprot
 	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
-	req := kubeproto.ListKubernetesResourcesRequest_builder{
+	req := &kubeproto.ListKubernetesResourcesRequest{
 		ResourceType:        resourceKind,
 		Limit:               limit,
 		StartKey:            startKey,
@@ -659,13 +659,13 @@ func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeprot
 		TeleportCluster:     site,
 		KubernetesCluster:   values.Get("kubeCluster"),
 		KubernetesNamespace: values.Get("kubeNamespace"),
-	}.Build()
+	}
 	return req, nil
 }
 
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
-	Items any `json:"items"`
+	Items interface{} `json:"items"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
 	// TotalCount is the total count of resources available
@@ -675,7 +675,7 @@ type listResourcesGetResponse struct {
 
 type listResourcesWithoutCountGetResponse struct {
 	// Items is a list of resources retrieved.
-	Items any `json:"items"`
+	Items interface{} `json:"items"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
 }

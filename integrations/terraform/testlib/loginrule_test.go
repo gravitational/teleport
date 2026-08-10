@@ -21,19 +21,28 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func (s *TerraformSuiteEnterprise) TestLoginRule() {
+	oidc := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.OIDC)
+	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
+	require.True(s.T(),
+		oidc.Enabled || saml.Enabled,
+		"Test requires enterprise version of teleport",
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
 	expressionRuleName := "teleport_login_rule.expression_rule"
 	mapRuleName := "teleport_login_rule.map_rule"
-	expressionToMapRuleName := "teleport_login_rule.expression_to_map"
-	allRules := []string{expressionRuleName, mapRuleName, expressionToMapRuleName}
+	allRules := []string{expressionRuleName, mapRuleName}
 
 	checkDestroyed := func(state *terraform.State) error {
 		for _, ruleName := range allRules {
@@ -62,16 +71,14 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 					resource.TestCheckResourceAttr(expressionRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "priority", "1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "traits_expression", "external"),
-					resource.TestCheckResourceAttr(expressionRuleName, "traits_map.%", "0"),
+					resource.TestCheckNoResourceAttr(expressionRuleName, "traits_map"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.name", "map_rule"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.labels.env", "test"),
 					resource.TestCheckResourceAttr(mapRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(mapRuleName, "priority", "2"),
 					resource.TestCheckResourceAttr(mapRuleName, "traits_map.logins.values.0", "external.logins"),
 					resource.TestCheckResourceAttr(mapRuleName, "traits_map.logins.values.1", "external.username"),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "metadata.name", "expression_to_map"),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_expression", "external"),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_map.%", "0"),
+					resource.TestCheckNoResourceAttr(mapRuleName, "traits_expression"),
 				),
 			},
 			{
@@ -86,18 +93,14 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 					resource.TestCheckResourceAttr(expressionRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "priority", "1"),
 					resource.TestCheckResourceAttr(expressionRuleName, "traits_expression", `external.put("logins", external.logins.add("external.username"))`),
-					resource.TestCheckResourceAttr(expressionRuleName, "traits_map.%", "0"),
+					resource.TestCheckNoResourceAttr(expressionRuleName, "traits_map"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.name", "map_rule"),
 					resource.TestCheckResourceAttr(mapRuleName, "metadata.labels.env", "test"),
 					resource.TestCheckResourceAttr(mapRuleName, "version", "v1"),
 					resource.TestCheckResourceAttr(mapRuleName, "priority", "2"),
 					resource.TestCheckResourceAttr(mapRuleName, "traits_map.kube_groups.values.0", `"system:masters"`),
-					resource.TestCheckResourceAttr(mapRuleName, "traits_map.logins.%", "0"),
-					resource.TestCheckResourceAttr(mapRuleName, "traits_expression", ""),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "metadata.name", "expression_to_map"),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_expression", ""),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_map.logins.values.0", "external.logins"),
-					resource.TestCheckResourceAttr(expressionToMapRuleName, "traits_map.logins.values.1", "external.username"),
+					resource.TestCheckNoResourceAttr(mapRuleName, "traits_map.logins"),
+					resource.TestCheckNoResourceAttr(mapRuleName, "traits_expression"),
 				),
 			},
 			{
@@ -109,6 +112,13 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 }
 
 func (s *TerraformSuiteEnterprise) TestImportLoginRule() {
+	oidc := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.OIDC)
+	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
+	require.True(s.T(),
+		oidc.Enabled || saml.Enabled,
+		"Test requires enterprise version of teleport",
+	)
+
 	ctx := context.Background()
 
 	r := "teleport_login_rule"

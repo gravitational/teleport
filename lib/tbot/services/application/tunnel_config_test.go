@@ -58,12 +58,14 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen:  "tcp://0.0.0.0:3621",
+					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 					clock:   clock,
 				}
 			},
 			want: &TunnelConfig{
 				Listen:  "tcp://0.0.0.0:3621",
+				Roles:   []string{"role1", "role2"},
 				AppName: "my-app",
 				clock:   clock,
 			},
@@ -73,6 +75,7 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing listen",
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
+					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
@@ -83,6 +86,7 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen:  "\x00",
+					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
 				}
 			},
@@ -93,20 +97,10 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen: "tcp://0.0.0.0:3621",
+					Roles:  []string{"role1", "role2"},
 				}
 			},
 			wantErr: "app_name: should not be empty",
-		},
-		{
-			name: "roles is no longer supported",
-			in: func() *TunnelConfig {
-				return &TunnelConfig{
-					Listen:          "tcp://0.0.0.0:3621",
-					AppName:         "my-app",
-					DeprecatedRoles: []string{"role1", "role2"},
-				}
-			},
-			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name:   "scoped",
@@ -118,6 +112,18 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					Roles:               []string{"role1", "role2"},
+					AppName:             "my-app",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

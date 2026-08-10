@@ -622,11 +622,11 @@ to AWS, users can access AWS resources through Teleport.
    ExampleReadOnlyAccess arn:aws:iam::123456789012:role/ExampleAdminAccess
    ```
 
-   Alternatively, if the `--aws-role` is not provided, the aws role will be
-   prompted interactively.
+   Alternatively, the `tsh apps login` command supports interactive login when you pass
+   `--interactive` (or `-T`) or set `TELEPORT_AWS_LOGIN_INTERACTIVE=true`.
 
    ```code
-   $ tsh apps login aws-console
+   $ tsh apps login aws-console --interactive
    Available AWS roles:
 
    > ExampleReadOnlyAccess [arn:aws:iam::000000000000:role/ExampleReadOnlyAccess]
@@ -634,9 +634,6 @@ to AWS, users can access AWS resources through Teleport.
 
    (Use arrows or hjkl to navigate, enter to select, q to quit)
    ```
-
-   You can turn interactive prompt off using `--no-interactive` flag. This will
-   make the command return an error when no role is provided.
 
 1. Now you can use the `tsh aws` command like the native `aws` command-line
    tool:

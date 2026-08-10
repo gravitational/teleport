@@ -181,20 +181,20 @@ func TestMergeUpsertUserTask(t *testing.T) {
 				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
 			},
 			clock.Now().Add(20*time.Minute),
-			usertasksv1.DiscoverAzureVM_builder{
+			&usertasksv1.DiscoverAzureVM{
 				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-					tag: usertasksv1.DiscoverAzureVMInstance_builder{
+					tag: {
 						VmId:            tag,
 						DiscoveryConfig: tag,
 						DiscoveryGroup:  tag,
 						SyncTime:        syncTime,
-					}.Build(),
+					},
 				},
 				// these feed into task name, in addition to the task group above.
 				SubscriptionId: "sub-123",
 				ResourceGroup:  "rg-123",
 				Region:         "westus",
-			}.Build(),
+			},
 		)
 		require.NoError(t, err)
 		return ut
@@ -236,7 +236,7 @@ func TestMergeUpsertUserTask(t *testing.T) {
 			upsertedTask, err := ap.GetUserTask(s.ctx, tt.newTask.GetMetadata().GetName())
 			require.NoError(t, err)
 			require.NotNil(t, upsertedTask)
-			require.Empty(t, cmp.Diff(tt.newTask.GetSpec(), upsertedTask.GetSpec(), protocmp.Transform()))
+			require.Empty(t, cmp.Diff(tt.newTask.Spec, upsertedTask.Spec, protocmp.Transform()))
 		})
 	}
 }
@@ -337,26 +337,6 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 	}
 
 	return manager, ap
-}
-
-func TestUpsertAzureSubscriptionListTask(t *testing.T) {
-	t.Parallel()
-
-	updater, ap := newTaskUpdater(t)
-	require.NoError(t, updater.upsertAzureSubscriptionListTask(
-		"azure-integration",
-		usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
-	))
-	require.Len(t, ap.tasks, 1)
-
-	for _, task := range ap.tasks {
-		require.Equal(t, usertasks.TaskTypeDiscoverAzureVM, task.GetSpec().GetTaskType())
-		require.Equal(t, usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied, task.GetSpec().GetIssueType())
-		require.Equal(t, "azure-integration", task.GetSpec().GetIntegration())
-		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetSubscriptionId())
-		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetInstances())
-		require.True(t, updater.clock.Now().Add(2*updater.PollInterval).Equal(task.GetMetadata().GetExpires().AsTime()))
-	}
 }
 
 func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {
@@ -526,23 +506,23 @@ func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	syncTime := timestamppb.New(time.Now())
 
 	vm := func(tag string) *usertasksv1.DiscoverAzureVMInstance {
-		return usertasksv1.DiscoverAzureVMInstance_builder{
+		return &usertasksv1.DiscoverAzureVMInstance{
 			VmId:            tag,
 			DiscoveryConfig: "dc-01",
 			DiscoveryGroup:  "group-1",
 			SyncTime:        syncTime,
-		}.Build()
+		}
 	}
 
 	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
-		data := usertasksv1.DiscoverAzureVM_builder{
+		data := &usertasksv1.DiscoverAzureVM{
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
-		}.Build()
+		}
 		for _, instance := range instances {
-			data.GetInstances()[instance] = vm(instance)
+			data.Instances[instance] = vm(instance)
 		}
 		return data
 	}
@@ -634,19 +614,19 @@ func TestAzureVMTasks_UpsertAll(t *testing.T) {
 	var testAzureKeyAlt = azureVMTaskKey{subscriptionID: "sub-2", resourceGroup: "rg-2", region: "eastus"}
 
 	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
-		data := usertasksv1.DiscoverAzureVM_builder{
+		data := &usertasksv1.DiscoverAzureVM{
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
-		}.Build()
+		}
 		for _, instance := range instances {
-			data.GetInstances()[instance] = usertasksv1.DiscoverAzureVMInstance_builder{
+			data.Instances[instance] = &usertasksv1.DiscoverAzureVMInstance{
 				VmId:            instance,
 				DiscoveryConfig: "dc-01",
 				DiscoveryGroup:  "group-1",
 				SyncTime:        timestamppb.New(time.Now()),
-			}.Build()
+			}
 		}
 		return data
 	}

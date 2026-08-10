@@ -31,15 +31,11 @@ const (
 	// FeatureResourceConstraintsV1 indicates support for Resource Constraints in Access Requests,
 	// identity certificates, and AWS Console App resources.
 	FeatureResourceConstraintsV1
-	// FeatureResourceConstraintsSSHV1 indicates support for enforcing SSH login
-	// constraints on nodes.
-	FeatureResourceConstraintsSSHV1
 )
 
 var featureIDToName = map[FeatureID]string{
-	FeatureUnspecified:              "UNSPECIFIED",
-	FeatureResourceConstraintsV1:    "RESOURCE_CONSTRAINTS_V1",
-	FeatureResourceConstraintsSSHV1: "RESOURCE_CONSTRAINTS_SSH_V1",
+	FeatureUnspecified:           "UNSPECIFIED",
+	FeatureResourceConstraintsV1: "RESOURCE_CONSTRAINTS_V1",
 }
 
 // String returns a short name for the FeatureID, falling back to the

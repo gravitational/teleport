@@ -61,23 +61,21 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 				"metadata": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"description": {
-							Computed:      true,
-							Description:   "description is object description.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "description is object description.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Description: "expires is a global expiry time header can be set on any resource in the system.",
-							Optional:    true,
-							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
-						}),
-						"labels": {
 							Computed:      true,
-							Description:   "labels is a set of labels.",
+							Description:   "expires is a global expiry time header can be set on any resource in the system.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+						}),
+						"labels": {
+							Description: "labels is a set of labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"name": {
 							Description:   "name is an object name.",
@@ -88,6 +86,13 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 						"namespace": {
 							Computed:      true,
 							Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"revision": {
+							Computed:      true,
+							Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -128,25 +133,19 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								"assume_role": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"external_id": {
-											Computed:      true,
-											Description:   "ExternalID is the external ID used to assume a role in another account.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "ExternalID is the external ID used to assume a role in another account.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"role_arn": {
-											Computed:      true,
-											Description:   "RoleARN is the fully specified AWS IAM role ARN.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "RoleARN is the fully specified AWS IAM role ARN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"role_name": {
-											Computed:      true,
-											Description:   "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 									}),
 									Description: "AssumeRoleARN is the AWS role to assume for database discovery.",
@@ -155,18 +154,14 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								"cloud_trail_logs": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"region": {
-											Computed:      true,
-											Description:   "The AWS region of the SQS queue for CloudTrail notifications, ex.: \"us-east-2\".",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "The AWS region of the SQS queue for CloudTrail notifications, ex.: \"us-east-2\".",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"sqs_queue": {
-											Computed:      true,
-											Description:   "The name or URL for CloudTrail log events, ex.: \"demo-cloudtrail-queue\".",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "The name or URL for CloudTrail log events, ex.: \"demo-cloudtrail-queue\".",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 									}),
 									Description: "Configuration settings for collecting AWS CloudTrail logs via an SQS queue.",
@@ -174,62 +169,46 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								},
 								"eks_audit_logs": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-										Computed:      true,
-										Description:   "The tags of EKS clusters for which apiserver audit logs should be fetched.",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+										Description: "The tags of EKS clusters for which apiserver audit logs should be fetched.",
+										Optional:    true,
 									})}),
 									Description: "",
 									Optional:    true,
 								},
 								"integration": {
-									Computed:      true,
-									Description:   "Integration is the integration name used to generate credentials to interact with AWS APIs.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "Integration is the integration name used to generate credentials to interact with AWS APIs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"regions": {
-									Computed:      true,
-									Description:   "Regions are AWS regions to import resources from.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Description: "Regions are AWS regions to import resources from.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Computed:      true,
-							Description:   "AWS is a configuration for AWS Access Graph service poll service.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "AWS is a configuration for AWS Access Graph service poll service.",
+							Optional:    true,
 						},
 						"azure": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"integration": {
-									Computed:      true,
-									Description:   "Integration is the integration name used to generate credentials to interact with Azure APIs.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "Integration is the integration name used to generate credentials to interact with Azure APIs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"subscription_id": {
-									Computed:      true,
-									Description:   "SubscriptionID Is the ID of the Azure subscription to sync resources from",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "SubscriptionID Is the ID of the Azure subscription to sync resources from",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "Azure is a configuration for Azure Access Graph service poll service.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Azure is a configuration for Azure Access Graph service poll service.",
+							Optional:    true,
 						},
 						"poll_interval": {
-							Computed:      true,
-							Description:   "PollInterval is the frequency at which to poll for resources",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          DurationType{},
+							Description: "PollInterval is the frequency at which to poll for resources",
+							Optional:    true,
+							Type:        DurationType{},
 						},
 					}),
 					Description: "AccessGraph is the configurations for syncing Cloud accounts into Access Graph.",
@@ -240,25 +219,19 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 						"assume_role": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"external_id": {
-									Computed:      true,
-									Description:   "ExternalID is the external ID used to assume a role in another account.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "ExternalID is the external ID used to assume a role in another account.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"role_arn": {
-									Computed:      true,
-									Description:   "RoleARN is the fully specified AWS IAM role ARN.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "RoleARN is the fully specified AWS IAM role ARN.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"role_name": {
-									Computed:      true,
-									Description:   "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "AssumeRoleARN is the AWS role to assume for database discovery.",
@@ -268,149 +241,111 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"azure": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
-										Computed:      true,
-										Description:   "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									}}),
 									Description: "Azure is the set of Azure-specific installation parameters.",
 									Optional:    true,
 								},
 								"enroll_mode": {
-									Computed:      true,
-									Description:   "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
-											Computed:      true,
-											Description:   "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"https_proxy": {
-											Computed:      true,
-											Description:   "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"no_proxy": {
-											Computed:      true,
-											Description:   "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 									}),
 									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
 									Optional:    true,
 								},
 								"install_teleport": {
-									Computed:      true,
-									Description:   "InstallTeleport disables agentless discovery",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									Description: "InstallTeleport disables agentless discovery",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"join_method": {
-									Computed:      true,
-									Description:   "JoinMethod is the method to use when joining the cluster",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "JoinMethod is the method to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"join_token": {
-									Computed:      true,
-									Description:   "JoinToken is the token to use when joining the cluster",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "JoinToken is the token to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"proxy_addr": {
-									Computed:      true,
-									Description:   "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"script_name": {
-									Computed:      true,
-									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sshd_config": {
-									Computed:      true,
-									Description:   "SSHDConfig provides the path to write sshd configuration changes",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "SSHDConfig provides the path to write sshd configuration changes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"suffix": {
-									Computed:      true,
-									Description:   "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"update_group": {
-									Computed:      true,
-									Description:   "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Computed:      true,
-							Description:   "Params sets the join method when installing on discovered EC2 nodes",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Params sets the join method when installing on discovered EC2 nodes",
+							Optional:    true,
 						},
 						"integration": {
-							Computed:      true,
-							Description:   "Integration is the integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "Integration is the integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"kube_app_discovery": {
-							Computed:      true,
-							Description:   "KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+							Description: "KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"organization": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"organization_id": {
-									Computed:      true,
-									Description:   "OrganizationID is the AWS Organization ID to match against. Required.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "OrganizationID is the AWS Organization ID to match against. Required.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"organizational_units": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"exclude": {
-											Computed:      true,
-											Description:   "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											Description: "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 										},
 										"include": {
-											Computed:      true,
-											Description:   "Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											Description: "Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 										},
 									}),
 									Description: "OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.",
@@ -421,50 +356,36 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Optional:    true,
 						},
 						"regions": {
-							Computed:      true,
-							Description:   "Regions are AWS regions to query for databases.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Regions are AWS regions to query for databases.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"setup_access_for_arn": {
-							Computed:      true,
-							Description:   "SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"ssm": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"document_name": {
-								Computed:      true,
-								Description:   "DocumentName is the name of the document to use when executing an SSM command",
-								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Description: "DocumentName is the name of the document to use when executing an SSM command",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
-							Computed:      true,
-							Description:   "SSM provides options to use when sending a document command to an EC2 node",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "SSM provides options to use when sending a document command to an EC2 node",
+							Optional:    true,
 						},
 						"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "Tags are AWS resource Tags to match.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Tags are AWS resource Tags to match.",
+							Optional:    true,
 						}),
 						"types": {
-							Computed:      true,
-							Description:   "Types are AWS database types to match, \"ec2\", \"rds\", \"redshift\", \"elasticache\", or \"memorydb\".",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Types are AWS database types to match, \"ec2\", \"rds\", \"redshift\", \"elasticache\", or \"memorydb\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Computed:      true,
-					Description:   "AWS is a list of AWS Matchers.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Description: "AWS is a list of AWS Matchers.",
+					Optional:    true,
 				},
 				"azure": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -482,45 +403,35 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 								},
 								"enroll_mode": {
-									Computed:      true,
-									Description:   "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
-											Computed:      true,
-											Description:   "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"https_proxy": {
-											Computed:      true,
-											Description:   "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"no_proxy": {
-											Computed:      true,
-											Description:   "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 									}),
 									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
 									Optional:    true,
 								},
 								"install_teleport": {
-									Computed:      true,
-									Description:   "InstallTeleport disables agentless discovery",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									Description: "InstallTeleport disables agentless discovery",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"join_method": {
 									Description: "JoinMethod is the method to use when joining the cluster",
@@ -533,11 +444,9 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"proxy_addr": {
-									Computed:      true,
-									Description:   "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"script_name": {
 									Computed:      true,
@@ -547,25 +456,19 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sshd_config": {
-									Computed:      true,
-									Description:   "SSHDConfig provides the path to write sshd configuration changes",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "SSHDConfig provides the path to write sshd configuration changes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"suffix": {
-									Computed:      true,
-									Description:   "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"update_group": {
-									Computed:      true,
-									Description:   "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Computed:      true,
@@ -574,58 +477,42 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"integration": {
-							Computed:      true,
-							Description:   "Integration is the integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Description: "Integration is the integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"regions": {
-							Computed:      true,
-							Description:   "Regions are Azure locations to match for databases.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Regions are Azure locations to match for databases.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"resource_groups": {
-							Computed:      true,
-							Description:   "ResourceGroups are Azure resource groups to query for resources.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "ResourceGroups are Azure resource groups to query for resources.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"subscriptions": {
-							Computed:      true,
-							Description:   "Subscriptions are Azure subscriptions to query for resources.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Subscriptions are Azure subscriptions to query for resources.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "ResourceTags are Azure tags on resources to match.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "ResourceTags are Azure tags on resources to match.",
+							Optional:    true,
 						}),
 						"types": {
-							Computed:      true,
-							Description:   "Types are Azure types to match: \"mysql\", \"postgres\", \"aks\", \"vm\"",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Types are Azure types to match: \"mysql\", \"postgres\", \"aks\", \"vm\"",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Computed:      true,
-					Description:   "Azure is a list of Azure Matchers.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Description: "Azure is a list of Azure Matchers.",
+					Optional:    true,
 				},
 				"discovery_group": {
-					Computed:      true,
-					Description:   "DiscoveryGroup is used by discovery_service to add extra matchers. All the discovery_services that have the same discovery_group, will load the matchers of this resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Description: "DiscoveryGroup is used by discovery_service to add extra matchers. All the discovery_services that have the same discovery_group, will load the matchers of this resource.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"gcp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -633,182 +520,134 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"azure": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
-										Computed:      true,
-										Description:   "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
-										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									}}),
 									Description: "Azure is the set of Azure-specific installation parameters.",
 									Optional:    true,
 								},
 								"enroll_mode": {
-									Computed:      true,
-									Description:   "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
-											Computed:      true,
-											Description:   "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"https_proxy": {
-											Computed:      true,
-											Description:   "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"no_proxy": {
-											Computed:      true,
-											Description:   "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
-											Optional:      true,
-											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Description: "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 									}),
 									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
 									Optional:    true,
 								},
 								"install_teleport": {
-									Computed:      true,
-									Description:   "InstallTeleport disables agentless discovery",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									Description: "InstallTeleport disables agentless discovery",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"join_method": {
-									Computed:      true,
-									Description:   "JoinMethod is the method to use when joining the cluster",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "JoinMethod is the method to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"join_token": {
-									Computed:      true,
-									Description:   "JoinToken is the token to use when joining the cluster",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "JoinToken is the token to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"proxy_addr": {
-									Computed:      true,
-									Description:   "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"script_name": {
-									Computed:      true,
-									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sshd_config": {
-									Computed:      true,
-									Description:   "SSHDConfig provides the path to write sshd configuration changes",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "SSHDConfig provides the path to write sshd configuration changes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"suffix": {
-									Computed:      true,
-									Description:   "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"update_group": {
-									Computed:      true,
-									Description:   "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
 							Description: "Params sets the join method when installing on discovered GCP nodes.",
 							Optional:    true,
 						},
 						"labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "Labels are GCP labels to match.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Labels are GCP labels to match.",
+							Optional:    true,
 						}),
 						"locations": {
-							Computed:      true,
-							Description:   "Locations are GCP locations to search resources for.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Locations are GCP locations to search resources for.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"project_ids": {
-							Computed:      true,
-							Description:   "ProjectIDs are the GCP project ID where the resources are deployed.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "ProjectIDs are the GCP project ID where the resources are deployed.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"service_accounts": {
-							Computed:      true,
-							Description:   "ServiceAccounts are the emails of service accounts attached to VMs.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "ServiceAccounts are the emails of service accounts attached to VMs.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "Tags is obsolete and only exists for backwards compatibility. Use Labels instead.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Tags is obsolete and only exists for backwards compatibility. Use Labels instead.",
+							Optional:    true,
 						}),
 						"types": {
-							Computed:      true,
-							Description:   "Types are GCP resource types to match: \"gke\", \"gce\", \"cloudsql\".",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Types are GCP resource types to match: \"gke\", \"gce\", \"cloudsql\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Computed:      true,
-					Description:   "GCP is a list of GCP Matchers.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Description: "GCP is a list of GCP Matchers.",
+					Optional:    true,
 				},
 				"kube": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "Labels are Kubernetes services labels to match.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Description: "Labels are Kubernetes services labels to match.",
+							Optional:    true,
 						}),
 						"namespaces": {
-							Computed:      true,
-							Description:   "Namespaces are Kubernetes namespaces in which to discover services",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Namespaces are Kubernetes namespaces in which to discover services",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"types": {
-							Computed:      true,
-							Description:   "Types are Kubernetes services types to match. Currently only 'app' is supported.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Description: "Types are Kubernetes services types to match. Currently only 'app' is supported.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Computed:      true,
-					Description:   "Kube is a list of Kubernetes Matchers.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Description: "Kube is a list of Kubernetes Matchers.",
+					Optional:    true,
 				},
 			}),
 			Description: "Spec is an DiscoveryConfig specification.",
@@ -983,6 +822,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 											diags.Append(attrReadMissingDiag{"DiscoveryConfig.header.metadata.expires"})
 										}
 										CopyFromTimestamp(diags, a, &obj.Expires)
+									}
+									{
+										a, ok := tf.Attrs["revision"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DiscoveryConfig.header.metadata.revision"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.header.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Revision = t
+											}
+										}
 									}
 								}
 							}
@@ -2928,12 +2784,6 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 
 // CopyDiscoveryConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_discoveryconfig_v1.DiscoveryConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	return CopyDiscoveryConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
-}
-
-// CopyDiscoveryConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
-// Set preserveUnknown to true to preserve unknown values.
-func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_discoveryconfig_v1.DiscoveryConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -2964,7 +2814,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 				if obj.Header == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Header
 					tf := &v
 					{
@@ -2974,9 +2823,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 						} else {
 							v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["kind"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.kind", err})
@@ -2985,13 +2831,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Kind) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Kind)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["kind"] = v
 						}
 					}
@@ -3002,9 +2845,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 						} else {
 							v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["sub_kind"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.sub_kind", err})
@@ -3013,13 +2853,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.SubKind) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.SubKind)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["sub_kind"] = v
 						}
 					}
@@ -3030,9 +2867,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 						} else {
 							v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["version"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.version", err})
@@ -3041,13 +2875,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.Version) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.Version)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["version"] = v
 						}
 					}
@@ -3075,7 +2906,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 								if obj.Metadata == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.Metadata
 									tf := &v
 									{
@@ -3085,9 +2915,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										} else {
 											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["name"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.metadata.name", err})
@@ -3096,13 +2923,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Name) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Name)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["name"] = v
 										}
 									}
@@ -3113,9 +2937,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										} else {
 											v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["namespace"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.metadata.namespace", err})
@@ -3124,13 +2945,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Namespace) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Namespace)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["namespace"] = v
 										}
 									}
@@ -3141,9 +2959,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										} else {
 											v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												if tf.Attrs["description"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.metadata.description", err})
@@ -3152,13 +2967,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
+												v.Null = string(obj.Description) == ""
 											}
-
-											v.Null = false
 											v.Value = string(obj.Description)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["description"] = v
 										}
 									}
@@ -3184,14 +2996,11 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 													}
 												}
-												{
+												if obj.Labels != nil {
 													t := o.ElemType
 													for k, a := range obj.Labels {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
-															if c.Elems[k] != nil {
-																diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.header.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.metadata.labels", err})
@@ -3200,20 +3009,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
+															v.Null = false
 														}
-
-														v.Null = false
 														v.Value = string(a)
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Labels) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -3223,22 +3029,40 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"DiscoveryConfig.header.metadata.expires"})
 										} else {
-											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
+											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 											tf.Attrs["expires"] = v
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["revision"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DiscoveryConfig.header.metadata.revision"})
+										} else {
+											v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DiscoveryConfig.header.metadata.revision", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.header.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Revision) == ""
+											}
+											v.Value = string(obj.Revision)
+											v.Unknown = false
+											tf.Attrs["revision"] = v
+										}
+									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["metadata"] = v
 							}
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["header"] = v
 			}
 		}
@@ -3267,7 +3091,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
-					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -3277,9 +3100,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 						} else {
 							v, ok := tf.Attrs["discovery_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								if tf.Attrs["discovery_group"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.discovery_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.discovery_group", err})
@@ -3288,13 +3108,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.discovery_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
+								v.Null = string(obj.DiscoveryGroup) == ""
 							}
-
-							v.Null = false
 							v.Value = string(obj.DiscoveryGroup)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
+							v.Unknown = false
 							tf.Attrs["discovery_group"] = v
 						}
 					}
@@ -3320,15 +3137,13 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Aws))
 									}
 								}
-								{
+								if obj.Aws != nil {
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Aws) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Aws))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Aws))
 									}
 									for k, a := range obj.Aws {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := tf.Attrs["aws"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -3343,7 +3158,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										if a == nil {
 											v.Null = true
 										} else {
-											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -3368,19 +3182,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 														}
-														{
+														if obj.Types != nil {
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 															for k, a := range obj.Types {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["types"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Types", err})
@@ -3389,20 +3198,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Types) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["types"] = c
 													}
 												}
@@ -3429,19 +3235,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 															}
 														}
-														{
+														if obj.Regions != nil {
 															t := o.ElemType
 															if len(obj.Regions) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 															}
 															for k, a := range obj.Regions {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["regions"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Regions", err})
@@ -3450,20 +3251,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Regions) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["regions"] = c
 													}
 												}
@@ -3492,7 +3290,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if obj.AssumeRole == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := obj.AssumeRole
 															tf := &v
 															{
@@ -3502,9 +3299,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["role_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["role_arn"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.AssumeRole.RoleARN", err})
@@ -3513,13 +3307,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RoleARN) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RoleARN)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["role_arn"] = v
 																}
 															}
@@ -3530,9 +3321,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["external_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["external_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.AssumeRole.ExternalID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.AssumeRole.ExternalID", err})
@@ -3541,13 +3329,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.ExternalID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ExternalID) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ExternalID)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["external_id"] = v
 																}
 															}
@@ -3558,9 +3343,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["role_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", err})
@@ -3569,20 +3351,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.RoleName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.RoleName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["role_name"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														tf.Attrs["assume_role"] = v
 													}
 												}
@@ -3592,7 +3369,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Tags"})
 												} else {
-													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"], preserveUnknown)
+													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"])
 													tf.Attrs["tags"] = v
 												}
 											}
@@ -3620,7 +3397,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if obj.Params == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := obj.Params
 															tf := &v
 															{
@@ -3630,9 +3406,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["join_method"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.JoinMethod", err})
@@ -3641,13 +3414,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.JoinMethod) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.JoinMethod)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -3658,9 +3428,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["join_token"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["join_token"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.JoinToken", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.JoinToken", err})
@@ -3669,13 +3436,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.JoinToken", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.JoinToken) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.JoinToken)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["join_token"] = v
 																}
 															}
@@ -3686,9 +3450,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["script_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["script_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.ScriptName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.ScriptName", err})
@@ -3697,13 +3458,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.ScriptName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ScriptName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ScriptName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["script_name"] = v
 																}
 															}
@@ -3714,9 +3472,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["install_teleport"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 																	if !ok {
-																		if tf.Attrs["install_teleport"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.InstallTeleport", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.InstallTeleport", err})
@@ -3725,13 +3480,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.InstallTeleport", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																		}
+																		v.Null = bool(obj.InstallTeleport) == false
 																	}
-
-																	v.Null = false
 																	v.Value = bool(obj.InstallTeleport)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["install_teleport"] = v
 																}
 															}
@@ -3742,9 +3494,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["sshd_config"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["sshd_config"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.SSHDConfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.SSHDConfig", err})
@@ -3753,13 +3502,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.SSHDConfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.SSHDConfig) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.SSHDConfig)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["sshd_config"] = v
 																}
 															}
@@ -3770,9 +3516,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["proxy_addr"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["proxy_addr"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.PublicProxyAddr", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.PublicProxyAddr", err})
@@ -3781,13 +3524,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.PublicProxyAddr", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.PublicProxyAddr) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.PublicProxyAddr)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["proxy_addr"] = v
 																}
 															}
@@ -3815,7 +3555,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.Azure == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.Azure
 																			tf := &v
 																			{
@@ -3825,9 +3564,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["client_id"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.Azure.ClientID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.Azure.ClientID", err})
@@ -3836,20 +3572,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.Azure.ClientID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.ClientID) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.ClientID)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["client_id"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["azure"] = v
 																	}
 																}
@@ -3861,9 +3592,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["enroll_mode"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 																	if !ok {
-																		if tf.Attrs["enroll_mode"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.EnrollMode", err})
@@ -3872,13 +3600,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																		}
+																		v.Null = int64(obj.EnrollMode) == 0
 																	}
-
-																	v.Null = false
 																	v.Value = int64(obj.EnrollMode)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["enroll_mode"] = v
 																}
 															}
@@ -3889,9 +3614,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["suffix"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["suffix"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.Suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.Suffix", err})
@@ -3900,13 +3622,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.Suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Suffix) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Suffix)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["suffix"] = v
 																}
 															}
@@ -3917,9 +3636,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["update_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["update_group"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.UpdateGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.UpdateGroup", err})
@@ -3928,13 +3644,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.UpdateGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.UpdateGroup) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.UpdateGroup)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["update_group"] = v
 																}
 															}
@@ -3962,7 +3675,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.HTTPProxySettings == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.HTTPProxySettings
 																			tf := &v
 																			{
@@ -3972,9 +3684,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["http_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["http_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.HTTPProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.HTTPProxy", err})
@@ -3983,13 +3692,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.HTTPProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.HTTPProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.HTTPProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["http_proxy"] = v
 																				}
 																			}
@@ -4000,9 +3706,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["https_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["https_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.HTTPSProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.HTTPSProxy", err})
@@ -4011,13 +3714,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.HTTPSProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.HTTPSProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.HTTPSProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["https_proxy"] = v
 																				}
 																			}
@@ -4028,9 +3728,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["no_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["no_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.NoProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.NoProxy", err})
@@ -4039,28 +3736,21 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.HTTPProxySettings.NoProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.NoProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.NoProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["no_proxy"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														tf.Attrs["install"] = v
 													}
 												}
@@ -4089,7 +3779,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if obj.SSM == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := obj.SSM
 															tf := &v
 															{
@@ -4099,9 +3788,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["document_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["document_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.SSM.DocumentName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.SSM.DocumentName", err})
@@ -4110,20 +3796,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.SSM.DocumentName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.DocumentName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.DocumentName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["document_name"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														tf.Attrs["ssm"] = v
 													}
 												}
@@ -4135,9 +3816,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												} else {
 													v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
-														if tf.Attrs["integration"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Integration", err})
@@ -4146,13 +3824,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
+														v.Null = string(obj.Integration) == ""
 													}
-
-													v.Null = false
 													v.Value = string(obj.Integration)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
+													v.Unknown = false
 													tf.Attrs["integration"] = v
 												}
 											}
@@ -4163,9 +3838,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												} else {
 													v, ok := tf.Attrs["kube_app_discovery"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 													if !ok {
-														if tf.Attrs["kube_app_discovery"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.KubeAppDiscovery", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.KubeAppDiscovery", err})
@@ -4174,13 +3846,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.KubeAppDiscovery", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 														}
+														v.Null = bool(obj.KubeAppDiscovery) == false
 													}
-
-													v.Null = false
 													v.Value = bool(obj.KubeAppDiscovery)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
+													v.Unknown = false
 													tf.Attrs["kube_app_discovery"] = v
 												}
 											}
@@ -4191,9 +3860,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												} else {
 													v, ok := tf.Attrs["setup_access_for_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
-														if tf.Attrs["setup_access_for_arn"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.SetupAccessForARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.SetupAccessForARN", err})
@@ -4202,13 +3868,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.SetupAccessForARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
+														v.Null = string(obj.SetupAccessForARN) == ""
 													}
-
-													v.Null = false
 													v.Value = string(obj.SetupAccessForARN)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
+													v.Unknown = false
 													tf.Attrs["setup_access_for_arn"] = v
 												}
 											}
@@ -4236,7 +3899,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if obj.Organization == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := obj.Organization
 															tf := &v
 															{
@@ -4246,9 +3908,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["organization_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.OrganizationID", err})
@@ -4257,13 +3916,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.OrganizationID) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.OrganizationID)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["organization_id"] = v
 																}
 															}
@@ -4291,7 +3947,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.OrganizationalUnits == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.OrganizationalUnits
 																			tf := &v
 																			{
@@ -4316,19 +3971,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
 																							}
 																						}
-																						{
+																						if obj.Include != nil {
 																							t := o.ElemType
 																							if len(obj.Include) != len(c.Elems) {
-																								newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
-																								copy(newElems, c.Elems)
-																								c.Elems = newElems
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
 																							}
 																							for k, a := range obj.Include {
-																								v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								v, ok := tf.Attrs["include"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																								if !ok {
-																									if c.Elems[k] != nil {
-																										diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																									}
 																									i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																									if err != nil {
 																										diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", err})
@@ -4337,20 +3987,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																									if !ok {
 																										diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																									}
+																									v.Null = string(a) == ""
 																								}
-
-																								v.Null = false
 																								v.Value = string(a)
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								c.Elems[k] = v
 																							}
+																							if len(obj.Include) > 0 {
+																								c.Null = false
+																							}
 																						}
-																						c.Null = false
-																						if !preserveUnknown {
-																							c.Unknown = false
-																						}
+																						c.Unknown = false
 																						tf.Attrs["include"] = c
 																					}
 																				}
@@ -4377,19 +4024,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
 																							}
 																						}
-																						{
+																						if obj.Exclude != nil {
 																							t := o.ElemType
 																							if len(obj.Exclude) != len(c.Elems) {
-																								newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
-																								copy(newElems, c.Elems)
-																								c.Elems = newElems
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
 																							}
 																							for k, a := range obj.Exclude {
-																								v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								v, ok := tf.Attrs["exclude"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																								if !ok {
-																									if c.Elems[k] != nil {
-																										diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																									}
 																									i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																									if err != nil {
 																										diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", err})
@@ -4398,51 +4040,42 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																									if !ok {
 																										diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																									}
+																									v.Null = string(a) == ""
 																								}
-
-																								v.Null = false
 																								v.Value = string(a)
-																								if !preserveUnknown {
-																									v.Unknown = false
-																								}
+																								v.Unknown = false
 																								c.Elems[k] = v
 																							}
+																							if len(obj.Exclude) > 0 {
+																								c.Null = false
+																							}
 																						}
-																						c.Null = false
-																						if !preserveUnknown {
-																							c.Unknown = false
-																						}
+																						c.Unknown = false
 																						tf.Attrs["exclude"] = c
 																					}
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["organizational_units"] = v
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														tf.Attrs["organization"] = v
 													}
 												}
 											}
 										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Aws) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["aws"] = c
 							}
 						}
@@ -4469,15 +4102,13 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
 									}
 								}
-								{
+								if obj.Azure != nil {
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Azure) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
 									}
 									for k, a := range obj.Azure {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := tf.Attrs["azure"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4492,7 +4123,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										if a == nil {
 											v.Null = true
 										} else {
-											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -4517,19 +4147,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subscriptions))
 															}
 														}
-														{
+														if obj.Subscriptions != nil {
 															t := o.ElemType
 															if len(obj.Subscriptions) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subscriptions))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subscriptions))
 															}
 															for k, a := range obj.Subscriptions {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["subscriptions"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Subscriptions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Subscriptions", err})
@@ -4538,20 +4163,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Subscriptions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Subscriptions) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["subscriptions"] = c
 													}
 												}
@@ -4578,19 +4200,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
 															}
 														}
-														{
+														if obj.ResourceGroups != nil {
 															t := o.ElemType
 															if len(obj.ResourceGroups) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ResourceGroups))
 															}
 															for k, a := range obj.ResourceGroups {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["resource_groups"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.ResourceGroups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.ResourceGroups", err})
@@ -4599,20 +4216,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.ResourceGroups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.ResourceGroups) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["resource_groups"] = c
 													}
 												}
@@ -4639,19 +4253,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 														}
-														{
+														if obj.Types != nil {
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 															for k, a := range obj.Types {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["types"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Types", err})
@@ -4660,20 +4269,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Types) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["types"] = c
 													}
 												}
@@ -4700,19 +4306,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 															}
 														}
-														{
+														if obj.Regions != nil {
 															t := o.ElemType
 															if len(obj.Regions) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 															}
 															for k, a := range obj.Regions {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["regions"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Regions", err})
@@ -4721,20 +4322,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Regions) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["regions"] = c
 													}
 												}
@@ -4744,7 +4342,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.ResourceTags"})
 												} else {
-													v := CopyToLabels(diags, obj.ResourceTags, t, tf.Attrs["tags"], preserveUnknown)
+													v := CopyToLabels(diags, obj.ResourceTags, t, tf.Attrs["tags"])
 													tf.Attrs["tags"] = v
 												}
 											}
@@ -4772,7 +4370,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if obj.Params == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := obj.Params
 															tf := &v
 															{
@@ -4782,9 +4379,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["join_method"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.JoinMethod", err})
@@ -4793,13 +4387,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.JoinMethod) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.JoinMethod)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -4810,9 +4401,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["join_token"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["join_token"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.JoinToken", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.JoinToken", err})
@@ -4821,13 +4409,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.JoinToken", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.JoinToken) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.JoinToken)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["join_token"] = v
 																}
 															}
@@ -4838,9 +4423,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["script_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["script_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.ScriptName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.ScriptName", err})
@@ -4849,13 +4431,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.ScriptName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ScriptName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ScriptName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["script_name"] = v
 																}
 															}
@@ -4866,9 +4445,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["install_teleport"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 																	if !ok {
-																		if tf.Attrs["install_teleport"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.InstallTeleport", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.InstallTeleport", err})
@@ -4877,13 +4453,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.InstallTeleport", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																		}
+																		v.Null = bool(obj.InstallTeleport) == false
 																	}
-
-																	v.Null = false
 																	v.Value = bool(obj.InstallTeleport)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["install_teleport"] = v
 																}
 															}
@@ -4894,9 +4467,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["sshd_config"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["sshd_config"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.SSHDConfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.SSHDConfig", err})
@@ -4905,13 +4475,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.SSHDConfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.SSHDConfig) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.SSHDConfig)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["sshd_config"] = v
 																}
 															}
@@ -4922,9 +4489,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["proxy_addr"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["proxy_addr"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.PublicProxyAddr", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.PublicProxyAddr", err})
@@ -4933,13 +4497,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.PublicProxyAddr", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.PublicProxyAddr) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.PublicProxyAddr)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["proxy_addr"] = v
 																}
 															}
@@ -4967,7 +4528,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.Azure == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.Azure
 																			tf := &v
 																			{
@@ -4977,9 +4537,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["client_id"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.Azure.ClientID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.Azure.ClientID", err})
@@ -4988,20 +4545,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.Azure.ClientID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.ClientID) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.ClientID)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["client_id"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["azure"] = v
 																	}
 																}
@@ -5013,9 +4565,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["enroll_mode"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 																	if !ok {
-																		if tf.Attrs["enroll_mode"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.EnrollMode", err})
@@ -5024,13 +4573,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																		}
+																		v.Null = int64(obj.EnrollMode) == 0
 																	}
-
-																	v.Null = false
 																	v.Value = int64(obj.EnrollMode)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["enroll_mode"] = v
 																}
 															}
@@ -5041,9 +4587,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["suffix"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["suffix"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.Suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.Suffix", err})
@@ -5052,13 +4595,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.Suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Suffix) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Suffix)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["suffix"] = v
 																}
 															}
@@ -5069,9 +4609,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["update_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["update_group"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.UpdateGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.UpdateGroup", err})
@@ -5080,13 +4617,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.UpdateGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.UpdateGroup) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.UpdateGroup)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["update_group"] = v
 																}
 															}
@@ -5114,7 +4648,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.HTTPProxySettings == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.HTTPProxySettings
 																			tf := &v
 																			{
@@ -5124,9 +4657,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["http_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["http_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.HTTPProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.HTTPProxy", err})
@@ -5135,13 +4665,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.HTTPProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.HTTPProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.HTTPProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["http_proxy"] = v
 																				}
 																			}
@@ -5152,9 +4679,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["https_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["https_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.HTTPSProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.HTTPSProxy", err})
@@ -5163,13 +4687,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.HTTPSProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.HTTPSProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.HTTPSProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["https_proxy"] = v
 																				}
 																			}
@@ -5180,9 +4701,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["no_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["no_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.NoProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.NoProxy", err})
@@ -5191,28 +4709,21 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.HTTPProxySettings.NoProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.NoProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.NoProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["no_proxy"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														tf.Attrs["install_params"] = v
 													}
 												}
@@ -5224,9 +4735,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												} else {
 													v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
-														if tf.Attrs["integration"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.azure.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Integration", err})
@@ -5235,27 +4743,22 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
+														v.Null = string(obj.Integration) == ""
 													}
-
-													v.Null = false
 													v.Value = string(obj.Integration)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
+													v.Unknown = false
 													tf.Attrs["integration"] = v
 												}
 											}
 										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Azure) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["azure"] = c
 							}
 						}
@@ -5282,15 +4785,13 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Gcp))
 									}
 								}
-								{
+								if obj.Gcp != nil {
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Gcp) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Gcp))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Gcp))
 									}
 									for k, a := range obj.Gcp {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := tf.Attrs["gcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -5305,7 +4806,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										if a == nil {
 											v.Null = true
 										} else {
-											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -5330,19 +4830,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 														}
-														{
+														if obj.Types != nil {
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 															for k, a := range obj.Types {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["types"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Types", err})
@@ -5351,20 +4846,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Types) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["types"] = c
 													}
 												}
@@ -5391,19 +4883,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
 															}
 														}
-														{
+														if obj.Locations != nil {
 															t := o.ElemType
 															if len(obj.Locations) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Locations))
 															}
 															for k, a := range obj.Locations {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["locations"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Locations", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Locations", err})
@@ -5412,20 +4899,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Locations", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Locations) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["locations"] = c
 													}
 												}
@@ -5435,7 +4919,7 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Tags"})
 												} else {
-													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"], preserveUnknown)
+													v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"])
 													tf.Attrs["tags"] = v
 												}
 											}
@@ -5461,19 +4945,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIDs))
 															}
 														}
-														{
+														if obj.ProjectIDs != nil {
 															t := o.ElemType
 															if len(obj.ProjectIDs) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIDs))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProjectIDs))
 															}
 															for k, a := range obj.ProjectIDs {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["project_ids"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.ProjectIDs", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.ProjectIDs", err})
@@ -5482,20 +4961,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.ProjectIDs", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.ProjectIDs) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["project_ids"] = c
 													}
 												}
@@ -5522,19 +4998,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
 															}
 														}
-														{
+														if obj.ServiceAccounts != nil {
 															t := o.ElemType
 															if len(obj.ServiceAccounts) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
 															}
 															for k, a := range obj.ServiceAccounts {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["service_accounts"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.ServiceAccounts", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.ServiceAccounts", err})
@@ -5543,20 +5014,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.ServiceAccounts", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.ServiceAccounts) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["service_accounts"] = c
 													}
 												}
@@ -5585,7 +5053,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if obj.Params == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := obj.Params
 															tf := &v
 															{
@@ -5595,9 +5062,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["join_method"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.JoinMethod", err})
@@ -5606,13 +5070,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.JoinMethod) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.JoinMethod)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -5623,9 +5084,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["join_token"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["join_token"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.JoinToken", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.JoinToken", err})
@@ -5634,13 +5092,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.JoinToken", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.JoinToken) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.JoinToken)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["join_token"] = v
 																}
 															}
@@ -5651,9 +5106,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["script_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["script_name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.ScriptName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.ScriptName", err})
@@ -5662,13 +5114,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.ScriptName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.ScriptName) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.ScriptName)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["script_name"] = v
 																}
 															}
@@ -5679,9 +5128,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["install_teleport"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 																	if !ok {
-																		if tf.Attrs["install_teleport"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.InstallTeleport", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.InstallTeleport", err})
@@ -5690,13 +5136,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.InstallTeleport", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																		}
+																		v.Null = bool(obj.InstallTeleport) == false
 																	}
-
-																	v.Null = false
 																	v.Value = bool(obj.InstallTeleport)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["install_teleport"] = v
 																}
 															}
@@ -5707,9 +5150,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["sshd_config"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["sshd_config"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.SSHDConfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.SSHDConfig", err})
@@ -5718,13 +5158,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.SSHDConfig", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.SSHDConfig) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.SSHDConfig)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["sshd_config"] = v
 																}
 															}
@@ -5735,9 +5172,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["proxy_addr"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["proxy_addr"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.PublicProxyAddr", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.PublicProxyAddr", err})
@@ -5746,13 +5180,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.PublicProxyAddr", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.PublicProxyAddr) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.PublicProxyAddr)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["proxy_addr"] = v
 																}
 															}
@@ -5780,7 +5211,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.Azure == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.Azure
 																			tf := &v
 																			{
@@ -5790,9 +5220,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["client_id"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.Azure.ClientID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.Azure.ClientID", err})
@@ -5801,20 +5228,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.Azure.ClientID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.ClientID) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.ClientID)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["client_id"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["azure"] = v
 																	}
 																}
@@ -5826,9 +5248,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["enroll_mode"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 																	if !ok {
-																		if tf.Attrs["enroll_mode"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.EnrollMode", err})
@@ -5837,13 +5256,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.EnrollMode", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																		}
+																		v.Null = int64(obj.EnrollMode) == 0
 																	}
-
-																	v.Null = false
 																	v.Value = int64(obj.EnrollMode)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["enroll_mode"] = v
 																}
 															}
@@ -5854,9 +5270,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["suffix"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["suffix"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.Suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.Suffix", err})
@@ -5865,13 +5278,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.Suffix", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Suffix) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Suffix)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["suffix"] = v
 																}
 															}
@@ -5882,9 +5292,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["update_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["update_group"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.UpdateGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.UpdateGroup", err})
@@ -5893,13 +5300,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.UpdateGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.UpdateGroup) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.UpdateGroup)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["update_group"] = v
 																}
 															}
@@ -5927,7 +5331,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.HTTPProxySettings == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.HTTPProxySettings
 																			tf := &v
 																			{
@@ -5937,9 +5340,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["http_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["http_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.HTTPProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.HTTPProxy", err})
@@ -5948,13 +5348,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.HTTPProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.HTTPProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.HTTPProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["http_proxy"] = v
 																				}
 																			}
@@ -5965,9 +5362,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["https_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["https_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.HTTPSProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.HTTPSProxy", err})
@@ -5976,13 +5370,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.HTTPSProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.HTTPSProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.HTTPSProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["https_proxy"] = v
 																				}
 																			}
@@ -5993,9 +5384,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["no_proxy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["no_proxy"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.NoProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.NoProxy", err})
@@ -6004,28 +5392,21 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.HTTPProxySettings.NoProxy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.NoProxy) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.NoProxy)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["no_proxy"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														tf.Attrs["install_params"] = v
 													}
 												}
@@ -6035,21 +5416,19 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Labels"})
 												} else {
-													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"], preserveUnknown)
+													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"])
 													tf.Attrs["labels"] = v
 												}
 											}
 										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Gcp) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["gcp"] = c
 							}
 						}
@@ -6076,15 +5455,13 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kube))
 									}
 								}
-								{
+								if obj.Kube != nil {
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Kube) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kube))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Kube))
 									}
 									for k, a := range obj.Kube {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := tf.Attrs["kube"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -6099,7 +5476,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										if a == nil {
 											v.Null = true
 										} else {
-											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -6124,19 +5500,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 														}
-														{
+														if obj.Types != nil {
 															t := o.ElemType
 															if len(obj.Types) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Types))
 															}
 															for k, a := range obj.Types {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["types"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.kube.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.kube.Types", err})
@@ -6145,20 +5516,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.kube.Types", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Types) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["types"] = c
 													}
 												}
@@ -6185,19 +5553,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Namespaces))
 															}
 														}
-														{
+														if obj.Namespaces != nil {
 															t := o.ElemType
 															if len(obj.Namespaces) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Namespaces))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
+																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Namespaces))
 															}
 															for k, a := range obj.Namespaces {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := tf.Attrs["namespaces"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.kube.Namespaces", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.kube.Namespaces", err})
@@ -6206,20 +5569,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.kube.Namespaces", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
+																	v.Null = string(a) == ""
 																}
-
-																v.Null = false
 																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
+																v.Unknown = false
 																c.Elems[k] = v
 															}
+															if len(obj.Namespaces) > 0 {
+																c.Null = false
+															}
 														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
+														c.Unknown = false
 														tf.Attrs["namespaces"] = c
 													}
 												}
@@ -6229,21 +5589,19 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.kube.Labels"})
 												} else {
-													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"], preserveUnknown)
+													v := CopyToLabels(diags, obj.Labels, t, tf.Attrs["labels"])
 													tf.Attrs["labels"] = v
 												}
 											}
 										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
+										v.Unknown = false
 										c.Elems[k] = v
 									}
+									if len(obj.Kube) > 0 {
+										c.Null = false
+									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
+								c.Unknown = false
 								tf.Attrs["kube"] = c
 							}
 						}
@@ -6272,7 +5630,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 								if obj.AccessGraph == nil {
 									v.Null = true
 								} else {
-									v.Null = false
 									obj := obj.AccessGraph
 									tf := &v
 									{
@@ -6297,15 +5654,13 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AWS))
 													}
 												}
-												{
+												if obj.AWS != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.AWS) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AWS))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AWS))
 													}
 													for k, a := range obj.AWS {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["aws"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -6320,7 +5675,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -6345,19 +5699,14 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 																			}
 																		}
-																		{
+																		if obj.Regions != nil {
 																			t := o.ElemType
 																			if len(obj.Regions) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 																			}
 																			for k, a := range obj.Regions {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := tf.Attrs["regions"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.Regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.Regions", err})
@@ -6366,20 +5715,17 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.Regions", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
+																					v.Null = string(a) == ""
 																				}
-
-																				v.Null = false
 																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
+																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
+																			if len(obj.Regions) > 0 {
+																				c.Null = false
+																			}
 																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
+																		c.Unknown = false
 																		tf.Attrs["regions"] = c
 																	}
 																}
@@ -6408,7 +5754,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.AssumeRole == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.AssumeRole
 																			tf := &v
 																			{
@@ -6418,9 +5763,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["role_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["role_arn"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleARN", err})
@@ -6429,13 +5771,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.RoleARN) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.RoleARN)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["role_arn"] = v
 																				}
 																			}
@@ -6446,9 +5785,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["external_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["external_id"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.ExternalID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.ExternalID", err})
@@ -6457,13 +5793,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.ExternalID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.ExternalID) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.ExternalID)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["external_id"] = v
 																				}
 																			}
@@ -6474,9 +5807,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["role_name"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", err})
@@ -6485,20 +5815,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.RoleName) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.RoleName)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["role_name"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["assume_role"] = v
 																	}
 																}
@@ -6510,9 +5835,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["integration"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.Integration", err})
@@ -6521,13 +5843,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Integration) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Integration)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["integration"] = v
 																}
 															}
@@ -6555,7 +5874,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.CloudTrailLogs == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.CloudTrailLogs
 																			tf := &v
 																			{
@@ -6565,9 +5883,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["region"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.cloud_trail_logs.Region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.cloud_trail_logs.Region", err})
@@ -6576,13 +5891,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.cloud_trail_logs.Region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.Region) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.Region)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["region"] = v
 																				}
 																			}
@@ -6593,9 +5905,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				} else {
 																					v, ok := tf.Attrs["sqs_queue"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
-																						if tf.Attrs["sqs_queue"] != nil {
-																							diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.AWS.cloud_trail_logs.SQSQueue", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
 																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																						if err != nil {
 																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.cloud_trail_logs.SQSQueue", err})
@@ -6604,20 +5913,15 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																						if !ok {
 																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.cloud_trail_logs.SQSQueue", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																						}
+																						v.Null = string(obj.SQSQueue) == ""
 																					}
-
-																					v.Null = false
 																					v.Value = string(obj.SQSQueue)
-																					if !preserveUnknown {
-																						v.Unknown = false
-																					}
+																					v.Unknown = false
 																					tf.Attrs["sqs_queue"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["cloud_trail_logs"] = v
 																	}
 																}
@@ -6646,7 +5950,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if obj.EksAuditLogs == nil {
 																			v.Null = true
 																		} else {
-																			v.Null = false
 																			obj := obj.EksAuditLogs
 																			tf := &v
 																			{
@@ -6654,29 +5957,25 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																				if !ok {
 																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.access_graph.AWS.eks_audit_logs.Tags"})
 																				} else {
-																					v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"], preserveUnknown)
+																					v := CopyToLabels(diags, obj.Tags, t, tf.Attrs["tags"])
 																					tf.Attrs["tags"] = v
 																				}
 																			}
 																		}
-																		if !preserveUnknown {
-																			v.Unknown = false
-																		}
+																		v.Unknown = false
 																		tf.Attrs["eks_audit_logs"] = v
 																	}
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.AWS) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["aws"] = c
 											}
 										}
@@ -6688,9 +5987,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 										} else {
 											v, ok := tf.Attrs["poll_interval"].(DurationValue)
 											if !ok {
-												if tf.Attrs["poll_interval"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.PollInterval", "DurationValue"})
-												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.PollInterval", err})
@@ -6699,13 +5995,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.PollInterval", "DurationValue"})
 												}
+												v.Null = false
 											}
-
-											v.Null = false
 											v.Value = time.Duration(obj.PollInterval)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
+											v.Unknown = false
 											tf.Attrs["poll_interval"] = v
 										}
 									}
@@ -6731,15 +6024,13 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
 													}
 												}
-												{
+												if obj.Azure != nil {
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Azure) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Azure))
 													}
 													for k, a := range obj.Azure {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := tf.Attrs["azure"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -6754,7 +6045,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 														if a == nil {
 															v.Null = true
 														} else {
-															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -6764,9 +6054,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["subscription_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["subscription_id"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.Azure.SubscriptionID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.Azure.SubscriptionID", err})
@@ -6775,13 +6062,10 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.Azure.SubscriptionID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.SubscriptionID) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.SubscriptionID)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["subscription_id"] = v
 																}
 															}
@@ -6792,9 +6076,6 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																} else {
 																	v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
-																		if tf.Attrs["integration"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"DiscoveryConfig.spec.access_graph.Azure.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.Azure.Integration", err})
@@ -6803,43 +6084,34 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.Azure.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
+																		v.Null = string(obj.Integration) == ""
 																	}
-
-																	v.Null = false
 																	v.Value = string(obj.Integration)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
+																	v.Unknown = false
 																	tf.Attrs["integration"] = v
 																}
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
+														v.Unknown = false
 														c.Elems[k] = v
 													}
+													if len(obj.Azure) > 0 {
+														c.Null = false
+													}
 												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
+												c.Unknown = false
 												tf.Attrs["azure"] = c
 											}
 										}
 									}
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
+								v.Unknown = false
 								tf.Attrs["access_graph"] = v
 							}
 						}
 					}
 				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
+				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -6952,28 +6224,5 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
-	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
-}
-
-// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
-// type does not match what we'd expect.
-type attrWriteUnexpectedExistingTypeDiag struct {
-	Path string
-	Type string
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
-	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
-	return "Error writing to Terraform object"
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
-}
-
-func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

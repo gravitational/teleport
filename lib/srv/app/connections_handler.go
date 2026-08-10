@@ -36,7 +36,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
@@ -45,12 +44,12 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -119,17 +118,11 @@ type ConnectionsHandlerConfig struct {
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
 
-	// LimiterConfig is the configuration for connection and rate limits.
-	LimiterConfig limiter.Config
-
 	// MCPDemoServer enables the "Teleport Demo" MCP server.
 	MCPDemoServer bool
 
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
-
-	// TargetHostPolicy restricts application target dials by resolved IP.
-	TargetHostPolicy common.TargetHostPolicy
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -178,9 +171,6 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
 	}
-	if err := c.TargetHostPolicy.Check(); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -196,7 +186,6 @@ type ConnectionsHandler struct {
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
 	mcpServer  *mcp.Server
-	limiter    *limiter.Limiter
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -215,36 +204,13 @@ type ConnectionsHandler struct {
 	llmHandler   *appllm.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *authz.Middleware
+	authMiddleware *auth.Middleware
 
 	proxyPort   string
 	clusterName string
 
 	// resolveApp returns a types.Application using the name and public address as matchers.
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
-
-	// v9Warned dedupes the v9 enforcement warnings (dropped v8 roles, denied
-	// CORS preflight, denied on version skew) to once per warning kind, user,
-	// and app. A v9 role governs every request to a shared app, so the
-	// warnings would otherwise fire on each request.
-	v9Warned *lru.Cache[v9WarnKey, struct{}]
-}
-
-// v9WarnedSize bounds the warning deduplication cache. Every user and app
-// combination the agent serves takes an entry, so the cache is bounded
-// rather than tracking them all. Evicting the least recently warned entry
-// repeats its warning, which is the behavior to prefer over unbounded
-// growth.
-const v9WarnedSize = 2048
-
-// v9WarnKey identifies one fired v9 enforcement warning in v9Warned.
-type v9WarnKey struct{ kind, user, app string }
-
-// v9WarnOnce reports whether the v9 enforcement warning of the given kind
-// has not fired yet for the user and app, and marks it fired.
-func (c *ConnectionsHandler) v9WarnOnce(kind, user, app string) bool {
-	warned, _ := c.v9Warned.ContainsOrAdd(v9WarnKey{kind, user, app}, struct{}{})
-	return !warned
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -291,11 +257,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
-	v9Warned, err := lru.New[v9WarnKey, struct{}](v9WarnedSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -306,7 +267,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		clusterName:  clusterName.GetClusterName(),
-		v9Warned:     v9Warned,
 		resolveApp: func(context.Context, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -324,13 +284,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Create limiter for connection and rate limiting. Applied to all
-	// app protocols (HTTP, TCP, MCP) in handleConnection.
-	c.limiter, err = limiter.NewLimiter(cfg.LimiterConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	go c.expireSessions()
 
 	// Create and configure HTTP server with authorizing middleware.
 	c.httpServer = c.newHTTPServer(clusterName.GetClusterName())
@@ -352,7 +306,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
 		InsecureMode:     c.cfg.InsecureMode,
-		TargetHostPolicy: c.cfg.TargetHostPolicy,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -364,8 +317,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Figure out the port the proxy is running on.
 	c.proxyPort = c.getProxyPort(c.closeContext)
-
-	go c.expireSessions()
 
 	return c, nil
 }
@@ -400,12 +351,12 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	// connection closes. The second cancel call is a no-op.
 	defer cancel(nil)
 
-	// Wrap conn to detect when it is closed.
+	// Wrap conn in a CloserConn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
-	waitConn := utils.NewWaitConn(conn)
+	closerConn := utils.NewCloserConn(conn)
 
-	cleanup, err := c.handleConnection(ctx, cancel, waitConn)
+	cleanup, err := c.handleConnection(ctx, cancel, closerConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -422,10 +373,11 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	}
 
 	// Wait for the connection to close. TCP and MCP handlers block until
-	// done, so waitConn is already closed by the time we get here. The HTTP
-	// handler returns immediately after handing the conn to http.Server, so
-	// this is where we block until the HTTP server closes it.
-	waitConn.Wait()
+	// done, so closerConn is already closed by the time we get here. The
+	// HTTP handler returns immediately after handing the conn to
+	// http.Server, so this is where we block until the HTTP server
+	// closes it.
+	closerConn.Wait()
 }
 
 // serveSession finds the app session and forwards the request.
@@ -480,16 +432,15 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		clock:            c.cfg.Clock,
-		emitter:          c.cfg.Emitter,
-		hostID:           c.cfg.HostID,
-		log:              c.log,
-		accessPoint:      c.cfg.AccessPoint,
-		authClient:       c.cfg.AuthClient,
-		clusterName:      c.clusterName,
-		cipherSuites:     c.cfg.CipherSuites,
-		insecureMode:     c.cfg.InsecureMode,
-		targetHostPolicy: c.cfg.TargetHostPolicy,
+		clock:        c.cfg.Clock,
+		emitter:      c.cfg.Emitter,
+		hostID:       c.cfg.HostID,
+		log:          c.log,
+		accessPoint:  c.cfg.AccessPoint,
+		authClient:   c.cfg.AuthClient,
+		clusterName:  c.clusterName,
+		cipherSuites: c.cfg.CipherSuites,
+		insecureMode: c.cfg.InsecureMode,
 	}, nil
 }
 
@@ -547,21 +498,6 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
-		// The default case is a plain HTTP app. Minimal v9 default-deny is
-		// enforced only on the unscoped access path. A scoped identity was
-		// already authorized for this app by authorizeContext, and the
-		// scoped access model does not yet evaluate v9 app_resources, so v9
-		// enforcement is skipped for it rather than denying an authorized
-		// request. Making the scoped path v9-aware is follow-up work.
-		if unscopedAuthCtx, ok := sessionCtx.Context.UnscopedContext(); ok {
-			denied, err := c.enforceMinimalV9(w, r, unscopedAuthCtx, app)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if denied {
-				return nil
-			}
-		}
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
 	}
 }
@@ -724,23 +660,6 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		return nil, trace.Wrap(err)
 	}
 
-	// Apply connection and rate limiting to all app protocols
-	// (HTTP, TCP, MCP) before any protocol-specific handling.
-	// Skip limiting when the client IP cannot be extracted (e.g.
-	// net.Pipe connections used by integration app proxying).
-	var release func()
-	if clientIP, err := utils.ClientIPFromConn(conn); err == nil {
-		release, err = c.limiter.RegisterRequestAndConnection(clientIP)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	defer func() {
-		if release != nil {
-			release()
-		}
-	}()
-
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
 	tlsConn, user, app, err := c.getConnectionInfo(c.closeContext, tc)
@@ -787,7 +706,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// (nil, err) and the caller has nothing to clean up. The HTTP handler is
 	// asynchronous: handleHTTPApp hands the conn to http.Server.Serve and
 	// returns immediately, so it returns a cleanup function and the caller
-	// blocks on waitConn.Wait() until the HTTP server closes the conn.
+	// blocks on closerConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
 		identity := sessionCtx.Context.Identity.GetIdentity()
@@ -807,14 +726,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
-		// Transfer release ownership to the cleanup function so
-		// the deferred release above becomes a no-op.
-		releaseConn := release
-		release = nil
 		cleanup := func() {
-			if releaseConn != nil {
-				releaseConn()
-			}
 			c.deleteConnAuth(tlsConn)
 		}
 		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
@@ -853,11 +765,11 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &authz.Middleware{
+	c.authMiddleware = &auth.Middleware{
 		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
-		Handler:       c,
 	}
+	c.authMiddleware.Wrap(c)
 
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -959,7 +871,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
-	user, err := c.authMiddleware.GetUser(ctx, tlsConn.ConnectionState())
+	user, err := c.authMiddleware.GetUser(tlsConn.ConnectionState())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

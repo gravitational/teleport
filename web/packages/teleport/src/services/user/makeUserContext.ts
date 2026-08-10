@@ -33,13 +33,9 @@ export default function makeUserContext(json: any): UserContext {
   const allowedSearchAsRoles = json.allowedSearchAsRoles || [];
   const passwordState =
     json.passwordState || PasswordState.PASSWORD_STATE_UNSPECIFIED;
-  const availableScopes = json.availableScopes || [];
-  const scope = json.scope || '';
 
   return {
     username,
-    displayPrimary: json.displayPrimary,
-    displaySecondary: json.displaySecondary,
     authType,
     acl,
     cluster,
@@ -48,8 +44,6 @@ export default function makeUserContext(json: any): UserContext {
     accessRequestId,
     allowedSearchAsRoles,
     passwordState,
-    availableScopes,
-    scope,
   };
 }
 

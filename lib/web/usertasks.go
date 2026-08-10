@@ -56,7 +56,7 @@ func (h *Handler) userTaskStateUpdate(w http.ResponseWriter, r *http.Request, p 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userTask.GetSpec().SetState(req.State)
+	userTask.Spec.State = req.State
 
 	newUserTask, err := clt.UserTasksServiceClient().UpsertUserTask(r.Context(), userTask)
 	if err != nil {
@@ -116,10 +116,10 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 
 	taskStateFilter := values.Get("state")
 
-	filters := usertasksv1.ListUserTasksFilters_builder{
+	filters := &usertasksv1.ListUserTasksFilters{
 		Integration: integrationName,
 		TaskState:   taskStateFilter,
-	}.Build()
+	}
 	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasks(r.Context(), int64(limit), startKey, filters)
 	if err != nil {
 		return nil, trace.Wrap(err)

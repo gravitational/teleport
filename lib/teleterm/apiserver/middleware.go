@@ -36,10 +36,10 @@ import (
 func withUnaryErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req any,
+		req interface{},
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (any, error) {
+	) (interface{}, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			log.ErrorContext(ctx, "Request failed", "error", err)

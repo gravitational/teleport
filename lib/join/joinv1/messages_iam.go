@@ -38,9 +38,9 @@ func iamInitFromMessage(msg *messages.IAMInit) (*joinv1.IAMInit, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return joinv1.IAMInit_builder{
+	return &joinv1.IAMInit{
 		ClientParams: clientParams,
-	}.Build(), nil
+	}, nil
 }
 
 func iamChallengeToMessage(req *joinv1.IAMChallenge) *messages.IAMChallenge {
@@ -50,9 +50,9 @@ func iamChallengeToMessage(req *joinv1.IAMChallenge) *messages.IAMChallenge {
 }
 
 func iamChallengeFromMessage(msg *messages.IAMChallenge) *joinv1.IAMChallenge {
-	return joinv1.IAMChallenge_builder{
+	return &joinv1.IAMChallenge{
 		Challenge: msg.Challenge,
-	}.Build()
+	}
 }
 
 func iamChallengeSolutionToMessage(req *joinv1.IAMChallengeSolution) *messages.IAMChallengeSolution {
@@ -62,7 +62,7 @@ func iamChallengeSolutionToMessage(req *joinv1.IAMChallengeSolution) *messages.I
 }
 
 func iamChallengeSolutionFromMessage(msg *messages.IAMChallengeSolution) *joinv1.IAMChallengeSolution {
-	return joinv1.IAMChallengeSolution_builder{
+	return &joinv1.IAMChallengeSolution{
 		StsIdentityRequest: msg.STSIdentityRequest,
-	}.Build()
+	}
 }

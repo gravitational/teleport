@@ -22,8 +22,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
-	"strings"
-	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -31,10 +29,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func (s *TerraformSuiteEnterprise) TestSAMLConnector() {
-	s.T().Skip("TODO(hugoShaka): fix test")
+	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
+	require.True(s.T(),
+		saml.Enabled,
+		"Test requires SAML",
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -86,19 +91,14 @@ func (s *TerraformSuiteEnterprise) TestSAMLConnector() {
 }
 
 func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
+	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
+	require.True(s.T(),
+		saml.Enabled,
+		"Test requires SAML",
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
-
-	metadataAvailable := &atomic.Bool{}
-	metadataAvailable.Store(true)
-	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !metadataAvailable.Load() {
-			http.Error(w, "metadata unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		fmt.Fprintln(w, testDescriptor)
-	}))
-	s.T().Cleanup(httpServer.Close)
 
 	r := "teleport_saml_connector"
 	id := "test_import"
@@ -118,7 +118,22 @@ func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
 		},
 		Spec: types.SAMLConnectorSpecV2{
 			AssertionConsumerService: "https://example.com/v1/webapi/saml/acs",
-			EntityDescriptorURL:      httpServer.URL,
+			EntityDescriptor: `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://www.okta.com/exk1hqp7cwfwMSmWU5d7">
+<md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+<md:KeyDescriptor use="signing">
+<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+<ds:X509Data>
+<ds:X509Certificate>---</ds:X509Certificate>
+</ds:X509Data>
+</ds:KeyInfo>
+</md:KeyDescriptor>
+<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://dev-82418781.okta.com/app/dev-82418781_evilmartiansteleportsh_1/exk1hqp7cwfwMSmWU5d7/sso/saml"/>
+<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://dev-82418781.okta.com/app/dev-82418781_evilmartiansteleportsh_1/exk1hqp7cwfwMSmWU5d7/sso/saml"/>
+</md:IDPSSODescriptor>
+</md:EntityDescriptor>				
+`,
 			AttributesToRoles: []types.AttributeMapping{
 				{
 					Name:  "map attrx to rolex",
@@ -134,8 +149,6 @@ func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
 
 	_, err = s.client.UpsertSAMLConnector(ctx, samlConnector)
 	require.NoError(s.T(), err)
-	// Import must use cached metadata instead of fetching the unavailable URL.
-	metadataAvailable.Store(false)
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
@@ -148,7 +161,6 @@ func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "saml", state[0].Attributes["kind"])
 					require.Equal(s.T(), "https://example.com/v1/webapi/saml/acs", state[0].Attributes["spec.acs"])
-					require.Equal(s.T(), httpServer.URL, state[0].Attributes["spec.entity_descriptor_url"])
 
 					return nil
 				},
@@ -157,64 +169,35 @@ func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
 	})
 }
 
-// Verify that Terraform can manage a connector when previously validated metadata URLs become
-// unavailable:
-//  1. Create a connector while its old metadata URL is available.
-//  2. Make the old URL unavailable and update to a reachable new URL. The pre-update read must not
-//     fetch metadata, while the write validates the new URL.
-//  3. Make both URLs unavailable. Resource refresh, data-source read, and destroy must still work.
 func (s *TerraformSuiteEnterprise) TestSAMLConnectorWithEntityDescriptorURL() {
-	oldMetadataUnavailable := &atomic.Bool{}
-	allMetadataUnavailable := &atomic.Bool{}
+	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
+	require.True(s.T(),
+		saml.Enabled,
+		"Test requires SAML",
+	)
 
+	// Start test HTTP server that returns SAML descriptor.
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if allMetadataUnavailable.Load() || (oldMetadataUnavailable.Load() && strings.HasPrefix(r.URL.Path, "/old/")) {
-			http.Error(w, "metadata unavailable", http.StatusServiceUnavailable)
-			return
-		}
 		fmt.Fprintln(w, testDescriptor)
 	}))
 	s.T().Cleanup(httpServer.Close)
-
-	oldMetadataURL := httpServer.URL + "/old"
-	newMetadataURL := httpServer.URL + "/new"
-
-	resourceName := "teleport_saml_connector.test"
-	dataSourceName := "data.teleport_saml_connector.test"
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("saml_connector_0_create_with_entitydescriptorurl.tf", oldMetadataURL),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "spec.entity_descriptor_url", oldMetadataURL+"/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata"),
-					func(*terraform.State) error {
-						oldMetadataUnavailable.Store(true)
-						return nil
-					},
-				),
-			},
-			{
-				Config: s.getFixture("saml_connector_0_create_with_entitydescriptorurl.tf", newMetadataURL),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "spec.entity_descriptor_url", newMetadataURL+"/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata"),
-					resource.TestCheckResourceAttr(dataSourceName, "metadata.name", "test"),
-					resource.TestCheckResourceAttr(dataSourceName, "spec.entity_descriptor_url", newMetadataURL+"/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata"),
-					func(*terraform.State) error {
-						allMetadataUnavailable.Store(true)
-						return nil
-					},
-				),
-			},
-			{
-				Config:   s.getFixture("saml_connector_0_create_with_entitydescriptorurl.tf", newMetadataURL),
-				PlanOnly: true,
+				Config: s.getFixture("saml_connector_0_create_with_entitydescriptorurl.tf", httpServer.URL),
 			},
 		},
 	})
 }
 
 func (s *TerraformSuiteEnterprise) TestSAMLConnectorWithoutEntityDescriptor() {
+	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
+	require.True(s.T(),
+		saml.Enabled,
+		"Test requires SAML",
+	)
+
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		Steps: []resource.TestStep{

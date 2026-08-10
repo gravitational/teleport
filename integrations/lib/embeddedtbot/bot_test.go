@@ -303,7 +303,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				// The role can read scoped roles. We will use this to validate its permissions later.
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedRole},
-					Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
+					Verbs:     []string{types.VerbReadNoSecrets},
 				}.Build(),
 			},
 		}.Build(),
@@ -426,10 +426,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	botConfig := &BotConfig{
 		AuthServer: authAddr.Addr,
 		Onboarding: onboarding.Config{
-			TokenValue: scopes.QualifiedName{
-				Name:  scopedToken.GetToken().GetMetadata().GetName(),
-				Scope: scopedToken.GetToken().GetScope(),
-			}.String(),
+			TokenValue: scopedToken.GetToken().GetMetadata().GetName(),
 			JoinMethod: types.JoinMethodKubernetes,
 			Kubernetes: onboarding.KubernetesOnboardingConfig{
 				TokenPath: tokenPath,

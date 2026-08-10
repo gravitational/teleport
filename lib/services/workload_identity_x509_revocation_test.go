@@ -34,7 +34,7 @@ func TestValidateWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 
 	var errContains = func(contains string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, msgAndArgs ...any) {
+		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 			require.ErrorContains(t, err, contains, msgAndArgs...)
 		}
 	}
@@ -46,126 +46,126 @@ func TestValidateWorkloadIdentityX509Revocation(t *testing.T) {
 	}{
 		{
 			name: "success - full",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "aabbccddeeff",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: require.NoError,
 		},
 		{
 			name: "missing name",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("metadata.name: is required"),
 		},
 		{
 			name: "missing reason",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "aabbccddeeff",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("spec.reason: is required"),
 		},
 		{
 			name: "invalid name: colons",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "aa:bb:cc:dd:ee:ff",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("metadata.name: must be a lower-case hex encoded integer without colons"),
 		},
 		{
 			name: "invalid name: not lowercase",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "AAbbCCddEE",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("metadata.name: must be a lower-case hex encoded integer without colons"),
 		},
 		{
 			name: "invalid name: not base 16",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "aabbxx",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("metadata.name: must be a lower-case hex encoded integer without colons"),
 		},
 		{
 			name: "missing expiry",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "aabbccddeeff",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("metadata.expires: is required"),
 		},
 		{
 			name: "missing revoked at",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "aabbccddeeff",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason: "compromised",
-				}.Build(),
-			}.Build(),
+				},
+			},
 			requireErr: errContains("spec.revoked_at: is required"),
 		},
 	}
@@ -187,18 +187,18 @@ func TestWorkloadIdentityX509RevocationMarshaling(t *testing.T) {
 	}{
 		{
 			name: "normal",
-			in: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
+			in: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name:    "aabbccddeeff",
 					Expires: timestamppb.New(time.Now().Add(time.Hour)),
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.Now(),
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 	}
 	for _, tc := range testCases {

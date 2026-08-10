@@ -26,7 +26,6 @@ import { IconTooltip } from 'design/Tooltip';
 import TextEditor from 'shared/components/TextEditor';
 import Validation, { Validator } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
@@ -80,7 +79,7 @@ export function CreateAppAccess() {
         resourceName: app.name,
       });
     } catch (err) {
-      emitErrorEvent(getErrorMessage(err));
+      emitErrorEvent(err.message);
       throw err;
     }
   });

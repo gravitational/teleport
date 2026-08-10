@@ -36,23 +36,23 @@ import (
 func TestTLSIdentity_roundtrip(t *testing.T) {
 	t.Parallel()
 
-	minimalTLSIdentity := decisionpb.TLSIdentity_builder{
+	minimalTLSIdentity := &decisionpb.TLSIdentity{
 		// tlsca.Identity has no pointer fields, so these are always non-nil after
 		// copying.
 		RouteToApp:       &decisionpb.RouteToApp{},
 		RouteToDatabase:  &decisionpb.RouteToDatabase{},
 		DeviceExtensions: &decisionpb.DeviceExtensions{},
-	}.Build()
+	}
 
-	fullIdentity := decisionpb.TLSIdentity_builder{
+	fullIdentity := &decisionpb.TLSIdentity{
 		Username: "user",
-		ScopePin: scopesv1.Pin_builder{
+		ScopePin: &scopesv1.Pin{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"/::role1", "/::role2"}},
 			}),
-		}.Build(),
+		},
 		Impersonator:      "impersonator",
 		Groups:            []string{"role1", "role2"},
 		SystemRoles:       []string{"system1", "system2"},
@@ -65,12 +65,12 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		KubernetesCluster: "k8s-cluster",
 		Traits: []*traitpb.Trait{
 			// Note: sorted by key on conversion.
-			traitpb.Trait_builder{Key: "", Values: []string{"missingkey"}}.Build(),
-			traitpb.Trait_builder{Key: "missingvalues", Values: nil}.Build(),
-			traitpb.Trait_builder{Key: "trait1", Values: []string{"val1"}}.Build(),
-			traitpb.Trait_builder{Key: "trait2", Values: []string{"val1", "val2"}}.Build(),
+			{Key: "", Values: []string{"missingkey"}},
+			{Key: "missingvalues", Values: nil},
+			{Key: "trait1", Values: []string{"val1"}},
+			{Key: "trait2", Values: []string{"val1", "val2"}},
 		},
-		RouteToApp: decisionpb.RouteToApp_builder{
+		RouteToApp: &decisionpb.RouteToApp{
 			SessionId:                       "session-id",
 			PublicAddr:                      "public-addr",
 			ClusterName:                     "cluster-name",
@@ -81,15 +81,15 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			Uri:                             "uri",
 			TargetPort:                      111,
 			AwsCredentialprocessCredentials: "aws-cred-process-creds",
-		}.Build(),
+		},
 		TeleportCluster: "teleport-cluster",
-		RouteToDatabase: decisionpb.RouteToDatabase_builder{
+		RouteToDatabase: &decisionpb.RouteToDatabase{
 			ServiceName: "service-name",
 			Protocol:    "protocol",
 			Username:    "username",
 			Database:    "database",
 			Roles:       []string{"role1", "role2"},
-		}.Build(),
+		},
 		DatabaseNames:           []string{"db1", "db2"},
 		DatabaseUsers:           []string{"dbuser1", "dbuser2"},
 		MfaVerified:             "mfa-device-id",
@@ -107,18 +107,18 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		BotInstanceId:           "bot-instance-id",
 		BotScope:                "/foo",
 		AllowedResourceIds: []*decisionpb.ResourceId{
-			decisionpb.ResourceId_builder{
+			{
 				ClusterName:     "cluster1",
 				Kind:            "kind1",
 				Name:            "name1",
 				SubResourceName: "sub-resource1",
-			}.Build(),
-			decisionpb.ResourceId_builder{
+			},
+			{
 				ClusterName:     "cluster2",
 				Kind:            "kind2",
 				Name:            "name2",
 				SubResourceName: "sub-resource2",
-			}.Build(),
+			},
 		},
 		AllowedResourceAccessIds: []*types.ResourceAccessID{
 			{
@@ -132,15 +132,14 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		},
 		PrivateKeyPolicy:       "private-key-policy",
 		ConnectionDiagnosticId: "connection-diag-id",
-		DeviceExtensions: decisionpb.DeviceExtensions_builder{
+		DeviceExtensions: &decisionpb.DeviceExtensions{
 			DeviceId:     "device-id",
 			AssetTag:     "asset-tag",
 			CredentialId: "credential-id",
-		}.Build(),
+		},
 		UserType:            "user-type",
 		DelegationSessionId: "delegation-session",
-		BeamId:              "beam-id",
-	}.Build()
+	}
 
 	tests := []struct {
 		name        string
@@ -186,10 +185,10 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 func TestTLSIdentityToTLSCA_zeroTimestamp(t *testing.T) {
 	t.Parallel()
 
-	id := decision.TLSIdentityToTLSCA(decisionpb.TLSIdentity_builder{
+	id := decision.TLSIdentityToTLSCA(&decisionpb.TLSIdentity{
 		Expires:                 &timestamppb.Timestamp{},
 		PreviousIdentityExpires: &timestamppb.Timestamp{},
-	}.Build())
+	})
 	assert.Zero(t, id.Expires, "id.Expires")
 	assert.Zero(t, id.PreviousIdentityExpires, "id.PreviousIdentityExpires")
 }

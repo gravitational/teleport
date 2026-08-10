@@ -115,11 +115,11 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := crownjewel.ValidateCrownJewel(req.GetCrownJewel()); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.CreateCrownJewel(ctx, req.GetCrownJewel())
+	rsp, err := s.backend.CreateCrownJewel(ctx, req.CrownJewel)
 
 	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
 
@@ -157,15 +157,15 @@ func (s *Service) ListCrownJewels(ctx context.Context, req *crownjewelv1.ListCro
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.reader.ListCrownJewels(ctx, req.GetPageSize(), req.GetPageToken())
+	rsp, nextToken, err := s.reader.ListCrownJewels(ctx, req.PageSize, req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return crownjewelv1.ListCrownJewelsResponse_builder{
+	return &crownjewelv1.ListCrownJewelsResponse{
 		CrownJewels:   rsp,
 		NextPageToken: nextToken,
-	}.Build(), nil
+	}, nil
 }
 
 // GetCrownJewel returns crown jewel resource.
@@ -202,7 +202,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	if err := crownjewel.ValidateCrownJewel(req.GetCrownJewel()); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -211,7 +211,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.UpdateCrownJewel(ctx, req.GetCrownJewel())
+	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpdateAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
 
@@ -254,7 +254,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	if err := crownjewel.ValidateCrownJewel(req.GetCrownJewel()); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -263,7 +263,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.UpsertCrownJewel(ctx, req.GetCrownJewel())
+	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpsertAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
 

@@ -21,9 +21,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 func newMember(listName, name scopes.QualifiedName, kind string) (*accesslist.AccessListMember, error) {
@@ -64,7 +64,7 @@ func (c *Command) applyGrantsAndRequirements(al *accesslist.AccessList) error {
 		al.Spec.OwnerGrants.Roles = utils.SplitIdentifiers(c.ownerGrantRoles)
 	}
 	if c.ownerGrantTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.ownerGrantTraits)
+		traits, err := client.MultiValueLabelSelectorSpec(c.ownerGrantTraits)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -74,7 +74,7 @@ func (c *Command) applyGrantsAndRequirements(al *accesslist.AccessList) error {
 		al.Spec.OwnershipRequires.Roles = utils.SplitIdentifiers(c.ownerRequiredRoles)
 	}
 	if c.ownerRequiredTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.ownerRequiredTraits)
+		traits, err := client.MultiValueLabelSelectorSpec(c.ownerRequiredTraits)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -86,7 +86,7 @@ func (c *Command) applyGrantsAndRequirements(al *accesslist.AccessList) error {
 		al.Spec.Grants.Roles = utils.SplitIdentifiers(c.memberGrantRoles)
 	}
 	if c.memberGrantTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.memberGrantTraits)
+		traits, err := client.MultiValueLabelSelectorSpec(c.memberGrantTraits)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -96,7 +96,7 @@ func (c *Command) applyGrantsAndRequirements(al *accesslist.AccessList) error {
 		al.Spec.MembershipRequires.Roles = utils.SplitIdentifiers(c.memberRequiredRoles)
 	}
 	if c.memberRequiredTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.memberRequiredTraits)
+		traits, err := client.MultiValueLabelSelectorSpec(c.memberRequiredTraits)
 		if err != nil {
 			return trace.Wrap(err)
 		}

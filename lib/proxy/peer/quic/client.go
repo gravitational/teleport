@@ -234,21 +234,21 @@ func (c *ClientConn) Dial(nodeID, scope string, src net.Addr, dst net.Addr, tunn
 
 	log := c.log.With("conn_nonce", nonce)
 
-	req := quicpeeringv1a.DialRequest_builder{
+	req := &quicpeeringv1a.DialRequest{
 		TargetHostId:   nodeID,
 		TargetScope:    scope,
 		ConnectionType: string(tunnelType),
-		Source: quicpeeringv1a.Addr_builder{
+		Source: &quicpeeringv1a.Addr{
 			Network: src.Network(),
 			Addr:    src.String(),
-		}.Build(),
-		Destination: quicpeeringv1a.Addr_builder{
+		},
+		Destination: &quicpeeringv1a.Addr{
 			Network: dst.Network(),
 			Addr:    dst.String(),
-		}.Build(),
+		},
 		Timestamp: timestamppb.Now(),
 		Nonce:     nonce,
-	}.Build()
+	}
 	sizedReqBuf, err := marshalSized(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -399,11 +399,11 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 
 	log := c.log.With("ping_nonce", nonce)
 
-	req := quicpeeringv1a.DialRequest_builder{
+	req := &quicpeeringv1a.DialRequest{
 		Timestamp: timestamppb.Now(),
 		Nonce:     nonce,
 		Ping:      true,
-	}.Build()
+	}
 	sizedReqBuf, err := marshalSized(req)
 	if err != nil {
 		return trace.Wrap(err)

@@ -54,23 +54,23 @@ func TestListWorkloadIdentities(t *testing.T) {
 
 	name := uuid.New().String()
 
-	_, err := env.server.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+	_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
 			Labels: map[string]string{
 				"label-1": "value-1",
 				"label-2": "value-2",
 			},
-		}.Build(),
-		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 				Id:   "/test/spiffe/id",
 				Hint: "Lorem ipsum delor sit",
-			}.Build(),
-		}.Build(),
-	}.Build())
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	scopedName := uuid.New().String()
@@ -159,18 +159,18 @@ func TestListWorkloadIdentitiesPaging(t *testing.T) {
 			)
 
 			for i := range tc.numInstances {
-				_, err := env.server.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+				_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 					Kind:    types.KindWorkloadIdentity,
 					Version: types.V1,
-					Metadata: headerv1.Metadata_builder{
+					Metadata: &headerv1.Metadata{
 						Name: uuid.New().String(),
-					}.Build(),
-					Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-						Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					},
+					Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+						Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 							Id: "/test/spiffe/" + uuid.New().String(),
-						}.Build(),
-					}.Build(),
-				}.Build())
+						},
+					},
+				})
 				require.NoError(t, err, "failed to create WorkloadIdentity index:%d", i)
 			}
 
@@ -205,18 +205,18 @@ func TestListWorkloadIdentitiesSorting(t *testing.T) {
 	)
 
 	for i := range 10 {
-		_, err := env.server.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: uuid.New().String(),
-			}.Build(),
-			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 					Id: "/test/spiffe/" + uuid.New().String(),
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 		require.NoError(t, err, "failed to create WorkloadIdentity index:%d", i)
 	}
 
@@ -251,26 +251,26 @@ func TestListWorkloadIdentitiesWithSearchTermFilter(t *testing.T) {
 		{
 			name:       "match on name",
 			searchTerm: "nick",
-			metadata: headerv1.Metadata_builder{
+			metadata: &headerv1.Metadata{
 				Name: "this-is-nicks-workload-identity",
-			}.Build(),
-			spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+			},
+			spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 					Id: "/spiffe/id/99",
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 		{
 			name:       "match on spiffe id",
 			searchTerm: "id/22",
-			metadata: headerv1.Metadata_builder{
+			metadata: &headerv1.Metadata{
 				Name: "this-is-nicks-workload-identity",
-			}.Build(),
-			spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+			},
+			spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 					Id: "/spiffe/id/22",
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 	}
 
@@ -288,26 +288,26 @@ func TestListWorkloadIdentitiesWithSearchTermFilter(t *testing.T) {
 				"workload-identity",
 			)
 
-			_, err := env.server.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+			_, err := env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 				Kind:     types.KindWorkloadIdentity,
 				Version:  types.V1,
 				Metadata: tc.metadata,
 				Spec:     tc.spec,
-			}.Build())
+			})
 			require.NoError(t, err)
 
-			_, err = env.server.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+			_, err = env.server.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: "gone",
-				}.Build(),
-				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 						Id: "/test/spiffe/id",
-					}.Build(),
-				}.Build(),
-			}.Build())
+					},
+				},
+			})
 			require.NoError(t, err)
 
 			response, err := pack.clt.Get(ctx, endpoint, url.Values{

@@ -103,17 +103,17 @@ func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientAp
 // AuthenticateProcess implements [vnetv1.ClientApplicationServiceServer.AuthenticateProcess].
 func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req *vnetv1.AuthenticateProcessRequest) (*vnetv1.AuthenticateProcessResponse, error) {
 	log.DebugContext(ctx, "Received AuthenticateProcess request from admin process")
-	if req.GetVersion() != api.Version {
+	if req.Version != api.Version {
 		return nil, trace.BadParameter("version mismatch, user process version is %s, admin process version is %s",
-			api.Version, req.GetVersion())
+			api.Version, req.Version)
 	}
 	if err := platformAuthenticateProcess(ctx, req); err != nil {
 		log.ErrorContext(ctx, "Failed to authenticate process", "error", err)
 		return nil, trace.Wrap(err, "authenticating process")
 	}
-	return vnetv1.AuthenticateProcessResponse_builder{
+	return &vnetv1.AuthenticateProcessResponse{
 		Version: api.Version,
-	}.Build(), nil
+	}, nil
 }
 
 // ReportNetworkStackInfo implements [vnetv1.ClientApplicationServiceServer.ReportNetworkStackInfo].
@@ -154,9 +154,9 @@ func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnet
 		return nil, trace.Wrap(err, "reissuing app certificate")
 	}
 	s.setSignerForApp(appKey, uint16(req.GetTargetPort()), cert.PrivateKey.(crypto.Signer))
-	return vnetv1.ReissueAppCertResponse_builder{
+	return &vnetv1.ReissueAppCertResponse{
 		Cert: cert.Certificate[0],
-	}.Build(), nil
+	}, nil
 }
 
 // SignForApp implements [vnetv1.ClientApplicationServiceServer.SignForApp].
@@ -167,7 +167,7 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 	log.DebugContext(ctx, "Got SignForApp request",
 		"app", req.GetAppKey(),
 		"hash", signReq.GetHash(),
-		"is_rsa_pss", signReq.HasPssSaltLength(),
+		"is_rsa_pss", signReq.PssSaltLength != nil,
 		"pss_salt_len", signReq.GetPssSaltLength(),
 		"digest_len", len(signReq.GetDigest()),
 	)
@@ -185,9 +185,9 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for app %v", appKey)
 	}
-	return vnetv1.SignForAppResponse_builder{
+	return &vnetv1.SignForAppResponse{
 		Signature: signature,
-	}.Build(), nil
+	}, nil
 }
 
 func sign(signer crypto.Signer, signReq *vnetv1.SignRequest) ([]byte, error) {
@@ -201,10 +201,10 @@ func sign(signer crypto.Signer, signReq *vnetv1.SignRequest) ([]byte, error) {
 		return nil, trace.BadParameter("unsupported hash %v", signReq.GetHash())
 	}
 	opts := crypto.SignerOpts(hash)
-	if signReq.HasPssSaltLength() {
+	if signReq.PssSaltLength != nil {
 		opts = &rsa.PSSOptions{
 			Hash:       hash,
-			SaltLength: int(signReq.GetPssSaltLength()),
+			SaltLength: int(*signReq.PssSaltLength),
 		}
 	}
 	signature, err := signer.Sign(rand.Reader, signReq.GetDigest(), opts)
@@ -265,12 +265,12 @@ func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context,
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration")
 	}
-	return vnetv1.GetTargetOSConfigurationResponse_builder{
-		TargetOsConfiguration: vnetv1.TargetOSConfiguration_builder{
+	return &vnetv1.GetTargetOSConfigurationResponse{
+		TargetOsConfiguration: &vnetv1.TargetOSConfiguration{
 			DnsZones:       unifiedClusterConfig.AllDNSZones(),
 			Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
-		}.Build(),
-	}.Build(), nil
+		},
+	}, nil
 }
 
 // UserTLSCert returns the user TLS certificate for a specific profile.
@@ -286,10 +286,10 @@ func (s *clientApplicationService) UserTLSCert(ctx context.Context, req *vnetv1.
 	if err != nil {
 		return nil, trace.Wrap(err, "getting TLS dial options")
 	}
-	return vnetv1.UserTLSCertResponse_builder{
+	return &vnetv1.UserTLSCertResponse{
 		Cert:        tlsCert.Certificate[0],
 		DialOptions: dialOpts,
-	}.Build(), nil
+	}, nil
 }
 
 // SignForUserTLS signs a digest with the user TLS private key.
@@ -306,9 +306,9 @@ func (s *clientApplicationService) SignForUserTLS(ctx context.Context, req *vnet
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for user TLS certificate")
 	}
-	return vnetv1.SignForUserTLSResponse_builder{
+	return &vnetv1.SignForUserTLSResponse{
 		Signature: signature,
-	}.Build(), nil
+	}, nil
 }
 
 // SessionSSHConfig returns user SSH configuration values for an SSH session.
@@ -324,22 +324,6 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		Addr:    req.GetAddress(),
 		Cluster: targetCluster,
 	}
-
-	switch req.GetCredentialMode() {
-	case vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT:
-		// Direct mode disables the pre-auth MFA check so the target can request in-band MFA during SSH auth.
-		target.MFACheck = &proto.IsMFARequiredResponse{
-			Required:    false,
-			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-		}
-
-	case vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT:
-		// Leave MFACheck unset so SessionSSHKeyRing performs the legacy pre-auth MFA flow if required.
-
-	default:
-		return nil, trace.BadParameter("unsupported credential mode %v", req.GetCredentialMode())
-	}
-
 	keyRing, completedMFA, err := clusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting KeyRing for SSH session")
@@ -396,18 +380,14 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	}
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
 
-	// Submit usage event. The fallback MFA cert mode is still part of the same
-	// logical SSH connection already reported by the direct attempt and should
-	// not be reported as a separate connection.
-	if req.GetCredentialMode() == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
-		s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
-	}
+	// Submit usage event.
+	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
 
-	return vnetv1.SessionSSHConfigResponse_builder{
+	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
 		Cert:       sshCert.Marshal(),
 		TrustedCas: trustedCAs,
-	}.Build(), nil
+	}, nil
 }
 
 // SignForSSHSession signs a digest with the SSH private key associated with the
@@ -421,9 +401,9 @@ func (s *clientApplicationService) SignForSSHSession(ctx context.Context, req *v
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetv1.SignForSSHSessionResponse_builder{
+	return &vnetv1.SignForSSHSessionResponse{
 		Signature: signature,
-	}.Build(), nil
+	}, nil
 }
 
 func (s *clientApplicationService) setSignerForSSHSession(signer crypto.Signer) string {
@@ -453,38 +433,9 @@ func (s *clientApplicationService) ExchangeSSHKeys(ctx context.Context, req *vne
 	if err != nil {
 		return nil, trace.Wrap(err, "writing SSH keys")
 	}
-	return vnetv1.ExchangeSSHKeysResponse_builder{
+	return &vnetv1.ExchangeSSHKeysResponse{
 		UserPublicKey: userPublicKey.Marshal(),
-	}.Build(), nil
-}
-
-// PerformSessionMFACeremony implements [vnetv1.ClientApplicationServiceServer.PerformSessionMFACeremony]. It performs
-// a session-bound MFA ceremony for a SSH session and returns the challenge name.
-func (s *clientApplicationService) PerformSessionMFACeremony(
-	ctx context.Context,
-	req *vnetv1.PerformSessionMFACeremonyRequest,
-) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
-	switch {
-	case req.GetProfile() == "":
-		return nil, trace.BadParameter("profile must not be empty")
-
-	case len(req.GetSshSessionId()) == 0:
-		return nil, trace.BadParameter("SSH session ID must not be empty")
-	}
-
-	clusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), req.GetLeafCluster())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challengeName, err := clusterClient.PerformSessionMFACeremony(ctx, req.GetSshSessionId())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return vnetv1.PerformSessionMFACeremonyResponse_builder{
-		ChallengeName: challengeName,
-	}.Build(), nil
+	}, nil
 }
 
 // checkAppKey checks that at least the app profile and name are set, which are
@@ -563,9 +514,9 @@ func (s *clientApplicationService) ReissueDBCert(ctx context.Context, req *vnetv
 		return nil, trace.Wrap(err, "reissuing database certificate")
 	}
 	s.setSignerForDB(dbKey, cert.PrivateKey.(crypto.Signer))
-	return vnetv1.ReissueDBCertResponse_builder{
+	return &vnetv1.ReissueDBCertResponse{
 		Cert: cert.Certificate[0],
-	}.Build(), nil
+	}, nil
 }
 
 // SignForDB implements [vnetv1.ClientApplicationServiceServer.SignForDB].
@@ -576,7 +527,7 @@ func (s *clientApplicationService) SignForDB(ctx context.Context, req *vnetv1.Si
 	log.DebugContext(ctx, "Got SignForDB request",
 		"db", req.GetDatabaseKey(),
 		"hash", signReq.GetHash(),
-		"is_rsa_pss", signReq.HasPssSaltLength(),
+		"is_rsa_pss", signReq.PssSaltLength != nil,
 		"pss_salt_len", signReq.GetPssSaltLength(),
 		"digest_len", len(signReq.GetDigest()),
 	)
@@ -594,9 +545,9 @@ func (s *clientApplicationService) SignForDB(ctx context.Context, req *vnetv1.Si
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for database %v", dbKey)
 	}
-	return vnetv1.SignForDBResponse_builder{
+	return &vnetv1.SignForDBResponse{
 		Signature: signature,
-	}.Build(), nil
+	}, nil
 }
 
 // OnNewDBConnection gets called whenever a new database connection is about to

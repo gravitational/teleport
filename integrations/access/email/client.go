@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -33,7 +33,7 @@ import (
 )
 
 var reviewReplyTemplate = template.Must(template.New("review reply").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -122,12 +122,12 @@ func (c *Client) SendReview(ctx context.Context, threads []EmailThread, reqID st
 		types.AccessReview
 		ProposedState      string
 		ProposedStateEmoji string
-		CreatedTime        string
+		TimeFormat         string
 	}{
 		review,
 		review.ProposedState.String(),
 		proposedStateEmoji,
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return threadsSent, trace.Wrap(err)

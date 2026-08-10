@@ -101,10 +101,11 @@ func getKubeCluster(ctx context.Context, client *authclient.Client, ref services
 			ScopeFilter: scopesv1.Filter_builder{
 				Mode: scopesv1.Mode_MODE_ALL,
 			}.Build(),
-			WithSecrets: opts.WithSecrets,
 		}.Build())
 	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+	// TODO (eriktate): remove in v20
+	//nolint:staticcheck // SA1019
 	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -159,6 +160,8 @@ func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref servi
 		}.Build())
 	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+	// TODO (eriktate): remove in v20
+	//nolint:staticcheck // SA1019
 	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return trace.Wrap(err)
@@ -194,16 +197,15 @@ func scopedKubeClusterHandler() ScopedHandler {
 	}
 }
 
-func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, _ GetOpts) (Collection, error) {
 	if subKind != "" {
 		return nil, rejectSubKind(types.KindKubernetesCluster, subKind)
 	}
 
 	if sqn != nil {
 		cluster, err := client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
-			Scope:       sqn.Scope,
-			Name:        sqn.Name,
-			WithSecrets: opts.WithSecrets,
+			Scope: sqn.Scope,
+			Name:  sqn.Name,
 		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -219,7 +221,6 @@ func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKin
 			PageSize:    int32(pageSize),
 			PageToken:   pageKey,
 			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
-			WithSecrets: opts.WithSecrets,
 		}.Build())
 	}))
 	if err != nil {

@@ -22,7 +22,6 @@ import {
   DeepURL,
   VnetDeepURL,
 } from 'shared/deepLinks';
-import { getErrorMessage } from 'shared/utils/error';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { IAppContext } from 'teleterm/ui/types';
@@ -60,7 +59,7 @@ export async function launchDeepLink(
         break;
       }
       case 'malformed-url': {
-        reason = `The URL of the link appears to be malformed. ${getErrorMessage(result.error)}`;
+        reason = `The URL of the link appears to be malformed. ${result.error.message}`;
         break;
       }
       default: {

@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
@@ -96,7 +96,7 @@ type Config struct {
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
@@ -137,7 +137,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("connections handler missing")
 	}
 	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("ConnectedProxyGetter missing")
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	if c.ScopePin != nil {
 		if err := pinning.WeakValidate(c.ScopePin); err != nil {
@@ -622,8 +622,8 @@ func (s *Server) close(ctx context.Context) error {
 		// Manual deletion per app is only required if the auth server
 		// doesn't support actively cleaning up app resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
-			shouldDeleteApps = shouldDeleteApps && !capabilities.GetAppCleanup()
+		if capabilities := sender.Hello().Capabilities; capabilities != nil {
+			shouldDeleteApps = shouldDeleteApps && !capabilities.AppCleanup
 		}
 	}
 
@@ -636,6 +636,7 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.apps {
+		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {

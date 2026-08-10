@@ -54,6 +54,11 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
+	ctx, err = withReusableAdminActionMFA(ctx, client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	createResponse, err := c.createAccessList(ctx, client, newAccessList, members)
 	if err != nil {
 		return trace.Wrap(err)
@@ -92,7 +97,7 @@ func (c *Command) buildOwners() ([]accesslist.Owner, error) {
 	for _, name := range utils.SplitIdentifiers(c.owners) {
 		owners = append(owners, accesslist.Owner{Name: name, MembershipKind: accesslist.MembershipKindUser})
 	}
-	ownerNames, err := splitQualifiedNames(c.ownerAccessLists)
+	ownerNames, err := splitACLQualifiedNames(c.ownerAccessLists)
 	if err != nil {
 		return nil, trace.BadParameter("parsing owner access list name")
 	}
@@ -296,7 +301,7 @@ func (c *Command) buildMembers(accessListName scopes.QualifiedName) ([]*accessli
 		}
 		members = append(members, m)
 	}
-	memberListNames, err := splitQualifiedNames(c.memberAccessLists)
+	memberListNames, err := splitACLQualifiedNames(c.memberAccessLists)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing member access list name")
 	}

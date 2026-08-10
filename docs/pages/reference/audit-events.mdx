@@ -93,21 +93,6 @@ Example:
 }
 ```
 
-## access_graph_settings.update
-
-Access Graph Settings Updated
-
-Example:
-
-```json
-{
-  "code": "TCAGC003I",
-  "time": "2022-04-13T20:00:05.000Z",
-  "user": "alice@example.com",
-  "event": "access_graph_settings.update"
-}
-```
-
 ## access_list.create
 
 There are multiple events with the `access_list.create` type.
@@ -566,40 +551,6 @@ Example:
 }
 ```
 
-## agent-forward
-
-There are multiple events with the `agent-forward` type.
-
-### T3013I
-
-Agent Forwarding Requested
-
-Example:
-
-```json
-{
-  "code": "T3013I",
-  "event": "agent-forward",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
-}
-```
-
-### T3013W
-
-Agent Forwarding Request Failed
-
-Example:
-
-```json
-{
-  "code": "T3013W",
-  "event": "agent-forward",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
-}
-```
-
 ## app.create
 
 Application Created
@@ -760,38 +711,6 @@ Example:
 }
 ```
 
-## app.session.target.dial.denied
-
-App Target Dial Denied
-
-Example:
-
-```json
-{
-  "app_name": "internal-app",
-  "app_public_addr": "internal-app.root.gravitational.io",
-  "app_uri": "http://metadata.internal",
-  "blocked_ip": "169.254.169.254",
-  "blocked_prefix": "169.254.0.0/16",
-  "cluster_name": "root",
-  "code": "T2019E",
-  "ei": 0,
-  "event": "app.session.target.dial.denied",
-  "namespace": "default",
-  "policy": "denied_hosts",
-  "resolved_ips": [
-    "169.254.169.254"
-  ],
-  "server_id": "8e70002c-7a07-4513-a3fa-ac556a1d7534",
-  "sid": "11c328b4-5a1e-4adc-b7cb-206389e5f130",
-  "target_host": "metadata.internal",
-  "target_port": "80",
-  "time": "2022-08-10T19:54:41.444Z",
-  "uid": "bc1fbf7e-b739-4ea3-8bb9-cf1e79c8acb5",
-  "user": "alice"
-}
-```
-
 ## app.update
 
 Application Updated
@@ -808,107 +727,6 @@ Example:
   "aws_role_arn": "arn:aws:iam::1234567890:role/steve",
   "name": "dynamic-app",
   "user": "mike"
-}
-```
-
-## app_auth_config.create
-
-App Auth Config created
-
-Example:
-
-```json
-{
-  "cluster_name": "dev",
-  "code": "TAAC001I",
-  "ei": 0,
-  "event": "app_auth_config.create",
-  "expires": "0001-01-01T00:00:00Z",
-  "name": "example",
-  "time": "2025-03-04T15:49:21.869Z",
-  "uid": "0cb8a020-46ee-4938-833a-69bc03a7a831",
-  "user": "alice"
-}
-```
-
-## app_auth_config.delete
-
-App Auth Config deleted
-
-Example:
-
-```json
-{
-  "cluster_name": "dev",
-  "code": "TAAC003I",
-  "ei": 0,
-  "event": "app_auth_config.delete",
-  "expires": "0001-01-01T00:00:00Z",
-  "name": "example",
-  "time": "2025-03-04T15:49:21.869Z",
-  "uid": "0cb8a020-46ee-4938-833a-69bc03a7a831",
-  "user": "alice"
-}
-```
-
-## app_auth_config.update
-
-App Auth Config updated
-
-Example:
-
-```json
-{
-  "cluster_name": "dev",
-  "code": "TAAC002I",
-  "ei": 0,
-  "event": "app_auth_config.update",
-  "expires": "0001-01-01T00:00:00Z",
-  "name": "example",
-  "time": "2025-03-04T15:49:21.869Z",
-  "uid": "0cb8a020-46ee-4938-833a-69bc03a7a831",
-  "user": "alice"
-}
-```
-
-## app_auth_config.verify.failure
-
-App authentication failed
-
-Example:
-
-```json
-{
-  "cluster_name": "dev",
-  "code": "TAAC004E",
-  "ei": 0,
-  "event": "app_auth_config.verify.failure",
-  "expires": "0001-01-01T00:00:00Z",
-  "time": "2025-03-04T15:49:21.869Z",
-  "app_auth_config": "example",
-  "app_name": "mcp-everything",
-  "error": "Invalid token: audience mismatch"
-}
-```
-
-## app_auth_config.verify.success
-
-App authentication succeeded
-
-Example:
-
-```json
-{
-  "cluster_name": "dev",
-  "code": "TAAC004I",
-  "ei": 0,
-  "event": "app_auth_config.verify.success",
-  "expires": "0001-01-01T00:00:00Z",
-  "time": "2025-03-04T15:49:21.869Z",
-  "user": "alice",
-  "success": true,
-  "app_auth_config": "example",
-  "app_name": "mcp-everything"
 }
 ```
 
@@ -1732,10 +1550,8 @@ Example:
   "cluster_name": "localhost",
   "code": "CIR001I",
   "ei": 0,
-  "enforcement_expires": "2026-10-21T20:45:14.775Z",
   "event": "cir.update",
   "expires": "0001-01-01T00:00:00Z",
-  "mode": "enforced",
   "name": "client_ip_restriction",
   "success": true,
   "time": "2025-10-21T20:45:14.775Z",
@@ -1745,217 +1561,6 @@ Example:
   "user_kind": 1,
   "user_roles": [
     "editor"
-  ]
-}
-```
-
-## classifier.create
-
-There are multiple events with the `classifier.create` type.
-
-### INF014I
-
-Classifier Created
-
-Example:
-
-```json
-{
-  "addr.remote": "127.0.0.1:62460",
-  "cluster_name": "teleport.dev",
-  "code": "INF014I",
-  "ei": 0,
-  "event": "classifier.create",
-  "name": "my-classifier",
-  "success": true,
-  "time": "2025-03-04T16:01:21.869Z",
-  "uid": "ae973df2-4bee-4a67-9925-575c1d38cc80",
-  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
-  "user_cluster_name": "teleport.dev",
-  "user_kind": 3,
-  "user_roles": [
-    "Admin"
-  ],
-  "payload": {
-    "metadata": {
-      "name": "my-classifier"
-    },
-    "spec": {
-      "kinds": [
-        "ssh",
-        "k8s"
-      ],
-      "resource_labels": [
-        {
-          "name": "env",
-          "values": [
-            "prod"
-          ]
-        }
-      ],
-      "v1": {}
-    }
-  }
-}
-```
-
-### INF014E
-
-Classifier Creation Failed
-
-Example:
-
-```json
-{
-  "addr.remote": "127.0.0.1:62460",
-  "cluster_name": "teleport.dev",
-  "code": "INF014E",
-  "ei": 0,
-  "event": "classifier.create",
-  "name": "my-classifier",
-  "error": "classifier \"my-classifier\" already exists",
-  "success": false,
-  "time": "2025-03-04T16:01:31.869Z",
-  "uid": "b1973df2-4bee-4a67-9925-575c1d38cc80",
-  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
-  "user_cluster_name": "teleport.dev",
-  "user_kind": 3,
-  "user_roles": [
-    "Admin"
-  ]
-}
-```
-
-## classifier.delete
-
-There are multiple events with the `classifier.delete` type.
-
-### INF016I
-
-Classifier Deleted
-
-Example:
-
-```json
-{
-  "addr.remote": "127.0.0.1:62460",
-  "cluster_name": "teleport.dev",
-  "code": "INF016I",
-  "ei": 0,
-  "event": "classifier.delete",
-  "name": "my-classifier",
-  "success": true,
-  "time": "2025-03-04T16:03:21.869Z",
-  "uid": "b0973df2-4bee-4a67-9925-575c1d38cc80",
-  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
-  "user_cluster_name": "teleport.dev",
-  "user_kind": 3,
-  "user_roles": [
-    "Admin"
-  ]
-}
-```
-
-### INF016E
-
-Classifier Deletion Failed
-
-Example:
-
-```json
-{
-  "addr.remote": "127.0.0.1:62460",
-  "cluster_name": "teleport.dev",
-  "code": "INF016E",
-  "ei": 0,
-  "event": "classifier.delete",
-  "name": "my-classifier",
-  "error": "classifier \"my-classifier\" doesn't exist",
-  "success": false,
-  "time": "2025-03-04T16:03:31.869Z",
-  "uid": "b3973df2-4bee-4a67-9925-575c1d38cc80",
-  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
-  "user_cluster_name": "teleport.dev",
-  "user_kind": 3,
-  "user_roles": [
-    "Admin"
-  ]
-}
-```
-
-## classifier.update
-
-There are multiple events with the `classifier.update` type.
-
-### INF015I
-
-Classifier Updated
-
-Example:
-
-```json
-{
-  "addr.remote": "127.0.0.1:62460",
-  "cluster_name": "teleport.dev",
-  "code": "INF015I",
-  "ei": 0,
-  "event": "classifier.update",
-  "name": "my-classifier",
-  "success": true,
-  "time": "2025-03-04T16:02:21.869Z",
-  "uid": "af973df2-4bee-4a67-9925-575c1d38cc80",
-  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
-  "user_cluster_name": "teleport.dev",
-  "user_kind": 3,
-  "user_roles": [
-    "Admin"
-  ],
-  "payload": {
-    "metadata": {
-      "name": "my-classifier"
-    },
-    "spec": {
-      "kinds": [
-        "ssh"
-      ],
-      "resource_labels": [
-        {
-          "name": "env",
-          "values": [
-            "prod",
-            "staging"
-          ]
-        }
-      ],
-      "v1": {}
-    }
-  }
-}
-```
-
-### INF015E
-
-Classifier Update Failed
-
-Example:
-
-```json
-{
-  "addr.remote": "127.0.0.1:62460",
-  "cluster_name": "teleport.dev",
-  "code": "INF015E",
-  "ei": 0,
-  "event": "classifier.update",
-  "name": "my-classifier",
-  "error": "classifier \"my-classifier\" doesn't exist",
-  "success": false,
-  "time": "2025-03-04T16:02:31.869Z",
-  "uid": "b2973df2-4bee-4a67-9925-575c1d38cc80",
-  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
-  "user_cluster_name": "teleport.dev",
-  "user_kind": 3,
-  "user_roles": [
-    "Admin"
   ]
 }
 ```
@@ -3635,58 +3240,6 @@ Example:
 }
 ```
 
-## device.enroll_pairing.request
-
-There are multiple events with the `device.enroll_pairing.request` type.
-
-### TV010I
-
-Device Enroll Pairing Requested
-
-Example:
-
-```json
-{
-  "cluster_name": "im-a-cluster-name",
-  "code": "TV010I",
-  "device": {
-    "asset_tag": "M2CQVQV64R",
-    "device_id": "",
-    "os_type": 4
-  },
-  "ei": 0,
-  "event": "device.enroll_pairing.request",
-  "success": true,
-  "time": "2024-04-08T19:37:48.1Z",
-  "uid": "a7b3e9f1-4d5c-6a8b-9012-def345678901",
-  "user": "llama"
-}
-```
-
-### TV010W
-
-Device Enroll Pairing Request Failed
-
-Example:
-
-```json
-{
-  "cluster_name": "im-a-cluster-name",
-  "code": "TV010W",
-  "device": {
-    "asset_tag": "M2CQVQV64R",
-    "device_id": "",
-    "os_type": 4
-  },
-  "ei": 0,
-  "error": "invalid pairing token",
-  "event": "device.enroll_pairing.request",
-  "success": false,
-  "time": "2024-04-08T19:38:48.1Z",
-  "uid": "a7b3e9f1-4d5c-6a8b-9012-def345678902"
-}
-```
-
 ## device.token.create
 
 Device Enroll Token Created
@@ -4084,66 +3637,6 @@ Example:
   "time": "2025-03-04T15:49:21.869Z",
   "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
   "user": "gavin"
-}
-```
-
-## http.request
-
-App HTTP Request
-
-Example:
-
-```json
-{
-  "code": "T2015I",
-  "event": "http.request",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
-}
-```
-
-## http.request.body_chunk
-
-App HTTP Request Body
-
-Example:
-
-```json
-{
-  "code": "T2016I",
-  "event": "http.request.body_chunk",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
-}
-```
-
-## http.response
-
-App HTTP Response
-
-Example:
-
-```json
-{
-  "code": "T2017I",
-  "event": "http.response",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
-}
-```
-
-## http.response.body_chunk
-
-App HTTP Response Body
-
-Example:
-
-```json
-{
-  "code": "T2018I",
-  "event": "http.response.body_chunk",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 

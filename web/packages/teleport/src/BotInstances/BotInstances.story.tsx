@@ -18,10 +18,12 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Route, Routes } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Router } from 'react-router';
 
 import Box from 'design/Box/Box';
 
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -181,6 +183,10 @@ function Wrapper(props?: {
     hasBotInstanceReadPermission = true,
   } = props ?? {};
 
+  const history = createMemoryHistory({
+    initialEntries: ['/web/bots/instances'],
+  });
+
   const customAcl = makeAcl({
     botInstances: {
       ...defaultAccess,
@@ -195,21 +201,17 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TeleportProviderBasic
-        teleportCtx={ctx}
-        initialEntries={['/web/bots/instances']}
-      >
-        <Routes>
-          <Route
-            path={cfg.routes.botInstances}
-            element={
+      <MemoryRouter>
+        <TeleportProviderBasic teleportCtx={ctx}>
+          <Router history={history}>
+            <Route path={cfg.routes.botInstances}>
               <Box height={820}>
                 <BotInstances />
               </Box>
-            }
-          />
-        </Routes>
-      </TeleportProviderBasic>
+            </Route>
+          </Router>
+        </TeleportProviderBasic>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }

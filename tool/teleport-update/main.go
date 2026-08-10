@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -208,7 +207,7 @@ func Run(args []string) int {
 	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
 		Short('f').BoolVar(&ccfg.ForceUninstall)
 
-	libutils.UpdateAppUsageTemplate(app)
+	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)

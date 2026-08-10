@@ -243,23 +243,23 @@ func (s *EmailSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "test-email-amr",
-			}.Build(),
-			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: accessmonitoringrulesv1.Notification_builder{
+				Notification: &accessmonitoringrulesv1.Notification{
 					Name: "email",
 					Recipients: []string{
 						integration.Reviewer1UserName,
 					},
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 	require.NoError(t, err)
 
 	// Test execution: create an access request
@@ -293,23 +293,23 @@ func (s *EmailSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "test-email-amr-2",
-			}.Build(),
-			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: accessmonitoringrulesv1.Notification_builder{
+				Notification: &accessmonitoringrulesv1.Notification{
 					Name: "email",
 					Recipients: []string{
 						integration.Reviewer1UserName,
 					},
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 	require.NoError(t, err)
 
 	// Test execution: create an access request
@@ -326,23 +326,23 @@ func (s *EmailSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	// Update the Access Monitoring Rule so it is no longer applied
 	_, err = s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		UpdateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
+		UpdateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: "test-email-amr-2",
-			}.Build(),
-			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{"someOtherKind"},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: accessmonitoringrulesv1.Notification_builder{
+				Notification: &accessmonitoringrulesv1.Notification{
 					Name: "email",
 					Recipients: []string{
 						integration.Reviewer1UserName,
 					},
-				}.Build(),
-			}.Build(),
-		}.Build())
+				},
+			},
+		})
 	require.NoError(t, err)
 
 	// Test execution: create an access request
@@ -554,7 +554,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 	}
 
 	process := lib.NewProcess(ctx)
-	for range s.raceNumber {
+	for i := 0; i < s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
@@ -569,7 +569,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 	}
 
 	// 3 original messages + 2*3 reviews + 3 resolve
-	for range messageCountPerThread * s.raceNumber {
+	for i := 0; i < messageCountPerThread*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.mockMailgun.GetMessage(ctx)
 			if err != nil {
@@ -612,7 +612,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 	<-process.Done()
 	require.NoError(t, raceErr)
 
-	threadIDs.Range(func(key, value any) bool {
+	threadIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := threadIDs.LoadAndDelete(key)
@@ -625,7 +625,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 		return next
 	})
 
-	replyIDs.Range(func(key, value any) bool {
+	replyIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := replyIDs.LoadAndDelete(key)
@@ -638,7 +638,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 		return next
 	})
 
-	resolveIDs.Range(func(key, value any) bool {
+	resolveIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := resolveIDs.LoadAndDelete(key)

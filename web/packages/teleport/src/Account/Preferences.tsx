@@ -313,7 +313,15 @@ export function Preferences({ setErrorMessage }: PreferencesProps) {
         <SingleRowBox>
           <Header
             title="Windows Desktop Session Keyboard Layout"
-            description="Choose keyboard layout for Windows Desktop sessions."
+            description={
+              <>
+                Choose keyboard layout for Windows Desktop sessions.
+                <br />
+                <br />
+                Note: To maintain keyboard layout settings your agents need to
+                be upgraded to Teleport 18.0.0 or later.
+              </>
+            }
             icon={<Icon.Keyboard />}
             actions={
               <Box minWidth="210px">

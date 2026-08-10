@@ -32,7 +32,6 @@ import Link from 'design/Link';
 import FieldInput from 'shared/components/FieldInput';
 import Select from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
-import { getErrorMessage } from 'shared/utils/error';
 
 import cfg from 'teleport/config';
 
@@ -309,16 +308,10 @@ const EnterpriseHostError = () => {
     </Box>
   );
 };
-const InvalidHostError = ({
-  rule,
-  error,
-}: {
-  rule: string;
-  error: unknown;
-}) => {
+const InvalidHostError = ({ rule, error }: { rule: string; error: string }) => {
   return (
     <Box>
-      Invalid address {rule}: {getErrorMessage(error)}
+      Invalid address {rule}: {error}
     </Box>
   );
 };

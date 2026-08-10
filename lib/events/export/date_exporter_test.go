@@ -228,6 +228,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 
 // TestDateExporterResume verifies non-trivial exporter resumption behavior, with and without
 // random flake.
+
 func TestDateExporterResume(t *testing.T) {
 	t.Parallel()
 	for _, randomFlake := range []bool{false, true} {
@@ -331,6 +332,8 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	// get the final state of the exporter
 	state := exporter.GetState()
 
+	fmt.Printf("cursors=%+v\n", state.Cursors)
+
 	// recreate exporter with state from previous run
 	exporter, err = NewDateExporter(DateExporterConfig{
 		Client:        clt,
@@ -377,10 +380,10 @@ func makeEventChunk(t *testing.T, ts time.Time, n int) ([]*auditlogpb.ExportEven
 
 		event, err := apievents.ToUnstructured(&baseEvent)
 		require.NoError(t, err)
-		chunk = append(chunk, auditlogpb.ExportEventUnstructured_builder{
+		chunk = append(chunk, &auditlogpb.ExportEventUnstructured{
 			Event:  event,
 			Cursor: strconv.Itoa(i + 1),
-		}.Build())
+		})
 		batchedEvents = append(batchedEvents, event)
 	}
 
@@ -417,22 +420,22 @@ func (c *fakeClient) addChunk(date string, chunk string, events []*auditlogpb.Ex
 func (c *fakeClient) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	chunks, ok := c.data[req.GetDate().AsTime().Format(time.DateOnly)]
+	chunks, ok := c.data[req.Date.AsTime().Format(time.DateOnly)]
 	if !ok {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotFound("date not found"))
 	}
 
-	chunk, ok := chunks[req.GetChunk()]
+	chunk, ok := chunks[req.Chunk]
 	if !ok {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotFound("chunk not found"))
 	}
 
 	var cursor int
-	if req.GetCursor() != "" {
+	if req.Cursor != "" {
 		var err error
-		cursor, err = strconv.Atoi(req.GetCursor())
+		cursor, err = strconv.Atoi(req.Cursor)
 		if err != nil {
-			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("invalid cursor %q", req.GetCursor()))
+			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("invalid cursor %q", req.Cursor))
 		}
 	}
 
@@ -457,16 +460,16 @@ func (c *fakeClient) ExportUnstructuredEvents(ctx context.Context, req *auditlog
 func (c *fakeClient) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	chunks, ok := c.data[req.GetDate().AsTime().Format(time.DateOnly)]
+	chunks, ok := c.data[req.Date.AsTime().Format(time.DateOnly)]
 	if !ok {
 		return stream.Empty[*auditlogpb.EventExportChunk]()
 	}
 
 	var eec []*auditlogpb.EventExportChunk
 	for name := range chunks {
-		eec = append(eec, auditlogpb.EventExportChunk_builder{
+		eec = append(eec, &auditlogpb.EventExportChunk{
 			Chunk: name,
-		}.Build())
+		})
 	}
 
 	// randomly truncate the chunk list and append an error to simulate flake. we target a 50% failure rate

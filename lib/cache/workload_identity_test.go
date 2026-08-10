@@ -63,18 +63,18 @@ func workloadIdentityPageFunc(
 }
 
 func newWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentity {
-	return workloadidentityv1pb.WorkloadIdentity_builder{
+	return &workloadidentityv1pb.WorkloadIdentity{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
-		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
-			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
 				Id: "/example",
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 }
 
 // createWorkloadIdentities creates the given identities (keyed by name, valued
@@ -600,6 +600,6 @@ func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
 	// name sorts before the uppercase one.
 	results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true))
 	require.Len(t, results, 2)
-	require.Equal(t, "test-workload-identity-1", results[0].GetMetadata().GetName())
-	require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].GetMetadata().GetName())
+	require.Equal(t, "test-workload-identity-1", results[0].Metadata.Name)
+	require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].Metadata.Name)
 }

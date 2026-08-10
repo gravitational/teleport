@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@testing-library/jest-dom';
 import {
   act,
   createEvent,
@@ -25,6 +24,7 @@ import {
   renderHook,
   screen,
 } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { PropsWithChildren } from 'react';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -181,10 +181,12 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
-    fireEvent.click(screen.getByTestId('open'));
+    // oxlint-disable-next-line testing-library/no-node-access
+    act(() => screen.getByTestId('open').click());
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
-    fireEvent.click(screen.getByTestId('close'));
+    // oxlint-disable-next-line testing-library/no-node-access
+    act(() => screen.getByTestId('close').click());
     expect(otherInput).toHaveFocus();
   });
 });

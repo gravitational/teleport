@@ -47,7 +47,6 @@ type RequestState =
   | 'searchPending'
   | 'rolePending'
   | 'roleDenied'
-  | 'roleDeniedWithDisplays'
   | 'roleApproved'
   | 'roleApprovedWithStartTime'
   | 'resourcePendingWithConstraints'
@@ -90,8 +89,6 @@ function requestAttempt(r: RequestState): Attempt<AccessRequest> {
       return makeSuccessAttempt(requestRolePending);
     case 'roleDenied':
       return makeSuccessAttempt(requestRoleDenied);
-    case 'roleDeniedWithDisplays':
-      return makeSuccessAttempt(requestRoleDeniedWithDisplays);
     case 'roleApproved':
       return makeSuccessAttempt(requestRoleApproved);
     case 'roleApprovedWithStartTime':
@@ -155,7 +152,6 @@ const meta = {
         'searchPending',
         'rolePending',
         'roleDenied',
-        'roleDeniedWithDisplays',
         'roleApproved',
         'roleApprovedWithStartTime',
         'resourcePendingWithConstraints',
@@ -245,10 +241,6 @@ export const LoadedRoleDenied: Story = {
   args: { request: 'roleDenied', canDelete: true },
 };
 
-export const LoadedRoleDeniedWithDisplays: Story = {
-  args: { request: 'roleDeniedWithDisplays', canDelete: true },
-};
-
 export const LoadedRoleApproved: Story = {
   args: { request: 'roleApproved', canDelete: true, canAssume: true },
 };
@@ -305,45 +297,6 @@ export const LongTermNoEligibleAccessList: Story = {
     suggestions: 'empty',
     canReview: true,
   },
-};
-
-const requestRoleDeniedWithDisplays: AccessRequest = {
-  ...requestRoleDenied,
-  user: 'requester',
-  userDisplay: { primary: 'Requesting User' },
-  reviews: [
-    {
-      ...requestRoleDenied.reviews[0],
-      author: 'reviewer-one',
-      authorDisplay: { primary: 'Shared Reviewer' },
-    },
-  ],
-  reviewers: [
-    {
-      name: 'reviewer-one',
-      display: { primary: 'Shared Reviewer' },
-      state: 'DENIED',
-    },
-    {
-      name: 'reviewer-two',
-      display: { primary: 'Shared Reviewer' },
-      state: 'PENDING',
-    },
-    {
-      name: 'empty-display',
-      display: {},
-      state: 'PENDING',
-    },
-    {
-      name: 'secondary-only',
-      display: { secondary: 'secondary@example.com' },
-      state: 'PENDING',
-    },
-    {
-      name: 'absent-display',
-      state: 'PENDING',
-    },
-  ],
 };
 
 export const LongTermSuggestionsPermissionDenied: Story = {

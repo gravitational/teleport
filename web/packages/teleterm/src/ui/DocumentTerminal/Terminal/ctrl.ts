@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
-import '@xterm/xterm/css/xterm.css';
 
 import {
   SearchAddon,
@@ -28,7 +28,8 @@ import { debounce } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 import { AppConfig, ConfigService } from 'teleterm/services/config';
-import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
+import { WindowsPty } from 'teleterm/services/pty';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
@@ -237,18 +238,11 @@ export default class TtyTerminal implements TerminalSearcher {
     this.fitAddon.fit();
 
     this.term.onData(data => {
-      this.ptyProcess.write(data).catch(error => {
-        this.logger.error('Failed to write to the PTY process', error);
-      });
+      this.ptyProcess.write(data);
     });
 
     this.term.onResize(size => {
-      this.ptyProcess.resize(size.cols, size.rows).catch(error => {
-        this.logger.error(
-          'Failed to send resize request to the PTY process',
-          error
-        );
-      });
+      this.ptyProcess.resize(size.cols, size.rows);
     });
 
     this.removePtyProcessOnDataListener = this.ptyProcess.onData(data =>
@@ -259,9 +253,7 @@ export default class TtyTerminal implements TerminalSearcher {
     // This is what is causing the terminal to visually repeat the input on hot reload.
     // The shared process version of PtyProcess knows whether it was started or not (the status
     // field), so it's a matter of exposing this field through gRPC and reading it here.
-    this.ptyProcess.start(this.term.cols, this.term.rows).catch(error => {
-      this.logger.error('Failed to start the PTY process', error);
-    });
+    this.ptyProcess.start(this.term.cols, this.term.rows);
 
     window.addEventListener('resize', this.debouncedResize);
   }

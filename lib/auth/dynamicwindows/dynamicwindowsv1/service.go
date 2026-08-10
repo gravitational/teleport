@@ -131,14 +131,14 @@ func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynam
 		return nil, trace.Wrap(err)
 	}
 
-	desktops, next, err := s.cache.ListDynamicWindowsDesktops(ctx, int(request.GetPageSize()), request.GetPageToken())
+	desktops, next, err := s.cache.ListDynamicWindowsDesktops(ctx, int(request.PageSize), request.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := dynamicwindowspb.ListDynamicWindowsDesktopsResponse_builder{
+	response := &dynamicwindowspb.ListDynamicWindowsDesktopsResponse{
 		NextPageToken: next,
-	}.Build()
+	}
 	for _, d := range desktops {
 		if err := checkAccess(auth, d); err != nil {
 			continue
@@ -147,7 +147,7 @@ func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynam
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", d)
 		}
-		response.SetDesktops(append(response.GetDesktops(), desktop))
+		response.Desktops = append(response.Desktops, desktop)
 	}
 
 	return response, nil

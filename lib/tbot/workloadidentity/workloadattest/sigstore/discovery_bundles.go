@@ -80,9 +80,9 @@ func (d *BundleDiscoveryMethod) Discover(ctx context.Context) ([]*workloadidenti
 			return nil, trace.Wrap(err, "marshaling bundle proto")
 		}
 
-		payloads = append(payloads, workloadidentityv1.SigstoreVerificationPayload_builder{
+		payloads = append(payloads, &workloadidentityv1.SigstoreVerificationPayload{
 			Bundle: bundleProto,
-		}.Build())
+		})
 		if len(payloads) == maxPayloads {
 			break
 		}

@@ -116,61 +116,49 @@ func (l *Handler) Close() error {
 	return nil
 }
 
-// StreamSessionRecording reads a session recording from a local directory.
-func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return openFile(l.recordingPath(sessionID))
+// Download reads a session recording from a local directory.
+func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return trace.Wrap(downloadFile(l.recordingPath(sessionID), writer))
 }
 
-// StreamSessionSummary reads a session summary from a local directory.
-func (l *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	filePathsToTest := [3]string{
-		l.summaryPath(sessionID),
-		l.pendingSummaryPath(sessionID),
-		// re-check the final summary to prevent
-		// delete temp files between the two checks above
-		l.summaryPath(sessionID),
-	}
-	for _, path := range filePathsToTest {
-		f, err := openFile(path)
-		if err == nil {
-			return f, nil
-		}
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+// DownloadSummary reads a session summary from a local directory.
+func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	// Happy path: the final summary exists.
+	err := downloadFile(l.summaryPath(sessionID), writer)
+	if trace.IsNotFound(err) {
+		// Final summary doesn't exist, try the pending one.
+		err = downloadFile(l.pendingSummaryPath(sessionID), writer)
+		if trace.IsNotFound(err) {
+			// One more check for the final summary to prevent a race condition where
+			// the final one got created and the pending one got removed between the
+			// two checks above.
+			err = downloadFile(l.summaryPath(sessionID), writer)
 		}
 	}
-	return nil, trace.NotFound("summary for session %v not found", sessionID)
+	return trace.Wrap(err)
 }
 
-// StreamReplayObjectRange reads a ranged portion of a named beam-replay
-// artifact object from a local directory. A length <= 0 reads to the end of
-// the object. Returns a "not found" error if the object does not exist.
-func (l *Handler) StreamReplayObjectRange(ctx context.Context, sessionID session.ID, name string, offset, length int64) (io.ReadCloser, error) {
-	if err := events.ValidateReplayObjectName(name); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	f, err := os.Open(l.replayPath(sessionID, name))
+// DownloadMetadata reads session metadata from a local directory.
+func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return trace.Wrap(downloadFile(l.metadataPath(sessionID), writer))
+}
+
+// DownloadThumbnail reads a session thumbnail from a local directory.
+func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return trace.Wrap(downloadFile(l.thumbnailPath(sessionID), writer))
+}
+
+func downloadFile(path string, writer io.Writer) error {
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return trace.ConvertSystemError(err)
 	}
-	if _, err := f.Seek(offset, io.SeekStart); err != nil {
-		_ = f.Close()
-		return nil, trace.ConvertSystemError(err)
+	defer f.Close()
+	_, err = io.Copy(writer, f)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if length <= 0 {
-		return f, nil
-	}
-	return &limitedReadCloser{Reader: io.LimitReader(f, length), Closer: f}, nil
-}
-
-// StreamSessionMetadata reads session metadata from a local directory.
-func (l *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return openFile(l.metadataPath(sessionID))
-}
-
-// StreamSessionThumbnail reads a session thumbnail from a local directory.
-func (l *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return openFile(l.thumbnailPath(sessionID))
+	return nil
 }
 
 // Upload writes a session recording to a local directory.
@@ -203,16 +191,6 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return name, nil
 }
 
-// UploadReplayObject writes a named beam-replay artifact object to a local
-// directory. This function can be called only once for a given sessionID and
-// name; subsequent calls will return an error.
-func (l *Handler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
-	if err := events.ValidateReplayObjectName(name); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return uploadFile(l.replayPath(sessionID, name), reader)
-}
-
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return uploadFile(l.metadataPath(sessionID), reader)
@@ -221,22 +199,6 @@ func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, read
 // UploadThumbnail writes a session thumbnail to a local directory.
 func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return uploadFile(l.thumbnailPath(sessionID), reader)
-}
-
-func openFile(path string) (io.ReadCloser, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	return f, nil
-}
-
-// limitedReadCloser wraps a Reader (typically an [io.LimitReader] over an
-// open file) together with the underlying Closer, so that callers can close
-// the underlying file once done reading a bounded range of it.
-type limitedReadCloser struct {
-	io.Reader
-	io.Closer
 }
 
 type fileUploadConfig struct {
@@ -290,12 +252,6 @@ func (l *Handler) summaryPath(sessionID session.ID) string {
 
 func (l *Handler) metadataPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+metadataExt)
-}
-
-// replayPath returns the path of a named beam-replay artifact object for a
-// given session, e.g. "<sessionID>.replay.<name>".
-func (l *Handler) replayPath(sessionID session.ID, name string) string {
-	return filepath.Join(l.Directory, string(sessionID)+".replay."+name)
 }
 
 func (l *Handler) thumbnailPath(sessionID session.ID) string {

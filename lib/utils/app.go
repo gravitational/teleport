@@ -17,10 +17,7 @@
 package utils
 
 import (
-	"cmp"
 	"fmt"
-	"net"
-	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
@@ -48,20 +45,8 @@ func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClust
 	return DefaultAppPublicAddr(app.GetName(), localProxyDNSName)
 }
 
-// DefaultAppPublicAddr returns "<appName>.<localProxyDNSName>",
-// stripping a trailing port and lowercasing the host so the result
-// satisfies ValidatePublicAddr.
+// DefaultAppPublicAddr returns the default publicAddr for an app.
+// Format: <appName>.<localProxyDNSName>
 func DefaultAppPublicAddr(appName, localProxyDNSName string) string {
-	if host, _, err := net.SplitHostPort(localProxyDNSName); err == nil {
-		localProxyDNSName = host
-	}
-	return fmt.Sprintf("%s.%s", appName, strings.ToLower(localProxyDNSName))
-}
-
-// DefaultAppFQDN returns the default routing FQDN for an app.
-// proxyPublicAddrHost takes precedence; clusterName is the fallback
-// when it is empty. An IP-valued proxy public_addr is used as-is,
-// not replaced by clusterName.
-func DefaultAppFQDN(appName, proxyPublicAddrHost, clusterName string) string {
-	return DefaultAppPublicAddr(appName, cmp.Or(proxyPublicAddrHost, clusterName))
+	return fmt.Sprintf("%v.%v", appName, localProxyDNSName)
 }

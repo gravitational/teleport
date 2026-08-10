@@ -53,15 +53,15 @@ func BenchmarkStore(b *testing.B) {
 		store := NewStore()
 		var wg sync.WaitGroup
 
-		for i := range insertions {
+		for i := 0; i < insertions; i++ {
 			wg.Add(1)
 			go func(sn int) {
 				defer wg.Done()
 				serverID := fmt.Sprintf("server-%d", sn%uniqueServers)
 				handle := &upstreamHandle{
-					hello: proto.UpstreamInventoryHello_builder{
+					hello: &proto.UpstreamInventoryHello{
 						ServerID: serverID,
-					}.Build(),
+					},
 				}
 				store.Insert(handle)
 				_, ok := store.Get(serverID)
@@ -77,7 +77,7 @@ func BenchmarkStore(b *testing.B) {
 						defer wg.Done()
 						var foundServer bool
 						store.UniqueHandles(func(h UpstreamHandle) {
-							if h.Hello().GetServerID() == serverID {
+							if h.Hello().ServerID == serverID {
 								foundServer = true
 							}
 						})
@@ -116,12 +116,12 @@ func TestStoreAccess(t *testing.T) {
 	handles := make(map[*upstreamHandle]int)
 
 	// create 1_000 handles across 100 unique server IDs.
-	for i := range 1_000 {
+	for i := 0; i < 1_000; i++ {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello_builder{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
-			}.Build(),
+			},
 		}
 		store.Insert(handle)
 		handles[handle] = 0
@@ -129,12 +129,12 @@ func TestStoreAccess(t *testing.T) {
 
 	// ensure that all server IDs yield a handle
 	for h := range handles {
-		_, ok := store.Get(h.Hello().GetServerID())
+		_, ok := store.Get(h.Hello().ServerID)
 		require.True(t, ok)
 	}
 
 	// ensure that all handles are visited if we iterate many times
-	for range 1_000 {
+	for i := 0; i < 1_000; i++ {
 		store.UniqueHandles(func(h UpstreamHandle) {
 			ptr := h.(*upstreamHandle)
 			n, ok := handles[ptr]
@@ -175,12 +175,12 @@ func TestAllHandles(t *testing.T) {
 	handles := make(map[*upstreamHandle]int)
 
 	// create 1_000 handles across 100 unique server IDs.
-	for i := range 1_000 {
+	for i := 0; i < 1_000; i++ {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello_builder{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
-			}.Build(),
+			},
 		}
 		store.Insert(handle)
 		handles[handle] = 0

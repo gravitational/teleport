@@ -25,14 +25,14 @@ jobs:
     steps:
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: 986f92841a4f032e262477e5bb15f214d50b1015 # workflows/v0.0.6
+          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
       - name: Installing Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version: 'stable'
       - name: Validate the changelog entry
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers='{}'
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

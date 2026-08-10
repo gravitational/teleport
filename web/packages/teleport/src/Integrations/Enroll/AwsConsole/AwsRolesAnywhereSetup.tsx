@@ -16,18 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
 
 import { Alert, Box, Flex } from 'design';
 
 import { EmptyState } from 'teleport/Bots/List/EmptyState/EmptyState';
 import { FeatureBox } from 'teleport/components/Layout';
-import {
-  Route,
-  Switch,
-  useLocation,
-  useParams,
-} from 'teleport/components/Router';
+import { Route, Switch, useParams } from 'teleport/components/Router';
 import { addIndexToViews } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 import cfg from 'teleport/config';
@@ -39,9 +34,9 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
 export const AwsRolesAnywhereSetup = () => {
-  const params = useParams<Record<string, string | undefined>>();
-  const subPage = params.subPage ?? params['*']?.split('/')[0];
+  const { subPage } = useParams<{ subPage?: string }>();
   const ctx = useTeleport();
+  const history = useHistory();
   const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
   const canEnroll = integrationsAccess.create;
 
@@ -89,7 +84,7 @@ export const AwsRolesAnywhereSetup = () => {
               IntegrationKind.AwsRa,
               IntegrationLevel.Access
             )}
-            element={<Access />}
+            component={Access}
           />
           <Route
             exact
@@ -98,7 +93,32 @@ export const AwsRolesAnywhereSetup = () => {
               IntegrationKind.AwsRa,
               IntegrationLevel.Next
             )}
-            element={<AwsRolesAnywhereNextStep />}
+            component={(props: {
+              location: { state: { integrationName: string } };
+            }) => {
+              return (
+                <Finished
+                  title="AWS IAM Roles Anywhere Profiles Successfully Imported"
+                  resourceText="AWS IAM Roles Anywhere Profiles will be imported soon and available in the Resources page."
+                  primaryButtonText="Go To Resources"
+                  primaryButtonAction={() =>
+                    history.push(
+                      `${cfg.getUnifiedResourcesRoute(cfg.proxyCluster)}?kinds=app&query=search("arn:aws:rolesanywhere")`,
+                      { kind: 'app' }
+                    )
+                  }
+                  secondaryButtonText="View Integration"
+                  secondaryButtonAction={() =>
+                    history.push(
+                      cfg.getIntegrationStatusRoute(
+                        IntegrationKind.AwsRa,
+                        props.location.state.integrationName
+                      )
+                    )
+                  }
+                />
+              );
+            }}
           />
           <Route>
             <IamIntegration />
@@ -108,34 +128,6 @@ export const AwsRolesAnywhereSetup = () => {
     </>
   );
 };
-
-function AwsRolesAnywhereNextStep() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const integrationName =
-    (location.state as { integrationName?: string } | undefined)
-      ?.integrationName || '';
-
-  return (
-    <Finished
-      title="AWS IAM Roles Anywhere Profiles Successfully Imported"
-      resourceText="AWS IAM Roles Anywhere Profiles will be imported soon and available in the Resources page."
-      primaryButtonText="Go To Resources"
-      primaryButtonAction={() =>
-        navigate(
-          `${cfg.getUnifiedResourcesRoute(cfg.proxyCluster)}?kinds=app&query=search("arn:aws:rolesanywhere")`,
-          { state: { kind: 'app' } }
-        )
-      }
-      secondaryButtonText="View Integration"
-      secondaryButtonAction={() =>
-        navigate(
-          cfg.getIntegrationStatusRoute(IntegrationKind.AwsRa, integrationName)
-        )
-      }
-    />
-  );
-}
 
 enum IntegrationLevel {
   Integration = 'integration',

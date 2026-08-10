@@ -74,13 +74,13 @@ func withEKSClusterIssueURL(metadata *usertasksv1.UserTask, cluster *usertasksv1
 		Path:     path.Join("eks", "home"),
 		Fragment: "/clusters/" + cluster.GetName(),
 		RawQuery: url.Values{
-			"region": []string{metadata.GetSpec().GetDiscoverEks().GetRegion()},
+			"region": []string{metadata.Spec.DiscoverEks.GetRegion()},
 		}.Encode(),
 	}
 
 	ret.ResourceURL = clusterBaseURL.String()
 
-	switch metadata.GetSpec().GetIssueType() {
+	switch metadata.Spec.IssueType {
 	case usertasksapi.AutoDiscoverEKSIssueAgentNotConnecting:
 		clusterBaseURL.Fragment = clusterBaseURL.Fragment + "/statefulsets/teleport-kube-agent?namespace=teleport-agent"
 		ret.OpenTeleportAgentURL = clusterBaseURL.String()
@@ -109,7 +109,7 @@ func withEKSClusterIssueURL(metadata *usertasksv1.UserTask, cluster *usertasksv1
 // - ManageEndpointAccessURL: links to the Manage Endpoint Access screen in the Amazon EKS Web Console, for the current EKS Cluster.
 // - ManageClusterURL: links to the EKS Cluster.
 func EKSClustersWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverEKSWithURLs {
-	clusters := ut.GetSpec().GetDiscoverEks().GetClusters()
+	clusters := ut.Spec.GetDiscoverEks().GetClusters()
 	clustersWithURLs := make(map[string]*DiscoverEKSClusterWithURLs, len(clusters))
 
 	for clusterName, cluster := range clusters {
@@ -117,7 +117,7 @@ func EKSClustersWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverEKSWithURLs 
 	}
 
 	return &UserTaskDiscoverEKSWithURLs{
-		DiscoverEKS: ut.GetSpec().GetDiscoverEks(),
+		DiscoverEKS: ut.Spec.GetDiscoverEks(),
 		Clusters:    clustersWithURLs,
 	}
 }
@@ -149,7 +149,7 @@ func withEC2InstanceIssueURL(metadata *usertasksv1.UserTask, instance *usertasks
 		Path:     path.Join("ec2", "home"),
 		Fragment: "InstanceDetails:instanceId=" + instance.GetInstanceId(),
 		RawQuery: url.Values{
-			"region": []string{metadata.GetSpec().GetDiscoverEc2().GetRegion()},
+			"region": []string{metadata.Spec.DiscoverEc2.GetRegion()},
 		}.Encode(),
 	}
 	ret.ResourceURL = instanceBaseURL.String()
@@ -161,7 +161,7 @@ func withEC2InstanceIssueURL(metadata *usertasksv1.UserTask, instance *usertasks
 // Currently, the following URLs will be added:
 // - ResourceURL: a link to open the instance in Amazon Web Console.
 func EC2InstancesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverEC2WithURLs {
-	instances := ut.GetSpec().GetDiscoverEc2().GetInstances()
+	instances := ut.Spec.GetDiscoverEc2().GetInstances()
 	instancesWithURLs := make(map[string]*DiscoverEC2InstanceWithURLs, len(instances))
 
 	for instanceID, instance := range instances {
@@ -169,7 +169,7 @@ func EC2InstancesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverEC2WithURLs
 	}
 
 	return &UserTaskDiscoverEC2WithURLs{
-		DiscoverEC2: ut.GetSpec().GetDiscoverEc2(),
+		DiscoverEC2: ut.Spec.GetDiscoverEc2(),
 		Instances:   instancesWithURLs,
 	}
 }
@@ -277,7 +277,7 @@ func withAzureVMInstanceIssueURL(instance *usertasksv1.DiscoverAzureVMInstance) 
 
 // AzureVMInstancesWithURLs takes a UserTask and enriches the instance list with Azure Portal URLs.
 func AzureVMInstancesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverAzureVMWithURLs {
-	instances := ut.GetSpec().GetDiscoverAzureVm().GetInstances()
+	instances := ut.Spec.GetDiscoverAzureVm().GetInstances()
 	instancesWithURLs := make(map[string]*DiscoverAzureVMInstanceWithURLs, len(instances))
 
 	for instanceID, instance := range instances {
@@ -285,7 +285,7 @@ func AzureVMInstancesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverAzureVM
 	}
 
 	return &UserTaskDiscoverAzureVMWithURLs{
-		DiscoverAzureVM: ut.GetSpec().GetDiscoverAzureVm(),
+		DiscoverAzureVM: ut.Spec.GetDiscoverAzureVm(),
 		Instances:       instancesWithURLs,
 	}
 }

@@ -25,13 +25,14 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // UpsertTrustedCluster upserts a Trusted Cluster.
 func (s *Service) UpsertTrustedCluster(ctx context.Context, req *trustpb.UpsertTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if s.modules.Features().Cloud {
+	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 
@@ -63,7 +64,7 @@ func (s *Service) UpsertTrustedCluster(ctx context.Context, req *trustpb.UpsertT
 // CreateTrustedCluster creates a Trusted Cluster.
 func (s *Service) CreateTrustedCluster(ctx context.Context, req *trustpb.CreateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if s.modules.Features().Cloud {
+	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 
@@ -95,7 +96,7 @@ func (s *Service) CreateTrustedCluster(ctx context.Context, req *trustpb.CreateT
 // UpdateTrustedCluster updates a Trusted Cluster.
 func (s *Service) UpdateTrustedCluster(ctx context.Context, req *trustpb.UpdateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	// Don't allow a Cloud tenant to be a leaf cluster.
-	if s.modules.Features().Cloud {
+	if modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
 	}
 
@@ -134,22 +135,22 @@ func (s *Service) ListTrustedClusters(ctx context.Context, req *trustpb.ListTrus
 		return nil, trace.Wrap(err)
 	}
 
-	tcs, next, err := s.authServer.ListTrustedClusters(ctx, int(req.GetPageSize()), req.GetPageToken())
+	tcs, next, err := s.authServer.ListTrustedClusters(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := trustpb.ListTrustedClustersResponse_builder{
+	resp := &trustpb.ListTrustedClustersResponse{
 		TrustedClusters: make([]*types.TrustedClusterV2, 0, len(tcs)),
 		NextPageToken:   next,
-	}.Build()
+	}
 
 	for _, tc := range tcs {
 		trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
 		if !ok {
 			return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
 		}
-		resp.SetTrustedClusters(append(resp.GetTrustedClusters(), trustedClusterV2))
+		resp.TrustedClusters = append(resp.TrustedClusters, trustedClusterV2)
 	}
 
 	return resp, nil

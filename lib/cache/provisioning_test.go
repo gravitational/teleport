@@ -31,22 +31,22 @@ import (
 const testDownstreamID = services.DownstreamID("weyland-yutani")
 
 func newProvisioningPrincipalState(id string) *provisioningv1.PrincipalState {
-	return provisioningv1.PrincipalState_builder{
+	return &provisioningv1.PrincipalState{
 		Kind:    types.KindProvisioningPrincipalState,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: id,
-		}.Build(),
-		Spec: provisioningv1.PrincipalStateSpec_builder{
+		},
+		Spec: &provisioningv1.PrincipalStateSpec{
 			DownstreamId:  string(testDownstreamID),
 			PrincipalType: provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			PrincipalId:   id,
-		}.Build(),
-		Status: provisioningv1.PrincipalStateStatus_builder{
+		},
+		Status: &provisioningv1.PrincipalStateStatus{
 			ProvisioningState: provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
-		}.Build(),
-	}.Build()
+		},
+	}
 }
 
 // TestProvisioningPrincipalState asserts that a ProvisioningPrincipalState can be cached
@@ -68,7 +68,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			_, err := fixturePack.provisioningStates.UpdateProvisioningState(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams,
+		list: fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams2,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id)))
@@ -76,7 +76,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
-		cacheList: fixturePack.cache.ListProvisioningStatesForAllDownstreams,
+		cacheList: fixturePack.cache.ListProvisioningStatesForAllDownstreams2,
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
 			r, err := fixturePack.provisioningStates.GetProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id))

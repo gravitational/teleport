@@ -38,29 +38,29 @@ func TestEncodeDecode(t *testing.T) {
 	}{
 		{
 			name: "single role assignment",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo": {
 						"/foo": {"/foo::role1"},
 					},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "multiple roles at same scope",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope: "/staging",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging": {
 						"/staging": {"/staging::admin", "/staging::developer", "/staging::viewer"},
 					},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "hierarchical assignments",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -76,11 +76,11 @@ func TestEncodeDecode(t *testing.T) {
 						"/foo/bar": {"/foo/bar::bar-bar"},
 					},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "complex multi-branch tree",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope: "/staging/west",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -98,29 +98,29 @@ func TestEncodeDecode(t *testing.T) {
 						"/staging/west": {"/staging/west::west-local"},
 					},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "empty assignment tree",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope:          "/foo",
 				AssignmentTree: &scopesv1.AssignmentNode{},
-			}.Build(),
+			},
 		},
 		{
 			name: "root scope",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope: "/",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
 						"/": {"/::global-admin"},
 					},
 				}),
-			}.Build(),
+			},
 		},
 		{
 			name: "deep hierarchy",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Scope: "/a/b/c/d",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -139,7 +139,7 @@ func TestEncodeDecode(t *testing.T) {
 						"/a/b/c/d": {"/a/b/c/d::role-from-abcd"},
 					},
 				}),
-			}.Build(),
+			},
 		},
 	}
 
@@ -188,24 +188,24 @@ func TestEncodeDecodeAgentPin(t *testing.T) {
 	}{
 		{
 			name: "scope and primary system role only",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 				Scope: "/foo",
-				SystemRoles: scopesv1.SystemRoles_builder{
+				SystemRoles: &scopesv1.SystemRoles{
 					Primary: "Node",
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 		{
 			name: "with additional system roles",
-			pin: scopesv1.Pin_builder{
+			pin: &scopesv1.Pin{
 				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 				Scope: "/staging/west",
-				SystemRoles: scopesv1.SystemRoles_builder{
+				SystemRoles: &scopesv1.SystemRoles{
 					Primary:    "Instance",
 					Additional: []string{"Node", "Proxy", "KubeProxy"},
-				}.Build(),
-			}.Build(),
+				},
+			},
 		},
 	}
 
@@ -236,14 +236,14 @@ func TestDecodeKnown(t *testing.T) {
 
 	encodedJSON := `{"scope":"/test", "assignmentTree":{"children":{"test":{"roleTree":{"rolesByScope":[{"depth":1, "names":["role1"]}]}}}}}`
 
-	expect := scopesv1.Pin_builder{
+	expect := &scopesv1.Pin{
 		Scope: "/test",
 		AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 			"/test": {
 				"/test": {"/test::role1"},
 			},
 		}),
-	}.Build()
+	}
 
 	decoded, err := Decode(encoded)
 	require.NoError(t, err)

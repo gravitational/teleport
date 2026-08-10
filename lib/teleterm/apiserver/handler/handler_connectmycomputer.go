@@ -39,9 +39,9 @@ func (s *Handler) CreateConnectMyComputerNodeToken(ctx context.Context, req *api
 		return nil, trace.Wrap(err)
 	}
 
-	response := api.CreateConnectMyComputerNodeTokenResponse_builder{
+	response := &api.CreateConnectMyComputerNodeTokenResponse{
 		Token: token,
-	}.Build()
+	}
 
 	return response, nil
 }
@@ -53,7 +53,7 @@ func (s *Handler) WaitForConnectMyComputerNodeJoin(ctx context.Context, req *api
 	timeoutCtx, close := context.WithTimeout(ctx, time.Minute)
 	defer close()
 
-	rootClusterURI, err := uri.Parse(req.GetRootClusterUri())
+	rootClusterURI, err := uri.Parse(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,9 +63,9 @@ func (s *Handler) WaitForConnectMyComputerNodeJoin(ctx context.Context, req *api
 		return nil, trace.Wrap(err)
 	}
 
-	return api.WaitForConnectMyComputerNodeJoinResponse_builder{
+	return &api.WaitForConnectMyComputerNodeJoinResponse{
 		Server: newAPIServer(server),
-	}.Build(), err
+	}, err
 }
 
 func (s *Handler) DeleteConnectMyComputerNode(ctx context.Context, req *api.DeleteConnectMyComputerNodeRequest) (*api.DeleteConnectMyComputerNodeResponse, error) {

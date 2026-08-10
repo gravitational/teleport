@@ -45,15 +45,15 @@ import (
 func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *machineidv1.BotInstance {
 	id := uuid.New()
 
-	bi := machineidv1.BotInstance_builder{
+	bi := &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: machineidv1.BotInstanceSpec_builder{
+		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    botName,
 			InstanceId: id.String(),
-		}.Build(),
+		},
 		Status: &machineidv1.BotInstanceStatus{},
-	}.Build()
+	}
 
 	for _, fn := range fns {
 		fn(bi)
@@ -66,9 +66,9 @@ func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *mach
 // raise an error during an insert attempt.
 func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		bi.SetMetadata(headerv1.Metadata_builder{
+		bi.Metadata = &headerv1.Metadata{
 			Name: "invalid",
-		}.Build())
+		}
 	}
 }
 
@@ -76,11 +76,11 @@ func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 // the given timestamp.
 func withBotInstanceExpiry(expiry time.Time) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasMetadata() {
-			bi.SetMetadata(&headerv1.Metadata{})
+		if bi.Metadata == nil {
+			bi.Metadata = &headerv1.Metadata{}
 		}
 
-		bi.GetMetadata().SetExpires(timestamppb.New(expiry))
+		bi.Metadata.Expires = timestamppb.New(expiry)
 	}
 }
 
@@ -95,11 +95,11 @@ func withBotInstanceScope(scope string) func(*machineidv1.BotInstance) {
 // the given value.
 func withBotInstanceId(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasSpec() {
-			bi.SetSpec(&machineidv1.BotInstanceSpec{})
+		if bi.Spec == nil {
+			bi.Spec = &machineidv1.BotInstanceSpec{}
 		}
 
-		bi.GetSpec().SetInstanceId(value)
+		bi.Spec.InstanceId = value
 	}
 }
 
@@ -107,15 +107,15 @@ func withBotInstanceId(value string) func(*machineidv1.BotInstance) {
 // field of a bot instance to the given value.
 func withBotInstanceHeartbeatJoinMethod(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
 		}
 
-		if !bi.GetStatus().HasInitialHeartbeat() {
-			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
 		}
 
-		bi.GetStatus().GetInitialHeartbeat().SetJoinMethod(value)
+		bi.Status.InitialHeartbeat.JoinMethod = value
 	}
 }
 
@@ -123,15 +123,15 @@ func withBotInstanceHeartbeatJoinMethod(value string) func(*machineidv1.BotInsta
 // field of a bot instance to the given value.
 func withBotInstanceHeartbeatVersion(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
 		}
 
-		if !bi.GetStatus().HasInitialHeartbeat() {
-			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
 		}
 
-		bi.GetStatus().GetInitialHeartbeat().SetVersion(value)
+		bi.Status.InitialHeartbeat.Version = value
 	}
 }
 
@@ -139,15 +139,15 @@ func withBotInstanceHeartbeatVersion(value string) func(*machineidv1.BotInstance
 // field of a bot instance to the given value.
 func withBotInstanceHeartbeatHostname(value string) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
 		}
 
-		if !bi.GetStatus().HasInitialHeartbeat() {
-			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
 		}
 
-		bi.GetStatus().GetInitialHeartbeat().SetHostname(value)
+		bi.Status.InitialHeartbeat.Hostname = value
 	}
 }
 
@@ -196,8 +196,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 				require.True(t, ok)
 
 				// .Metadata.Name should be overwritten with the correct value
-				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
-				require.Nil(t, bi.GetMetadata().GetExpires())
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Nil(t, bi.Metadata.Expires)
 			},
 		},
 		{
@@ -208,8 +208,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
-				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
-				require.Nil(t, bi.GetMetadata().GetExpires())
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Nil(t, bi.Metadata.Expires)
 			},
 		},
 		{
@@ -220,8 +220,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
-				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
-				require.Equal(t, clock.Now().Add(time.Hour).UTC(), bi.GetMetadata().GetExpires().AsTime())
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Equal(t, clock.Now().Add(time.Hour).UTC(), bi.Metadata.Expires.AsTime())
 			},
 		},
 	}
@@ -292,13 +292,16 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// metadata should be generated from the bot spec
-	require.Equal(t, bi.GetSpec().GetInstanceId(), patched.GetMetadata().GetName())
+	require.Equal(t, bi.Spec.InstanceId, patched.Metadata.Name)
 
 	// we should be able to retrieve a matching instance
-	bi2, err := service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build())
+	bi2, err := service.GetBotInstance(ctx, &machineidv1.GetBotInstanceRequest{
+		BotName:    bi.Spec.BotName,
+		InstanceId: bi.Spec.InstanceId,
+	})
 	require.NoError(t, err)
 	require.EqualExportedValues(t, patched, bi2)
-	require.Equal(t, bi.GetMetadata().GetName(), bi2.GetMetadata().GetName())
+	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
 
 	resources := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
 		FilterBotName: "example",
@@ -308,28 +311,32 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, patched, resources[0])
 
 	// append a heartbeat to a stored instance
-	heartbeat := machineidv1.BotInstanceStatusHeartbeat_builder{
+	heartbeat := &machineidv1.BotInstanceStatusHeartbeat{
 		Hostname: "foo",
-	}.Build()
+	}
 
 	patched, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Name: bi.GetSpec().GetBotName()},
-		InstanceID: bi.GetSpec().GetInstanceId(),
+		Bot:        scopes.QualifiedName{Name: bi.Spec.BotName},
+		InstanceID: bi.Spec.InstanceId,
 		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-			bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
+			bi.Status.LatestHeartbeats = append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.Status.LatestHeartbeats...)
 			return bi, nil
 		},
 	})
 	require.NoError(t, err)
 
-	require.Len(t, patched.GetStatus().GetLatestHeartbeats(), 1)
-	require.EqualExportedValues(t, heartbeat, patched.GetStatus().GetLatestHeartbeats()[0])
+	require.Len(t, patched.Status.LatestHeartbeats, 1)
+	require.EqualExportedValues(t, heartbeat, patched.Status.LatestHeartbeats[0])
 
 	// delete the stored instance
-	require.NoError(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build()))
+	req := &machineidv1.DeleteBotInstanceRequest{
+		BotName:    bi.Spec.BotName,
+		InstanceId: bi.Spec.InstanceId,
+	}
+	require.NoError(t, service.DeleteBotInstance(ctx, req))
 
 	// subsequent delete attempts should fail
-	require.Error(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build()))
+	require.Error(t, service.DeleteBotInstance(ctx, req))
 }
 
 // listInstanceSpec declaratively describes a bot instance for

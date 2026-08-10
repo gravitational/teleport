@@ -284,7 +284,9 @@ func (s *TunnelService) issueCert(
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
-	if s.cfg.DelegationSessionID != "" {
+	if s.cfg.DelegationSessionID == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
 		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)

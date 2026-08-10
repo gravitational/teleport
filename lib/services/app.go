@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -118,21 +117,6 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	if app == nil {
 		return trace.BadParameter("nil application")
 	}
-	// Subdomain (not label) so integrations can produce dotted names.
-	// Allow underscores: Cloud and self-hosted both already accept
-	// underscored app names, and curl/Go-based clients route them via
-	// the wildcard cert. Stricter rejection would break callers like
-	// the Terraform provider whose test fixtures use snake_case.
-	if errs := validation.IsDNS1123SubdomainWithUnderscore(app.GetName()); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", app.GetName())
-	}
-	// required_apps lookup is exact-string; a mixed-case entry would
-	// never match a lowercased primary name.
-	for _, required := range app.GetRequiredAppNames() {
-		if errs := validation.IsDNS1123SubdomainWithUnderscore(required); len(errs) > 0 {
-			return trace.BadParameter("application %q references required_apps entry %q which must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', start and end alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", app.GetName(), required)
-		}
-	}
 
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
@@ -155,21 +139,22 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			return trace.BadParameter("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), scope)
 		}
 	}
+	// If no public address is set, there's nothing to validate.
 
 	if app.GetPublicAddr() == "" {
 		return nil
 	}
 
-	if err := ValidatePublicAddr(app.GetName(), app.GetPublicAddr()); err != nil {
-		return trace.Wrap(err)
-	}
+	// The app's spec has already been validated in CheckAndSetDefaults, so we can assume the public address is a valid
+	// address. The remainder of this function focuses on detecting conflicts with proxy public addresses because the
+	// proxy addresses are not part of the app spec and need to be fetched separately.
 	appAddr, err := utils.ParseAddr(app.GetPublicAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Normalize to ASCII for the proxy-collision compare below; the
-	// proxy public_addr is not run through ValidatePublicAddr.
+	// Convert the application's public address hostname to its ASCII representation for comparison. Strip any trailing
+	// dots to ensure consistent comparison.
 	asciiAppHostname, err := idna.ToASCII(strings.TrimRight(appAddr.Host(), "."))
 	if err != nil {
 		return trace.Wrap(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
@@ -591,7 +576,7 @@ func GetServiceFQDN(service corev1.Service) string {
 func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
+		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
 		Path:   path,
 	}).String()
 }
@@ -636,16 +621,15 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 			name = fmt.Sprintf("%s-%s", name, portName)
 		}
 
-		if len(validation.IsDNS1123Label(name)) > 0 {
+		if len(validation.IsDNS1035Label(name)) > 0 {
 			return "", trace.BadParameter(
-				"application name %q must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
+				"application name %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
 		}
 
 		return name, nil
 	}
 
-	// Lowercase + dot-replace so the composed name passes ValidateApp.
-	clusterName = strings.ToLower(strings.ReplaceAll(clusterName, ".", "-"))
+	clusterName = strings.ReplaceAll(clusterName, ".", "-")
 	if portName != "" {
 		return fmt.Sprintf("%s-%s-%s-%s", serviceName, portName, namespace, clusterName), nil
 	}

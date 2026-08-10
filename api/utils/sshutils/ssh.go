@@ -33,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/defaults"
-	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
@@ -142,18 +141,14 @@ func ParseAuthorizedKeys(authorizedKeys [][]byte) ([]ssh.PublicKey, error) {
 // If known_hosts are provided, they will be used in the config's HostKeyCallback.
 //
 // The config is set up to authenticate to proxy with the first available principal.
-func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHosts ...[]byte) (apissh.ClientConfig, error) {
-	signer, err := SSHSigner(sshCert, priv)
+func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHosts ...[]byte) (*ssh.ClientConfig, error) {
+	authMethod, err := AsAuthMethod(sshCert, priv)
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	cfg := apissh.ClientConfig{
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{signer}, nil
-			},
-		},
+	cfg := &ssh.ClientConfig{
+		Auth:    []ssh.AuthMethod{authMethod},
 		Timeout: defaults.DefaultIOTimeout,
 	}
 
@@ -166,12 +161,12 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHos
 	if len(knownHosts) > 0 {
 		trustedKeys, err := ParseKnownHosts(knownHosts)
 		if err != nil {
-			return apissh.ClientConfig{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		cfg.HostKeyCallback, err = HostKeyCallback(trustedKeys, false)
 		if err != nil {
-			return apissh.ClientConfig{}, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
+			return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
 		}
 	}
 
@@ -276,7 +271,7 @@ func WithDialer(dialer contextDialer) RunSSHOption {
 }
 
 // RunSSH runs a command on an SSH server and returns the output.
-func RunSSH(ctx context.Context, addr, command string, cfg apissh.ClientConfig, opts ...RunSSHOption) ([]byte, []byte, error) {
+func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, opts ...RunSSHOption) ([]byte, []byte, error) {
 	var options runSSHOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -287,12 +282,13 @@ func RunSSH(ctx context.Context, addr, command string, cfg apissh.ClientConfig, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sshClient, err := apissh.NewClient(ctx, conn, addr, cfg)
+	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, cfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
 	defer sshClient.Close()
-	session, err := sshClient.NewSession(ctx)
+	session, err := sshClient.NewSession()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -303,7 +299,7 @@ func RunSSH(ctx context.Context, addr, command string, cfg apissh.ClientConfig, 
 	session.Stdout = &stdout
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
-	err = session.Run(ctx, command)
+	err = session.Run(command)
 	return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err)
 }
 

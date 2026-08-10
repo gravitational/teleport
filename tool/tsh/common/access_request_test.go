@@ -29,13 +29,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAccessRequestSearch(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: {Enabled: true},
+			},
+		},
+	},
+	)
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	ctx := context.Background()
 	const (
 		rootClusterName = "root-cluster"
@@ -45,8 +59,6 @@ func TestAccessRequestSearch(t *testing.T) {
 	)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Modules = modulestest.EnterpriseModules()
-			cfg.InsecureMode = true
 			cfg.Auth.ClusterName.SetClusterName(rootClusterName)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
@@ -57,8 +69,6 @@ func TestAccessRequestSearch(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(
 			func(cfg *servicecfg.Config) {
-				cfg.Modules = modulestest.EnterpriseModules()
-				cfg.InsecureMode = true
 				cfg.Auth.ClusterName.SetClusterName(leafClusterName)
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true
@@ -190,6 +200,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -333,6 +344,7 @@ func TestShowRequestTable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			captureStdout := new(bytes.Buffer)

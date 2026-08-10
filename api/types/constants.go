@@ -507,17 +507,6 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
-	// KindMobileDevice is used to gate access to the mobile device enrollment
-	// ceremony. It is not a stored resource, it exists only as the target of RBAC
-	// rules. The verb create_enroll_token permits a user to initiate enrollment
-	// of a mobile device.
-	KindMobileDevice = "mobile_device"
-
-	// KindEnrollPairing is the resource kind for a mobile device enrollment
-	// pairing: a short-lived ceremony that pairs a Web UI session with the
-	// Teleport Verify mobile app via a QR-code-encoded token.
-	KindEnrollPairing = "enroll_pairing"
-
 	// KindDownload represents Teleport binaries downloads.
 	KindDownload = "download"
 
@@ -706,9 +695,6 @@ const (
 	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
 	KindInferencePolicy = "inference_policy"
 
-	// KindClassifier is the kind of teleport.summarizer.v1.Classifier.
-	KindClassifier = "classifier"
-
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
@@ -729,12 +715,6 @@ const (
 
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
-
-	// KindAppAuthConfig is the resource kind for app auth configs.
-	KindAppAuthConfig = "app_auth_config"
-
-	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
-	KindValidatedMFAChallenge = "validated_mfa_challenge"
 
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
@@ -759,9 +739,6 @@ const (
 
 	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
 	MetaNameBeamsConfig = "beams-config"
-
-	// V9 is the ninth version of resources.
-	V9 = "v9"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -1419,10 +1396,6 @@ const (
 	// BeamAppTypeLabel is the label used to denote the type of app created for
 	// Beams. Valid values: "ingress" and "llm".
 	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
-
-	// BeamRegionLabel is the label used to track the resolved routing region
-	// for a Beam.
-	BeamRegionLabel = BeamsInternalLabelPrefix + "region"
 )
 
 const (
@@ -1884,26 +1857,20 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
-// TODO(espadolini): delete in v20
+// TODO(espadolini): deprecate in v19, delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportDropGroup].
 	//go:fix inline
 	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportKeepGroup].
 	//go:fix inline
 	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportStaticGroup].
 	//go:fix inline
 	TeleportStaticGroup = constants.TeleportStaticGroup
 )

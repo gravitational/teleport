@@ -82,12 +82,10 @@ func TestJoinTerraformCloud(t *testing.T) {
 
 	ctx := t.Context()
 
-	testModules := modulestest.OSSModules()
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			ClusterName: "test.localhost",
 			Dir:         t.TempDir(),
-			Modules:     testModules,
 		},
 	})
 	require.NoError(t, err)
@@ -129,7 +127,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -172,7 +170,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "requires Teleport Enterprise")
 			},
 		},
@@ -379,7 +377,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad audience")
 			},
 		},
@@ -400,7 +398,7 @@ func TestJoinTerraformCloud(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad issuer: example.com")
 			},
 		},
@@ -408,9 +406,10 @@ func TestJoinTerraformCloud(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setEnterprise {
-				testModules.TestBuildType = modules.BuildEnterprise
-			} else {
-				testModules.TestBuildType = modules.BuildOSS
+				modulestest.SetTestModules(
+					t,
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
+				)
 			}
 
 			token, err := types.NewProvisionTokenFromSpec(

@@ -17,13 +17,12 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-import { getErrorMessage } from 'shared/utils/error';
 
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
@@ -71,8 +70,7 @@ export function ClusterDropdown({
   );
   const showInput = options.length > 5 ? true : false;
   const [clusterFilter, setClusterFilter] = useState('');
-  const navigate = useNavigate();
-  const location = useLocation();
+  const history = useHistory();
   const [anchorEl, setAnchorEl] = useState(null);
 
   const selectedOption = {
@@ -85,7 +83,7 @@ export function ClusterDropdown({
     try {
       return clusterLoader.fetchClusters(signal);
     } catch (err) {
-      onError(getErrorMessage(err));
+      onError(err.message);
     }
   }
 
@@ -94,10 +92,10 @@ export function ClusterDropdown({
 
     const oldPathName = cfg.getClusterRoute(selectedOption.value);
 
-    const newPath = location.pathname.replace(oldPathName, newPathName);
+    const newPath = history.location.pathname.replace(oldPathName, newPathName);
 
     // keep current view just change the clusterId
-    navigate(newPath);
+    history.push(newPath);
   }
 
   function onChangeOption(clusterId: string) {
@@ -116,7 +114,7 @@ export function ClusterDropdown({
         const res = await loadClusters(signal.signal);
         setOptions(createOptions(res));
       } catch (err) {
-        onError(getErrorMessage(err));
+        onError(err.message);
       }
     }
 

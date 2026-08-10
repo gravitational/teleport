@@ -5,14 +5,14 @@ eventHandler:
 
 teleport:
   address: "{{.Addr}}"
-  identitySecretName: teleport-plugin-event-handler-identity
+  identitySecretName: teleport-event-handler-identity
   identitySecretPath: identity
 
 fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"
-  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session"
+  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
   certificate:
-    secretName: "teleport-plugin-event-handler-client-tls"
+    secretName: "teleport-event-handler-client-tls"
     caPath: "ca.crt"
     certPath: "client.crt"
     keyPath: "client.key"

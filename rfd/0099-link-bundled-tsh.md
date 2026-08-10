@@ -1,5 +1,5 @@
 ---
-authors: Maja Cieślak (maja.cieslak@goteleport.com)
+authors: Rafał Cieślak (rafal.cieslak@goteleport.com)
 state: implemented
 ---
 

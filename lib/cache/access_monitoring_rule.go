@@ -45,7 +45,7 @@ func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, 
 			proto.CloneOf[*accessmonitoringrulesv1.AccessMonitoringRule],
 			map[accessMonitoringRuleIndex]func(*accessmonitoringrulesv1.AccessMonitoringRule) string{
 				accessMonitoringRuleNameIndex: func(r *accessmonitoringrulesv1.AccessMonitoringRule) string {
-					return r.GetMetadata().GetName()
+					return r.GetMetadata().Name
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
@@ -53,13 +53,13 @@ func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, 
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accessmonitoringrulesv1.AccessMonitoringRule {
-			return accessmonitoringrulesv1.AccessMonitoringRule_builder{
+			return &accessmonitoringrulesv1.AccessMonitoringRule{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil
@@ -76,7 +76,7 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, pag
 		index:        accessMonitoringRuleNameIndex,
 		upstreamList: c.Config.AccessMonitoringRules.ListAccessMonitoringRules,
 		nextToken: func(t *accessmonitoringrulesv1.AccessMonitoringRule) string {
-			return t.GetMetadata().GetName()
+			return t.GetMetadata().Name
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
@@ -94,7 +94,7 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *ac
 		index:        accessMonitoringRuleNameIndex,
 		upstreamList: c.Config.AccessMonitoringRules.ListAccessMonitoringRules,
 		nextToken: func(t *accessmonitoringrulesv1.AccessMonitoringRule) string {
-			return t.GetMetadata().GetName()
+			return t.GetMetadata().Name
 		},
 		filter: func(rule *accessmonitoringrulesv1.AccessMonitoringRule) bool {
 			return services.MatchAccessMonitoringRule(rule, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())

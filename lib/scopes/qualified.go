@@ -126,10 +126,13 @@ func MaybeSQN(s string) bool {
 // the format of the scope or name components; use [QualifiedName.StrongValidate] or
 // [QualifiedName.WeakValidate] for validation.
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
-	scope, name, ok := strings.Cut(sqn, QualifiedNameSeparator)
-	if !ok {
+	idx := strings.Index(sqn, QualifiedNameSeparator)
+	if idx < 0 {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, QualifiedNameSeparator)
 	}
+
+	scope := sqn[:idx]
+	name := sqn[idx+len(QualifiedNameSeparator):]
 
 	if scope == "" {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", sqn)

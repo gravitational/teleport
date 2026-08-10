@@ -23,8 +23,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"iter"
-	"slices"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -36,6 +38,23 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
+// This differs from normal equality only in that resource IDs are ignored.
+func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
+}
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
@@ -258,7 +277,7 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = slices.Clone(pair.Cert)
+		out[i] = append([]byte{}, pair.Cert...)
 	}
 	return out
 }
@@ -281,7 +300,7 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
 	out := make([][]byte, 0, len(pairs))
 	for _, pair := range pairs {
-		out = append(out, slices.Clone(pair.PublicKey))
+		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
 }

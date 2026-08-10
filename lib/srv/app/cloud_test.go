@@ -88,7 +88,7 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// capture range variable
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			awsCredentials, err := test.credentials.Retrieve(ctx)
@@ -140,7 +140,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		// capture range variable
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			c, err := NewCloud(CloudConfig{
@@ -186,28 +186,28 @@ func TestCheckAndSetDefaults(t *testing.T) {
 }
 
 func TestCloudGetAWSSigninToken(t *testing.T) {
+	ctx := context.Background()
+
 	tests := []struct {
 		name                    string
 		federationServerHandler http.HandlerFunc
 		expectedToken           string
-		errorAssertionFn        require.ErrorAssertionFunc
+		expectedErrorIs         func(error) bool
+		expectedError           bool
 	}{
 		{
 			name: "get failed",
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			}),
-			errorAssertionFn: func(t require.TestingT, err error, i ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-			},
+			expectedErrorIs: trace.IsBadParameter,
 		},
 		{
 			name: "bad response",
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("not valid json"))
 			}),
-			errorAssertionFn: require.Error,
+			expectedError: true,
 		},
 		{
 			name: "validate URL parameters",
@@ -217,8 +217,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.Equal(t, `{"sessionId":"FAKEACCESSKEYID","sessionKey":"secret","sessionToken":"token"}`, values.Get("Session"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
-			expectedToken:    "generated-token",
-			errorAssertionFn: require.NoError,
+			expectedToken: "generated-token",
 		},
 		{
 			name: "validate URL parameters temporary session",
@@ -229,12 +228,12 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.Empty(t, values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
-			expectedToken:    "generated-token",
-			errorAssertionFn: require.NoError,
+			expectedToken: "generated-token",
 		},
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			mockFederationServer := httptest.NewServer(test.federationServerHandler)
@@ -244,7 +243,9 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				AWSConfigOptions: []awsconfig.OptionsFn{
 					// Ensures the base config has the mocked credentials.
 					awsconfig.WithBaseCredentialsProvider(credentials.NewStaticCredentialsProvider("FAKEACCESSKEYID", "secret", "token")),
-					awsconfig.WithSTSClientProvider(mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{})),
+					awsconfig.WithSTSClientProvider(
+						mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{}),
+					),
 				},
 				Logger: slog.New(slog.DiscardHandler),
 			})
@@ -263,9 +264,15 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				Issuer: "test",
 			}
 
-			actualToken, err := cloud.getAWSSigninToken(t.Context(), req, mockFederationServer.URL)
-			test.errorAssertionFn(t, err)
-			require.Equal(t, test.expectedToken, actualToken)
+			actualToken, err := cloud.getAWSSigninToken(ctx, req, mockFederationServer.URL)
+			if test.expectedErrorIs != nil {
+				require.True(t, test.expectedErrorIs(err))
+			} else if test.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedToken, actualToken)
+			}
 		})
 	}
 }

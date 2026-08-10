@@ -1,10 +1,6 @@
 suite: ConfigMap
 templates:
   - auth/config.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: matches snapshot for acme-off.yaml
     values:
@@ -15,7 +11,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for acme-on.yaml
     values:
@@ -26,7 +22,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for acme-uri-staging.yaml
     values:
@@ -37,7 +33,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: wears annotations (annotations.yaml)
     values:
@@ -48,10 +44,10 @@ tests:
       - isKind:
           of: ConfigMap
       - equal:
-          path: metadata.annotations["kubernetes.io/config"]
+          path: metadata.annotations.kubernetes\.io/config
           value: test-annotation
       - equal:
-          path: metadata.annotations["kubernetes.io/config-different"]
+          path: metadata.annotations.kubernetes\.io/config-different
           value: 2
 
   - it: matches snapshot for auth-connector-name.yaml
@@ -63,7 +59,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-disable-local.yaml
     values:
@@ -74,7 +70,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-locking-mode.yaml
     values:
@@ -85,7 +81,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-passwordless.yaml
     values:
@@ -96,7 +92,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-type.yaml
     values:
@@ -107,7 +103,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-type-legacy.yaml
     values:
@@ -118,7 +114,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-webauthn.yaml
     values:
@@ -129,7 +125,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-webauthn-legacy.yaml
     values:
@@ -140,7 +136,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws.yaml
     values:
@@ -151,7 +147,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-dynamodb-autoscaling.yaml
     values:
@@ -162,7 +158,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha.yaml
     values:
@@ -173,7 +169,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha-acme.yaml
     values:
@@ -184,7 +180,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha-antiaffinity.yaml
     values:
@@ -195,7 +191,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for aws-ha-log.yaml
     values:
@@ -206,7 +202,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for existing-tls-secret.yaml
     values:
@@ -217,7 +213,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for existing-tls-secret-with-ca.yaml
     values:
@@ -228,7 +224,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp-ha-acme.yaml
     values:
@@ -239,7 +235,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp-ha-antiaffinity.yaml
     values:
@@ -250,7 +246,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp-ha-log.yaml
     values:
@@ -261,7 +257,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for gcp.yaml
     values:
@@ -272,7 +268,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for initcontainers.yaml
     values:
@@ -283,7 +279,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for kube-cluster-name.yaml
     values:
@@ -294,7 +290,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for log-basic.yaml
     values:
@@ -305,7 +301,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for log-extra.yaml
     values:
@@ -316,7 +312,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for log-legacy.yaml
     values:
@@ -327,7 +323,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for priority-class-name.yaml
     values:
@@ -338,7 +334,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for proxy-listener-mode-multiplex.yaml
     values:
@@ -349,7 +345,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for proxy-listener-mode-separate.yaml
     values:
@@ -360,7 +356,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for service.yaml
     values:
@@ -371,7 +367,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for separate-mongo-listener.yaml
     values:
@@ -382,7 +378,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for separate-postgres-listener.yaml
     values:
@@ -393,7 +389,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for public-addresses.yaml
     values:
@@ -404,7 +400,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for session-recording.yaml
     values:
@@ -415,7 +411,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for standalone-customsize.yaml
     values:
@@ -426,7 +422,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for standalone-existingpvc.yaml
     values:
@@ -437,7 +433,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for tolerations.yaml
     values:
@@ -448,7 +444,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for version-override.yaml
     values:
@@ -459,7 +455,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for volumes.yaml
     values:
@@ -470,17 +466,17 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: adds a proxy token by default
     set:
       clusterName: teleport.example.com
     asserts:
       - notEqual:
-          path: data["apply-on-startup.yaml"]
+          path: data.apply-on-startup\.yaml
           value: null
       - matchSnapshot:
-          path: data["apply-on-startup.yaml"]
+          path: data.apply-on-startup\.yaml
 
   - it: matches snapshot for azure.yaml
     values:
@@ -491,7 +487,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for azure.yaml without pool_max_conn
     values:
@@ -505,14 +501,14 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: sets "provisioned" billing mode when autoscaling is enabled
     values:
       - ../.lint/aws-dynamodb-autoscaling.yaml
     asserts:
       - matchRegex:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
           pattern: 'billing_mode: provisioned'
 
   - it: fails when no audit backend is configured
@@ -538,7 +534,7 @@ tests:
         auditLogTable: my-dynamodb-table
     asserts:
       - matchRegex:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
           pattern: '- dynamodb://my-dynamodb-table'
 
   - it: configures athena when athenaURL is set
@@ -552,7 +548,7 @@ tests:
         athenaURL: 'athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name'
     asserts:
       - matchRegex:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
           pattern: '- athena://db.table'
 
   - it: configures dynamo and stdout when dynamo is set and mirroring is on
@@ -567,10 +563,10 @@ tests:
         auditLogMirrorOnStdout: true
     asserts:
       - matchRegex:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
           pattern: '- dynamodb://my-dynamodb-table'
       - matchRegex:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
           pattern: '- stdout://'
 
   - it: fails when both athena and dynamo are set but no order is specified
@@ -600,7 +596,7 @@ tests:
         auditLogPrimaryBackend: "athena"
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: uses dynamo as primary backend when configured
     set:
@@ -615,7 +611,7 @@ tests:
         auditLogPrimaryBackend: "dynamo"
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: uses athena, dynamo, and stdout when everything is on
     set:
@@ -631,7 +627,7 @@ tests:
         auditLogMirrorOnStdout: true
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: keeps the second factor type even when it's "off"
     set:
@@ -640,7 +636,7 @@ tests:
         secondFactor: 'off'
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: fails if access monitoring is enabled without athena
     set:
@@ -662,7 +658,7 @@ tests:
       - ../.lint/aws-access-monitoring.yaml
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: sets extraLabels on Configmap
     values:
@@ -690,7 +686,7 @@ tests:
       sessionRecording: 'off'
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: sets clusterDomain on Configmap
     set:
@@ -700,7 +696,7 @@ tests:
     asserts:
       - matchSnapshot: {}
       - matchRegex:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
           pattern: 'svc.test.com:3026'
 
   - it: matches snapshot for auth-secondfactors-webauthn.yaml
@@ -712,7 +708,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot for auth-secondfactors-sso.yaml
     values:
@@ -723,7 +719,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
 
   - it: matches snapshot when both secondFactor and secondFactors are set.
     set:
@@ -737,4 +733,4 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml

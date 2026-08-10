@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useHistory, useParams } from 'react-router';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -31,9 +31,11 @@ import { AuthConnectorEditorContent } from './AuthConnectorEditorContent';
  * GitHubConnectorEditor is the edit/create page for a GitHub Auth Connector.
  */
 export function GitHubConnectorEditor({ isNew = false }) {
-  const { connectorName } = useParams<{ connectorName: string }>();
+  const { connectorName } = useParams<{
+    connectorName: string;
+  }>();
   const ctx = useTeleport();
-  const navigate = useNavigate();
+  const history = useHistory();
 
   const [content, setContent] = useState(templates['github']);
   const [initialContent, setInitialContent] = useState(templates['github']);
@@ -52,13 +54,13 @@ export function GitHubConnectorEditor({ isNew = false }) {
       if (isNew) {
         await ctx.resourceService
           .createGithubConnector(content)
-          .then(() => navigate(cfg.routes.sso));
+          .then(() => history.push(cfg.routes.sso));
       } else {
         await ctx.resourceService
           .updateGithubConnector(connectorName, content)
-          .then(() => navigate(cfg.routes.sso));
+          .then(() => history.push(cfg.routes.sso));
       }
-    }, [connectorName, content, isNew, navigate, ctx.resourceService])
+    }, [connectorName, content, isNew, history, ctx.resourceService])
   );
 
   const isSaveDisabled =
@@ -84,7 +86,7 @@ export function GitHubConnectorEditor({ isNew = false }) {
       saveAttempt={saveAttempt}
       fetchAttempt={fetchAttempt}
       onSave={saveConnector}
-      onCancel={() => navigate(cfg.routes.sso)}
+      onCancel={() => history.push(cfg.routes.sso)}
       setContent={setContent}
       isGithub={true}
     />

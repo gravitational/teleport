@@ -632,6 +632,7 @@
         "web/packages/teleport/src/Account/Preferences.tsx",
         "web/packages/teleport/src/AppLauncher/AppLauncher.tsx",
         "web/packages/teleport/src/Apps/AddApp/useAddApp.ts",
+        "web/packages/teleport/src/Audit/useAuditEvents.ts",
         "web/packages/teleport/src/AuthConnectors/AuthConnectorEditor/GitHubConnectorEditor.tsx",
         "web/packages/teleport/src/AuthConnectors/AuthConnectors.tsx",
         "web/packages/teleport/src/AuthConnectors/DeleteConnectorDialog/DeleteConnectorDialog.tsx",

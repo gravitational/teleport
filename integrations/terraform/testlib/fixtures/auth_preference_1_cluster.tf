@@ -9,6 +9,7 @@ resource "teleport_auth_preference" "cluster_auth_preference" {
   }
 
   spec = {
+    name = "auth_preference"
     type = "oidc"
   }
 }

@@ -20,8 +20,8 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -77,9 +76,6 @@ type AccessRequestCommand struct {
 	requestDelete  *kingpin.CmdClause
 	requestCaps    *kingpin.CmdClause
 	requestReview  *kingpin.CmdClause
-
-	// stdout allows to switch the standard output source. Used in tests.
-	stdout io.Writer
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
@@ -88,13 +84,13 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	requests := app.Command("requests", "Manage Access Requests.").Alias("request")
 
 	c.requestList = requests.Command("ls", "Show active Access Requests.")
-	c.requestList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.requestList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 	c.requestList.Flag("sort-index", "Request sort index, 'created' or 'state'").Default("created").StringVar(&c.sortIndex)
 	c.requestList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("descending").StringVar(&c.sortOrder)
 
 	c.requestGet = requests.Command("get", "Show Access Request by ID.")
 	c.requestGet.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
-	c.requestGet.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.requestGet.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 
 	c.requestApprove = requests.Command("approve", "Approve pending Access Request.")
 	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -116,7 +112,6 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
-	c.requestCreate.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.requestDelete = requests.Command("rm", "Delete an Access Request.")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -124,16 +119,12 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 
 	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities.").Alias("caps").Hidden()
 	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCaps.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.requestCaps.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 	c.requestReview = requests.Command("review", "Review an Access Request.")
 	c.requestReview.Arg("request-id", "ID of target request").Required().StringVar(&c.reqIDs)
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
 	c.requestReview.Flag("approve", "Review proposes approval").BoolVar(&c.approve)
 	c.requestReview.Flag("deny", "Review proposes denial").BoolVar(&c.deny)
-
-	if c.stdout == nil {
-		c.stdout = os.Stdout
-	}
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
@@ -215,7 +206,7 @@ func (c *AccessRequestCommand) List(ctx context.Context, client *authclient.Clie
 
 func (c *AccessRequestCommand) Get(ctx context.Context, client *authclient.Client) error {
 	reqs := []types.AccessRequest{}
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		req, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
 			ID: reqID,
 		})
@@ -235,7 +226,7 @@ func (c *AccessRequestCommand) Get(ctx context.Context, client *authclient.Clien
 
 func (c *AccessRequestCommand) splitAnnotations() (map[string][]string, error) {
 	annotations := make(map[string][]string)
-	for s := range strings.SplitSeq(c.annotations, ",") {
+	for _, s := range strings.Split(c.annotations, ",") {
 		if s == "" {
 			continue
 		}
@@ -259,7 +250,7 @@ func (c *AccessRequestCommand) splitAnnotations() (map[string][]string, error) {
 
 func (c *AccessRequestCommand) splitRoles() []string {
 	var roles []string
-	for s := range strings.SplitSeq(c.roles, ",") {
+	for _, s := range strings.Split(c.roles, ",") {
 		if s == "" {
 			continue
 		}
@@ -284,7 +275,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client *authclient.C
 		}
 		assumeStartTime = &parsedAssumeStartTime
 	}
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 			RequestID:       reqID,
 			State:           types.RequestState_APPROVED,
@@ -307,7 +298,7 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client *authclient.Clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 			RequestID:   reqID,
 			State:       types.RequestState_DENIED,
@@ -346,29 +337,19 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(utils.WriteJSON(c.stdout, req), "failed to marshal request")
+		return trace.Wrap(printJSON(req, "request"))
 	}
 	req, err = client.CreateAccessRequestV2(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	switch c.format {
-	case teleport.Text:
-		fmt.Fprintf(c.stdout, "%s\n", req.GetName())
-		return nil
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(c.stdout, req), "failed to marshal request")
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.stdout, req), "failed to marshal request")
-	default:
-		return trace.BadParameter("unknown format %q", c.format)
-	}
+	fmt.Printf("%s\n", req.GetName())
+	return nil
 }
 
 func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Client) error {
 	var approvedTokens []string
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		// Fetch the requests first to see if they were approved to provide the
 		// proper messaging.
 		reqs, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
@@ -386,7 +367,7 @@ func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Cl
 	}
 
 	if len(approvedTokens) == 0 || c.force {
-		for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+		for _, reqID := range strings.Split(c.reqIDs, ",") {
 			if err := client.DeleteAccessRequest(ctx, reqID); err != nil {
 				return trace.Wrap(err)
 			}
@@ -436,11 +417,9 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(os.Stdout, caps), "failed to marshal capabilities")
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(os.Stdout, caps), "failed to marshal capabilities")
+		return printJSON(caps, "capabilities")
 	default:
-		return trace.BadParameter("unknown format %q", c.format)
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
 	}
 }
 
@@ -531,11 +510,9 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(os.Stdout, reqs), "failed to marshal requests")
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
+		return printJSON(reqs, "requests")
 	default:
-		return trace.BadParameter("unknown format %q", format)
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.Text, teleport.JSON)
 	}
 }
 
@@ -569,12 +546,19 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 		}
 		return nil
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(os.Stdout, reqs), "failed to marshal requests")
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
+		return printJSON(reqs, "requests")
 	default:
-		return trace.BadParameter("unknown format %q", format)
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.Text, teleport.JSON)
 	}
+}
+
+func printJSON(in interface{}, desc string) error {
+	out, err := json.MarshalIndent(in, "", "  ")
+	if err != nil {
+		return trace.Wrap(err, fmt.Sprintf("failed to marshal %v", desc))
+	}
+	fmt.Printf("%s\n", out)
+	return nil
 }
 
 func quoteOrDefault(s, d string) string {

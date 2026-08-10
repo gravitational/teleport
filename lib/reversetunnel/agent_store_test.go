@@ -25,18 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testStoreAgent struct {
-	Agent
-	proxyID string
-}
-
-func (a *testStoreAgent) GetProxyID() (string, bool) {
-	return a.proxyID, true
-}
-
 func TestAgentStoreRace(t *testing.T) {
 	store := newAgentStore()
-	agents := []*testStoreAgent{{}, {}, {}, {}, {}}
+	agents := []*agent{{}, {}, {}, {}, {}}
 
 	wg := &sync.WaitGroup{}
 	for i := range agents {
@@ -60,26 +51,4 @@ func TestAgentStoreRace(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-func TestAgentStoreGetByProxyID(t *testing.T) {
-	store := newAgentStore()
-
-	first := &testStoreAgent{proxyID: "proxy-1"}
-	second := &testStoreAgent{proxyID: "proxy-2"}
-
-	store.add(first)
-	store.add(second)
-
-	got, ok := store.getByProxyID("proxy-2")
-	require.True(t, ok)
-	require.Same(t, second, got)
-
-	got, ok = store.getByProxyID("proxy-1")
-	require.True(t, ok)
-	require.Same(t, first, got)
-
-	got, ok = store.getByProxyID("missing")
-	require.False(t, ok)
-	require.Nil(t, got)
 }

@@ -34,10 +34,9 @@ Amazon RDS instance.
 The following tags will override Teleport's default behavior if assigned to the
 original cloud resources:
 
-| Tag or label name | Description |
+| Tag name | Description |
 | - | - |
-| `TeleportDatabaseName`                   | (AWS and Azure) Overrides the name of the discovered database. |
-| `teleport-database-name`                 | (Google Cloud) Overrides the name of the discovered database. |
+| `TeleportDatabaseName`                   | Overrides the name of the discovered database. |
 | `teleport.dev/database_name`             | (AWS only, legacy) Overrides the name of the discovered database. `TeleportDatabaseName` is preferred. |
 | `teleport.dev/db-admin`                  | (AWS only) Specifies the name of the admin user for Automatic User Provisioning. |
 | `teleport.dev/db-admin-default-database` | (AWS only) Overrides the default database the admin user logs into for Automatic User Provisioning. |
@@ -77,9 +76,8 @@ The following values are used to indicate the type of the database endpoint:
 ## Manual and dynamic registration
 
 Static labels and dynamic labels can be specified in `labels` and
-`dynamic_labels` fields respectively in database definition. See the
-[configuration reference](../../../reference/deployment/config.mdx#database-service)
-for more information.
+`dynamic_labels` fields respectively in database definition. See
+[Configuration](./configuration.mdx) for reference.
 
 ## Database Service on Amazon EC2
 

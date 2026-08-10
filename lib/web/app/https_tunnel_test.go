@@ -138,6 +138,6 @@ type mockHTTPSConnAuthorizer struct {
 	err  error
 }
 
-func (m *mockHTTPSConnAuthorizer) GetUser(_ context.Context, _ tls.ConnectionState) (authz.IdentityGetter, error) {
+func (m *mockHTTPSConnAuthorizer) GetUser(_ tls.ConnectionState) (authz.IdentityGetter, error) {
 	return m.user, m.err
 }

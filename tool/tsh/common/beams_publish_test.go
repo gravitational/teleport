@@ -97,7 +97,6 @@ func TestBeamsPublishCommand(t *testing.T) {
 				tt.beamName,
 				"alice",
 				tt.appName,
-				"",
 				tt.expires,
 				nil,
 			)

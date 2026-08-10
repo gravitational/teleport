@@ -25,17 +25,18 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
@@ -52,13 +53,13 @@ const (
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
-	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.CreatedTime}}.
+	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
 {{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
 {{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
 `,
 ))
 var reviewNoteTemplate = template.Must(template.New("review note").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -192,16 +193,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 }
 
 func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (GetAlertRequestResult, error) {
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(ResolveAlertRequestRetryInterval),
-		First:  ResolveAlertRequestRetryInterval,
-		Max:    ResolveAlertRequestRetryTimeout,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return GetAlertRequestResult{}, trace.Wrap(err)
-	}
-
+	backoff := backoff.NewDecorr(ResolveAlertRequestRetryInterval, ResolveAlertRequestRetryTimeout, clockwork.NewRealClock())
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
@@ -209,10 +201,8 @@ func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (Ge
 			return alertRequestResult, nil
 		}
 		logger.Get(ctx).DebugContext(ctx, "Failed to get alert request result", "error", err)
-		select {
-		case <-ctx.Done():
+		if err := backoff.Do(ctx); err != nil {
 			return GetAlertRequestResult{}, trace.Wrap(err)
-		case <-retry.After():
 		}
 	}
 }
@@ -356,12 +346,12 @@ func buildAlertBody(webProxyURL *url.URL, reqID string, reqData RequestData) (st
 	var builder strings.Builder
 	err := alertBodyTemplate.Execute(&builder, struct {
 		ID          string
-		CreatedTime string
+		TimeFormat  string
 		RequestLink string
 		RequestData
 	}{
 		ID:          reqID,
-		CreatedTime: reqData.Created.Format(time.RFC822),
+		TimeFormat:  time.RFC822,
 		RequestLink: requestLink,
 		RequestData: reqData,
 	})
@@ -376,11 +366,11 @@ func buildReviewNoteBody(review types.AccessReview) (string, error) {
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
 		ProposedState string
-		CreatedTime   string
+		TimeFormat    string
 	}{
 		review,
 		review.ProposedState.String(),
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

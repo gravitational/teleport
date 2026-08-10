@@ -250,6 +250,28 @@ type Application interface {
 
 var _ Application = types.Application(nil)
 
+// DatabaseServer is a read only variant of [types.DatabaseServer]
+type DatabaseServer struct {
+	inner types.DatabaseServer
+}
+
+// GetDatabaseName returns the name of the database this server is proxying.
+func (d DatabaseServer) GetDatabaseName() string {
+	if d.inner == nil {
+		return ""
+	}
+	db := d.inner.GetDatabase()
+	if db == nil {
+		return ""
+	}
+	return db.GetName()
+}
+
+// NewDatabaseServer returns a new read-only DatabaseServer.
+func NewDatabaseServer(server types.DatabaseServer) DatabaseServer {
+	return DatabaseServer{inner: server}
+}
+
 // ProxiedService is a read only variant of [types.ProxiedService].
 type ProxiedService interface {
 	// GetProxyIDs returns a list of proxy ids this service is connected to.
@@ -293,28 +315,6 @@ type AppServer interface {
 }
 
 var _ AppServer = types.AppServer(nil)
-
-// DatabaseServer is a read only variant of [types.DatabaseServer]
-type DatabaseServer struct {
-	inner types.DatabaseServer
-}
-
-// GetDatabaseName returns the name of the database this server is proxying.
-func (d DatabaseServer) GetDatabaseName() string {
-	if d.inner == nil {
-		return ""
-	}
-	db := d.inner.GetDatabase()
-	if db == nil {
-		return ""
-	}
-	return db.GetName()
-}
-
-// NewDatabaseServer returns a new read-only DatabaseServer.
-func NewDatabaseServer(server types.DatabaseServer) DatabaseServer {
-	return DatabaseServer{inner: server}
-}
 
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {

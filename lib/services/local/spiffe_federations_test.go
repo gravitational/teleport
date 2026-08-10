@@ -37,20 +37,20 @@ import (
 )
 
 func newSPIFFEFederation(name string) *machineidv1.SPIFFEFederation {
-	return machineidv1.SPIFFEFederation_builder{
+	return &machineidv1.SPIFFEFederation{
 		Kind:    types.KindSPIFFEFederation,
 		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
+		Metadata: &headerv1.Metadata{
 			Name: name,
-		}.Build(),
-		Spec: machineidv1.SPIFFEFederationSpec_builder{
-			BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
-				HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
+		},
+		Spec: &machineidv1.SPIFFEFederationSpec{
+			BundleSource: &machineidv1.SPIFFEFederationBundleSource{
+				HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
 					BundleEndpointUrl: "https://example.com/bundle.json",
-				}.Build(),
-			}.Build(),
-		}.Build(),
-	}.Build()
+				},
+			},
+		},
+	}
 }
 
 func setupSPIFFEFederationTest(
@@ -80,7 +80,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -122,7 +122,7 @@ func TestSPIFFEFederationService_UpsertSPIFFEFederation(t *testing.T) {
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -150,7 +150,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*machineidv1.SPIFFEFederation{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := range 49 {
+	for i := 0; i < 49; i++ {
 		created, err := service.CreateSPIFFEFederation(
 			ctx,
 			newSPIFFEFederation(fmt.Sprintf("%d.example.com", i)),
@@ -210,7 +210,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetSPIFFEFederation(ctx, "example.com")
 		require.NoError(t, err)
-		require.NotEmpty(t, got.GetMetadata().GetRevision())
+		require.NotEmpty(t, got.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -288,7 +288,7 @@ func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		want := proto.Clone(created).(*machineidv1.SPIFFEFederation)
-		want.GetSpec().GetBundleSource().GetHttpsWeb().SetBundleEndpointUrl("https://example.com/new-bundle.json")
+		want.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = "https://example.com/new-bundle.json"
 
 		updated, err := service.UpdateSPIFFEFederation(
 			ctx,
@@ -296,7 +296,7 @@ func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
 			proto.Clone(want).(*machineidv1.SPIFFEFederation),
 		)
 		require.NoError(t, err)
-		require.NotEqual(t, created.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision())
+		require.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
 		require.Empty(t, cmp.Diff(
 			want,
 			updated,
@@ -312,7 +312,7 @@ func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
-		require.Equal(t, updated.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
+		require.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
 	})
 	t.Run("validation occurs", func(t *testing.T) {
 		out, err := service.UpdateSPIFFEFederation(ctx, newSPIFFEFederation("spiffe://i-will-fail"))

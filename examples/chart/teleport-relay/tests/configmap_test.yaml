@@ -2,10 +2,6 @@ suite: Test ConfigMap
 templates:
   - configmap.yaml
 
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: creates a config map
     values:
@@ -14,12 +10,11 @@ tests:
       - hasDocuments:
           count: 1
       - containsDocument:
-          any: true
           kind: ConfigMap
           apiVersion: v1
           name: RELEASE-NAME-teleport-relay
       - isNotNull:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
   - it: includes extraLabels and annotations
     values:
       - ../.lint/simple.yaml
@@ -91,10 +86,10 @@ tests:
       - ../.lint/simple.yaml
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml
   - it: teleport.yaml matches the snapshot (exercise-configmap)
     values:
       - ../.lint/exercise-configmap.yaml
     asserts:
       - matchSnapshot:
-          path: data["teleport.yaml"]
+          path: data.teleport\.yaml

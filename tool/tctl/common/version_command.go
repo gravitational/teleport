@@ -20,16 +20,12 @@ package common
 
 import (
 	"context"
-	"os"
-	"runtime"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -39,47 +35,22 @@ type VersionCommand struct {
 	app *kingpin.Application
 
 	verCmd *kingpin.CmdClause
-	format string
 }
 
 // Initialize allows VersionCommand to plug itself into the CLI parser.
 func (c *VersionCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	c.app = app
 	c.verCmd = app.Command("version", "Print the version of your tctl binary.")
-	c.verCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
 func (c *VersionCommand) TryRun(_ context.Context, cmd string, _ commonclient.InitFunc) (match bool, err error) {
 	switch cmd {
 	case c.verCmd.FullCommand():
-		switch c.format {
-		case teleport.Text:
-			modules.GetModules().PrintVersion()
-		case teleport.JSON:
-			err = utils.WriteJSON(os.Stdout, newVersionInfo())
-		case teleport.YAML:
-			err = utils.WriteYAML(os.Stdout, newVersionInfo())
-		default:
-			return true, trace.BadParameter("unsupported format %q", c.format)
-		}
+		modules.GetModules().PrintVersion()
 	default:
 		return false, nil
 	}
 
 	return true, trace.Wrap(err)
-}
-
-type versionInfo struct {
-	Version string `json:"version"`
-	Gitref  string `json:"gitref"`
-	Runtime string `json:"runtime"`
-}
-
-func newVersionInfo() versionInfo {
-	return versionInfo{
-		Version: teleport.Version,
-		Gitref:  teleport.Gitref,
-		Runtime: runtime.Version(),
-	}
 }

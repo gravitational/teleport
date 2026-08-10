@@ -114,9 +114,6 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
-	// GetReferencedUsers returns the usernames referenced by this request: the
-	// requester, review authors, and suggested reviewers.
-	GetReferencedUsers() []string
 	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
@@ -154,8 +151,6 @@ type AccessRequest interface {
 	SetRequestedResourceAccessIDs([]ResourceAccessID)
 	// GetAllRequestedResourceIDs get all requested resources, in [ResourceAccessID]-form.
 	GetAllRequestedResourceIDs() []ResourceAccessID
-	// IsEqual determines if two access requests are equivalent to one another.
-	IsEqual(AccessRequest) bool
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -184,94 +179,6 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 	return &req, nil
 }
 
-// IsEqual determines if two access requests are equivalent to one another.
-// The Revision field is ignored during comparison.
-func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
-	if r == nil && other == nil {
-		return true
-	}
-
-	otherv3, ok := other.(*AccessRequestV3)
-	if !ok {
-		return false
-	}
-
-	if r == nil && otherv3 == nil {
-		return true
-	}
-
-	if !deriveTeleportEqualAccessRequestV3(r, otherv3) {
-		return false
-	}
-
-	// The derived equality function skips RequestedResourceAccessIDs entirely
-	// because the ResourceConstraints.Details oneof interface is not handled by
-	// goderive. Compare it manually here.
-	if !resourceAccessIDsEqual(r.Spec.RequestedResourceAccessIDs, otherv3.Spec.RequestedResourceAccessIDs) {
-		return false
-	}
-
-	return true
-}
-
-// resourceAccessIDsEqual compares two ResourceAccessID slices independent of
-// ordering. This is necessary because goderive cannot handle the oneof
-// Details field on ResourceConstraints.
-func resourceAccessIDsEqual(a, b []ResourceAccessID) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if !resourceAccessIDEqual(&a[i], &b[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// resourceAccessIDEqual compares all fields of two ResourceAccessIDs.
-// goderive handles all fields except the Details oneof on ResourceConstraints
-// must be checked manually.
-func resourceAccessIDEqual(a, b *ResourceAccessID) bool {
-	if !deriveTeleportEqualResourceAccessID(a, b) {
-		return false
-	}
-	return resourceConstraintsDetailsEqual(a.Constraints, b.Constraints)
-}
-
-// resourceConstraintsDetailsEqual compares the Details oneof field of two
-// ResourceConstraints. The oneof interface is not handled by goderive, so
-// this must be done manually.
-func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	switch av := a.Details.(type) {
-	case *ResourceConstraints_AwsConsole:
-		bv, ok := b.Details.(*ResourceConstraints_AwsConsole)
-		if !ok {
-			return false
-		}
-		if av == nil || bv == nil {
-			return av == bv
-		}
-		return deriveTeleportEqualAWSConsoleResourceConstraints(av.AwsConsole, bv.AwsConsole)
-	case *ResourceConstraints_Ssh:
-		bv, ok := b.Details.(*ResourceConstraints_Ssh)
-		if !ok {
-			return false
-		}
-		if av == nil || bv == nil {
-			return av == bv
-		}
-		return deriveTeleportEqualSSHResourceConstraints(av.Ssh, bv.Ssh)
-	default:
-		return a.Details == nil && b.Details == nil
-	}
-}
-
 // GetUser gets User
 func (r *AccessRequestV3) GetUser() string {
 	return r.Spec.User
@@ -294,10 +201,12 @@ func (r *AccessRequestV3) GetState() RequestState {
 
 // SetState sets State
 func (r *AccessRequestV3) SetState(state RequestState) error {
-	if r.GetState() != state && r.GetState().IsResolved() {
-		return trace.BadParameter("cannot set request-state %q (already %s)", state.String(), r.GetState().String())
+	if r.Spec.State.IsDenied() {
+		if state.IsDenied() {
+			return nil
+		}
+		return trace.BadParameter("cannot set request-state %q (already denied)", state.String())
 	}
-
 	r.Spec.State = state
 	return nil
 }
@@ -443,16 +352,6 @@ func (r *AccessRequestV3) GetSuggestedReviewers() []string {
 // SetSuggestedReviewers sets the suggested reviewer list.
 func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
-}
-
-// GetReferencedUsers returns the usernames referenced by this request: the
-// requester, review authors, and suggested reviewers.
-func (r *AccessRequestV3) GetReferencedUsers() []string {
-	usernames := []string{r.GetUser()}
-	for _, review := range r.GetReviews() {
-		usernames = append(usernames, review.Author)
-	}
-	return append(usernames, r.GetSuggestedReviewers()...)
 }
 
 // GetPromotedAccessListName returns PromotedAccessListName.
@@ -633,13 +532,7 @@ func (r *AccessRequestV3) SetRequestedResourceAccessIDs(ids []ResourceAccessID) 
 	r.Spec.RequestedResourceAccessIDs = append([]ResourceAccessID{}, ids...)
 }
 
-// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations
-// of requested resources, merging the spec's RequestedResourceIDs and
-// RequestedResourceAccessIDs fields without deduplication. The two spec fields
-// are deduplicated against each other when the request is created, with
-// constrained entries taking precedence. To merge the equivalent parallel
-// fields on API request parameters, which are not validated this way, use
-// [CombineAsResourceAccessIDs] instead.
+// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations of requested resources.
 func (r *AccessRequestV3) GetAllRequestedResourceIDs() []ResourceAccessID {
 	wrapped := make([]ResourceAccessID, 0, len(r.Spec.RequestedResourceIDs)+len(r.Spec.RequestedResourceAccessIDs))
 	for _, rid := range r.Spec.RequestedResourceIDs {
@@ -757,17 +650,12 @@ func (r *AccessRequestV3) GetAllLabels() map[string]string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (r *AccessRequestV3) MatchSearch(values []string) bool {
-	return MatchSearch(r.SearchableFields(), values, nil)
-}
-
-// SearchableFields returns the stored access request values used for search.
-func (r *AccessRequestV3) SearchableFields() []string {
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser())
 	fieldVals = append(fieldVals, r.GetRoles()...)
 	for _, resource := range r.GetRequestedResourceIDs() {
 		fieldVals = append(fieldVals, resource.Name)
 	}
-	return fieldVals
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // Origin returns the origin value of the resource.

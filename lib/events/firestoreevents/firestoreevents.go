@@ -74,18 +74,6 @@ var (
 			Help: "Number of batch read requests to firestore events",
 		},
 	)
-	writeRequestsDeduped = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "firestore_events_backend_write_deduped",
-			Help: "Number of write requests that were de-duplicated because an identical event already existed.",
-		},
-	)
-	eventIDCollisions = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "firestore_events_backend_event_id_collisions",
-			Help: "Number of distinct audit events that collided with an existing event sharing the same id and were re-inserted under a newly generated id.",
-		},
-	)
 	writeLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: "firestore_events_backend_write_seconds",
@@ -117,7 +105,6 @@ var (
 	prometheusCollectors = []prometheus.Collector{
 		writeRequests, batchWriteRequests, batchReadRequests,
 		writeLatencies, batchWriteLatencies, batchReadLatencies,
-		writeRequestsDeduped, eventIDCollisions,
 	}
 )
 
@@ -354,94 +341,14 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 		CreatedAt:      in.GetTime().Unix(),
 		Fields:         string(data),
 	}
-
-	// All audit log events get assigned a UUID by the function
-	// `checkAndSetEventFields`. This happens when EmitAuditEvent is called.
-	// It should not happen, but if for some reason an event ID is missing, then
-	// we will generate an event ID. We want to prioritize durability of events
-	// and ensure that we don't error if a bug caused an event to be missing an
-	// ID.
-	eventID, err := uuid.Parse(in.GetID())
-	if err != nil {
-		eventID = uuid.New()
-		l.logger.InfoContext(ctx,
-			"Audit event does not have a valid UUID. Using a generated doc id, this event will not be de-duplicated if it is re-delivered.",
-			"error", err,
-			"event_id", in.GetID(),
-			"event_type", in.GetType(),
-			"generated_doc_id", eventID,
-		)
-	}
-
 	start := time.Now()
-	err = l.insertEvent(ctx, in, eventID, event)
+	_, err = l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent()).Create(l.svcContext, event)
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
-	return trace.Wrap(err)
-}
-
-func (l *Log) insertEvent(ctx context.Context, in apievents.AuditEvent, docID uuid.UUID, e event) error {
-	inserted, isDuplicate, err := l.tryInsertEvent(docID, e)
 	if err != nil {
-		return trace.Wrap(err)
+		return firestorebk.ConvertGRPCError(err)
 	}
-	if inserted {
-		return nil
-	}
-	if isDuplicate {
-		writeRequestsDeduped.Inc()
-		l.logger.DebugContext(ctx, "Dropped duplicate audit event.",
-			"event_id", docID,
-			"event_type", in.GetType(),
-		)
-		return nil
-	}
-
-	newID := uuid.New()
-	l.logger.WarnContext(ctx,
-		"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
-		"event_type", in.GetType(),
-		"original_event_id", docID,
-		"new_event_id", newID,
-	)
-	eventIDCollisions.Inc()
-
-	inserted, isDuplicate, err = l.tryInsertEvent(newID, e)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if inserted || isDuplicate {
-		return nil
-	}
-	return trace.AlreadyExists(
-		"audit event id collision persisted after generating a new id (original_event_id %v)",
-		docID,
-	)
-}
-
-func (l *Log) tryInsertEvent(docID uuid.UUID, e event) (inserted, isDuplicate bool, err error) {
-	docRef := l.svc.Collection(l.CollectionName).Doc(docID.String())
-	if _, err := docRef.Create(l.svcContext, e); err != nil {
-		convertedErr := firestorebk.ConvertGRPCError(err)
-		if !trace.IsAlreadyExists(convertedErr) {
-			return false, false, trace.Wrap(convertedErr)
-		}
-	} else {
-		return true, false, nil
-	}
-
-	docSnap, err := docRef.Get(l.svcContext)
-	if err != nil {
-		return false, false, trace.Wrap(firestorebk.ConvertGRPCError(err), "read existing/collided event")
-	}
-
-	var existing event
-	if err := docSnap.DataTo(&existing); err != nil {
-		return false, false, trace.Wrap(firestorebk.ConvertGRPCError(err), "populate existing/collided event")
-	}
-	// TODO(kkloberdanz): We currently do a strict bytes comparison. Should this
-	// be a proper JSON comparison?
-	return false, existing.Fields == e.Fields, nil
+	return nil
 }
 
 // SearchEvents is a flexible way to find events.
@@ -453,10 +360,7 @@ func (l *Log) tryInsertEvent(docID uuid.UUID, e event) (inserted, isDuplicate bo
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	if req.BeamID != "" {
-		return nil, "", trace.NotImplemented("the firestore audit backend does not support the beam ID filter")
-	}
-	values, next, err := l.searchEventsWithFilter(
+	return l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -465,17 +369,9 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 			limit:     req.Limit,
 			order:     req.Order,
 			lastKey:   req.StartKey,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes},
 			sessionID: "",
 		})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 type searchEventsWithFilterParams struct {
@@ -488,7 +384,7 @@ type searchEventsWithFilterParams struct {
 	sessionID      string
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]events.EventFields, string, error) {
+func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]apievents.AuditEvent, string, error) {
 	if params.limit <= 0 {
 		params.limit = batchReadLimit
 	}
@@ -545,8 +441,16 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWit
 	}
 
 	sort.Sort(toSort)
+	eventArr := make([]apievents.AuditEvent, 0, len(values))
+	for _, fields := range values {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
 
-	return values, lastKey, nil
+	return eventArr, lastKey, nil
 }
 
 func (l *Log) query(
@@ -575,20 +479,6 @@ func (l *Log) query(
 		docID = checkpointParts[1]
 	}
 
-	getCheckpointTime := func(docSnap *firestore.DocumentSnapshot) (int64, error) {
-		createdAtValue, ok := docSnap.Data()[createdAtDocProperty]
-		if !ok {
-			return 0, trace.BadParameter("missing %q field in event document %q", createdAtDocProperty, docSnap.Ref.ID)
-		}
-
-		checkpointTime, ok := createdAtValue.(int64)
-		if !ok {
-			return 0, trace.BadParameter("invalid %q type %T in event document %q", createdAtDocProperty, createdAtValue, docSnap.Ref.ID)
-		}
-
-		return checkpointTime, nil
-	}
-
 	for {
 		if lastKey != "" {
 			query = query.StartAfter(checkpointTime, docID)
@@ -608,7 +498,7 @@ func (l *Log) query(
 		// Iterate over the documents in the query.
 		// The iterator is limited to [limit] documents so in order to know if we
 		// have more pages to read when filtering, we can read only [limit] documents.
-		for range limit {
+		for i := 0; i < limit; i++ {
 			docSnap, err := fstoreIterator.Next()
 			if errors.Is(err, iterator.Done) {
 				// iterator.Done is returned when there are no more documents to read.
@@ -630,26 +520,13 @@ func (l *Log) query(
 				return nil, "", trace.Errorf("failed to unmarshal event %v", err)
 			}
 
-			if filter.search != "" && !events.MatchSearch(filter.search, string(data)) {
-				checkpointTime, err = getCheckpointTime(docSnap)
-				if err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-				docID = docSnap.Ref.ID
-				lastKey = strconv.FormatInt(checkpointTime, 10) + ":" + docID
-				continue
-			}
-
 			// if the total size of the events exceeds the limit, return the events
 			// collected so far and the last key to resume the query.
 			if totalSize+len(data) >= events.MaxEventBytesInResponse {
 				return values, lastKey, nil
 			}
 
-			checkpointTime, err = getCheckpointTime(docSnap)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
+			checkpointTime = docSnap.Data()[createdAtDocProperty].(int64)
 			docID = docSnap.Ref.ID
 			lastKey = strconv.FormatInt(checkpointTime, 10) + ":" + docID
 
@@ -678,7 +555,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		}
 		filter.condition = condFn
 	}
-	values, next, err := l.searchEventsWithFilter(
+	return l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -691,14 +568,6 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 			sessionID: req.SessionID,
 		},
 	)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -711,7 +580,6 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 type searchEventsFilter struct {
 	eventTypes []string
-	search     string
 	condition  utils.FieldsCondition
 }
 
@@ -773,31 +641,8 @@ func (l *Log) Close() error {
 	return l.svc.Close()
 }
 
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	if req.BeamID != "" {
-		return nil, "", trace.NotImplemented("the firestore audit backend does not support the beam ID filter")
-	}
-	values, next, err := l.searchEventsWithFilter(
-		ctx,
-		searchEventsWithFilterParams{
-			fromUTC:   req.From,
-			toUTC:     req.To,
-			namespace: apidefaults.Namespace,
-			limit:     req.Limit,
-			order:     req.Order,
-			lastKey:   req.StartKey,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
-			sessionID: "",
-		})
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+func (l *Log) getDocIDForEvent() string {
+	return uuid.New().String()
 }
 
 func (l *Log) purgeExpiredEvents() error {

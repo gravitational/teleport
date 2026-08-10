@@ -128,8 +128,6 @@ type SAMLConnector interface {
 	GetIncludeSubject() bool
 	// SetIncludeSubject sets whether the Subject element should be included.
 	SetIncludeSubject(bool)
-	// IsEqual determines if two connectors are equivalent to one another.
-	IsEqual(SAMLConnector) bool
 	// GetEntraIDGroupsProvider returns Entra ID groups provider.
 	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
 	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
@@ -154,15 +152,6 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
-}
-
-func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
-	otherv2, ok := other.(*SAMLConnectorV2)
-	if !ok {
-		return false
-	}
-
-	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
 }
 
 // GetVersion returns resource version
@@ -787,8 +776,6 @@ type SAMLConnectorValidationOptions struct {
 	WithSecrets  bool
 	// Transport used to fetch entity descriptor during the validation.
 	Transport http.RoundTripper
-	// WithAttributesToRoles enables validation of attributes_to_roles field on the connector.
-	WithAttributesToRoles bool
 }
 
 // NewSAMLConnectorValidationOptions creates SAMLConnectorValidationOptions from provided options.
@@ -824,13 +811,5 @@ func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidatio
 func SAMLConnectorValidationHTTPTransport(transport http.RoundTripper) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.Transport = transport
-	}
-}
-
-// SAMLConnectorValidationWithAttributesToRoles returns a SAMLConnectorValidationOption
-// that enables validation of attributes_to_roles field on the connector.
-func SAMLConnectorValidationWithAttributesToRoles(withAttributesToRoles bool) SAMLConnectorValidationOption {
-	return func(opts *SAMLConnectorValidationOptions) {
-		opts.WithAttributesToRoles = withAttributesToRoles
 	}
 }

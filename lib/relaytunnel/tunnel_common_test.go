@@ -17,6 +17,7 @@
 package relaytunnel
 
 import (
+	"io"
 	"net"
 	"os"
 	"testing"
@@ -32,7 +33,7 @@ func TestYamuxStreamConnDeadline(t *testing.T) {
 	conn1, conn2 := net.Pipe()
 
 	cfg := yamux.DefaultConfig()
-	cfg.LogOutput = t.Output()
+	cfg.LogOutput = io.Discard
 
 	sess1, err := yamux.Client(conn1, cfg)
 	require.NoError(t, err)

@@ -296,9 +296,9 @@ func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource
 			Kind:    types.KindCertAuthorityOverride,
 			Version: types.V1,
 			SubKind: subKind,
-			Metadata: headerv1.Metadata_builder{
+			Metadata: &headerv1.Metadata{
 				Name: name,
-			}.Build(),
+			},
 		}.Build()), nil
 	case types.OpPut:
 		r, err := services.UnmarshalCertAuthorityOverride(event.Item.Value,

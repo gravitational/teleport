@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 func ServeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
@@ -49,10 +50,11 @@ func ServeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func ExtractClientIP(r *http.Request) (string, error) {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil || host == "" {
+	// TODO: use net.SplitHostPort to be compatible with IPv6
+	token, _, _ := strings.Cut(r.RemoteAddr, ":")
+	if token == "" {
 		return "", errors.New("failed to extract source IP")
 	}
 
-	return host, nil
+	return token, nil
 }

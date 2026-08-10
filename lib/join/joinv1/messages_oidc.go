@@ -39,8 +39,8 @@ func oidcInitFromMessage(msg *messages.OIDCInit) (*joinv1.OIDCInit, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return joinv1.OIDCInit_builder{
+	return &joinv1.OIDCInit{
 		ClientParams: clientParams,
 		IdToken:      msg.IDToken,
-	}.Build(), nil
+	}, nil
 }

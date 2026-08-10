@@ -164,6 +164,7 @@ func TestStartNewParker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
@@ -326,13 +327,6 @@ func TestRootOpenFileAsUser(t *testing.T) {
 
 	require.Equal(t, euid, os.Geteuid())
 	require.Equal(t, egid, os.Getegid())
-
-	// opening sylmink fails
-	symlinkPath := filepath.Join(tmp, "symlink")
-	require.NoError(t, os.Symlink(testFile, symlinkPath))
-	file, err = openFileAsUser(testUser, symlinkPath)
-	require.ErrorIs(t, err, syscall.ELOOP)
-	require.Nil(t, file)
 }
 
 // requireRoot is [testutils.RequireRoot] but inlined.

@@ -3,6 +3,12 @@
 ################################################################################
 
 locals {
+  teleport_discovery_config_name = (
+    var.teleport_discovery_config_use_name_prefix
+    ? "${var.teleport_discovery_config_name}-${local.teleport_resource_name_suffix}"
+    : var.teleport_discovery_config_name
+  )
+
   legacy_aws_matchers = length(var.match_aws_resource_types) == 0 ? [] : [
     {
       types                = var.match_aws_resource_types
@@ -65,11 +71,6 @@ locals {
           join_token       = local.teleport_provision_token_name
           script_name      = "default-installer"
           sshd_config      = "/etc/ssh/sshd_config"
-          suffix = (
-            var.teleport_discovery_config_install_suffix != ""
-            ? var.teleport_discovery_config_install_suffix
-            : null
-          )
         }
         ssm = {
           document_name = "AWS-RunShellScript"
@@ -155,11 +156,7 @@ resource "teleport_discovery_config" "aws" {
     metadata = {
       description = "Configure Teleport to discover AWS resources."
       labels      = local.apply_teleport_resource_labels
-      name = (
-        var.teleport_discovery_config_use_name_prefix
-        ? "${var.teleport_discovery_config_name}-${local.teleport_resource_name_suffix}"
-        : var.teleport_discovery_config_name
-      )
+      name        = local.teleport_discovery_config_name
     }
   }
 

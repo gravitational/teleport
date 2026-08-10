@@ -25,8 +25,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
-import { isErrnoException } from 'shared/utils/error';
-
 const stdio = 'pipe'; // Change to 'inherit' for easier debugging.
 
 let logsDir: string;
@@ -199,7 +197,7 @@ const isRunning = (pid: number) => {
   try {
     return process.kill(pid, 0);
   } catch (error) {
-    if (isErrnoException(error, 'ESRCH')) {
+    if (error.code === 'ESRCH') {
       return false;
     }
 

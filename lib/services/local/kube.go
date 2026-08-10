@@ -72,14 +72,8 @@ func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
-//
-// Deprecated: this predates both scope filtering and with_secrets, and is secret-inclusive because the
-// legacy RPC it backs must keep behaving as it does for outdated clients. Prefer RangeKubeClusters.
-// TODO(okraport): remove in v21, along with the legacy GetKubernetesClusters RPC.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	out, err := stream.Collect(s.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
-		WithSecrets: true,
-	}.Build()))
+	out, err := stream.Collect(s.RangeKubeClusters(ctx, nil))
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,17 +92,7 @@ func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *presencev
 		return scopes.MatchScope(scopeFilter, kc.GetScope())
 	}
 
-	clusters, next, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	if !req.GetWithSecrets() {
-		for i, cluster := range clusters {
-			clusters[i] = cluster.WithoutSecrets().(types.KubeCluster)
-		}
-	}
-
-	return clusters, next, nil
+	return s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
@@ -117,15 +101,8 @@ func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presence
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return stream.Fail[types.KubeCluster](trace.Wrap(err))
 	}
-	withSecrets := req.GetWithSecrets()
 	filterFn := func(kc types.KubeCluster) (types.KubeCluster, bool) {
-		if !scopes.MatchScope(scopeFilter, kc.GetScope()) {
-			return nil, false
-		}
-		if !withSecrets {
-			kc = kc.WithoutSecrets().(types.KubeCluster)
-		}
-		return kc, true
+		return kc, scopes.MatchScope(scopeFilter, kc.GetScope())
 	}
 
 	return stream.FilterMap(s.svc.Resources(ctx, req.GetPageToken(), ""), filterFn)
@@ -142,14 +119,7 @@ func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *presencev1.
 			return nil, trace.Wrap(err)
 		}
 	}
-	cluster, err := s.svc.GetResource(ctx, sqn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !req.GetWithSecrets() {
-		cluster = cluster.WithoutSecrets().(types.KubeCluster)
-	}
-	return cluster, nil
+	return s.svc.GetResource(ctx, sqn)
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.

@@ -21,7 +21,6 @@ package main
 import (
 	"context"
 
-	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )

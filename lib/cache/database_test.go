@@ -222,7 +222,7 @@ func TestDatabaseObjects(t *testing.T) {
 			}
 			return nil
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 func mustCreateDatabaseServer(t testing.TB, hostID, dbName string) types.DatabaseServer {

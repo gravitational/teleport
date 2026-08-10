@@ -42,7 +42,7 @@ import (
 func TestPollAWSS3(t *testing.T) {
 	sortSlice := func(buckets []*accessgraphv1alpha.AWSS3BucketV1) {
 		sort.Slice(buckets, func(i, j int) bool {
-			return buckets[i].GetName() < buckets[j].GetName()
+			return buckets[i].Name < buckets[j].Name
 		})
 	}
 
@@ -126,46 +126,46 @@ func TestPollAWSS3(t *testing.T) {
 	// buckets it has entries for.
 	fetchedACLs := func() []*accessgraphv1alpha.AWSS3BucketACL {
 		return []*accessgraphv1alpha.AWSS3BucketACL{
-			accessgraphv1alpha.AWSS3BucketACL_builder{
-				Grantee: accessgraphv1alpha.AWSS3BucketACLGrantee_builder{
+			{
+				Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
 					Id: "id",
-				}.Build(),
+				},
 				Permission: "READ",
-			}.Build(),
+			},
 		}
 	}
 	fetchedTags := func() []*accessgraphv1alpha.AWSTag {
 		return []*accessgraphv1alpha.AWSTag{
-			accessgraphv1alpha.AWSTag_builder{
+			{
 				Key:   "tag",
 				Value: strPtrToWrapper(aws.String("val")),
-			}.Build(),
+			},
 		}
 	}
 
 	// existing is what a previous sync recorded for a bucket. Every field a
 	// request fails to fetch must be carried over from here.
 	existing := func(name string) *accessgraphv1alpha.AWSS3BucketV1 {
-		return accessgraphv1alpha.AWSS3BucketV1_builder{
+		return &accessgraphv1alpha.AWSS3BucketV1{
 			Name:           name,
 			AccountId:      accountID,
 			PolicyDocument: []byte("existingPolicy"),
 			IsPublic:       true,
 			Acls: []*accessgraphv1alpha.AWSS3BucketACL{
-				accessgraphv1alpha.AWSS3BucketACL_builder{
-					Grantee: accessgraphv1alpha.AWSS3BucketACLGrantee_builder{
+				{
+					Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
 						Id: "existingID",
-					}.Build(),
+					},
 					Permission: "WRITE",
-				}.Build(),
+				},
 			},
 			Tags: []*accessgraphv1alpha.AWSTag{
-				accessgraphv1alpha.AWSTag_builder{
+				{
 					Key:   "existingTag",
 					Value: strPtrToWrapper(aws.String("existingVal")),
-				}.Build(),
+				},
 			},
-		}.Build()
+		}
 	}
 
 	tests := []struct {
@@ -179,29 +179,29 @@ func TestPollAWSS3(t *testing.T) {
 			lastResult: &Resources{},
 			want: &Resources{
 				S3Buckets: []*accessgraphv1alpha.AWSS3BucketV1{
-					accessgraphv1alpha.AWSS3BucketV1_builder{
+					{
 						Name:           bucketName,
 						AccountId:      accountID,
 						PolicyDocument: []byte("policy"),
 						IsPublic:       true,
 						Acls:           fetchedACLs(),
 						Tags:           fetchedTags(),
-					}.Build(),
-					accessgraphv1alpha.AWSS3BucketV1_builder{
+					},
+					{
 						Name:           otherBucketName,
 						AccountId:      accountID,
 						PolicyDocument: []byte("otherPolicy"),
 						IsPublic:       false,
 						Acls:           fetchedACLs(),
-					}.Build(),
-					accessgraphv1alpha.AWSS3BucketV1_builder{
+					},
+					{
 						Name:      missingBucket,
 						AccountId: accountID,
-					}.Build(),
-					accessgraphv1alpha.AWSS3BucketV1_builder{
+					},
+					{
 						Name:      regionlessBucket,
 						AccountId: accountID,
-					}.Build(),
+					},
 				},
 			},
 		},
@@ -220,23 +220,23 @@ func TestPollAWSS3(t *testing.T) {
 			want: &Resources{
 				S3Buckets: []*accessgraphv1alpha.AWSS3BucketV1{
 					// Every request succeeded, so nothing is carried over.
-					accessgraphv1alpha.AWSS3BucketV1_builder{
+					{
 						Name:           bucketName,
 						AccountId:      accountID,
 						PolicyDocument: []byte("policy"),
 						IsPublic:       true,
 						Acls:           fetchedACLs(),
 						Tags:           fetchedTags(),
-					}.Build(),
+					},
 					// Only the tag request failed.
-					accessgraphv1alpha.AWSS3BucketV1_builder{
+					{
 						Name:           otherBucketName,
 						AccountId:      accountID,
 						PolicyDocument: []byte("otherPolicy"),
 						IsPublic:       false,
 						Acls:           fetchedACLs(),
 						Tags:           existing(otherBucketName).GetTags(),
-					}.Build(),
+					},
 					// Every request failed, so every field is carried over.
 					existing(missingBucket),
 					// The region was never resolved, so no request was made.
@@ -287,7 +287,7 @@ func TestPollAWSS3(t *testing.T) {
 				// tags originate from a map so we must sort them before comparing.
 				protocmp.SortRepeated(
 					func(a, b *accessgraphv1alpha.AWSTag) bool {
-						return a.GetKey() < b.GetKey()
+						return a.Key < b.Key
 					},
 				),
 			),
@@ -476,12 +476,12 @@ func s3Buckets(region string, bucketNames ...string) []s3types.Bucket {
 
 // Helper function to create AWSS3BucketV1 for testing
 func createAWSS3Bucket(name, accountID string, policyDocument []byte, isPublic bool, lastSync time.Time) *accessgraphv1alpha.AWSS3BucketV1 {
-	return accessgraphv1alpha.AWSS3BucketV1_builder{
+	return &accessgraphv1alpha.AWSS3BucketV1{
 		Name:           name,
 		AccountId:      accountID,
 		PolicyDocument: policyDocument,
 		IsPublic:       isPublic,
-	}.Build()
+	}
 }
 
 func TestMergeS3Protos(t *testing.T) {

@@ -236,7 +236,7 @@ func (m *CRLCache) watch(ctx context.Context) error {
 			return trace.Wrap(err, "receiving CRL stream data")
 		}
 		m.setCRLSet(ctx, &CRLSet{
-			LocalCRL: res.GetCrl(),
+			LocalCRL: res.Crl,
 		})
 	}
 }
@@ -320,6 +320,6 @@ func FetchCRLSet(
 	}
 
 	return &CRLSet{
-		LocalCRL: res.GetCrl(),
+		LocalCRL: res.Crl,
 	}, nil
 }

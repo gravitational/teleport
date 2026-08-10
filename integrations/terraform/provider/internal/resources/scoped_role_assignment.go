@@ -21,7 +21,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
@@ -35,12 +34,8 @@ func NewScopedRoleAssignmentDataSourceType() tfdriver.DataSourceType[accessv1.Sc
 		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedRoleAssignmentClient(clientFromProvider(p))
 		},
-		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
-			tfdriver.ScopeQualifiedPath{
-				Name:  path.Root("metadata").AtName("name"),
-				Scope: path.Root("scope"),
-			}),
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(path.Root("metadata").AtName("name"), path.Root("scope")),
+		Kind:       scopedaccess.KindScopedRoleAssignment,
 		Codec: tfdriver.DataSourceCodecFuncs[accessv1.ScopedRoleAssignment]{
 			SchemaFunc:  schemav1.GenSchemaScopedRoleAssignment,
 			ToStateFunc: schemav1.CopyScopedRoleAssignmentToTerraform,
@@ -62,16 +57,10 @@ func NewScopedRoleAssignmentResourceType() tfdriver.ResourceType[accessv1.Scoped
 		},
 		Normalizer: tfdriver.ForceKind[accessv1.ScopedRoleAssignment](scopedaccess.KindScopedRoleAssignment),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(
-			tfdriver.ScopeQualifiedPath{
-				Name:  path.Root("metadata").AtName("name"),
-				Scope: path.Root("scope"),
-			},
-			func(st *accessv1.ScopedRoleAssignment) scopes.QualifiedName {
-				return scopes.QualifiedName{
-					Name:  st.GetMetadata().GetName(),
-					Scope: st.GetScope(),
-				}
-
+			path.Root("metadata").AtName("name"),
+			path.Root("scope"),
+			func(st *accessv1.ScopedRoleAssignment) (string, string) {
+				return st.GetMetadata().GetName(), st.GetScope()
 			}),
 		ResourceRevision: func(st *accessv1.ScopedRoleAssignment) string {
 			return st.GetMetadata().GetRevision()

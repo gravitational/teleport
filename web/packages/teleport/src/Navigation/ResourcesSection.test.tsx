@@ -72,8 +72,8 @@ describe('getResourcesSection', () => {
   });
 
   test('inaccessible kind shortcuts are hidden when feature hiding is on', () => {
-    const defaultFeatureHiding = cfg.entitlements.FeatureHiding.enabled;
-    cfg.entitlements.FeatureHiding.enabled = true;
+    const defaultFeatureHiding = cfg.hideInaccessibleFeatures;
+    cfg.hideInaccessibleFeatures = true;
     try {
       const ctx = createTeleportContext({
         customAcl: getAcl({ noAccess: true }),
@@ -89,7 +89,7 @@ describe('getResourcesSection', () => {
       const titles = navSections.subsections.map(s => s.title);
       expect(titles).toEqual(fixed);
     } finally {
-      cfg.entitlements.FeatureHiding.enabled = defaultFeatureHiding;
+      cfg.hideInaccessibleFeatures = defaultFeatureHiding;
     }
   });
 });

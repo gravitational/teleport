@@ -25,7 +25,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -141,7 +140,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 	if err == nil {
 		pong, err := client.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
 		if err == nil {
-			return nil, trace.AlreadyExists("another agent instance is already running; PID: %d", pong.GetPid())
+			return nil, trace.AlreadyExists("another agent instance is already running; PID: %d", pong.Pid)
 		}
 	}
 
@@ -158,7 +157,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 }
 
 func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil /*ipAddresses*/)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

@@ -89,13 +89,13 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 			// Only unscoped deletes arrive as a ResourceHeader (scoped deletes
 			// carry a skeleton WorkloadIdentity with the scope set), so the
 			// rebuilt skeleton keys on the bare name.
-			return workloadidentityv1pb.WorkloadIdentity_builder{
+			return &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: headerv1.Metadata_builder{
+				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
-				}.Build(),
-			}.Build()
+				},
+			}
 		},
 		watch: w,
 	}, nil

@@ -19,6 +19,7 @@
 package auth_test
 
 import (
+	"context"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/subca/testenv"
@@ -40,18 +42,17 @@ import (
 // TestDesktopAccessDisabled makes sure desktop access can be disabled via modules.
 // Since desktop connections require a cert, this is mediated via the cert generating function.
 func TestDesktopAccessDisabled(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir: t.TempDir(),
-		Modules: &modulestest.Modules{TestBuildType: modules.BuildOSS},
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Desktop: {Enabled: false}, // Explicitly turn off desktop access.
+			},
+		},
 	})
+
+	ctx := context.Background()
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if p.bk != nil {
-			p.bk.Close()
-		}
-	})
 
 	r, err := p.a.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{})
 	require.Nil(t, r)
@@ -60,9 +61,11 @@ func TestDesktopAccessDisabled(t *testing.T) {
 }
 
 func TestDesktopAccessCAOverrides(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
 
-	tlsServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
+
+	tlsServer := newTestTLSServer(t)
 	authServer := tlsServer.Auth()
 
 	cn, err := authServer.GetClusterName(t.Context())

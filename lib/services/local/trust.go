@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -292,7 +291,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	if !actual.IsEqual(expected) {
+	if !services.CertAuthoritiesEquivalent(actual, expected) {
 		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 	}
 
@@ -709,7 +708,6 @@ func (s *CA) GetTrustedCluster(ctx context.Context, name string) (types.TrustedC
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
-// Deprecated: Prefer paginated variant such as [ListTrustedClusters] or [RangeTrustedClusters]
 func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	startKey := backend.ExactKey(trustedClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -815,38 +813,27 @@ func (s *CA) DeleteTrustedClusterInternal(ctx context.Context, name string, caID
 	return nil
 }
 
-// UpsertTunnelConnection updates or creates tunnel connection.
-func (s *CA) UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
-	_, err := s.UpsertTunnelConnectionV2(ctx, conn)
-	return trace.Wrap(err)
-}
-
-// UpsertTunnelConnectionV2 updates or creates a tunnel connection and returns
-// the upserted value with its revision populated from the backend.
-//
-// TODO(strideynet): In v20.0.0, once the legacy HTTP fallback is removed, this
-// can be renamed to UpsertTunnelConnection.
-func (s *CA) UpsertTunnelConnectionV2(ctx context.Context, conn types.TunnelConnection) (types.TunnelConnection, error) {
+// UpsertTunnelConnection updates or creates tunnel connection
+func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
 	if err := services.CheckAndSetDefaults(conn); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	rev := conn.GetRevision()
 	value, err := services.MarshalTunnelConnection(conn)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	lease, err := s.Put(ctx, backend.Item{
+	_, err = s.Put(context.TODO(), backend.Item{
 		Key:      backend.NewKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:    value,
 		Expires:  conn.Expiry(),
 		Revision: rev,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	conn.SetRevision(lease.Revision)
-	return conn, nil
+	return nil
 }
 
 // GetTunnelConnection returns connection by cluster name and connection name
@@ -867,77 +854,77 @@ func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...ser
 }
 
 // GetTunnelConnections returns connections for a trusted cluster
-func (s *CA) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+func (s *CA) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, clusterName, ""))
-	return conns, trace.Wrap(err)
-}
-
-// ListTunnelConnections returns a page of tunnel connections, optionally
-// filtered to a single cluster.
-func (s *CA) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
-	return generic.CollectPageAndCursor(
-		s.rangeTunnelConnections(ctx, filter.GetClusterName(), pageToken),
-		pageSize,
-		func(tc types.TunnelConnection) string {
-			return tc.GetClusterName() + backend.SeparatorString + tc.GetName()
-		},
-	)
-}
-
-// rangeTunnelConnections returns tunnel connection resources starting from the
-// given page token, optionally restricted to a single cluster.
-func (s *CA) rangeTunnelConnections(ctx context.Context, clusterName, pageToken string) iter.Seq2[types.TunnelConnection, error] {
-	mapFn := func(item backend.Item) (types.TunnelConnection, bool) {
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(result.Items))
+	for i, item := range result.Items {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
+			services.AddOptions(opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
 		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal tunnel connection from backend item",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
+			return nil, trace.Wrap(err)
 		}
-		return conn, true
+		conns[i] = conn
 	}
 
-	prefix := backend.ExactKey(tunnelConnectionsPrefix)
-	if clusterName != "" {
-		prefix = backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	}
-	startKey := prefix
-	if pageToken != "" {
-		startKey = backend.NewKey(tunnelConnectionsPrefix).AppendKey(backend.KeyFromString(pageToken))
-	}
-	endKey := backend.RangeEnd(prefix)
-
-	return stream.FilterMap(
-		s.Backend.Items(ctx, backend.ItemsParams{
-			StartKey: startKey,
-			EndKey:   endKey,
-		}),
-		mapFn,
-	)
+	return conns, nil
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (s *CA) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
-	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, "", ""))
-	return conns, trace.Wrap(err)
+func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conns := make([]types.TunnelConnection, len(result.Items))
+	for i, item := range result.Items {
+		conn, err := services.UnmarshalTunnelConnection(item.Value,
+			services.AddOptions(opts,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+
+	return conns, nil
 }
 
 // DeleteTunnelConnection deletes tunnel connection by name
-func (s *CA) DeleteTunnelConnection(ctx context.Context, clusterName, connectionName string) error {
+func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
 	if connectionName == "" {
 		return trace.BadParameter("missing connection name")
 	}
-	return s.Delete(ctx, backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
+	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
+}
+
+// DeleteTunnelConnections deletes all tunnel connections for cluster
+func (s *CA) DeleteTunnelConnections(clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
+}
+
+// DeleteAllTunnelConnections deletes all tunnel connections
+func (s *CA) DeleteAllTunnelConnections() error {
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
 }
 
 // CreateRemoteCluster creates a remote cluster
@@ -1020,7 +1007,7 @@ func (s *CA) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (t
 	// in the provided remote cluster is not used. We should eventually make a
 	// breaking change to this behavior.
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		existing, err := s.GetRemoteCluster(ctx, rc.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1058,7 +1045,7 @@ func (s *CA) PatchRemoteCluster(
 ) (types.RemoteCluster, error) {
 	// Retry to update the remote cluster in case of a conflict.
 	const iterationLimit = 3
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		existing, err := s.GetRemoteCluster(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)

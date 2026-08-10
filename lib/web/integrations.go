@@ -34,7 +34,6 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/usertasks"
@@ -169,10 +168,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	// Strip MFA from context for the read call so the MFA response is not
-	// consumed before the UpdateIntegration call that actually needs it.
-	getCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
-	integration, err := clt.GetIntegration(getCtx, integrationName)
+	integration, err := clt.GetIntegration(r.Context(), integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,10 +250,10 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
-	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), integrationv1.DeleteIntegrationRequest_builder{
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
 		Name:                      integrationName,
 		DeleteAssociatedResources: deleteAssociatedResources,
-	}.Build()); err != nil {
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -350,10 +346,10 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		}
 	}
 
-	tasks := allUserTasks(ctx, req.userTasksClient, usertasksv1.ListUserTasksFilters_builder{
+	tasks := allUserTasks(ctx, req.userTasksClient, &usertasksv1.ListUserTasksFilters{
 		Integration: req.integration.GetName(),
 		TaskState:   usertasks.TaskStateOpen,
-	}.Build())
+	})
 	for task, err := range tasks {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -475,10 +471,10 @@ func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt user
 	}
 
 	for name := range summaries {
-		tasks := allUserTasks(ctx, uclt, usertasksv1.ListUserTasksFilters_builder{
+		tasks := allUserTasks(ctx, uclt, &usertasksv1.ListUserTasksFilters{
 			Integration: name,
 			TaskState:   usertasks.TaskStateOpen,
-		}.Build())
+		})
 		for task, err := range tasks {
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -513,9 +509,9 @@ func addResourceCounts(rc *ui.ResourcesCount, dr *discoveryconfigv1.ResourcesDis
 	if rc == nil || dr == nil {
 		return
 	}
-	rc.Found += int(dr.GetFound())
-	rc.Enrolled += int(dr.GetEnrolled())
-	rc.Failed += int(dr.GetFailed())
+	rc.Found += int(dr.Found)
+	rc.Enrolled += int(dr.Enrolled)
+	rc.Failed += int(dr.Failed)
 }
 
 func allUserTasks(
@@ -910,10 +906,10 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), pluginspb.GetPluginRequest_builder{
+	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
 		Name:        p.ByName("plugin"),
 		WithSecrets: false,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -946,13 +942,13 @@ func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), integrationv1.ExportIntegrationCertAuthoritiesRequest_builder{
+	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), &integrationv1.ExportIntegrationCertAuthoritiesRequest{
 		Integration: integrationName,
-	}.Build())
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiCAKeySet, err := ui.MakeCAKeySet(resp.GetCertAuthorities())
+	uiCAKeySet, err := ui.MakeCAKeySet(resp.CertAuthorities)
 	return uiCAKeySet, trace.Wrap(err)
 }

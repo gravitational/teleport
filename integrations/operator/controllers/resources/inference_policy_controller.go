@@ -37,16 +37,16 @@ type inferencePolicyClient struct {
 
 // Get gets an inference policy with a given name from Teleport.
 func (c inferencePolicyClient) Get(
-	ctx context.Context, key reconcilers.ResourceKey,
+	ctx context.Context, name string,
 ) (*summarizerv1.InferencePolicy, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferencePolicy(
-		ctx, summarizerv1.GetInferencePolicyRequest_builder{Name: key.Name}.Build(),
+		ctx, &summarizerv1.GetInferencePolicyRequest{Name: name},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.GetPolicy(), nil
+	return resp.Policy, nil
 }
 
 // Create creates an inference policy in Teleport.
@@ -54,7 +54,7 @@ func (c inferencePolicyClient) Create(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().CreateInferencePolicy(
-		ctx, summarizerv1.CreateInferencePolicyRequest_builder{Policy: policy}.Build(),
+		ctx, &summarizerv1.CreateInferencePolicyRequest{Policy: policy},
 	)
 	return trace.Wrap(err)
 }
@@ -64,15 +64,15 @@ func (c inferencePolicyClient) Update(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().UpdateInferencePolicy(
-		ctx, summarizerv1.UpdateInferencePolicyRequest_builder{Policy: policy}.Build(),
+		ctx, &summarizerv1.UpdateInferencePolicyRequest{Policy: policy},
 	)
 	return trace.Wrap(err)
 }
 
 // Delete deletes an inference policy with a given name from Teleport.
-func (c inferencePolicyClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+func (c inferencePolicyClient) Delete(ctx context.Context, name string) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferencePolicy(
-		ctx, summarizerv1.DeleteInferencePolicyRequest_builder{Name: key.Name}.Build(),
+		ctx, &summarizerv1.DeleteInferencePolicyRequest{Name: name},
 	)
 	return trace.Wrap(err)
 }
@@ -91,9 +91,6 @@ func NewInferencePolicyReconciler(
 	](
 		client,
 		inferencePolicyClient,
-		reconcilers.Config{
-			CheckFeatures: controllers.RequireSessionSummaries,
-		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)

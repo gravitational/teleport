@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/set"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -93,9 +92,9 @@ func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request
 	}
 
 	return listResourcesGetResponse{
-		Items:      webui.MakeKubeResources(resp.GetResources(), kubeCluster),
-		StartKey:   resp.GetNextKey(),
-		TotalCount: int(resp.GetTotalCount()),
+		Items:      webui.MakeKubeResources(resp.Resources, kubeCluster),
+		StartKey:   resp.NextKey,
+		TotalCount: int(resp.TotalCount),
 	}, nil
 }
 
@@ -483,12 +482,5 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	loginSet := set.New(logins...)
-
-	return webui.MakeServer(server, webui.MakeServerConfig{
-		ClusterName:       cluster.GetName(),
-		Logins:            &webui.PrincipalSet{All: loginSet, Granted: loginSet},
-		RequiresRequest:   false,
-		SupportedFeatures: nil,
-	}), nil
+	return webui.MakeServer(cluster.GetName(), server, logins, false /* requiresRequest */), nil
 }

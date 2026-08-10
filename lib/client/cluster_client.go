@@ -35,9 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/mfa"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -105,45 +103,6 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 	return authClient, trace.Wrap(err)
 }
 
-// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
-func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
-	rootClient, err := c.ConnectToRootCluster(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer rootClient.Close()
-
-	mfaClient := rootClient.MFAServiceClientV2()
-	if mfaClient == nil {
-		return "", trace.BadParameter("MFA service client is not initialized (this is a bug)")
-	}
-
-	ceremony, err := mfa.NewSessionBoundCeremony(
-		mfa.SessionBoundCeremonyConfig{
-			CreateSessionChallenge:      mfaClient.CreateSessionChallenge,
-			ValidateSessionChallenge:    mfaClient.ValidateSessionChallenge,
-			PromptConstructor:           c.tc.NewMFAPrompt,
-			CallbackCeremonyConstructor: c.tc.NewRedirectorMFACeremony,
-			TargetCluster:               c.cluster,
-		},
-	)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	name, err := ceremony.Run(
-		ctx,
-		mfav2.SessionIdentifyingPayload_builder{
-			SshSessionId: sessionID,
-		}.Build(),
-	)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return name, nil
-}
-
 // Close terminates the connections to Auth and Proxy.
 func (c *ClusterClient) Close() error {
 	// close auth client first since it is tunneled through the proxy client
@@ -177,6 +136,20 @@ func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, clus
 	}
 
 	return conn, details, nil
+}
+
+// ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
+type ceremonyFailedErr struct {
+	err error
+}
+
+// Error returns the error string of the wrapped error if one exists.
+func (c ceremonyFailedErr) Error() string {
+	if c.err == nil {
+		return ""
+	}
+
+	return c.err.Error()
 }
 
 // ReissueUserCerts generates a new set of certificates for the user.
@@ -299,7 +272,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
 // provided target for the provided user. If per session MFA is required to establish the
 // connection, then the MFA ceremony will be performed.
-func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, target NodeDetails) (apissh.ClientConfig, error) {
+func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, target NodeDetails) (*ssh.ClientConfig, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"clusterClient/SessionSSHConfig",
@@ -318,25 +291,20 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	newKeyRing, completedMFA, err := c.SessionSSHKeyRing(ctx, user, target)
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if !completedMFA {
 		// The caller relies on this function returning an error if
 		// target.MFACheck is nil and session MFA was not actually required.
-		return apissh.ClientConfig{}, trace.Wrap(services.ErrSessionMFANotRequired)
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
-	sshConfig.PublicKeyAuth = apissh.PublicKeyAuthConfig{
-		Signers: func() ([]ssh.Signer, error) {
-			sshSigner, err := newKeyRing.SSHSigner()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return []ssh.Signer{sshSigner}, nil
-		},
+	am, err := newKeyRing.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 
+	sshConfig.Auth = []ssh.AuthMethod{am}
 	return sshConfig, nil
 }
 

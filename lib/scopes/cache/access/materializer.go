@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type repairEvent int
@@ -808,8 +808,8 @@ func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslis
 	// Keep track of users and lists that have already been seen across member
 	// iterations to avoid duplicating work if the same user or list is a
 	// member of multiple owner lists.
-	seenLists := set.New[accesslists.NormalizedSQN]()
-	seenUsers := set.New[string]()
+	seenLists := utils.NewSet[accesslists.NormalizedSQN]()
+	seenUsers := utils.NewSet[string]()
 
 	for _, owner := range list.Spec.Owners {
 		if owner.IsMembershipKindUser() {
@@ -984,18 +984,18 @@ func (m *Materializer) materializeAssignment(
 
 	if relation.isMember {
 		for _, grant := range list.Spec.Grants.ScopedRoles {
-			assignment.GetSpec().SetAssignments(append(assignment.GetSpec().GetAssignments(), scopedaccessv1.Assignment_builder{
+			assignment.Spec.Assignments = append(assignment.Spec.Assignments, &scopedaccessv1.Assignment{
 				Role:  grant.Role,
 				Scope: grant.Scope,
-			}.Build()))
+			})
 		}
 	}
 	if relation.isOwner {
 		for _, grant := range list.Spec.OwnerGrants.ScopedRoles {
-			assignment.GetSpec().SetAssignments(append(assignment.GetSpec().GetAssignments(), scopedaccessv1.Assignment_builder{
+			assignment.Spec.Assignments = append(assignment.Spec.Assignments, &scopedaccessv1.Assignment{
 				Role:  grant.Role,
 				Scope: grant.Scope,
-			}.Build()))
+			})
 		}
 	}
 
@@ -1088,7 +1088,7 @@ func (m *Materializer) checkNestedOwnership(ctx context.Context, list *accesslis
 }
 
 func (m *Materializer) checkNestedMembership(ctx context.Context, list *accesslist.AccessList, userName string) bool {
-	seen := set.New[accesslists.NormalizedSQN]()
+	seen := utils.NewSet[accesslists.NormalizedSQN]()
 
 	var checkNestedMembershipRecursive func(*accesslist.AccessList) bool
 	checkNestedMembershipRecursive = func(list *accesslist.AccessList) bool {
@@ -1175,8 +1175,8 @@ func (m *Materializer) materializedAssignmentsForUser(userName string) iter.Seq2
 // It will yield any errors encountered while fetching list or member resources
 // but may continue iterating over other lists/members.
 func (m *Materializer) walkUserMembers(ctx context.Context, list *accesslist.AccessList) iter.Seq2[*accesslist.AccessListMember, error] {
-	seenLists := set.New[accesslists.NormalizedSQN]()
-	seenUsers := set.New[string]()
+	seenLists := utils.NewSet[accesslists.NormalizedSQN]()
+	seenUsers := utils.NewSet[string]()
 	return m.walkUserMembersRecursive(ctx, list, seenLists, seenUsers)
 }
 
@@ -1198,7 +1198,7 @@ func (m *Materializer) walkUserMembers(ctx context.Context, list *accesslist.Acc
 //
 // It will yield any errors encountered while fetching list or member resources
 // but may continue iterating over other lists/members.
-func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *accesslist.AccessList, seenLists set.Set[accesslists.NormalizedSQN], seenUsers set.Set[string]) iter.Seq2[*accesslist.AccessListMember, error] {
+func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *accesslist.AccessList, seenLists utils.Set[accesslists.NormalizedSQN], seenUsers utils.Set[string]) iter.Seq2[*accesslist.AccessListMember, error] {
 	return func(yield func(*accesslist.AccessListMember, error) bool) {
 		listName := accesslists.ScopeQualifiedName(list)
 		seenLists.Add(listName)
@@ -1269,19 +1269,19 @@ func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *acces
 }
 
 type mapNormalizedSQNSet struct {
-	m map[accesslists.NormalizedSQN]set.Set[accesslists.NormalizedSQN]
+	m map[accesslists.NormalizedSQN]utils.Set[accesslists.NormalizedSQN]
 }
 
 func newMapNormalizedSQNSet() mapNormalizedSQNSet {
 	return mapNormalizedSQNSet{
-		m: make(map[accesslists.NormalizedSQN]set.Set[accesslists.NormalizedSQN]),
+		m: make(map[accesslists.NormalizedSQN]utils.Set[accesslists.NormalizedSQN]),
 	}
 }
 
-// readOnlySet implements a read-only view of a set.Set[string] that only
+// readOnlySet implements a read-only view of a utils.Set[string] that only
 // contains methods guaranteed to work even if the underlying map is nil.
 type readOnlySet struct {
-	s set.Set[accesslists.NormalizedSQN]
+	s utils.Set[accesslists.NormalizedSQN]
 }
 
 // Contains implements a membership test for the readOnlySet.
@@ -1303,11 +1303,11 @@ func (m *mapNormalizedSQNSet) Get(key accesslists.NormalizedSQN) readOnlySet {
 // Ensure returns a set for the given key, creating an empty set if one is not
 // currently present. Prefer [mapNormalizedSQNSet.Get] if the returned set does not
 // need to be mutated.
-func (m *mapNormalizedSQNSet) Ensure(key accesslists.NormalizedSQN) set.Set[accesslists.NormalizedSQN] {
+func (m *mapNormalizedSQNSet) Ensure(key accesslists.NormalizedSQN) utils.Set[accesslists.NormalizedSQN] {
 	if s, ok := m.m[key]; ok {
 		return s
 	}
-	s := set.New[accesslists.NormalizedSQN]()
+	s := utils.NewSet[accesslists.NormalizedSQN]()
 	m.m[key] = s
 	return s
 }
@@ -1382,7 +1382,7 @@ func (c *ancestorCache) collectAncestorLists(params collectAncestorListsParams) 
 		result[parentListName] = curr
 	}
 
-	seen := set.New[accesslists.NormalizedSQN]()
+	seen := utils.NewSet[accesslists.NormalizedSQN]()
 
 	var collectAncestorsRecursive func(currListName accesslists.NormalizedSQN)
 	collectAncestorsRecursive = func(currListName accesslists.NormalizedSQN) {
@@ -1792,7 +1792,7 @@ func (m *Materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map
 
 type expiredMembers struct {
 	hasExpiredListMember bool
-	users                set.Set[string]
+	users                utils.Set[string]
 }
 
 func (m *expiredMembers) insert(member *accesslist.AccessListMember) {
@@ -1804,7 +1804,7 @@ func (m *expiredMembers) insert(member *accesslist.AccessListMember) {
 	}
 	if member.IsUser() {
 		if m.users == nil {
-			m.users = set.NewWithCapacity[string](1)
+			m.users = utils.NewSetWithCapacity[string](1)
 		}
 		m.users.Add(member.GetName())
 	}
@@ -1812,7 +1812,7 @@ func (m *expiredMembers) insert(member *accesslist.AccessListMember) {
 
 type assignmentFilter struct {
 	anyUser bool
-	users   set.Set[string]
+	users   utils.Set[string]
 }
 
 func (f assignmentFilter) match(user string) bool {
@@ -1829,11 +1829,11 @@ func (f *assignmentFilter) merge(other assignmentFilter) {
 		f.users = nil
 		return
 	}
-	if other.users.Len() == 0 {
+	if len(other.users) == 0 {
 		return
 	}
 	if f.users == nil {
-		f.users = set.NewWithCapacity[string](other.users.Len())
+		f.users = utils.NewSetWithCapacity[string](len(other.users))
 	}
 	f.users.Union(other.users)
 }

@@ -130,14 +130,14 @@ type ProtoStreamerConfig struct {
 	ForceFlush chan struct{}
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
 	// OnUploadComplete is called after an upload completes when no session end event
 	// was observed in the stream. It returns the recovered session end event, if any.
 	// If nil, no recovery is attempted.
@@ -194,9 +194,9 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ConcurrentUploads:         s.cfg.ConcurrentUploads,
 		ForceFlush:                s.cfg.ForceFlush,
 		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		Encrypter:                 s.cfg.Encrypter,
 		OnUploadComplete:          s.onUploadComplete,
 	})
 }
@@ -235,9 +235,9 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		MinUploadBytes:            s.cfg.MinUploadBytes,
 		CompletedParts:            parts,
 		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		Encrypter:                 s.cfg.Encrypter,
 		OnUploadComplete:          s.onUploadComplete,
 	})
 }
@@ -271,14 +271,14 @@ type ProtoStreamConfig struct {
 	ConcurrentUploads int
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
 	// OnUploadComplete is called after an upload completes when no session end event
 	// was observed in the stream. It returns the recovered session end event, if any.
 	// If nil, no recovery is attempted.
@@ -585,8 +585,6 @@ type sliceWriter struct {
 	emptyHeader [ProtoStreamV2PartHeaderSize]byte
 	// retryConfig  defines how to retry on a failed upload
 	retryConfig retryutils.LinearConfig
-	// encrypter wraps writes with encryption
-	encrypter EncryptionWrapper
 	// sessionStartTime is the time of the first event in the session
 	sessionStartTime time.Time
 	// sessionEndTime is the time of the last event in the session
@@ -609,6 +607,8 @@ type sliceWriter struct {
 	// point where the session end event has already been uploaded. If captured,
 	// it will be passed to the summarizer.
 	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	// encrypter wraps writes with encryption
+	encrypter EncryptionWrapper
 	// desktopSessionEndEvent is an event that marked the end of this session if
 	// it was a Windows desktop one. It may be nil if the stream hasn't ended
 	// yet, and it may also be nil if the stream picked up after an auth server
@@ -685,7 +685,10 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		case <-flushCh:
 			now := clock.Now().UTC()
-			inactivityPeriod := max(now.Sub(lastEvent), 0)
+			inactivityPeriod := now.Sub(lastEvent)
+			if inactivityPeriod < 0 {
+				inactivityPeriod = 0
+			}
 			if inactivityPeriod >= w.proto.cfg.InactivityFlushPeriod {
 				// inactivity period exceeded threshold,
 				// there is no need to schedule a timer until the next
@@ -999,7 +1002,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			return
 		}
 
-		for i := range defaults.MaxIterationLimit {
+		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			log := log.With("attempt", i)
 
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)

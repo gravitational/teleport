@@ -1,18 +1,3 @@
-Defaults unhealthyPodEvictionPolicy to AlwaysAllow:
-  1: |
-    apiVersion: policy/v1beta1
-    kind: PodDisruptionBudget
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      minAvailable: 2
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      unhealthyPodEvictionPolicy: AlwaysAllow
 honors user-provided unhealthyPodEvictionPolicy with default value:
   1: |
     apiVersion: policy/v1beta1
@@ -43,6 +28,20 @@ honors user-provided unhealthyPodEvictionPolicy with non-default value:
         matchLabels:
           app: RELEASE-NAME
       unhealthyPodEvictionPolicy: IfHealthyBudget
+omits unhealthyPodEvictionPolicy by default:
+  1: |
+    apiVersion: policy/v1beta1
+    kind: PodDisruptionBudget
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      minAvailable: 2
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
 omits unhealthyPodEvictionPolicy when empty:
   1: |
     apiVersion: policy/v1beta1
@@ -73,7 +72,6 @@ sets PodDisruptionBudget labels when specified:
       selector:
         matchLabels:
           app: RELEASE-NAME
-      unhealthyPodEvictionPolicy: AlwaysAllow
 should create a PDB when enabled in values (pdb.yaml):
   1: |
     apiVersion: policy/v1beta1
@@ -88,4 +86,3 @@ should create a PDB when enabled in values (pdb.yaml):
       selector:
         matchLabels:
           app: RELEASE-NAME
-      unhealthyPodEvictionPolicy: AlwaysAllow

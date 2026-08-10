@@ -23,9 +23,9 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -71,8 +71,6 @@ type ServiceConfig struct {
 	Cache Cache
 	// Emitter is the event emitter.
 	Emitter apievents.Emitter
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 }
 
 // Backend interface for manipulating AutoUpdate resources.
@@ -88,7 +86,7 @@ type Service struct {
 	backend    services.AutoUpdateService
 	emitter    apievents.Emitter
 	cache      Cache
-	modules    modules.Modules
+	clock      clockwork.Clock
 }
 
 // NewService returns a new AutoUpdate API service using the given storage layer and authorizer.
@@ -102,15 +100,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("cache is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("Emitter is required")
-	case cfg.Modules == nil:
-		return nil, trace.BadParameter("Modules is required")
 	}
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
-		modules:    cfg.Modules,
+		clock:      clockwork.NewRealClock(),
 	}, nil
 }
 
@@ -148,11 +144,11 @@ func (s *Service) CreateAutoUpdateConfig(ctx context.Context, req *autoupdate.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateServerSideAgentConfig(req.GetConfig(), s.modules.Features()); err != nil {
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.backend.CreateAutoUpdateConfig(ctx, req.GetConfig())
+	config, err := s.backend.CreateAutoUpdateConfig(ctx, req.Config)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
@@ -192,11 +188,11 @@ func (s *Service) UpdateAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateServerSideAgentConfig(req.GetConfig(), s.modules.Features()); err != nil {
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.backend.UpdateAutoUpdateConfig(ctx, req.GetConfig())
+	config, err := s.backend.UpdateAutoUpdateConfig(ctx, req.Config)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
@@ -236,11 +232,11 @@ func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateServerSideAgentConfig(req.GetConfig(), s.modules.Features()); err != nil {
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.backend.UpsertAutoUpdateConfig(ctx, req.GetConfig())
+	config, err := s.backend.UpsertAutoUpdateConfig(ctx, req.Config)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
@@ -272,9 +268,8 @@ func UpsertAutoUpdateConfig(
 	ctx context.Context,
 	backend Backend,
 	config *autoupdate.AutoUpdateConfig,
-	features modules.Features,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	if err := validateServerSideAgentConfig(config, features); err != nil {
+	if err := validateServerSideAgentConfig(config); err != nil {
 		return nil, trace.Wrap(err, "validating config")
 	}
 	out, err := backend.UpsertAutoUpdateConfig(ctx, config)
@@ -347,7 +342,7 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -359,7 +354,7 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.GetVersion())
+	autoUpdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.Version)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
@@ -392,7 +387,7 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -404,7 +399,7 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.GetVersion())
+	autoUpdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.Version)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
@@ -437,7 +432,7 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -449,7 +444,7 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.GetVersion())
+	autoUpdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.Version)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
@@ -494,7 +489,7 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -575,7 +570,7 @@ func (s *Service) CreateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateAgentRollout, err := s.backend.CreateAutoUpdateAgentRollout(ctx, req.GetRollout())
+	autoUpdateAgentRollout, err := s.backend.CreateAutoUpdateAgentRollout(ctx, req.Rollout)
 	return autoUpdateAgentRollout, trace.Wrap(err)
 }
 
@@ -604,7 +599,7 @@ func (s *Service) UpdateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateAgentRollout, err := s.backend.UpdateAutoUpdateAgentRollout(ctx, req.GetRollout())
+	autoUpdateAgentRollout, err := s.backend.UpdateAutoUpdateAgentRollout(ctx, req.Rollout)
 	return autoUpdateAgentRollout, trace.Wrap(err)
 }
 
@@ -633,7 +628,7 @@ func (s *Service) UpsertAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateAgentRollout, err := s.backend.UpsertAutoUpdateAgentRollout(ctx, req.GetRollout())
+	autoUpdateAgentRollout, err := s.backend.UpsertAutoUpdateAgentRollout(ctx, req.Rollout)
 	return autoUpdateAgentRollout, trace.Wrap(err)
 }
 
@@ -715,7 +710,7 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 				Code: events.AutoUpdateAgentRolloutTriggerCode,
 			},
 			UserMetadata:       userMetadata,
-			Groups:             req.GetGroups(),
+			Groups:             req.Groups,
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status: apievents.Status{
 				Success: err == nil,
@@ -737,7 +732,7 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 			return nil, trace.Wrap(err, "getting reports")
 		}
 
-		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.GetGroups()), req.GetDesiredState(), time.Now())
+		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -781,7 +776,7 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 				Code: events.AutoUpdateAgentRolloutForceDoneCode,
 			},
 			UserMetadata:       userMetadata,
-			Groups:             req.GetGroups(),
+			Groups:             req.Groups,
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status: apievents.Status{
 				Success: err == nil,
@@ -799,7 +794,7 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 			return nil, trace.Wrap(err)
 		}
 
-		err = rollout.ForceGroupsDone(existingRollout, rollout.GroupListToGroupSet(req.GetGroups()), time.Now())
+		err = rollout.ForceGroupsDone(existingRollout, rollout.GroupListToGroupSet(req.Groups), s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -831,7 +826,7 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.GetGroups()) == 0 && !req.GetAllStartedGroups() {
+	if len(req.Groups) == 0 && !req.AllStartedGroups {
 		return nil, trace.BadParameter("at least one group must be specified or the all_started_groups flag set")
 	}
 
@@ -852,7 +847,7 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 				Success: err == nil,
 				Error:   errMsg,
 			},
-			Groups: req.GetGroups(),
+			Groups: req.Groups,
 		})
 	}()
 
@@ -865,8 +860,8 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 			return nil, trace.Wrap(err)
 		}
 
-		groups := rollout.GroupListToGroupSet(req.GetGroups())
-		if req.GetAllStartedGroups() {
+		groups := rollout.GroupListToGroupSet(req.Groups)
+		if req.AllStartedGroups {
 			startedGroups := rollout.GetStartedGroups(existingRollout)
 			for group := range startedGroups {
 				groups[group] = struct{}{}
@@ -877,7 +872,7 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 			return nil, trace.AlreadyExists("no groups to rollback")
 		}
 
-		err = rollout.RollbackGroups(existingRollout, groups, time.Now())
+		err = rollout.RollbackGroups(existingRollout, groups, s.clock.Now())
 
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -909,10 +904,10 @@ func (s *Service) ListAutoUpdateAgentReports(ctx context.Context, req *autoupdat
 		return nil, trace.Wrap(err)
 	}
 
-	return autoupdate.ListAutoUpdateAgentReportsResponse_builder{
+	return &autoupdate.ListAutoUpdateAgentReportsResponse{
 		AutoupdateAgentReports: reports,
 		NextKey:                nextKey,
-	}.Build(), nil
+	}, nil
 
 }
 
@@ -1121,8 +1116,8 @@ func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 }
 
 // checkAdminCloudAccess validates if the given context has the builtin admin role if cloud feature is enabled.
-func checkAdminCloudAccess(authCtx *authz.Context, cloud bool) error {
-	if cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+func checkAdminCloudAccess(authCtx *authz.Context) error {
+	if modules.GetModules().Features().Cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return trace.AccessDenied("This Teleport instance is running on Teleport Cloud. "+
 			"The %q resource is managed by the Teleport Cloud team. You can use the %q resource to opt-in, "+
 			"opt-out or configure update schedules.",
@@ -1151,7 +1146,7 @@ var (
 //
 // This function should not be confused with api/types/autoupdate.ValidateAutoUpdateConfig which validates the integrity
 // of the resource and does not enforce potentially changing rules.
-func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig, features modules.Features) error {
+func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 	agentsSpec := config.GetSpec().GetAgents()
 	if agentsSpec == nil {
 		return nil
@@ -1163,7 +1158,8 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig, features
 		return trace.Wrap(err, "validating autoupdate config")
 	}
 
-	isLimitedCloud := features.Cloud && !features.Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
+	isLimitedCloud := modules.GetModules().Features().Cloud &&
+		!modules.GetModules().Features().Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
 
 	var maxGroups int
 	switch {
@@ -1191,7 +1187,7 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig, features
 	}
 
 	for i, group := range agentsSpec.GetSchedules().GetRegular() {
-		weekdays, err := types.ParseWeekdays(group.GetDays())
+		weekdays, err := types.ParseWeekdays(group.Days)
 		if err != nil {
 			return trace.Wrap(err, "parsing weekdays from group %d", i)
 		}
@@ -1214,7 +1210,7 @@ func computeMinRolloutTime(groups []*autoupdate.AgentAutoUpdateGroup) int {
 	}
 
 	// We start the rollout at the first group hour, and we wait for the group to update (1 hour).
-	hours := groups[0].GetStartHour() + 1
+	hours := groups[0].StartHour + 1
 
 	for _, group := range groups[1:] {
 		previousStartHour := (hours - 1) % 24
@@ -1222,16 +1218,16 @@ func computeMinRolloutTime(groups []*autoupdate.AgentAutoUpdateGroup) int {
 
 		// compute the difference between the current hour and the group start hour
 		// we then check if it's less than the WaitHours, in this case we wait a day
-		diff := hourDifference(previousStartHour, group.GetStartHour())
-		if diff < group.GetWaitHours()%24 {
-			hours += 24 + hourDifference(previousEndHour, group.GetStartHour())
+		diff := hourDifference(previousStartHour, group.StartHour)
+		if diff < group.WaitHours%24 {
+			hours += 24 + hourDifference(previousEndHour, group.StartHour)
 		} else {
-			hours += hourDifference(previousEndHour, group.GetStartHour())
+			hours += hourDifference(previousEndHour, group.StartHour)
 		}
 
 		// Handle the case where WaitHours is > 24
 		// This is an integer division
-		waitDays := group.GetWaitHours() / 24
+		waitDays := group.WaitHours / 24
 		// There's a special case where the difference modulo 24 is zero, the
 		// wait hours are non-null, but we already waited 23 hours.
 		// To avoid double counting we reduce the number of wait days by 1 if
@@ -1246,7 +1242,7 @@ func computeMinRolloutTime(groups []*autoupdate.AgentAutoUpdateGroup) int {
 	}
 
 	// We remove the group start hour we added initially
-	return int(hours - groups[0].GetStartHour())
+	return int(hours - groups[0].StartHour)
 }
 
 // hourDifference computed the difference between two hours.

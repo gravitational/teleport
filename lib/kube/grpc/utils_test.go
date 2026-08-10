@@ -67,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -259,12 +258,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello_builder{
+			return &proto.UpstreamInventoryHello{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 				Hostname: "test",
-			}.Build(), nil
+			}, nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -310,14 +309,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:          func(err error) {},
-		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:     cfg.ResourceMatchers,
-		OnReconcile:          cfg.OnReconcile,
-		Log:                  logtest.NewLogger(),
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		OnHeartbeat:        func(err error) {},
+		GetRotation:        func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:   cfg.ResourceMatchers,
+		OnReconcile:        cfg.OnReconcile,
+		Log:                logtest.NewLogger(),
+		InventoryHandle:    inventoryHandle,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -395,8 +393,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Equal(t, time.Duration(0), testCtx.KubeServer.Server.ReadTimeout, "kube server read timeout must be 0 to keep long-running watch streams alive")
@@ -409,9 +406,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		case sender := <-inventoryHandle.Sender():
 			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat_builder{
+			require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 				KubernetesServer: server,
-			}.Build()))
+			}))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")
 		}

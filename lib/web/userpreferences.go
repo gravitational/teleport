@@ -82,9 +82,9 @@ type UserPreferencesResponse struct {
 	Theme                       userpreferencesv1.Theme             `json:"theme"`
 	UnifiedResourcePreferences  UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
 	Onboard                     OnboardUserPreferencesResponse      `json:"onboard"`
-	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences"`
+	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
 	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
-	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph"`
+	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
 	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
 	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }
@@ -100,7 +100,7 @@ func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return clusterPreferencesResponse(resp.GetPreferences().GetClusterPreferences()), nil
+	return clusterPreferencesResponse(resp.Preferences.ClusterPreferences), nil
 }
 
 // updateUserClusterPreferences is a handler for PUT /webapi/user/preferences.
@@ -137,49 +137,49 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, _ h
 		return nil, trace.Wrap(err)
 	}
 
-	return userPreferencesResponse(resp.GetPreferences()), nil
+	return userPreferencesResponse(resp.Preferences), nil
 }
 
 func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.UpsertUserPreferencesRequest {
 	var discoverGuide *userpreferencesv1.DiscoverGuide
 	if req.DiscoverResourcePreferences.DiscoverGuide != nil {
-		discoverGuide = userpreferencesv1.DiscoverGuide_builder{
+		discoverGuide = &userpreferencesv1.DiscoverGuide{
 			Pinned: req.DiscoverResourcePreferences.DiscoverGuide.Pinned,
-		}.Build()
+		}
 	}
-	return userpreferencesv1.UpsertUserPreferencesRequest_builder{
-		Preferences: userpreferencesv1.UserPreferences_builder{
+	return &userpreferencesv1.UpsertUserPreferencesRequest{
+		Preferences: &userpreferencesv1.UserPreferences{
 			KeyboardLayout: req.KeyboardLayout,
 			Theme:          req.Theme,
-			UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
+			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 				DefaultTab:            req.UnifiedResourcePreferences.DefaultTab,
 				ViewMode:              req.UnifiedResourcePreferences.ViewMode,
 				LabelsViewMode:        req.UnifiedResourcePreferences.LabelsViewMode,
 				AvailableResourceMode: req.UnifiedResourcePreferences.AvailableResourceMode,
-			}.Build(),
-			Onboard: userpreferencesv1.OnboardUserPreferences_builder{
+			},
+			Onboard: &userpreferencesv1.OnboardUserPreferences{
 				PreferredResources: req.Onboard.PreferredResources,
-				MarketingParams: userpreferencesv1.MarketingParams_builder{
+				MarketingParams: &userpreferencesv1.MarketingParams{
 					Campaign: req.Onboard.MarketingParams.Campaign,
 					Source:   req.Onboard.MarketingParams.Source,
 					Medium:   req.Onboard.MarketingParams.Medium,
 					Intent:   req.Onboard.MarketingParams.Intent,
-				}.Build(),
-			}.Build(),
-			ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
-				PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
+				},
+			},
+			ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+				PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
 					ResourceIds: req.ClusterPreferences.PinnedResources,
-				}.Build(),
-			}.Build(),
-			AccessGraph: userpreferencesv1.AccessGraphUserPreferences_builder{
+				},
+			},
+			AccessGraph: &userpreferencesv1.AccessGraphUserPreferences{
 				HasBeenRedirected: req.AccessGraph.HasBeenRedirected,
-			}.Build(),
+			},
 			SideNavDrawerMode: req.SideNavDrawerMode,
-			DiscoverResourcePreferences: userpreferencesv1.DiscoverResourcePreferences_builder{
+			DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
 				DiscoverGuide: discoverGuide,
-			}.Build(),
-		}.Build(),
-	}.Build()
+			},
+		},
+	}
 }
 
 // updateUserPreferences is a handler for PUT /webapi/user/preferences.
@@ -206,14 +206,14 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Theme:                       resp.GetTheme(),
-		Onboard:                     onboardUserPreferencesResponse(resp.GetOnboard()),
-		ClusterPreferences:          clusterPreferencesResponse(resp.GetClusterPreferences()),
-		UnifiedResourcePreferences:  unifiedResourcePreferencesResponse(resp.GetUnifiedResourcePreferences()),
-		AccessGraph:                 accessGraphPreferencesResponse(resp.GetAccessGraph()),
-		SideNavDrawerMode:           resp.GetSideNavDrawerMode(),
-		DiscoverResourcePreferences: discoverResourcePreferenceResponse(resp.GetDiscoverResourcePreferences()),
-		KeyboardLayout:              resp.GetKeyboardLayout(),
+		Theme:                       resp.Theme,
+		Onboard:                     onboardUserPreferencesResponse(resp.Onboard),
+		ClusterPreferences:          clusterPreferencesResponse(resp.ClusterPreferences),
+		UnifiedResourcePreferences:  unifiedResourcePreferencesResponse(resp.UnifiedResourcePreferences),
+		AccessGraph:                 accessGraphPreferencesResponse(resp.AccessGraph),
+		SideNavDrawerMode:           resp.SideNavDrawerMode,
+		DiscoverResourcePreferences: discoverResourcePreferenceResponse(resp.DiscoverResourcePreferences),
+		KeyboardLayout:              resp.KeyboardLayout,
 	}
 
 	return jsonResp
@@ -226,33 +226,33 @@ func clusterPreferencesResponse(prefs *userpreferencesv1.ClusterUserPreferences)
 		return resp
 	}
 
-	resp.PinnedResources = append(resp.PinnedResources, prefs.GetPinnedResources().GetResourceIds()...)
+	resp.PinnedResources = append(resp.PinnedResources, prefs.PinnedResources.ResourceIds...)
 	return resp
 }
 
 // unifiedResourcePreferencesResponse creates a JSON response for the assist user preferences.
 func unifiedResourcePreferencesResponse(resp *userpreferencesv1.UnifiedResourcePreferences) UnifiedResourcePreferencesResponse {
 	return UnifiedResourcePreferencesResponse{
-		DefaultTab:            resp.GetDefaultTab(),
-		ViewMode:              resp.GetViewMode(),
-		LabelsViewMode:        resp.GetLabelsViewMode(),
-		AvailableResourceMode: resp.GetAvailableResourceMode(),
+		DefaultTab:            resp.DefaultTab,
+		ViewMode:              resp.ViewMode,
+		LabelsViewMode:        resp.LabelsViewMode,
+		AvailableResourceMode: resp.AvailableResourceMode,
 	}
 }
 
 // onboardUserPreferencesResponse creates a JSON response for the onboard user preferences.
 func onboardUserPreferencesResponse(resp *userpreferencesv1.OnboardUserPreferences) OnboardUserPreferencesResponse {
 	jsonResp := OnboardUserPreferencesResponse{
-		PreferredResources: make([]userpreferencesv1.Resource, 0, len(resp.GetPreferredResources())),
+		PreferredResources: make([]userpreferencesv1.Resource, 0, len(resp.PreferredResources)),
 		MarketingParams: preferencesMarketingParams{
-			Campaign: resp.GetMarketingParams().GetCampaign(),
-			Source:   resp.GetMarketingParams().GetSource(),
-			Medium:   resp.GetMarketingParams().GetMedium(),
-			Intent:   resp.GetMarketingParams().GetIntent(),
+			Campaign: resp.MarketingParams.Campaign,
+			Source:   resp.MarketingParams.Source,
+			Medium:   resp.MarketingParams.Medium,
+			Intent:   resp.MarketingParams.Intent,
 		},
 	}
 
-	jsonResp.PreferredResources = append(jsonResp.PreferredResources, resp.GetPreferredResources()...)
+	jsonResp.PreferredResources = append(jsonResp.PreferredResources, resp.PreferredResources...)
 
 	return jsonResp
 }
@@ -266,7 +266,7 @@ func accessGraphPreferencesResponse(resp *userpreferencesv1.AccessGraphUserPrefe
 	}
 
 	return AccessGraphPreferencesResponse{
-		HasBeenRedirected: resp.GetHasBeenRedirected(),
+		HasBeenRedirected: resp.HasBeenRedirected,
 	}
 }
 

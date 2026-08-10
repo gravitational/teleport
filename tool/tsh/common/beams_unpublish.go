@@ -61,12 +61,12 @@ func (c *beamsUnpublishCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if !beam.GetSpec().HasPublish() {
+	if beam.Spec.Publish == nil {
 		return trace.Errorf("Beam %q is not published.", beam.GetStatus().GetAlias())
 	}
 
 	// Blank out the `spec.publish` to trigger the deletion of the app.
-	beam.GetSpec().ClearPublish()
+	beam.Spec.Publish = nil
 
 	updatedBeam, err := c.updateFn(ctx, tc, beam)
 	if err != nil {
@@ -124,7 +124,7 @@ func (c *beamsUnpublishCommand) updateBeam(ctx context.Context, tc *client.Telep
 
 		rsp, err := rootClient.
 			BeamServiceClient().
-			UpdateBeam(ctx, beamsv1.UpdateBeamRequest_builder{Beam: beam}.Build())
+			UpdateBeam(ctx, &beamsv1.UpdateBeamRequest{Beam: beam})
 		if err != nil {
 			return trace.Wrap(err)
 		}

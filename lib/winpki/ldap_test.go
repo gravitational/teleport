@@ -416,6 +416,18 @@ func TestReferralParsing(t *testing.T) {
 		assert.Equal(t, "??extensions", ref.extensions)
 	})
 
+	t.Run("ipv6", func(t *testing.T) {
+		ref, err := parseLDAPReferral("ldaps://[2001:db8::1]:80/dn")
+		require.NoError(t, err)
+		assert.Equal(t, "ldaps://", ref.scheme)
+		assert.Equal(t, "[2001:db8::1]:80", ref.host)
+		assert.Equal(t, "dn", ref.baseDN)
+		assert.Empty(t, ref.attributes)
+		assert.Empty(t, ref.filter)
+		assert.Empty(t, ref.scope)
+		assert.Empty(t, ref.extensions)
+	})
+
 	t.Run("dn only", func(t *testing.T) {
 		ref, err := parseLDAPReferral("ldap:///dn")
 		require.NoError(t, err)

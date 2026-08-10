@@ -20,16 +20,13 @@ package services
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"path"
-	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -133,29 +130,6 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
-	return newImplicitRole(types.CopyRulesSlice(DefaultImplicitRules))
-}
-
-// newScopedImplicitRole is the default implicit role as it applies to scoped identities. It confers
-// the same privileges as [NewImplicitRole], except that secret-inclusive read is replaced with
-// secret-exclusive read.
-func newScopedImplicitRole() types.Role {
-	rules := types.CopyRulesSlice(DefaultImplicitRules)
-	for i, rule := range rules {
-		// CopyRulesSlice is a shallow copy, so build a replacement slice rather than assigning into it.
-		verbs := make([]string, len(rule.Verbs))
-		for j, verb := range rule.Verbs {
-			if verb == types.VerbRead {
-				verb = types.VerbReadNoSecrets
-			}
-			verbs[j] = verb
-		}
-		rules[i].Verbs = verbs
-	}
-	return newImplicitRole(rules)
-}
-
-func newImplicitRole(rules []types.Rule) types.Role {
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
@@ -172,7 +146,7 @@ func newImplicitRole(rules []types.Rule) types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules:      rules,
+				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
 			},
 		},
 	}
@@ -290,33 +264,7 @@ func ValidateRole(r types.Role) error {
 	if err := validateSessionPolicies(r); err != nil {
 		errs = append(errs, err)
 	}
-	if err := validateAppResources(r); err != nil {
-		errs = append(errs, err)
-	}
 	return trace.NewAggregate(errs...)
-}
-
-// validateAppResources rejects an app_resources rule set that this version
-// cannot enforce, for example a rule with an unknown field. It runs on create
-// and update only, not on read.
-func validateAppResources(r types.Role) error {
-	if len(r.GetAppResources(types.Deny)) > 0 {
-		return trace.BadParameter("app_resources is not allowed under deny")
-	}
-	allow := r.GetAppResources(types.Allow)
-	for i, rule := range allow {
-		// The backend JSON marshal drops unknown fields. Storing such a
-		// rule would silently widen it to unrestricted access.
-		if !rule.IsAllowAllOnly() {
-			return trace.BadParameter("app_resources[%d]: a rule must set allow_all and nothing else; paths, methods, and where rules are not yet supported", i)
-		}
-	}
-	// Every rule sets allow_all at this point, so more than one rule can
-	// only mean allow_all next to another rule.
-	if len(allow) > 1 {
-		return trace.BadParameter("app_resources: a rule setting allow_all must be the only rule")
-	}
-	return nil
 }
 
 // validateRoleExpressions validates all expression and predicate syntax in a role.
@@ -343,7 +291,6 @@ func validateRoleExpressions(r types.Role) error {
 		}{
 			{"logins", r.GetLogins(condition.condition)},
 			{"windows_desktop_logins", r.GetWindowsLogins(condition.condition)},
-			{"linux_desktop_logins", r.GetLinuxDesktopLogins(condition.condition)},
 			{"aws_role_arns", r.GetAWSRoleARNs(condition.condition)},
 			{"azure_identities", r.GetAzureIdentities(condition.condition)},
 			{"gcp_service_accounts", r.GetGCPServiceAccounts(condition.condition)},
@@ -1396,8 +1343,10 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
 func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
-	if slices.Contains(selectors, roleARN) {
-		return true, "matched"
+	for _, l := range selectors {
+		if l == roleARN {
+			return true, "matched"
+		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
@@ -1516,7 +1465,7 @@ func (set RoleSet) RoleNames() []string {
 
 // Roles returns the list underlying roles this RoleSet is based on.
 func (set RoleSet) Roles() []types.Role {
-	return slices.Clone(set)
+	return append([]types.Role{}, set...)
 }
 
 // HasRole checks if the role set has the role
@@ -1959,7 +1908,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, username string, trai
 		return nil
 	}
 
-	if _, err := v8RoleSet.checkAccess(r, username, traits, state, matchers...); err != nil {
+	if err := v8RoleSet.checkAccess(r, username, traits, state, matchers...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2781,8 +2730,10 @@ func NewLoginMatcher(login string) RoleMatcher {
 // Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
-	if slices.Contains(logins, l.login) {
-		return true, nil
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -2800,8 +2751,10 @@ func NewWindowsLoginMatcher(login string) RoleMatcher {
 // Match matches a Windows Desktop login against a role.
 func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetWindowsLogins(typ)
-	if slices.Contains(logins, l.login) {
-		return true, nil
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -2835,8 +2788,10 @@ func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
 // Match matches an AWS Role ARN login against a role.
 func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	awsRoles := role.GetAWSRoleARNs(typ)
-	if slices.Contains(awsRoles, l.awsRole) {
-		return true, nil
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -3008,25 +2963,13 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
-// RoleGrantsResource reports whether role alone grants access to r, checking
-// the namespace and label conditions only. It skips the MFA, device trust and
-// lock checks, which apply to a whole role set rather than one role.
-func RoleGrantsResource(role types.Role, r AccessCheckable, username string, traits wrappers.Traits) bool {
-	_, err := NewRoleSet(role).checkAccess(r, username, traits, AccessState{MFAVerified: true})
-	return err == nil
-}
-
-// checkAccess determines whether access should be granted to a resource based on the provided roles, resource
-// attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
-// is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
-// state.ReturnPreconditions is false, it returns an error immediately if access is denied.
 func (set RoleSet) checkAccess(
 	r AccessCheckable,
 	username string,
 	traits wrappers.Traits,
 	state AccessState,
 	matchers ...RoleMatcher,
-) ([]*decisionpb.Precondition, error) {
+) error {
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -3037,25 +2980,9 @@ func (set RoleSet) checkAccess(
 		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
-	// Collect preconditions to return to the caller.
-	var preconds []*decisionpb.Precondition
-
-	// If the cluster requires per-session MFA and it hasn't been verified yet, add an MFA precondition or deny access early.
-	// If the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session, skip this check.
-	//
-	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes".
-	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	if state.MFARequired == MFARequiredAlways && (os.Getenv(teleport.EnvVarUnstableForceInBandMFA) == "yes" || !state.MFAVerified) {
-		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
-		if !state.ReturnPreconditions {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
-			return nil, ErrSessionMFARequired
-		}
-
-		// Mark that MFA is required and continue evaluating access.
-		preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
+	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
+		logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
+		return ErrSessionMFARequired
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -3086,7 +3013,7 @@ func (set RoleSet) checkAccess(
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, username, traits, r, isLoggingEnabled)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 			if matchLabels {
 				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
@@ -3094,7 +3021,7 @@ func (set RoleSet) checkAccess(
 					slog.String("namespace_message", namespaceMessage),
 					slog.String("label_message", labelsMessage),
 				)
-				return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 					r.GetKind(), additionalDeniedMessage)
 			}
 		} else {
@@ -3104,32 +3031,19 @@ func (set RoleSet) checkAccess(
 		// at least one of the matchers returns true.
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		if matchMatchers {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
 				slog.String("role", role.GetName()),
 				slog.Any("matcher_message", matchersMessage),
 			)
-			return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 	}
 
-	// MFA checks can be bypassed if either:
-	//  1. The cluster doesn't require per-session MFA (MFARequiredNever), OR
-	//  2. Legacy out-of-band MFA has already been verified for the session AND
-	//     a. The legacy out-of-band MFA flow is allowed (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes") OR
-	//     b. The caller doesn't want preconditions returned (state.ReturnPreconditions is false)
-	//
-	// Listing resources sets state.MFAVerified to true and state.ReturnPreconditions to false to allow bypassing MFA
-	// checks for resources that require per-session MFA. This is because listing resources is a read-only operation and
-	// MFA is not required to list resources, even if MFA is required to access the resource. The actual enforcement
-	// will happen at connection time, so this is not a concern from a security perspective.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
-		(state.MFAVerified && (os.Getenv(teleport.EnvVarUnstableForceInBandMFA) != "yes" || !state.ReturnPreconditions))
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
@@ -3151,7 +3065,7 @@ func (set RoleSet) checkAccess(
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, username, traits, r, isLoggingEnabled)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 
 			if !matchLabels {
@@ -3169,7 +3083,7 @@ func (set RoleSet) checkAccess(
 		// matchers return true.
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		if !matchMatchers {
 			if isLoggingEnabled {
@@ -3189,26 +3103,19 @@ func (set RoleSet) checkAccess(
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if bypassMFAChecks && deviceTrusted {
+		if mfaAllowed && deviceTrusted {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
-
 				slog.String("role", role.GetName()),
 			)
-			return deduplicateAndSortPreconditions(preconds), nil
+			return nil
 		}
 
-		// Check if MFA is required at the role-level.
-		if !bypassMFAChecks && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-			// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
-			if !state.ReturnPreconditions {
-				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
-					slog.String("role", role.GetName()),
-				)
-				return nil, ErrSessionMFARequired
-			}
-
-			// Mark that MFA is required and continue evaluating access.
-			preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
+		// MFA verification.
+		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
+				slog.String("role", role.GetName()),
+			)
+			return ErrSessionMFARequired
 		}
 
 		// Device verification.
@@ -3223,7 +3130,7 @@ func (set RoleSet) checkAccess(
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
 				slog.String("role", role.GetName()),
 			)
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
@@ -3235,33 +3142,14 @@ func (set RoleSet) checkAccess(
 	}
 
 	if allowed {
-		return deduplicateAndSortPreconditions(preconds), nil
+		return nil
 	}
 
 	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
 		slog.Any("errors", errs),
 	)
-	return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
-}
-
-func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*decisionpb.Precondition {
-	// Deduplicate preconditions by kind.
-	preconds = slices.CompactFunc(
-		preconds, func(a, b *decisionpb.Precondition) bool {
-			return a.GetKind() == b.GetKind()
-		},
-	)
-
-	// Sort by kind for deterministic ordering during enforcement.
-	slices.SortFunc(
-		preconds,
-		func(a, b *decisionpb.Precondition) int {
-			return cmp.Compare(a.GetKind(), b.GetKind())
-		},
-	)
-
-	return preconds
 }
 
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]
@@ -3657,7 +3545,7 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 
 type boolParser bool
 
-func (p boolParser) Parse(string) (any, error) {
+func (p boolParser) Parse(string) (interface{}, error) {
 	return predicate.BoolPredicate(func() bool {
 		return bool(p)
 	}), nil
@@ -4122,10 +4010,6 @@ type AccessState struct {
 	// IsBot determines whether the user certificate belongs to a bot. It's used
 	// when deciding whether to enforce device verification.
 	IsBot bool
-	// ReturnPreconditions, when set to true, causes access checks to return a set of preconditions (such as MFA or
-	// device verification requirements) instead of immediately returning an access error. This allows callers to
-	// programmatically determine what additional steps are required for access, rather than failing outright.
-	ReturnPreconditions bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
@@ -4151,37 +4035,6 @@ const (
 // Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
 const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 
-// knownAppResourceFields lists the JSON field names this version understands
-// on an app_resources rule, derived from the AppResource message so a new
-// proto field extends it automatically.
-var knownAppResourceFields = func() map[string]struct{} {
-	fields := make(map[string]struct{})
-	for f := range reflect.TypeFor[types.AppResource]().Fields() {
-		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-		if name != "" && name != "-" {
-			fields[name] = struct{}{}
-		}
-	}
-	return fields
-}()
-
-// denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
-// stored JSON carried a field this version does not recognize, so the rule
-// grants no access. Worst case is over-deny.
-func denyAppAccessForUnknownFields(role *types.RoleV6, raw []byte) {
-	if role.Version != types.V9 {
-		return
-	}
-	for i := range role.Spec.Allow.AppResources {
-		for _, key := range jsoniter.Get(raw, "spec", "allow", "app_resources", i).Keys() {
-			if _, known := knownAppResourceFields[key]; !known {
-				role.Spec.Allow.AppResources[i] = types.AppResource{}
-				break
-			}
-		}
-	}
-}
-
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	return UnmarshalRoleV6(bytes, opts...)
@@ -4197,7 +4050,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8, types.V9:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
@@ -4219,8 +4072,6 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	if err := CheckAndSetDefaults(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	denyAppAccessForUnknownFields(&role, bytes)
 
 	if cfg.Revision != "" {
 		role.SetRevision(cfg.Revision)

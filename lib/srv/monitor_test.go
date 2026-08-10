@@ -71,7 +71,8 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer
 func TestConnectionMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -162,7 +163,8 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -209,7 +211,8 @@ func TestMonitorLockInForce(t *testing.T) {
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -270,7 +273,8 @@ func TestWritesDisconnectMessage(t *testing.T) {
 
 	var sw strings.Builder
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	clock := clockwork.NewFakeClock()
 	conn, _, _ := newTestMonitor(ctx, t, asrv, func(cfg *MonitorConfig) {
@@ -313,7 +317,8 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),

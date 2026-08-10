@@ -20,8 +20,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -36,7 +34,7 @@ type platformOSConfigState struct {
 	configuredIPv6       bool
 	configuredIPv4       bool
 	configuredCidrRanges []string
-	configuredDNSAddrs   []string
+	configuredNameserver bool
 	configuredDNSZones   []string
 	broughtUpInterface   bool
 	tunName              string
@@ -68,7 +66,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	if err := configureDNS(ctx, cfg, state); err != nil {
 		return trace.Wrap(err, "configuring DNS")
 	}
-	if (state.configuredIPv4 || state.configuredIPv6) && len(state.configuredDNSAddrs) > 0 && !state.broughtUpInterface {
+	if (state.configuredIPv4 || state.configuredIPv6) && state.configuredNameserver && !state.broughtUpInterface {
 		log.InfoContext(ctx, "Bringing up the VNet interface", "device", cfg.tunName)
 		if err := runCommand(ctx,
 			"ip", "link", "set", cfg.tunName, "up",
@@ -92,34 +90,6 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		}
 	}
 	return nil
-}
-
-const (
-	// procIPv6Conf holds per-interface IPv6 settings, it is absent when the
-	// kernel was booted with IPv6 disabled.
-	procIPv6Conf = "/proc/sys/net/ipv6/conf"
-	// disableIPv6Setting is the per-interface setting that disables IPv6 when set to 1.
-	disableIPv6Setting = "disable_ipv6"
-)
-
-// hostIPv6Disabled checks whether IPv6 has been disabled on the host.
-func hostIPv6Disabled(tunName string) (bool, error) {
-	if _, err := os.Stat(procIPv6Conf); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return true, nil
-		}
-		return false, trace.Wrap(err, "checking existence of %s", procIPv6Conf)
-	}
-	path := filepath.Join(procIPv6Conf, tunName, disableIPv6Setting)
-	disabled, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, trace.Wrap(err, "reading %s", path)
-	}
-	// The file contains "1" when IPv6 is disabled on the device, "0" when enabled
-	return strings.TrimSpace(string(disabled)) == "1", nil
 }
 
 func shouldReconfigureDNSZones(cfg *osConfig, state *platformOSConfigState) bool {
@@ -178,7 +148,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		state.configuredDNSZones = cfg.dnsZones
 	}
 
-	if len(cfg.dnsAddrs) > 0 && state.tunName != "" && !slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) {
+	if len(cfg.dnsAddrs) > 0 && state.tunName != "" && !state.configuredNameserver {
 		iface, err := net.InterfaceByName(state.tunName)
 		if err != nil {
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
@@ -201,7 +171,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		if err := systemdresolved.SetLinkDNS(ctx, conn, int32(iface.Index), addresses); err != nil {
 			return err
 		}
-		state.configuredDNSAddrs = cfg.dnsAddrs
+		state.configuredNameserver = true
 	}
 
 	return nil

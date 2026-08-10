@@ -56,15 +56,16 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		eG.SetLimit(5)
 		roleMu := sync.Mutex{}
 		for _, role := range result.Roles {
+			role := role
 			eG.Go(func() error {
 				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
 				if err != nil {
-					collectErr(trace.Wrap(err, "failed to fetch role %q inline policies", role.GetName()))
+					collectErr(trace.Wrap(err, "failed to fetch role %q inline policies", role.Name))
 				}
 
 				roleAttachedPolicies, err := a.fetchRoleAttachedPolicies(ctx, role)
 				if err != nil {
-					collectErr(trace.Wrap(err, "failed to fetch role %q attached policies", role.GetName()))
+					collectErr(trace.Wrap(err, "failed to fetch role %q attached policies", role.Name))
 				}
 
 				roleMu.Lock()
@@ -133,7 +134,7 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 	pager := iam.NewListRolePoliciesPaginator(
 		iamClient,
 		&iam.ListRolePoliciesInput{
-			RoleName: aws.String(role.GetName()),
+			RoleName: aws.String(role.Name),
 			MaxItems: aws.Int32(pageSize),
 		},
 		func(opts *iam.ListRolePoliciesPaginatorOptions) {
@@ -153,11 +154,11 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 		}
 		for _, policyName := range page.PolicyNames {
 			policy, err := iamClient.GetRolePolicy(ctx, &iam.GetRolePolicyInput{
-				RoleName:   aws.String(role.GetName()),
+				RoleName:   aws.String(role.Name),
 				PolicyName: aws.String(policyName),
 			})
 			if err != nil {
-				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.GetName(), policyName))
+				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.Name, policyName))
 				continue
 			}
 
@@ -182,7 +183,7 @@ func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgra
 	pager := iam.NewListAttachedRolePoliciesPaginator(
 		iamClient,
 		&iam.ListAttachedRolePoliciesInput{
-			RoleName: aws.String(role.GetName()),
+			RoleName: aws.String(role.Name),
 			MaxItems: aws.Int32(pageSize),
 		},
 		func(opts *iam.ListAttachedRolePoliciesPaginatorOptions) {
@@ -190,23 +191,23 @@ func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgra
 		},
 	)
 
-	rsp := accessgraphv1alpha.AWSRoleAttachedPolicies_builder{
+	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
 		AwsRole:   role,
 		AccountId: a.AccountID,
-	}.Build()
+	}
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return rsp, trace.Wrap(err)
 		}
 		for _, policy := range page.AttachedPolicies {
-			rsp.SetPolicies(append(
-				rsp.GetPolicies(),
-				accessgraphv1alpha.AttachedPolicyV1_builder{
+			rsp.Policies = append(
+				rsp.Policies,
+				&accessgraphv1alpha.AttachedPolicyV1{
 					Arn:        aws.ToString(policy.PolicyArn),
 					PolicyName: aws.ToString(policy.PolicyName),
-				}.Build(),
-			))
+				},
+			)
 		}
 	}
 	return rsp, trace.Wrap(err)
@@ -216,30 +217,30 @@ func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgra
 func awsRoleToProtoRole(role iamtypes.Role, accountID string) *accessgraphv1alpha.AWSRoleV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(role.Tags))
 	for _, tag := range role.Tags {
-		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
+		tags = append(tags, &accessgraphv1alpha.AWSTag{
 			Key:   aws.ToString(tag.Key),
 			Value: strPtrToWrapper(tag.Value),
-		}.Build())
+		})
 	}
 
 	var permissionsBoundary *accessgraphv1alpha.RolePermissionsBoundaryV1
 
 	if role.PermissionsBoundary != nil {
-		permissionsBoundary = accessgraphv1alpha.RolePermissionsBoundaryV1_builder{
+		permissionsBoundary = &accessgraphv1alpha.RolePermissionsBoundaryV1{
 			PermissionsBoundaryArn:  aws.ToString(role.PermissionsBoundary.PermissionsBoundaryArn),
 			PermissionsBoundaryType: accessgraphv1alpha.RolePermissionsBoundaryType_ROLE_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY,
-		}.Build()
+		}
 	}
 
 	var lastTimeUsed *accessgraphv1alpha.RoleLastUsedV1
 	if role.RoleLastUsed != nil {
-		lastTimeUsed = accessgraphv1alpha.RoleLastUsedV1_builder{
+		lastTimeUsed = &accessgraphv1alpha.RoleLastUsedV1{
 			LastUsedDate: awsTimeToProtoTime(role.RoleLastUsed.LastUsedDate),
 			Region:       aws.ToString(role.RoleLastUsed.Region),
-		}.Build()
+		}
 	}
 
-	return accessgraphv1alpha.AWSRoleV1_builder{
+	return &accessgraphv1alpha.AWSRoleV1{
 		Name:                     aws.ToString(role.RoleName),
 		Arn:                      aws.ToString(role.Arn),
 		AssumeRolePolicyDocument: strPtrToByteSlice(role.AssumeRolePolicyDocument),
@@ -252,14 +253,14 @@ func awsRoleToProtoRole(role iamtypes.Role, accountID string) *accessgraphv1alph
 		RoleLastUsed:             lastTimeUsed,
 		Tags:                     tags,
 		PermissionsBoundary:      permissionsBoundary,
-	}.Build()
+	}
 }
 
 func awsRolePolicyToProtoUserPolicy(policy *iam.GetRolePolicyOutput, role *accessgraphv1alpha.AWSRoleV1, accountID string) *accessgraphv1alpha.AWSRoleInlinePolicyV1 {
-	return accessgraphv1alpha.AWSRoleInlinePolicyV1_builder{
+	return &accessgraphv1alpha.AWSRoleInlinePolicyV1{
 		PolicyName:     aws.ToString(policy.PolicyName),
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		AwsRole:        role,
 		AccountId:      accountID,
-	}.Build()
+	}
 }

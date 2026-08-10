@@ -33,7 +33,7 @@ const logger = new Logger('ConfigService');
 
 export type FileLoadingError = {
   source: 'file-loading';
-  error: unknown;
+  error: Error;
 };
 
 export type ValidationError = {

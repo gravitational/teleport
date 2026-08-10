@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -69,20 +68,20 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	_, err = localClient.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
-	ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
+	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
 			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 		}},
 	}, localClient)
 
 	t.Run("requesting with an user should return access denied", func(t *testing.T) {
-		ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
+		ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: []types.Rule{
 				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 			}},
 		}, localClient)
 
-		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, integrationv1.GenerateAWSOIDCTokenRequest_builder{Integration: integrationNameWithoutIssuer}.Build())
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
 	})
 
@@ -97,7 +96,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 				},
 			})
 
-			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, integrationv1.GenerateAWSOIDCTokenRequest_builder{Integration: integrationNameWithoutIssuer}.Build())
+			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
 			require.NoError(t, err)
 		}
 	})
@@ -127,9 +126,9 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("with integration in rpc call but no issuer defined", func(t *testing.T) {
-		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, integrationv1.GenerateAWSOIDCTokenRequest_builder{
+		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
 			Integration: integrationNameWithoutIssuer,
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
@@ -145,9 +144,9 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 		require.Error(t, err)
 	})
 	t.Run("with integration in rpc call and issuer defined", func(t *testing.T) {
-		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, integrationv1.GenerateAWSOIDCTokenRequest_builder{
+		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
 			Integration: integrationNameWithIssuer,
-		}.Build())
+		})
 		require.NoError(t, err)
 
 		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
@@ -181,15 +180,15 @@ func TestConvertSecurityGroupRulesToProto(t *testing.T) {
 					Description: "cidr x",
 				}},
 			}},
-			expected: []*integrationv1.SecurityGroupRule{integrationv1.SecurityGroupRule_builder{
+			expected: []*integrationv1.SecurityGroupRule{{
 				IpProtocol: "tcp",
 				FromPort:   8080,
 				ToPort:     8081,
-				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{integrationv1.SecurityGroupRuleCIDR_builder{
+				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{{
 					Cidr:        "10.10.10.0/24",
 					Description: "cidr x",
-				}.Build()},
-			}.Build()},
+				}},
+			}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -226,7 +225,6 @@ func TestRBAC(t *testing.T) {
 		ProxyPublicAddrGetter: func(context.Context) string { return "128.0.0.1" },
 		Cache:                 backend,
 		TokenCreator:          backend,
-		Modules:               modulestest.OSSModules(),
 	})
 	require.NoError(t, err)
 
@@ -242,82 +240,82 @@ func TestRBAC(t *testing.T) {
 			}}},
 		}
 
-		userCtx := authorizerForAdminUser(t, ctx, role, localClient)
+		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
 			{
 				name: "ListDatabases",
 				fn: func() error {
-					_, err := awsoidService.ListDatabases(userCtx, integrationv1.ListDatabasesRequest_builder{
+					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
 						Integration: integrationName,
 						Region:      "",
 						RdsType:     "",
 						Engines:     []string{},
 						NextToken:   "",
 						VpcId:       "vpc-123",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "EnrollEKSClusters",
 				fn: func() error {
-					_, err := awsoidService.EnrollEKSClusters(userCtx, integrationv1.EnrollEKSClustersRequest_builder{
+					_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
 						Integration:     integrationName,
 						Region:          "my-region",
 						EksClusterNames: []string{"EKS1"},
 						AgentVersion:    "10.0.0",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "DeployService",
 				fn: func() error {
-					_, err = awsoidService.DeployService(userCtx, integrationv1.DeployServiceRequest_builder{
+					_, err = awsoidService.DeployService(userCtx, &integrationv1.DeployServiceRequest{
 						Integration: integrationName,
 						Region:      "my-region",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "ListSubnets",
 				fn: func() error {
-					_, err := awsoidService.ListSubnets(userCtx, integrationv1.ListSubnetsRequest_builder{
+					_, err := awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
 						Integration: integrationName,
 						Region:      "my-region",
 						VpcId:       "vpc-1",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "ListVPCs",
 				fn: func() error {
-					_, err := awsoidService.ListVPCs(userCtx, integrationv1.ListVPCsRequest_builder{
+					_, err := awsoidService.ListVPCs(userCtx, &integrationv1.ListVPCsRequest{
 						Integration: integrationName,
 						Region:      "my-region",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "Ping",
 				fn: func() error {
-					_, err := awsoidService.Ping(userCtx, integrationv1.PingRequest_builder{
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
 						Integration: integrationName,
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "Ping with arn",
 				fn: func() error {
-					_, err := awsoidService.Ping(userCtx, integrationv1.PingRequest_builder{
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
 						Integration: integrationName,
 						RoleArn:     "some-arn",
-					}.Build())
+					})
 					return err
 				},
 			},
@@ -337,63 +335,63 @@ func TestRBAC(t *testing.T) {
 			}}},
 		}
 
-		userCtx := authorizerForAdminUser(t, ctx, role, localClient)
+		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
 			{
 				name: "ListDatabases",
 				fn: func() error {
-					_, err := awsoidService.ListDatabases(userCtx, integrationv1.ListDatabasesRequest_builder{
+					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
 						Integration: integrationName,
 						Region:      "",
 						RdsType:     "",
 						Engines:     []string{},
 						NextToken:   "",
 						VpcId:       "vpc-123",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "EnrollEKSClusters",
 				fn: func() error {
-					_, err := awsoidService.EnrollEKSClusters(userCtx, integrationv1.EnrollEKSClustersRequest_builder{
+					_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
 						Integration:     integrationName,
 						Region:          "my-region",
 						EksClusterNames: []string{"EKS1"},
 						AgentVersion:    "10.0.0",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "DeployService",
 				fn: func() error {
-					_, err = awsoidService.DeployService(userCtx, integrationv1.DeployServiceRequest_builder{
+					_, err = awsoidService.DeployService(userCtx, &integrationv1.DeployServiceRequest{
 						Integration: integrationName,
 						Region:      "my-region",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "ListSubnets",
 				fn: func() error {
-					_, err := awsoidService.ListSubnets(userCtx, integrationv1.ListSubnetsRequest_builder{
+					_, err := awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
 						Integration: integrationName,
 						Region:      "my-region",
 						VpcId:       "vpc-1",
-					}.Build())
+					})
 					return err
 				},
 			},
 			{
 				name: "ListVPCs",
 				fn: func() error {
-					_, err := awsoidService.ListVPCs(userCtx, integrationv1.ListVPCsRequest_builder{
+					_, err := awsoidService.ListVPCs(userCtx, &integrationv1.ListVPCsRequest{
 						Integration: integrationName,
 						Region:      "my-region",
-					}.Build())
+					})
 					return err
 				},
 			},
@@ -407,10 +405,10 @@ func TestRBAC(t *testing.T) {
 			{
 				name: "ListDeployedDatabaseServices",
 				fn: func() error {
-					_, err := awsoidService.ListDeployedDatabaseServices(userCtx, integrationv1.ListDeployedDatabaseServicesRequest_builder{
+					_, err := awsoidService.ListDeployedDatabaseServices(userCtx, &integrationv1.ListDeployedDatabaseServicesRequest{
 						Integration: integrationName,
 						Region:      "my-region",
-					}.Build())
+					})
 					return err
 				},
 			},
@@ -441,7 +439,7 @@ func TestConvertEKSCluster(t *testing.T) {
 				AuthenticationMode:   "API",
 				EndpointPublicAccess: true,
 			},
-			expected: integrationv1.EKSCluster_builder{
+			expected: &integrationv1.EKSCluster{
 				Name:                 "my-cluster",
 				Region:               "us-east-1",
 				Arn:                  "my-arn",
@@ -450,7 +448,7 @@ func TestConvertEKSCluster(t *testing.T) {
 				Status:               "ACTIVE",
 				AuthenticationMode:   "API",
 				EndpointPublicAccess: true,
-			}.Build(),
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

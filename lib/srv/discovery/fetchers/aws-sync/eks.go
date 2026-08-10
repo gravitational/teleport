@@ -100,6 +100,7 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 	}
 
 	for _, region := range a.Regions {
+		region := region
 		eG.Go(func() error {
 			eksClient, err := a.GetEKSClient(ctx, region, a.getAWSOptions()...)
 			if err != nil {
@@ -113,13 +114,13 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 				out, err := p.NextPage(ctx)
 				if err != nil {
 					oldEKSClusters := sliceFilter(existing.EKSClusters, func(cluster *accessgraphv1alpha.AWSEKSClusterV1) bool {
-						return cluster.GetRegion() == region && cluster.GetAccountId() == a.AccountID
+						return cluster.Region == region && cluster.AccountId == a.AccountID
 					})
 					oldAccessEntries := sliceFilter(existing.AccessEntries, func(ae *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) bool {
-						return ae.GetCluster().GetRegion() == region && ae.GetAccountId() == a.AccountID
+						return ae.Cluster.Region == region && ae.AccountId == a.AccountID
 					})
 					oldAssociatedPolicies := sliceFilter(existing.AssociatedAccessPolicies, func(ap *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) bool {
-						return ap.GetCluster().GetRegion() == region && ap.GetAccountId() == a.AccountID
+						return ap.Cluster.Region == region && ap.AccountId == a.AccountID
 					})
 					hostsMu.Lock()
 					output.clusters = append(output.clusters, oldEKSClusters...)
@@ -133,13 +134,13 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 
 			for _, cluster := range eksClusterNames {
 				oldCluster := sliceFilterPickFirst(existing.EKSClusters, func(c *accessgraphv1alpha.AWSEKSClusterV1) bool {
-					return c.GetName() == cluster && c.GetAccountId() == a.AccountID && c.GetRegion() == region
+					return c.Name == cluster && c.AccountId == a.AccountID && c.Region == region
 				})
 				oldAccessEntries := sliceFilter(existing.AccessEntries, func(ae *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) bool {
-					return ae.GetCluster().GetName() == cluster && ae.GetAccountId() == a.AccountID && ae.GetCluster().GetRegion() == region
+					return ae.Cluster.Name == cluster && ae.AccountId == a.AccountID && ae.Cluster.Region == region
 				})
 				oldAssociatedPolicies := sliceFilter(existing.AssociatedAccessPolicies, func(ap *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) bool {
-					return ap.GetCluster().GetName() == cluster && ap.GetAccountId() == a.AccountID && ap.GetCluster().GetRegion() == region
+					return ap.Cluster.Name == cluster && ap.AccountId == a.AccountID && ap.Cluster.Region == region
 				})
 				// DescribeClusterWithContext retrieves the cluster details.
 				cluster, err := eksClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
@@ -169,7 +170,7 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 				for _, accessEntry := range accessEntries {
 					accessEntryARNs = append(
 						accessEntryARNs,
-						accessEntry.GetPrincipalArn(),
+						accessEntry.PrincipalArn,
 					)
 				}
 
@@ -192,13 +193,13 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 func awsEKSClusterToProtoCluster(cluster *ekstypes.Cluster, region, accountID string) *accessgraphv1alpha.AWSEKSClusterV1 {
 	var tags []*accessgraphv1alpha.AWSTag
 	for k, v := range cluster.Tags {
-		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
+		tags = append(tags, &accessgraphv1alpha.AWSTag{
 			Key:   k,
 			Value: wrapperspb.String(v),
-		}.Build())
+		})
 	}
 
-	return accessgraphv1alpha.AWSEKSClusterV1_builder{
+	return &accessgraphv1alpha.AWSEKSClusterV1{
 		Name:      aws.ToString(cluster.Name),
 		Arn:       aws.ToString(cluster.Arn),
 		CreatedAt: awsTimeToProtoTime(cluster.CreatedAt),
@@ -206,7 +207,7 @@ func awsEKSClusterToProtoCluster(cluster *ekstypes.Cluster, region, accountID st
 		Region:    region,
 		AccountId: accountID,
 		Tags:      tags,
-	}.Build()
+	}
 }
 
 // fetchAccessEntries fetches the access entries for the given cluster.
@@ -214,7 +215,7 @@ func (a *Fetcher) fetchAccessEntries(ctx context.Context, eksClient EKSClient, c
 	var accessEntries []string
 
 	for p := eks.NewListAccessEntriesPaginator(eksClient,
-		&eks.ListAccessEntriesInput{ClusterName: aws.String(cluster.GetName())},
+		&eks.ListAccessEntriesInput{ClusterName: aws.String(cluster.Name)},
 	); p.HasMorePages(); {
 		out, err := p.NextPage(ctx)
 		if err != nil {
@@ -230,7 +231,7 @@ func (a *Fetcher) fetchAccessEntries(ctx context.Context, eksClient EKSClient, c
 			ctx,
 			&eks.DescribeAccessEntryInput{
 				PrincipalArn: aws.String(accessEntry),
-				ClusterName:  aws.String(cluster.GetName()),
+				ClusterName:  aws.String(cluster.Name),
 			},
 		)
 		if err != nil {
@@ -252,13 +253,13 @@ func (a *Fetcher) fetchAccessEntries(ctx context.Context, eksClient EKSClient, c
 func awsAccessEntryToProtoAccessEntry(accessEntry *ekstypes.AccessEntry, cluster *accessgraphv1alpha.AWSEKSClusterV1, accountID string) *accessgraphv1alpha.AWSEKSClusterAccessEntryV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(accessEntry.Tags))
 	for k, v := range accessEntry.Tags {
-		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
+		tags = append(tags, &accessgraphv1alpha.AWSTag{
 			Key:   k,
 			Value: wrapperspb.String(v),
-		}.Build())
+		})
 	}
 
-	return accessgraphv1alpha.AWSEKSClusterAccessEntryV1_builder{
+	return &accessgraphv1alpha.AWSEKSClusterAccessEntryV1{
 		Cluster:          cluster,
 		AccessEntryArn:   aws.ToString(accessEntry.AccessEntryArn),
 		CreatedAt:        awsTimeToProtoTime(accessEntry.CreatedAt),
@@ -269,7 +270,7 @@ func awsAccessEntryToProtoAccessEntry(accessEntry *ekstypes.AccessEntry, cluster
 		Type:             aws.ToString(accessEntry.Type),
 		Tags:             tags,
 		AccountId:        accountID,
-	}.Build()
+	}
 }
 
 // fetchAccessEntries fetches the access entries for the given cluster.
@@ -280,7 +281,7 @@ func (a *Fetcher) fetchAssociatedPolicies(ctx context.Context, eksClient EKSClie
 	for _, arn := range arns {
 		for p := eks.NewListAssociatedAccessPoliciesPaginator(eksClient,
 			&eks.ListAssociatedAccessPoliciesInput{
-				ClusterName:  aws.String(cluster.GetName()),
+				ClusterName:  aws.String(cluster.Name),
 				PrincipalArn: aws.String(arn),
 			},
 		); p.HasMorePages(); {
@@ -304,13 +305,13 @@ func (a *Fetcher) fetchAssociatedPolicies(ctx context.Context, eksClient EKSClie
 func awsAssociatedAccessPolicy(policy ekstypes.AssociatedAccessPolicy, cluster *accessgraphv1alpha.AWSEKSClusterV1, principalARN, accountID string) *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1 {
 	var accessScope *accessgraphv1alpha.AWSEKSAccessScopeV1
 	if policy.AccessScope != nil {
-		accessScope = accessgraphv1alpha.AWSEKSAccessScopeV1_builder{
+		accessScope = &accessgraphv1alpha.AWSEKSAccessScopeV1{
 			Namespaces: policy.AccessScope.Namespaces,
 			Type:       string(policy.AccessScope.Type),
-		}.Build()
+		}
 	}
 
-	return accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1_builder{
+	return &accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1{
 		Cluster:      cluster,
 		AssociatedAt: awsTimeToProtoTime(policy.AssociatedAt),
 		ModifiedAt:   awsTimeToProtoTime(policy.ModifiedAt),
@@ -318,5 +319,5 @@ func awsAssociatedAccessPolicy(policy ekstypes.AssociatedAccessPolicy, cluster *
 		PolicyArn:    aws.ToString(policy.PolicyArn),
 		Scope:        accessScope,
 		AccountId:    accountID,
-	}.Build()
+	}
 }

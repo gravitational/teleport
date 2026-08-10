@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -167,13 +168,14 @@ func (r *trustedClusterV2TestingPrimitives) setupTest(t *testing.T, clusterName 
 	r.remoteCluster = remoteCluster
 
 	rcConf := servicecfg.MakeDefaultConfig()
-	rcConf.InsecureMode = true
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Version = "v2"
-	rcConf.InsecureMode = true
+
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	require.NoError(t, remoteCluster.CreateEx(t, nil, rcConf))
 	require.NoError(t, remoteCluster.Start())
@@ -189,7 +191,6 @@ func TestTrustedClusterV2Creation(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
-		testlib.WithInsecureMode(),
 	)
 }
 
@@ -202,7 +203,6 @@ func TestTrustedClusterV2Deletion(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
-		testlib.WithInsecureMode(),
 	)
 }
 
@@ -215,14 +215,11 @@ func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
-		testlib.WithInsecureMode(),
 	)
 }
 
-func TestTrustedClusterV2Update(t *testing.T) {
+func TestTrustedClusterUpdate(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
-	// TODO(hugoShaka): fix this test by watching all CAs and returning once they all have the same revision id.
-	t.Skip("This test is currently flaky because of the cert authorities internal.")
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
 	testlib.ResourceUpdateTestSynchronous(
@@ -230,7 +227,6 @@ func TestTrustedClusterV2Update(t *testing.T) {
 		resources.NewTrustedClusterV2Reconciler,
 		test,
 		testlib.WithResourceName(remoteClusterName),
-		testlib.WithInsecureMode(),
 	)
 }
 
@@ -238,7 +234,7 @@ func TestTrustedClusterV2SecretLookup(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	setup := testlib.SetupFakeKubeTestEnv(t, testlib.WithInsecureMode())
+	setup := testlib.SetupFakeKubeTestEnv(t)
 	test.Init(setup)
 	ctx := t.Context()
 	require.NoError(t, test.SetupTeleportFixtures(ctx))

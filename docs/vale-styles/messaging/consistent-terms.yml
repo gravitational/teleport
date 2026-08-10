@@ -7,7 +7,7 @@ scope:
   - list
   - paragraph
 message: For consistent product messaging in the docs, use '%s' instead of '%s'.
-level: error
+level: warning
 # Ignoring case because this rule is about word choice, rather than its
 # presentation/format.
 ignorecase: true

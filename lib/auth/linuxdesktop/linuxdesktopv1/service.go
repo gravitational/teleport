@@ -145,10 +145,10 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	return linuxdesktopv1.ListLinuxDesktopsResponse_builder{
-		LinuxDesktops: rsp,
-		NextPageToken: nextToken,
-	}.Build(), nil
+	res := &linuxdesktopv1.ListLinuxDesktopsResponse{}
+	res.SetLinuxDesktops(rsp)
+	res.SetNextPageToken(nextToken)
+	return res, nil
 }
 
 // GetLinuxDesktop returns Linux desktop resource.

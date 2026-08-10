@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -251,18 +251,12 @@ func (s *SessionService) generateCertificates(
 		DelegationSessionID: session.GetMetadata().GetName(),
 	}
 
-	// If the delegation session is associated with a Beam, carry its ID through
-	// to the issued certificate so downstream services can attribute usage.
-	if beamID := session.GetMetadata().GetLabels()[types.BeamIDLabel]; beamID != "" {
-		certReq.BeamID = beamID
-	}
-
 	// Add the protocol-specific routing hints to the certificate.
-	switch req.WhichRouting() {
-	case delegationv1.GenerateCertsRequest_RouteToKubernetes_case:
-		certReq.KubernetesCluster = req.GetRouteToKubernetes().GetClusterName()
-	case delegationv1.GenerateCertsRequest_RouteToApp_case:
-		route := req.GetRouteToApp()
+	switch routing := req.Routing.(type) {
+	case *delegationv1.GenerateCertsRequest_RouteToKubernetes:
+		certReq.KubernetesCluster = routing.RouteToKubernetes.GetClusterName()
+	case *delegationv1.GenerateCertsRequest_RouteToApp:
+		route := routing.RouteToApp
 
 		certReq.AppPublicAddr = route.GetPublicAddr()
 		certReq.AppClusterName = route.GetClusterName()
@@ -285,7 +279,6 @@ func (s *SessionService) generateCertificates(
 				RequestedResourceAccessIDs: resourceIDs,
 				AttestWebSession:           true,
 				DelegationSessionID:        session.GetMetadata().GetName(),
-				BeamID:                     certReq.BeamID,
 			},
 			PublicAddr:        certReq.AppPublicAddr,
 			ClusterName:       certReq.AppClusterName,
@@ -305,8 +298,8 @@ func (s *SessionService) generateCertificates(
 			return nil, trace.Wrap(err)
 		}
 		certReq.AppSessionID = appSession.GetName()
-	case delegationv1.GenerateCertsRequest_RouteToDatabase_case:
-		route := req.GetRouteToDatabase()
+	case *delegationv1.GenerateCertsRequest_RouteToDatabase:
+		route := routing.RouteToDatabase
 
 		certReq.DBService = route.GetServiceName()
 		certReq.DBProtocol = route.GetProtocol()
@@ -319,10 +312,10 @@ func (s *SessionService) generateCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return delegationv1.GenerateCertsResponse_builder{
+	return &delegationv1.GenerateCertsResponse{
 		Ssh: certs.SSH,
 		Tls: certs.TLS,
-	}.Build(), nil
+	}, nil
 }
 
 func (s *SessionService) getRoleSet(ctx context.Context, user services.UserState) (services.RoleSet, error) {
@@ -371,11 +364,11 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 		return trace.Wrap(err)
 	}
 
-	resourceNamesByKind := make(map[string]set.Set[string])
+	resourceNamesByKind := make(map[string]utils.Set[string])
 	for _, res := range resources {
 		byKind, ok := resourceNamesByKind[res.GetKind()]
 		if !ok {
-			byKind = set.New[string]()
+			byKind = utils.NewSet[string]()
 			resourceNamesByKind[res.GetKind()] = byKind
 		}
 		byKind.Add(res.GetName())
@@ -408,7 +401,7 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 		resourcesByKindName[kind] = byName
 	}
 
-	unauthorizedResources := set.New[string]()
+	unauthorizedResources := utils.NewSet[string]()
 	for _, spec := range resources {
 		id := fmt.Sprintf("%s/%s", spec.GetKind(), spec.GetName())
 
@@ -430,9 +423,9 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 		}
 	}
 
-	if unauthorizedResources.Len() != 0 {
-		idStrings := unauthorizedResources.Elements()
-		sort.Strings(idStrings)
+	idStrings := unauthorizedResources.Elements()
+	sort.Strings(idStrings)
+	if len(idStrings) != 0 {
 		return trace.AccessDenied("user does not have permission to delegate access to all of the required resources, missing resources: [%s]", strings.Join(idStrings, ", "))
 	}
 

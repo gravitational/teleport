@@ -154,15 +154,15 @@ func convertPermissions(perms permissions.PermissionSet) (*Permissions, error) {
 	var errors []error
 	for permission, objects := range perms {
 		for _, obj := range objects {
-			if err := checkPgPermission(obj.GetSpec().GetObjectKind(), permission); err != nil {
+			if err := checkPgPermission(obj.GetSpec().ObjectKind, permission); err != nil {
 				errors = append(errors, err)
 				continue
 			}
-			if obj.GetSpec().GetObjectKind() == databaseobjectimportrule.ObjectKindTable {
+			if obj.GetSpec().ObjectKind == databaseobjectimportrule.ObjectKindTable {
 				out.Tables = append(out.Tables, TablePermission{
 					Privilege: permission,
-					Schema:    obj.GetSpec().GetSchema(),
-					Table:     obj.GetSpec().GetName(),
+					Schema:    obj.GetSpec().Schema,
+					Table:     obj.GetSpec().Name,
 				})
 			}
 		}
@@ -676,7 +676,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 	}
 
 	// retry a finite number of times before giving up.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err := f()
 		if err == nil {
 			return nil

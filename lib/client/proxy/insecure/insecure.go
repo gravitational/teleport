@@ -55,12 +55,6 @@ type ConnectionConfig struct {
 	Insecure bool
 	// Log is the logger.
 	Log *slog.Logger
-	// ALPNConnUpgradePing wraps an ALPN-upgraded connection with the Ping
-	// protocol so that it survives L7 load balancer idle timeouts. Callers that
-	// issue long-lived or blocking RPCs must set this. Otherwise no traffic flows
-	// on the upgraded tunnel while the server waits and the connection can be
-	// dropped.
-	ALPNConnUpgradePing bool
 }
 
 // NewConnection attempts to connect to the proxy insecure grpc server.
@@ -87,7 +81,6 @@ func NewConnection(
 		apidefaults.DefaultIOTimeout,
 		client.WithInsecureSkipVerify(params.Insecure),
 		client.WithALPNConnUpgrade(alpnConnUpgrade),
-		client.WithALPNConnUpgradePing(params.ALPNConnUpgradePing),
 	)
 
 	//nolint:staticcheck // ignore deprecation until https://github.com/grpc/grpc-go/issues/7556 is fixed, at which point we should switch to grpc.NewClient.

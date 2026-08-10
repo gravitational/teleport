@@ -33,6 +33,7 @@ func TestIdentityOutput_YAML(t *testing.T) {
 			name: "full",
 			in: OutputConfig{
 				Destination:         dest,
+				Roles:               []string{"access"},
 				Cluster:             "leaf.example.com",
 				SSHConfigMode:       SSHConfigModeOff,
 				AllowReissue:        true,
@@ -60,6 +61,7 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *OutputConfig {
 				return &OutputConfig{
 					Destination:   destination.NewMemory(),
+					Roles:         []string{"access"},
 					SSHConfigMode: SSHConfigModeOn,
 				}
 			},
@@ -96,17 +98,6 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "ssh_config: unrecognized value \"invalid\"",
 		},
 		{
-			name: "roles is no longer supported",
-			in: func() *OutputConfig {
-				return &OutputConfig{
-					Destination:     destination.NewMemory(),
-					SSHConfigMode:   SSHConfigModeOn,
-					DeprecatedRoles: []string{"access"},
-				}
-			},
-			wantErr: "roles: the roles field is no longer supported",
-		},
-		{
 			name:   "scoped valid",
 			scoped: true,
 			in: func() *OutputConfig {
@@ -124,11 +115,11 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			scoped: true,
 			in: func() *OutputConfig {
 				return &OutputConfig{
-					Destination:     destination.NewMemory(),
-					DeprecatedRoles: []string{"access"},
+					Destination: destination.NewMemory(),
+					Roles:       []string{"access"},
 				}
 			},
-			wantErr: "roles: the roles field is no longer supported",
+			wantErr: "roles: not supported with scopes",
 		},
 		{
 			name:   "scoped with allow_reissue",
@@ -142,17 +133,6 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "allow_reissue: not supported with scopes",
 		},
 		{
-			name:   "scoped with delegation_session_id",
-			scoped: true,
-			in: func() *OutputConfig {
-				return &OutputConfig{
-					Destination:         destination.NewMemory(),
-					DelegationSessionID: "very-cool-delegation-session-id",
-				}
-			},
-			wantErr: "delegation_session_id: not supported with scopes",
-		},
-		{
 			name:   "scoped with cluster",
 			scoped: true,
 			in: func() *OutputConfig {
@@ -162,6 +142,18 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "cluster: not supported with scopes",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:         destination.NewMemory(),
+					Roles:               []string{"access"},
+					SSHConfigMode:       SSHConfigModeOn,
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

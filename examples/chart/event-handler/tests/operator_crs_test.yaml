@@ -1,10 +1,6 @@
 suite: Test operator custom resources
 templates:
   - operator_crs.yaml
-# Override chart version so snapshots are stable across releases.
-chart:
-  version: "99.0.0"
-  appVersion: "99.0.0"
 tests:
   - it: should match the snapshot (tokenSpecOverride set)
     values:
@@ -31,17 +27,14 @@ tests:
       - hasDocuments:
           count: 3
       - containsDocument:
-          any: true
           kind: TeleportRoleV8
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
       - containsDocument:
-          any: true
           kind: TeleportBotV1
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
       - containsDocument:
-          any: true
           kind: TeleportProvisionToken
           apiVersion: resources.teleport.dev/v2
           name: RELEASE-NAME-tbot
@@ -56,19 +49,16 @@ tests:
       - hasDocuments:
           count: 3
       - containsDocument:
-          any: true
           kind: TeleportRoleV8
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
           namespace: test-namespace
       - containsDocument:
-          any: true
           kind: TeleportBotV1
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
           namespace: test-namespace
       - containsDocument:
-          any: true
           kind: TeleportProvisionToken
           apiVersion: resources.teleport.dev/v2
           name: RELEASE-NAME-tbot

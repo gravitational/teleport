@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -75,7 +74,7 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	ssh := c.checker.role.GetSpec().GetSsh()
 	var disconnectExpiredCert *bool
 	if ssh != nil {
-		disconnectExpiredCert = proto.ValueOrNil(ssh.HasDisconnectExpiredCert(), ssh.GetDisconnectExpiredCert)
+		disconnectExpiredCert = ssh.DisconnectExpiredCert
 	}
 	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
 }
@@ -139,10 +138,10 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	local := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
 
 	var denyRemote, denyLocal bool
-	if remote != nil && remote.HasEnabled() && !remote.GetEnabled() {
+	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
 		denyRemote = true
 	}
-	if local != nil && local.HasEnabled() && !local.GetEnabled() {
+	if local != nil && local.Enabled != nil && !*local.Enabled {
 		denyLocal = true
 	}
 
@@ -187,7 +186,7 @@ func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
 }
 
 // HostUsers returns host user creation information for the server, or nil if host user creation is disabled.
-func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, error) {
+func (c *SSHAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInfo, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostUsers(srv)
 	}
@@ -199,16 +198,10 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		return nil, trace.Wrap(err)
 	}
 
-	// If no create_host_user block, or mode is OFF/UNSPECIFIED, host user creation is disabled.
+	// If mode is OFF or UNSPECIFIED, host user creation is disabled.
 	if hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
 		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
-		return &HostUsersDecision{
-			Info: nil,
-			DeniedBy: []*decisionpb.Determinant{decisionpb.Determinant_builder{
-				Kind: c.checker.role.GetKind(),
-				Name: c.checker.role.GetMetadata().GetName(),
-			}.Build()},
-		}, nil
+		return nil, trace.AccessDenied("role %q prevents creating host users", c.checker.role.GetMetadata().GetName())
 	}
 
 	// Convert to decision
@@ -231,18 +224,12 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		gid = gidL[0]
 	}
 
-	return &HostUsersDecision{
-		Info: decisionpb.HostUsersInfo_builder{
-			Groups: createHostUser.GetGroups(),
-			Mode:   decisionMode,
-			Uid:    uid,
-			Gid:    gid,
-			Shell:  createHostUser.GetShell(),
-		}.Build(),
-		AllowedBy: []*decisionpb.Determinant{decisionpb.Determinant_builder{
-			Kind: c.checker.role.GetKind(),
-			Name: c.checker.role.GetMetadata().GetName(),
-		}.Build()},
+	return &decisionpb.HostUsersInfo{
+		Groups: createHostUser.GetGroups(),
+		Mode:   decisionMode,
+		Uid:    uid,
+		Gid:    gid,
+		Shell:  createHostUser.GetShell(),
 	}, nil
 }
 
@@ -294,7 +281,7 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 	}
 
 	ssh := c.checker.role.GetSpec().GetSsh()
-	if ssh == nil || !ssh.HasFileCopy() {
+	if ssh == nil || ssh.FileCopy == nil {
 		return true
 	}
 	return ssh.GetFileCopy()

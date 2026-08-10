@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"slices"
 	"strings"
@@ -64,11 +63,6 @@ type AccessChecker interface {
 
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
-
-	// CheckConditionalAccess checks conditional access to the specified resource. If access is granted, it returns
-	// preconditions that must be satisfied. If access is denied, it returns an error. An empty list of preconditions
-	// and a nil error indicates that no additional preconditions are required for access.
-	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error)
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -244,7 +238,7 @@ type AccessChecker interface {
 
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
-	HostUsers(types.Server) (*HostUsersDecision, error)
+	HostUsers(types.Server) (*decisionpb.HostUsersInfo, error)
 
 	// HostSudoers returns host sudoers entries matching a server
 	HostSudoers(types.Server) ([]string, error)
@@ -604,7 +598,7 @@ func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
 	}
 
 	// Collect all the resource kinds the session has access to.
-	allowedKinds := set.New[string]()
+	allowedKinds := utils.NewSet[string]()
 	for _, id := range a.GetAllowedResourceAccessIDs() {
 		allowedKinds.Add(id.GetResourceID().Kind)
 	}
@@ -623,7 +617,7 @@ func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
 	}
 
 	// These verbs are allowed to enable `tsh ls`, etc.
-	allowedVerbs := set.New(types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
+	allowedVerbs := utils.NewSet(types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
 	return !allowedKinds.Contains(kind) || !allowedVerbs.Contains(verb)
 }
 
@@ -659,27 +653,10 @@ func (a *accessChecker) ExtractConditionForIdentifier(ctx RuleContext, namespace
 
 // CheckAccess checks if the identity for this AccessChecker has access to the given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
-	// Immediately return an error regardless of potential preconditions. This is to maintain backwards compatibility
-	// with existing callers of CheckAccess which expect an error when access is denied.
-	state.ReturnPreconditions = false
-
-	_, err := a.validateAccessConditions(r, state, matchers...)
-	return trace.Wrap(err)
-}
-
-// CheckConditionalAccess checks if the identity for this AccessChecker has conditional access to the given resource.
-func (a *accessChecker) CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error) {
-	// Indicate that we want preconditions to be returned if access is granted rather than an error.
-	state.ReturnPreconditions = true
-
-	return a.validateAccessConditions(r, state, matchers...)
-}
-
-func (a *accessChecker) validateAccessConditions(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error) {
 	// Enforce AllowedResourceAccessIDs if present; capture match
 	res, err := a.checkAllowedResources(r)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	switch rr := r.(type) {
@@ -697,12 +674,7 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 		}
 	}
 
-	preconds, err := a.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return preconds, nil
+	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...))
 }
 
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
@@ -1080,7 +1052,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		// if the role allows the resource without any matcher confirms
 		// namespace and label matching has passed.
 		var resourceAllowedByRole bool
-		if _, err := NewRoleSet(role).checkAccess(resource, a.info.Username, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if err := NewRoleSet(role).checkAccess(resource, a.info.Username, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
 			resourceAllowedByRole = true
 		}
 
@@ -1354,31 +1326,20 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 	}
 }
 
-// HostUsersDecision is a decision to allow or disallow host user creation.
-type HostUsersDecision struct {
-	// Info is host users information. If host users creation is disallowed, this will be nil.
-	Info *decisionpb.HostUsersInfo
-	// AllowedBy is a list of determinants that allow host user creation.
-	AllowedBy []*decisionpb.Determinant
-	// DeniedBy is a list of determinants that disallow host user creation.
-	DeniedBy []*decisionpb.Determinant
-}
-
-// HostUsers returns host user decision matching a server.
-func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
+// HostUsers returns host user information matching a server or nil if
+// a role disallows host user creation
+func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
 	groups := set.New[string]()
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
-
-	decision := new(HostUsersDecision)
 
 	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Username, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// skip roles that don't have matching labels
+		// skip nodes that dont have matching labels
 		if !result {
 			continue
 		}
@@ -1393,18 +1354,11 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 			}
 		}
 
+		// if any of the matching roles do not enable create host
+		// user, the user should not be allowed on
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			decision.DeniedBy = append(decision.DeniedBy, decisionpb.Determinant_builder{
-				Kind: role.GetKind(),
-				Name: role.GetName(),
-			}.Build())
-			continue
+			return nil, trace.AccessDenied("role %q prevents creating host users", role.GetName())
 		}
-
-		decision.AllowedBy = append(decision.AllowedBy, decisionpb.Determinant_builder{
-			Kind: role.GetKind(),
-			Name: role.GetName(),
-		}.Build())
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			mode = createHostUserMode
@@ -1424,13 +1378,6 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups.Add(group)
 		}
-	}
-
-	// if any of the matching roles do not enable create host user, the user should not be allowed on
-	// Represent denial by returning the decision with a nil info field.
-	if len(decision.DeniedBy) > 0 {
-		decision.Info = nil
-		return decision, nil
 	}
 
 	if len(shellToRoles) > 1 {
@@ -1470,15 +1417,13 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 		uid = uidL[0]
 	}
 
-	decision.Info = decisionpb.HostUsersInfo_builder{
+	return &decisionpb.HostUsersInfo{
 		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
 		Shell:  shell,
-	}.Build()
-
-	return decision, nil
+	}, nil
 }
 
 // HostSudoers returns host sudoers entries matching a server
@@ -1561,9 +1506,10 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 	}
 
 	// make a shallow copy of traits to avoid modifying the original
-	// (don't use maps.Clone, as we want to ensure the result is an empty, but not nil, map)
 	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
-	maps.Copy(traits, unmappedIdentity.Traits)
+	for k, v := range unmappedIdentity.Traits {
+		traits[k] = v
+	}
 
 	// Prior to Teleport 6.2 the only trait passed to the remote cluster
 	// was the "logins" trait set to the SSH certificate principals.

@@ -66,7 +66,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		{
 			name: "~user path",
 			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},
@@ -212,7 +212,7 @@ func TestHandleFilecmd(t *testing.T) {
 		target := filepath.Join(root, "bar.txt")
 		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
 
-		assert.NoError(t, clt.Link(file, target))
+		assert.NoError(t, clt.Link(target, file))
 		fi, err := os.Lstat(target)
 		if assert.NoError(t, err) {
 			assert.Zero(t, fi.Mode()&os.ModeSymlink)
@@ -224,7 +224,7 @@ func TestHandleFilecmd(t *testing.T) {
 		file := filepath.Join(root, "foo.txt")
 		target := filepath.Join(root, "bar.txt")
 
-		assert.Error(t, clt.Link(file, target))
+		assert.Error(t, clt.Link(target, file))
 		assert.NoFileExists(t, target)
 	})
 
@@ -241,7 +241,7 @@ func TestHandleFilecmd(t *testing.T) {
 		target := filepath.Join(root, "bar.txt")
 		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
 
-		assert.NoError(t, clt.Symlink(file, target))
+		assert.NoError(t, clt.Symlink(target, file))
 		fi, err := os.Lstat(target)
 		assert.NoError(t, err)
 		assert.NotZero(t, fi.Mode()&os.ModeSymlink)

@@ -29,10 +29,8 @@ export default function makeNode(json: any): Node {
     tunnel,
     tags,
     sshLogins,
-    sshLoginDetails,
     aws,
     requiresRequest,
-    supportedFeatureIds,
   } = json;
 
   return {
@@ -46,11 +44,10 @@ export default function makeNode(json: any): Node {
     tunnel,
     requiresRequest,
     sshLogins: sshLogins ?? [],
-    sshLoginDetails: sshLoginDetails ?? [],
     awsMetadata: aws ? makeAwsMetadata(aws) : undefined,
-    supportedFeatureIds,
   };
 }
+
 function makeAwsMetadata(json: any): AwsMetadata {
   json = json ?? {};
   const { accountId, instanceId, region, vpcId, integration, subnetId } = json;

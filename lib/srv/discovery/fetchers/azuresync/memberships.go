@@ -36,21 +36,21 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 	// Map principals by ID
 	var principalsMap = make(map[string]*accessgraphv1alpha.AzurePrincipal)
 	for _, principal := range principals {
-		principalsMap[principal.GetId()] = principal
+		principalsMap[principal.Id] = principal
 	}
 	// Iterate through the Azure groups and add the group ID as a membership for its corresponding principal
 	eg, _ := errgroup.WithContext(ctx)
 	eg.SetLimit(parallelism)
 	errCh := make(chan error, len(principals))
 	for _, principal := range principals {
-		if principal.GetObjectType() != "group" {
+		if principal.ObjectType != "group" {
 			continue
 		}
 		group := principal
 		eg.Go(func() error {
-			err := cli.IterateGroupMembers(ctx, group.GetId(), func(member models.GroupMember) bool {
+			err := cli.IterateGroupMembers(ctx, group.Id, func(member models.GroupMember) bool {
 				if memberPrincipal, ok := principalsMap[*member.GetID()]; ok {
-					memberPrincipal.SetMemberOf(append(memberPrincipal.GetMemberOf(), group.GetId()))
+					memberPrincipal.MemberOf = append(memberPrincipal.MemberOf, group.Id)
 				}
 				return true
 			})

@@ -20,6 +20,7 @@ package sftp
 
 import (
 	"bytes"
+	"context"
 	cryptorand "crypto/rand"
 	"fmt"
 	"io"
@@ -366,7 +367,7 @@ func TestTransferFiles(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
 			},
 		},
@@ -386,7 +387,7 @@ func TestTransferFiles(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
 			},
 		},
@@ -403,7 +404,7 @@ func TestTransferFiles(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 				require.ErrorAs(t, err, new(*sftputils.NonRecursiveDirectoryTransferError))
 			},
@@ -418,7 +419,7 @@ func TestTransferFiles(t *testing.T) {
 					Path: "whocares",
 				},
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -444,7 +445,8 @@ func TestTransferFiles(t *testing.T) {
 			}
 			tt.req.Destination.Path = filepath.Join(tempDir, tt.req.Destination.Path)
 
-			err := TransferFiles(t.Context(), tt.req)
+			ctx := context.Background()
+			err := TransferFiles(ctx, tt.req)
 			if tt.errCheck == nil {
 				require.NoError(t, err)
 				srcPaths := tt.req.Sources.Paths
@@ -552,7 +554,7 @@ func TestRecursiveSymlinks(t *testing.T) {
 			dstDir := filepath.Join(root, "dst")
 			t.Cleanup(func() { os.RemoveAll(dstDir) })
 
-			srcFS := &mockFS{}
+			srcFS := &mockFS{fileAccesses: make(map[string]int)}
 			req := &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{tc.srcDir},
@@ -696,39 +698,11 @@ func TestTransferUnexpectedLargerFile(t *testing.T) {
 		srcFS:          srcFS,
 	}
 	require.NoError(t, TransferFiles(t.Context(), req))
+
 	require.FileExists(t, dstFile)
 	dstFileData, err := os.ReadFile(dstFile)
 	require.NoError(t, err)
 	require.Equal(t, "original file data\nextra data\n", string(dstFileData))
-}
-
-func TestTransferModeMask(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	srcFile := filepath.Join(tempDir, "in")
-	require.NoError(t, os.WriteFile(srcFile, []byte("the source"), 0o7755))
-	dstFile := filepath.Join(tempDir, "out")
-	f, err := os.Create(srcFile)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
-
-	req := &FileTransferRequest{
-		Sources: Sources{
-			Paths: []string{srcFile},
-		},
-		Destination: Target{
-			Path: dstFile,
-		},
-		ProgressWriter: io.Discard,
-	}
-
-	err = TransferFiles(t.Context(), req)
-	require.NoError(t, err)
-
-	dstInfo, err := os.Stat(dstFile)
-	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o755), dstInfo.Mode())
 }
 
 func createFile(t *testing.T, path string) {

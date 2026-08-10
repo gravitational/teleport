@@ -58,9 +58,8 @@ type ScopeAwareService[T ScopedResource] struct {
 	// Resources will be keyed at <scoped_prefix>/<backend_prefix>/<encoded_scope>/<name>
 	ScopedService *Service[T]
 
-	backend                      backend.Backend
-	runWhileLockedRetryInterval  time.Duration
-	runWhileLockedReleaseTimeout time.Duration
+	backend                     backend.Backend
+	runWhileLockedRetryInterval time.Duration
 }
 
 // ScopeAwareServiceConfig holds configuration options for ScopeAwareService.
@@ -89,10 +88,6 @@ type ScopeAwareServiceConfig[T ScopedResource] struct {
 	// If set to 0, the default interval of 250ms will be used.
 	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
 	RunWhileLockedRetryInterval time.Duration
-	// RunWhileLockedReleaseTimeout is the timeout for releasing the backend lock
-	// at the end of the RunWhileLocked function. If set to 0, the default timeout
-	// of 1s will be used.
-	RunWhileLockedReleaseTimeout time.Duration
 }
 
 // NewScopeAwareService returns a new scope-aware service.
@@ -137,11 +132,10 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 	}
 
 	return &ScopeAwareService[T]{
-		UnscopedService:              unscopedService,
-		ScopedService:                scopedService,
-		backend:                      cfg.Backend,
-		runWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
-		runWhileLockedReleaseTimeout: cfg.RunWhileLockedReleaseTimeout,
+		UnscopedService:             unscopedService,
+		ScopedService:               scopedService,
+		backend:                     cfg.Backend,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	}, nil
 }
 
@@ -403,7 +397,6 @@ func (s *ScopeAwareService[T]) RunWhileLocked(ctx context.Context, lockNameCompo
 				TTL:                ttl,
 				RetryInterval:      s.runWhileLockedRetryInterval,
 			},
-			ReleaseCtxTimeout: s.runWhileLockedReleaseTimeout,
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
 		}))

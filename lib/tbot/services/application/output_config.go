@@ -37,8 +37,9 @@ type OutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
-	DeprecatedRoles []string `yaml:"roles,omitempty"`
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles []string `yaml:"roles,omitempty"`
 
 	AppName string `yaml:"app_name"`
 
@@ -62,9 +63,6 @@ func (o *OutputConfig) Init(ctx context.Context) error {
 }
 
 func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
-	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
-		return trace.Wrap(err)
-	}
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
 	}
@@ -76,6 +74,9 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if o.AppName == "" {
 		return trace.BadParameter("app_name must not be empty")
+	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
 	}
 
 	return nil

@@ -21,8 +21,6 @@ package services
 import (
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -90,7 +88,7 @@ func (c *KubeAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	kube := c.checker.role.GetSpec().GetKube()
 	var disconnectExpiredCert *bool
 	if kube != nil {
-		disconnectExpiredCert = proto.ValueOrNil(kube.HasDisconnectExpiredCert(), kube.GetDisconnectExpiredCert)
+		disconnectExpiredCert = kube.DisconnectExpiredCert
 	}
 	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
 }

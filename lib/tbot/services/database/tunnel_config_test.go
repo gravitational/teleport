@@ -33,6 +33,7 @@ func TestDatabaseTunnelService_YAML(t *testing.T) {
 			name: "full",
 			in: TunnelConfig{
 				Listen:              "tcp://0.0.0.0:3621",
+				Roles:               []string{"role1", "role2"},
 				Service:             "service",
 				Database:            "database",
 				Username:            "username",
@@ -56,6 +57,7 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
+					Roles:    []string{"role1", "role2"},
 					Service:  "service",
 					Database: "database",
 					Username: "username",
@@ -67,6 +69,7 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			name: "missing listen",
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
+					Roles:    []string{"role1", "role2"},
 					Service:  "service",
 					Database: "database",
 					Username: "username",
@@ -79,6 +82,7 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
+					Roles:    []string{"role1", "role2"},
 					Database: "database",
 					Username: "username",
 				}
@@ -90,6 +94,7 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
+					Roles:    []string{"role1", "role2"},
 					Service:  "service",
 					Username: "username",
 				}
@@ -101,24 +106,12 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
 					Listen:   "tcp://0.0.0.0:3621",
+					Roles:    []string{"role1", "role2"},
 					Service:  "service",
 					Database: "database",
 				}
 			},
 			wantErr: "username: should not be empty",
-		},
-		{
-			name: "roles is no longer supported",
-			in: func() *TunnelConfig {
-				return &TunnelConfig{
-					Listen:          "tcp://0.0.0.0:3621",
-					Service:         "service",
-					Database:        "database",
-					Username:        "username",
-					DeprecatedRoles: []string{"role1", "role2"},
-				}
-			},
-			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name:   "scoped",
@@ -132,6 +125,20 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					Roles:               []string{"role1", "role2"},
+					Service:             "service",
+					Database:            "database",
+					Username:            "username",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)
