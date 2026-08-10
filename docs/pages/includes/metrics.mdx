@@ -154,6 +154,9 @@ The following tables identify all metrics available in the [Teleport Proxy
 Service](../reference/deployment/config.mdx#proxy-service)
 if at least one Kubernetes cluster is enrolled in your Teleport cluster.
 
+The same metrics are also reported by the `kubernetes_service`, but apply to the
+agent leg of Kubernetes connections.
+
 #### Client
 
 The following table identifies all metrics available when the service connects
@@ -224,7 +227,7 @@ These metrics are available when the Teleport process is configured with
 and apply to traffic between the agent and Kubernetes API.
 
 The same metrics are also reported by the Proxy service, but apply to the proxy
-phase of Kubernetes connections.
+leg of Kubernetes connections.
 
 #### Client {/* Intentionally #### to match Proxy Service/Kubernetes above */}
 
