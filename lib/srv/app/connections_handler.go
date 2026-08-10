@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
@@ -66,7 +67,7 @@ import (
 // ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
+	MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ConnectionsHandlerConfig is the configuration for a ConnectionsHandler.
@@ -81,7 +82,7 @@ type ConnectionsHandlerConfig struct {
 	Emitter events.Emitter
 
 	// Authorizer is used to authorize requests.
-	Authorizer authz.Authorizer
+	Authorizer authz.ScopedAuthorizer
 
 	// HostID is the id of the host where this application agent is running.
 	HostID string
@@ -126,6 +127,9 @@ type ConnectionsHandlerConfig struct {
 
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
+
+	// TargetHostPolicy restricts application target dials by resolved IP.
+	TargetHostPolicy common.TargetHostPolicy
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -174,6 +178,9 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
 	}
+	if err := c.TargetHostPolicy.Check(); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -205,7 +212,7 @@ type ConnectionsHandler struct {
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
-	llmHandler   http.Handler
+	llmHandler   *appllm.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
@@ -215,6 +222,29 @@ type ConnectionsHandler struct {
 
 	// resolveApp returns a types.Application using the name and public address as matchers.
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
+
+	// v9Warned dedupes the v9 enforcement warnings (dropped v8 roles, denied
+	// CORS preflight, denied on version skew) to once per warning kind, user,
+	// and app. A v9 role governs every request to a shared app, so the
+	// warnings would otherwise fire on each request.
+	v9Warned *lru.Cache[v9WarnKey, struct{}]
+}
+
+// v9WarnedSize bounds the warning deduplication cache. Every user and app
+// combination the agent serves takes an entry, so the cache is bounded
+// rather than tracking them all. Evicting the least recently warned entry
+// repeats its warning, which is the behavior to prefer over unbounded
+// growth.
+const v9WarnedSize = 2048
+
+// v9WarnKey identifies one fired v9 enforcement warning in v9Warned.
+type v9WarnKey struct{ kind, user, app string }
+
+// v9WarnOnce reports whether the v9 enforcement warning of the given kind
+// has not fired yet for the user and app, and marks it fired.
+func (c *ConnectionsHandler) v9WarnOnce(kind, user, app string) bool {
+	warned, _ := c.v9Warned.ContainsOrAdd(v9WarnKey{kind, user, app}, struct{}{})
+	return !warned
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -261,6 +291,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	v9Warned, err := lru.New[v9WarnKey, struct{}](v9WarnedSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -271,6 +306,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		clusterName:  clusterName.GetClusterName(),
+		v9Warned:     v9Warned,
 		resolveApp: func(context.Context, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -316,6 +352,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
 		InsecureMode:     c.cfg.InsecureMode,
+		TargetHostPolicy: c.cfg.TargetHostPolicy,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -443,15 +480,16 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		clock:        c.cfg.Clock,
-		emitter:      c.cfg.Emitter,
-		hostID:       c.cfg.HostID,
-		log:          c.log,
-		accessPoint:  c.cfg.AccessPoint,
-		authClient:   c.cfg.AuthClient,
-		clusterName:  c.clusterName,
-		cipherSuites: c.cfg.CipherSuites,
-		insecureMode: c.cfg.InsecureMode,
+		clock:            c.cfg.Clock,
+		emitter:          c.cfg.Emitter,
+		hostID:           c.cfg.HostID,
+		log:              c.log,
+		accessPoint:      c.cfg.AccessPoint,
+		authClient:       c.cfg.AuthClient,
+		clusterName:      c.clusterName,
+		cipherSuites:     c.cfg.CipherSuites,
+		insecureMode:     c.cfg.InsecureMode,
+		targetHostPolicy: c.cfg.TargetHostPolicy,
 	}, nil
 }
 
@@ -476,12 +514,12 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	authCtx, app, err := c.authorizeContext(r.Context())
+	sessionCtx, app, err := c.authorizeContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	identity := authCtx.Identity.GetIdentity()
+	identity := sessionCtx.Context.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
 		// Requests from AWS applications are signed by AWS Signature Version 4
@@ -509,6 +547,21 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
+		// The default case is a plain HTTP app. Minimal v9 default-deny is
+		// enforced only on the unscoped access path. A scoped identity was
+		// already authorized for this app by authorizeContext, and the
+		// scoped access model does not yet evaluate v9 app_resources, so v9
+		// enforcement is skipped for it rather than denying an authorized
+		// request. Making the scoped path v9-aware is follow-up work.
+		if unscopedAuthCtx, ok := sessionCtx.Context.UnscopedContext(); ok {
+			denied, err := c.enforceMinimalV9(w, r, unscopedAuthCtx, app)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if denied {
+				return nil
+			}
+		}
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
 	}
 }
@@ -561,8 +614,9 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 }
 
 // authorizeContext will check if the context carries identity information and
-// runs authorization checks on it.
-func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
+// runs authorization checks on it. On success it returns the scoped context
+// bundled with the session controls of the role that granted access.
+func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedSessionContext, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
@@ -575,8 +629,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
 	}
 
-	// Extract authorizing context and identity of the user from the request.
-	authContext, err := c.cfg.Authorizer.Authorize(ctx)
+	authContext, err := c.cfg.Authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -591,9 +644,10 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+
+	if identity.RouteToApp.Scope != app.GetScope() {
+		return nil, nil, trace.AccessDenied("certificate app scope %q does not match application scope %q",
+			identity.RouteToApp.Scope, app.GetScope())
 	}
 
 	// When accessing AWS management console, check permissions to assume
@@ -621,11 +675,25 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		})
 	}
 
-	state := authContext.GetAccessState(authPref)
-	switch err := authContext.Checker.CheckAccess(
-		app,
-		state,
-		matchers...); {
+	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Identity Center account apps are currently not supported for scoped applications.
+	// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
+	if _, isUnscoped := authContext.UnscopedContext(); !isUnscoped && app.GetSubKind() == types.KindIdentityCenterAccount {
+		return nil, nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
+	}
+
+	var sessionControls srv.ScopedSessionControls
+	switch err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(check *services.ScopedAccessChecker) error {
+		if err := check.App().CheckAccessToApp(app, state, matchers...); err != nil {
+			return trace.Wrap(err)
+		}
+		sessionControls = check.App()
+		return nil
+	}); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
@@ -639,7 +707,10 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return authContext, app, nil
+	return &srv.ScopedSessionContext{
+		Context:         authContext,
+		SessionControls: sessionControls,
+	}, app, nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
@@ -679,7 +750,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
-	authCtx, _, err := c.authorizeContext(ctx)
+	sessionCtx, _, err := c.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -702,8 +773,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			c.setConnAuth(tlsConn, err)
 		}
 	} else {
-		// Monitor the connection an update the context.
-		ctx, _, err = c.cfg.ConnectionMonitor.MonitorConn(ctx, authCtx, tc)
+		ctx, _, err = c.cfg.ConnectionMonitor.MonitorConnScoped(ctx, sessionCtx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -720,13 +790,18 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// blocks on waitConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
-		identity := authCtx.Identity.GetIdentity()
+		identity := sessionCtx.Context.Identity.GetIdentity()
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
 
 	case app.IsMCP():
+		// TODO (williamo/scopes): change this to a scoped context when we support MCP.
+		unscopedAuthCtx, ok := sessionCtx.Context.UnscopedContext()
+		if !ok {
+			return nil, trace.AccessDenied("MCP application access is not supported for scoped identities")
+		}
 		sessionCtx := mcp.SessionCtx{
 			ClientConn: tlsConn,
-			AuthCtx:    authCtx,
+			AuthCtx:    unscopedAuthCtx,
 			App:        app,
 		}
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))

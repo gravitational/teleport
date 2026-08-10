@@ -54,7 +54,7 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
 		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
@@ -120,7 +120,7 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 
 func createTUNDevice(ctx context.Context, interfaceName string) (tun.Device, string, error) {
 	log.DebugContext(ctx, "Creating TUN device.")
-	dev, err := tun.CreateTUN(interfaceName, mtu)
+	dev, err := tun.CreateTUN(interfaceName, tunMTU(ctx))
 	if err != nil {
 		return nil, "", trace.Wrap(err, "creating TUN device")
 	}

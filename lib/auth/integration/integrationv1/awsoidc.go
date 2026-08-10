@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -170,8 +171,11 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 				"app_server", appServer.GetName(),
 				"integration", ig.GetName())
 
-			err := s.backend.DeleteApplicationServer(ctx,
-				appServer.GetNamespace(), appServer.GetHostID(), appServer.GetName())
+			err := s.backend.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+				HostId: appServer.GetHostID(),
+				Name:   appServer.GetName(),
+				Scope:  appServer.GetScope(),
+			}.Build())
 
 			if err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err)

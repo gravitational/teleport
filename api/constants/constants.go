@@ -614,6 +614,10 @@ const (
 	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
 	// GitLab CI job.
 	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
+	// EnvVarTerraformScoped is the environment variable indicating that the Terraform Operator will join with a scoped token.
+	// This only takes effect when the operator performs native MachineID joining
+	// (i.e. join method and join token are specified). This must be set when using a scoped join token.
+	EnvVarTerraformScoped = "TF_TELEPORT_SCOPED"
 )
 
 // MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.

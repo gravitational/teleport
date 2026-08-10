@@ -138,19 +138,16 @@ class TeleportContext implements types.Context {
     }
 
     function hasAccessRequestsAccess() {
-      // If feature hiding is enabled in the license, only allow access to access requests if the user has permission to access them, either by
-      // having list access, requestable roles, or allowed search_as_roles.
-      if (cfg.hideInaccessibleFeatures) {
-        return !!(
-          userContext.getReviewRequests() ||
-          userContext.getAccessRequestAccess().list ||
-          userContext.getRequestableRoles().length ||
-          userContext.getAllowedSearchAsRoles().length
-        );
+      if (cfg.isDashboard) {
+        return false;
       }
 
-      // Return true if this isn't a Cloud dashboard cluster.
-      return !cfg.isDashboard;
+      return !!(
+        userContext.getReviewRequests() ||
+        userContext.getAccessRequestAccess().list ||
+        userContext.getRequestableRoles().length ||
+        userContext.getAllowedSearchAsRoles().length
+      );
     }
 
     function hasAccessMonitoringAccess() {
@@ -212,6 +209,16 @@ class TeleportContext implements types.Context {
         userContext.getLockAccess().create && userContext.getLockAccess().edit, // Presumably because this is an upsert operation so needs both create and edit permissions
       removeLocks: userContext.getLockAccess().remove,
       accessMonitoring: hasAccessMonitoringAccess(),
+      accessAutomations:
+        userContext.getAccessMonitoringRuleAccess().list &&
+        userContext.getAccessMonitoringRuleAccess().read,
+      accessLists:
+        userContext.getAccessListAccess().list &&
+        userContext.getAccessListAccess().read,
+      addAccessList:
+        userContext.getAccessListAccess().create &&
+        userContext.getAccessListAccess().list &&
+        userContext.getAccessListAccess().read,
       accessGraph: userContext.getAccessGraphAccess().list,
       accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
       createTokens: userContext.getTokenAccess().create,
@@ -276,6 +283,9 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   addLocks: false,
   removeLocks: false,
   accessMonitoring: false,
+  accessAutomations: false,
+  accessLists: false,
+  addAccessList: false,
   accessGraph: false,
   accessGraphIntegrations: false,
   externalAuditStorage: false,

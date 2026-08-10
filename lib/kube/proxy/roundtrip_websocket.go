@@ -25,9 +25,9 @@ import (
 
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	kwebsocket "k8s.io/client-go/transport/websocket"
+	"k8s.io/streaming/pkg/httpstream"
 
 	"github.com/gravitational/teleport/lib/kube/internal"
 )

@@ -43,6 +43,7 @@ type AccessGraphCommand struct {
 	detections    detectionsArgs
 	investigate   investigateArgs
 	accessChanges accessChangesArgs
+	accessReview  accessReviewArgs
 }
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
@@ -57,6 +58,7 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 	c.initDetections(app)
 	c.initInvestigate(app)
 	c.initAccessChanges(app)
+	c.initAccessReview(app)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
@@ -80,6 +82,8 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.AccessChangesList
 	case c.accessChanges.get.cmd.FullCommand():
 		commandFunc = c.AccessChangesGet
+	case c.accessReview.cmd.FullCommand():
+		commandFunc = c.AccessReview
 	default:
 		return false, nil
 	}

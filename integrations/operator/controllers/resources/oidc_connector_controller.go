@@ -42,8 +42,8 @@ type oidcConnectorClient struct {
 }
 
 // Get gets the Teleport oidc_connector of a given name
-func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCConnector, error) {
-	oidc, err := r.teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
+func (r oidcConnectorClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.OIDCConnector, error) {
+	oidc, err := r.teleportClient.GetOIDCConnector(ctx, key.Name, false /* with secrets*/)
 	return oidc, trace.Wrap(err)
 }
 
@@ -60,8 +60,8 @@ func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnecto
 }
 
 // Delete deletes a Teleport oidc_connector
-func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteOIDCConnector(ctx, name))
+func (r oidcConnectorClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteOIDCConnector(ctx, key.Name))
 }
 
 func (r oidcConnectorClient) Mutate(ctx context.Context, new, _ types.OIDCConnector, crKey kclient.ObjectKey) error {

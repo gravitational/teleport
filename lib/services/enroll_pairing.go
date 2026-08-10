@@ -37,12 +37,22 @@ type EnrollPairing interface {
 	// matches token. Returns NotFound if no pairing matches.
 	GetEnrollPairingByToken(ctx context.Context, token string) (*devicepb.EnrollPairing, error)
 
-	// RequestEnrollPairingApproval transitions the EnrollPairing identified by
-	// token from AWAITING_DEVICE to AWAITING_APPROVAL, persisting device for the
-	// Web UI to display and for retry gating, and returns the updated pairing.
-	// Returns NotFound if no pairing matches token and CompareFailed if the
-	// pairing is no longer awaiting a device.
-	RequestEnrollPairingApproval(ctx context.Context, token string, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error)
+	// RequestEnrollPairingApproval transitions pairing from AWAITING_DEVICE to
+	// AWAITING_APPROVAL, persisting device for the Web UI to display and for
+	// retry gating, and returns the updated pairing.
+	// Returns CompareFailed if the pairing is no longer awaiting a device.
+	RequestEnrollPairingApproval(ctx context.Context, pairing *devicepb.EnrollPairing, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error)
+
+	// ApproveEnrollPairing transitions pairing from AWAITING_APPROVAL to APPROVED
+	// and returns the updated pairing.
+	// Returns CompareFailed if the pairing is no longer awaiting approval.
+	ApproveEnrollPairing(ctx context.Context, pairing *devicepb.EnrollPairing) (*devicepb.EnrollPairing, error)
+
+	// DeleteEnrollPairing removes pairing along with its token index. It backs
+	// both denial by the user and the single-use consumption of a pairing when
+	// the enrollment token is issued.
+	// Returns CompareFailed if the pairing has changed since it was read.
+	DeleteEnrollPairing(ctx context.Context, pairing *devicepb.EnrollPairing) error
 }
 
 // MarshalEnrollPairing marshals an EnrollPairing resource to JSON.

@@ -15,10 +15,16 @@ resource "teleport_scoped_role" "scoped_admin" {
   scope = local.scope_path
   spec = {
     assignable_scopes = [local.scope_path]
-    rules = [{
-      resources = ["scoped_role", "scoped_token", "scoped_role_assignment"]
-      verbs     = ["create", "readnosecrets", "list", "update", "delete"]
-    }]
+    rules = [
+      {
+        resources = ["scoped_role", "scoped_role_assignment"]
+        verbs     = ["create", "read", "list", "update", "delete"]
+      },
+      {
+        resources = ["scoped_token"]
+        verbs     = ["create", "read", "secrets", "list", "update", "delete"]
+      },
+    ]
   }
 }
 
@@ -28,6 +34,9 @@ resource "teleport_bot" "test_scoped" {
 
   metadata = {
     name = local.bot_name_scoped
+    labels = {
+      "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
+    }
   }
 
   spec = {

@@ -377,10 +377,6 @@ func TestBot(t *testing.T) {
 	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &identitysvc.OutputConfig{
-		Destination: &destination.Memory{},
-		Roles:       []string{mainRole},
-	}
 	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
@@ -422,7 +418,6 @@ func TestBot(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
-			identityOutputWithRoles,
 			appOutput,
 			dbOutput,
 			dbDiscoveredNameOutput,
@@ -460,13 +455,6 @@ func TestBot(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(
 			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
-		)
-	})
-
-	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(
-			t, tlsIdent, []string{mainRole}, botResource.GetStatus().GetUserName(), false,
 		)
 	})
 
@@ -1481,7 +1469,7 @@ func TestScopedBotSSH(t *testing.T) {
 	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret()))
+	nodeCfg.SetToken(scopes.QualifiedName{Scope: scopeName, Name: jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret())}.String())
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1543,7 +1531,7 @@ func TestScopedBotSSH(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopedRoleName}},
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
 		}.Build()
 
@@ -1816,7 +1804,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopedRoleName}},
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
 		}.Build()
 
@@ -1919,7 +1907,7 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindWorkloadIdentity},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 					}.Build(),
 				},
 				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
@@ -2077,6 +2065,7 @@ func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedacce
 			_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}
@@ -2152,7 +2141,7 @@ func createScopedBot(
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: scopedRoleName, Scope: scopeName}.Build(),
+					scopedaccessv1.Assignment_builder{Role: scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(), Scope: scopeName}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -2161,7 +2150,7 @@ func createScopedBot(
 	waitForSRACache(t, process.GetAuthServer(), sraResp)
 
 	return &onboarding.Config{
-		TokenValue: botTokenResp.GetToken().GetMetadata().GetName(),
+		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodBoundKeypair,
 		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 			StaticPrivateKeyPath: botKeyPath,

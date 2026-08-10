@@ -70,7 +70,7 @@ message ScopedRoleAssignmentSpec {
 
 // Assignment is a role/scope pair that defines an individual assignment.
 message Assignment {
-  // Roles is the name of the role that is assigned by this assignment.
+  // Role is the scope-qualified name of the role that is assigned by this assignment.
   string role = 1;
 
   // Scope is the scope to which the role is assigned. This must be a member/child

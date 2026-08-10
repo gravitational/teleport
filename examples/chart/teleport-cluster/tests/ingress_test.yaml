@@ -1,6 +1,10 @@
 suite: Proxy Ingress
 templates:
   - proxy.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: does not create an Ingress by default
@@ -590,7 +594,7 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy
-      - isEmpty:
+      - notExists:
           path: spec.tls[0].secretName
       - matchSnapshot:
           path: spec.tls

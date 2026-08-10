@@ -450,7 +450,7 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 					}.Build(),
 				}.Build(),
 			}.Build(),
-			requireErr: errContains("segment \"example::\" is malformed"),
+			requireErr: errContains("name \"example::\" is malformed"),
 		},
 		{
 			name: "scoped success with templated spiffe id",

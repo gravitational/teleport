@@ -49,9 +49,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -59,6 +56,9 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 	kubeexec "k8s.io/client-go/util/exec"
+	"k8s.io/streaming/pkg/httpstream"
+	httpstreamspdy "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -659,23 +659,19 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 
 // acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
 func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
-	ctx, span := f.cfg.tracer.Start(
-		ctx,
-		"kube.Forwarder/acquireConnectionLockWithIdentity",
-		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCSystemKey.String("kube"),
-		),
-	)
-	defer span.End()
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(ctx, f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
+	unscopedContext, isUnscoped := identity.UnscopedContext()
+	if !isUnscoped {
+		// TODO(espadolini) TODO(eriktate): scoped identities don't currently
+		// support max_kubernetes_connections, this should be updated when they
+		// do
+		return nil
 	}
-
-	if err := f.acquireConnectionLock(ctx, user, roles); err != nil {
+	maxConnections := unscopedContext.Checker.MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
+	}
+	user := unscopedContext.Identity.GetIdentity().Username
+	if err := f.acquireConnectionLock(ctx, user, maxConnections); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1361,7 +1357,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// If the user has active Access requests we need to validate that they allow
 	// the kubeResource.
 	// This is required because CheckAccess does not validate the subresource type.
-	// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip
+	// TODO(eriktate/scopes): scoped identities don't support access requests, so we skip
 	// these checks for now.
 	if !isScoped && !actx.metaResource.isList {
 		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(unscopedCtx.Checker.GetAllowedResourceAccessIDs()) > 0 {
@@ -1681,8 +1677,18 @@ func wsProxy(ctx context.Context, log *slog.Logger, wsSource *gwebsocket.Conn, w
 // acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
-	maxConnections := roles.MaxKubernetesConnections()
+func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, maxConnections int64) error {
+	ctx, span := f.cfg.tracer.Start(
+		ctx,
+		"kube.Forwarder/acquireConnectionLock",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+
 	if maxConnections == 0 {
 		return nil
 	}
@@ -2541,7 +2547,12 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (_ 
 	}
 	rt = tracehttp.NewTransport(rt)
 
-	executor, err := remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
+	executor, err := remotecommand.NewSPDYExecutorForTransports(
+		rt,
+		spdy.NewUpgraderForStreaming(upgradeRoundTripper),
+		req.Method,
+		req.URL,
+	)
 	if err != nil {
 		upgradeRoundTripper.Cleanup()
 		return nil, nil, trace.Wrap(err)
@@ -2562,7 +2573,7 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
+	return portforward.NewFallbackDialerForStreaming(wsDialer, spdyDialer, func(err error) bool {
 		// If the error is a known upgrade failure, we can retry with the other protocol.
 		return httpstream.IsUpgradeFailure(err) ||
 			httpstream.IsHTTPSProxyError(err) ||
@@ -2605,7 +2616,9 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (_ ht
 		Transport: tracehttp.NewTransport(rt),
 	}
 
-	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), upgradeRoundTripper.Cleanup, nil
+	return spdy.NewDialerForStreaming(spdy.NewUpgraderForStreaming(upgradeRoundTripper), client, req.Method, req.URL),
+		upgradeRoundTripper.Cleanup,
+		nil
 }
 
 func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
@@ -2613,7 +2626,7 @@ func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) 
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
 	}
-	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
+	dialer, err := portforward.NewSPDYOverWebsocketDialerForStreaming(req.URL, cfg)
 	return dialer, wsCleanup, trace.Wrap(err)
 }
 

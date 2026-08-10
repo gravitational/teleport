@@ -303,7 +303,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				// The role can read scoped roles. We will use this to validate its permissions later.
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedRole},
-					Verbs:     []string{types.VerbReadNoSecrets},
+					Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
 				}.Build(),
 			},
 		}.Build(),
@@ -341,7 +341,10 @@ func TestScopedBotJoinAuth(t *testing.T) {
 		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  testBotRole,
+					Role: scopes.QualifiedName{
+						Scope: testRootScope,
+						Name:  testBotRole,
+					}.String(),
 					Scope: testRootScope,
 				}.Build(),
 			},
@@ -362,6 +365,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 			ctx,
 			scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    testBotRole,
+				Scope:   testRootScope,
 				SubKind: scopedaccess.SubKindDynamic,
 			}.Build(),
 		)
@@ -411,7 +415,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	}.Build()
 	// Somehow the admin client interface doesn't expose CreateScopedToken ¯\_(ツ)_/¯
 	// We use the auth server directly to create the scoped token.
-	_, err = teleportServer.Process.GetAuthServer().CreateScopedToken(ctx, scopedjoiningv1.CreateScopedTokenRequest_builder{
+	scopedToken, err := teleportServer.Process.GetAuthServer().CreateScopedToken(ctx, scopedjoiningv1.CreateScopedTokenRequest_builder{
 		Token: token,
 	}.Build())
 	require.NoError(t, err)
@@ -422,7 +426,10 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	botConfig := &BotConfig{
 		AuthServer: authAddr.Addr,
 		Onboarding: onboarding.Config{
-			TokenValue: testTokenName,
+			TokenValue: scopes.QualifiedName{
+				Name:  scopedToken.GetToken().GetMetadata().GetName(),
+				Scope: scopedToken.GetToken().GetScope(),
+			}.String(),
 			JoinMethod: types.JoinMethodKubernetes,
 			Kubernetes: onboarding.KubernetesOnboardingConfig{
 				TokenPath: tokenPath,
@@ -451,7 +458,8 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	require.Equal(t, clusterName, botPong.ClusterName)
 
 	_, err = botClient.ScopedAccessServiceClient().GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: testBotRole,
+		Name:  testBotRole,
+		Scope: testRootScope,
 	}.Build())
 	require.NoError(t, err)
 }

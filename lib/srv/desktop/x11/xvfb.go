@@ -236,6 +236,11 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		}
 	}()
 
+	cookie := make([]byte, 16)
+	if _, err := rand.Read(cookie); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authorityFile, err := os.CreateTemp("", "teleport-x11-")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -246,6 +251,14 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 			os.Remove(authorityFile.Name())
 		}
 	}()
+
+	entry, err := generateXauthorityEntry(":phony", cookie)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if _, err := authorityFile.Write(entry); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	cmd, err := getBackendCommand(ctx, authorityFile.Name())
 	if err != nil {
@@ -295,12 +308,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 
 	display = ":" + strings.TrimPrefix(display, ":")
 
-	cookie := make([]byte, 16)
-	if _, err := rand.Read(cookie); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	entry, err := generateXauthorityEntry(display, cookie)
+	entry, err = generateXauthorityEntry(display, cookie)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -945,7 +953,7 @@ func (x *Backend) setScreenSizeLocked(width, height uint16) error {
 
 	x.config.Logger.Log(x.ctx, logutils.TraceLevel, "setting crtc config",
 		"crtc", crtc,
-		"configTimestamp", resources.ConfigTimestamp,
+		"config_timestamp", resources.ConfigTimestamp,
 		"mode", modeID,
 		"output", output,
 		"width", width,

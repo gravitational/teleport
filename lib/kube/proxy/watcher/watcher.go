@@ -26,6 +26,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -241,7 +242,12 @@ func (w *ProxyKubeServerWatcher) createWatcherAndInit() (_ types.Watcher, err er
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
 		Name:            componentName,
 		MetricComponent: componentName,
-		Kinds:           []types.WatchKind{{Kind: types.KindKubeServer}},
+		// The proxy kube server watcher only ever runs on the teleport proxy, and the proxy must route
+		// to kube servers in every scope, so it watches with MODE_ALL rather than the default UNSCOPED/EXACT.
+		Kinds: []types.WatchKind{{
+			Kind:        types.KindKubeServer,
+			ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
+		}},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating a watcher")
@@ -379,6 +385,11 @@ func kubeServerDeleteKey(resource types.Resource) serverKey {
 
 // getAllKubeServers fetches all kube servers from the given getter and returns them as a map keyed by the watcher's cache keys.
 func (w *ProxyKubeServerWatcher) getAllKubeServers(ctx context.Context, getter KubernetesServerGetter) (map[serverKey]types.KubeServer, error) {
+	// TODO(fspmarshall/scopes): this list seed does not yet honor scope filters, so it currently
+	// returns kube servers in every scope and happens to match the MODE_ALL watch in
+	// createWatcherAndInit. Once the list API supports scope filters (and defaults unscoped callers
+	// to unscoped-only, like the watch API), this call must explicitly request MODE_ALL as well, or
+	// the proxy will be unable to route to scoped kube servers.
 	resources, err := getter.GetKubernetesServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

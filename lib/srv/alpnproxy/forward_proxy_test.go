@@ -276,6 +276,11 @@ func TestMatchAWSRequests(t *testing.T) {
 			check: require.True,
 		},
 		{
+			name:  "api.aws request",
+			req:   makeRequest("https://aws-mcp.us-east-1.api.aws"),
+			check: require.True,
+		},
+		{
 			name:  "SSM session WebSocket",
 			req:   makeRequest("wss://ssmmessages.ca-central-1.amazonaws.com"),
 			check: require.False,

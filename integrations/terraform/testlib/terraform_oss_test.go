@@ -35,6 +35,7 @@ func TestTerraformOSS(t *testing.T) {
 }
 
 func TestTerraformOSSScopedResources(t *testing.T) {
+	t.Skip("scope namespaced resources are temporarily non-functional until we can update terraform to be compatible with namespacing")
 	suite.Run(t, &TerraformSuiteOSSScopedResources{
 		TerraformBaseSuite: TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{

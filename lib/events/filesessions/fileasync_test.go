@@ -781,21 +781,30 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 			// block period
 			clock.Advance(p.scanPeriod + time.Second)
 
+			// On a successful encrypted upload the uploader emits an event on
+			// both channels: the memory uploader signals completion on
+			// memEventsC, and the file uploader forwards a (nil) error event on
+			// eventsC.
+			//
+			// Wait on the specific channel that corresponds to the expected outcome.
+			// If we expect an error - wait on only eventsC, otherwise, wait only on
+			// memEventsC (because we need the upload ID from here)
 			var event events.UploadEvent
+			if tc.expectEncryptedUploadErr {
+				select {
+				case event = <-p.eventsC:
+					require.Error(t, event.Error)
+					require.True(t, isSessionError(event.Error), event.Error)
+					return
+				case <-ctx.Done():
+					t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
+				}
+			}
+
 			select {
 			case event = <-p.memEventsC:
-				if tc.expectEncryptedUploadErr {
-					t.Fatalf("Unexpected upload event")
-				}
 				require.Equal(t, event.SessionID, sid)
 				require.NoError(t, event.Error)
-			case event = <-p.eventsC:
-				if !tc.expectEncryptedUploadErr {
-					t.Fatalf("Unexpected upload event")
-				}
-				require.Error(t, event.Error)
-				require.True(t, isSessionError(event.Error), event.Error)
-				return
 			case <-ctx.Done():
 				t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 			}

@@ -58,8 +58,9 @@ type ScopeAwareService[T ScopedResource] struct {
 	// Resources will be keyed at <scoped_prefix>/<backend_prefix>/<encoded_scope>/<name>
 	ScopedService *Service[T]
 
-	backend                     backend.Backend
-	runWhileLockedRetryInterval time.Duration
+	backend                      backend.Backend
+	runWhileLockedRetryInterval  time.Duration
+	runWhileLockedReleaseTimeout time.Duration
 }
 
 // ScopeAwareServiceConfig holds configuration options for ScopeAwareService.
@@ -88,10 +89,18 @@ type ScopeAwareServiceConfig[T ScopedResource] struct {
 	// If set to 0, the default interval of 250ms will be used.
 	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
 	RunWhileLockedRetryInterval time.Duration
+	// RunWhileLockedReleaseTimeout is the timeout for releasing the backend lock
+	// at the end of the RunWhileLocked function. If set to 0, the default timeout
+	// of 1s will be used.
+	RunWhileLockedReleaseTimeout time.Duration
 }
 
 // NewScopeAwareService returns a new scope-aware service.
 func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*ScopeAwareService[T], error) {
+	if !cfg.ScopedOnly && cfg.ScopedBackendPrefix.Compare(cfg.UnscopedBackendPrefix) == 0 {
+		return nil, trace.BadParameter("scoped and unscoped backend services cannot have the same prefix")
+	}
+
 	scopedService, err := NewService(&ServiceConfig[T]{
 		Backend:                     cfg.Backend,
 		ResourceKind:                cfg.ResourceKind,
@@ -128,10 +137,11 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 	}
 
 	return &ScopeAwareService[T]{
-		UnscopedService:             unscopedService,
-		ScopedService:               scopedService,
-		backend:                     cfg.Backend,
-		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		UnscopedService:              unscopedService,
+		ScopedService:                scopedService,
+		backend:                      cfg.Backend,
+		runWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
+		runWhileLockedReleaseTimeout: cfg.RunWhileLockedReleaseTimeout,
 	}, nil
 }
 
@@ -333,6 +343,15 @@ func (s *ScopeAwareService[T]) ConditionalUpdateResource(ctx context.Context, re
 	return svc.ConditionalUpdateResource(ctx, resource)
 }
 
+// MakeBackendItem will check and make the backend item.
+func (s *ScopeAwareService[T]) MakeBackendItem(resource T) (backend.Item, error) {
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	return svc.MakeBackendItem(resource)
+}
+
 // WithScopePrefix returns the unscoped service when scope is empty, otherwise
 // returns the scoped service with the encoded scope appended to its backend prefix.
 func (s *ScopeAwareService[T]) WithScopePrefix(scope string) (*Service[T], error) {
@@ -384,6 +403,7 @@ func (s *ScopeAwareService[T]) RunWhileLocked(ctx context.Context, lockNameCompo
 				TTL:                ttl,
 				RetryInterval:      s.runWhileLockedRetryInterval,
 			},
+			ReleaseCtxTimeout: s.runWhileLockedReleaseTimeout,
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
 		}))

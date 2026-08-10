@@ -41,6 +41,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -133,6 +134,9 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	// be intentional. In the future, we might consider extracting a generic
 	// debug client that can be used in both contexts.
 	tbotDebugClient := debug.NewClient(filepath.Join(ns.dataDir, "bot"))
+	if len(cfg.ArtifactSignatureVerifiers) == 0 {
+		return nil, trace.BadParameter("teleport-update artifact signature verifier is not configured")
+	}
 
 	return &Updater{
 		Log:                cfg.Log,
@@ -159,14 +163,15 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 					Binary: "tbot",
 				},
 			},
-			SystemBinDir:            filepath.Join(cfg.SystemDir, "bin"),
-			SystemServiceDir:        filepath.Join(cfg.SystemDir, serviceDir),
-			HTTP:                    client,
-			Log:                     cfg.Log,
-			ReservedFreeTmpDisk:     reservedFreeDisk,
-			ReservedFreeInstallDisk: reservedFreeDisk,
-			ValidateBinary:          validator.IsBinary,
-			Template:                autoupdate.DefaultCDNURITemplate,
+			SystemBinDir:               filepath.Join(cfg.SystemDir, "bin"),
+			SystemServiceDir:           filepath.Join(cfg.SystemDir, serviceDir),
+			HTTP:                       client,
+			Log:                        cfg.Log,
+			ReservedFreeTmpDisk:        reservedFreeDisk,
+			ReservedFreeInstallDisk:    reservedFreeDisk,
+			ValidateBinary:             validator.IsBinary,
+			Template:                   autoupdate.DefaultCDNURITemplate,
+			ArtifactSignatureVerifiers: cfg.ArtifactSignatureVerifiers,
 		},
 		TeleportProcess: &SystemdService{
 			ServiceName: filepath.Base(ns.teleportServiceFile),
@@ -241,6 +246,8 @@ type LocalUpdaterConfig struct {
 	Debug bool
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	LogFormat string
+	// ArtifactSignatureVerifiers contains the trusted verifiers used to validate detached artifact signatures.
+	ArtifactSignatureVerifiers []signature.Verifier
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
@@ -299,7 +306,7 @@ type Installer interface {
 	// Install the Teleport agent at revision from the download Template.
 	// If force is true, Install will remove broken revisions.
 	// Install must be idempotent.
-	Install(ctx context.Context, rev Revision, baseURL string, force bool) error
+	Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error
 	// Link the Teleport agent at the specified revision of Teleport into path.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// If force is true, Link will overwrite non-symlinks.
@@ -394,6 +401,12 @@ type OverrideConfig struct {
 	AllowOverwrite bool
 	// AllowProxyConflict when proxies in teleport.yaml and update.yaml are mismatched.
 	AllowProxyConflict bool
+	// InsecureSkipSignatureVerifyChanged specifies whether the user explicitly toggled
+	// artifact verification fallback behavior.
+	InsecureSkipSignatureVerifyChanged bool
+	// EnableStagingSignatureVerifyChanged specifies whether the user explicitly toggled
+	// detached signature verification for pre-v19 artifacts downloaded from the staging CDN.
+	EnableStagingSignatureVerifyChanged bool
 	// SELinuxSSHChanged specifies whether the user explicitly toggled SELinux behavior.
 	SELinuxSSHChanged bool
 }
@@ -1047,7 +1060,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	if err != nil {
 		return trace.Wrap(err, "failed to determine if linked")
 	}
-	err = u.Installer.Install(ctx, target, baseURL, !linked)
+	err = u.Installer.Install(ctx, target, baseURL, !linked, cfg.Spec.InsecureSkipSignatureVerify, cfg.Spec.EnableStagingSignatureVerify)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
 	}
