@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"

@@ -20,6 +20,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -157,19 +158,6 @@ func scanFixturesFromTargets(targets []scanTarget) []*fixtures.Fixture {
 	}
 
 	return result
-}
-
-// scanFixtures wraps resolveTargetsWithHelpers + scanFixturesFromTargets for
-// callers that haven't been split yet.
-func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
-	targets, err := resolveTargetsWithHelpers(e2eDir, testFiles)
-	if err != nil {
-		slog.Warn("fixture scan: error resolving files", "error", err)
-
-		return nil
-	}
-
-	return scanFixturesFromTargets(targets)
 }
 
 func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error) {
@@ -317,7 +305,7 @@ func scanFile(path string, targetLine int) []*fixtures.Fixture {
 func readCleaned(path string) ([]string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		slog.Warn("scan: could not read file", "path", path, "error", err)
+		slog.WarnContext(context.Background(), "scan: could not read file", "path", path, "error", err)
 		return nil, false
 	}
 	return stripComments(strings.Split(string(data), "\n")), true
@@ -367,9 +355,10 @@ func findInlineComment(line string) int {
 		ch := line[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -398,9 +387,10 @@ func findBlockCommentOpen(line string) int {
 		ch := line[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -449,9 +439,10 @@ func parseBlocks(lines []string) []blockRange {
 			}
 
 			if quote != 0 {
-				if ch == '\\' {
+				switch ch {
+				case '\\':
 					j++
-				} else if ch == quote {
+				case quote:
 					if quote == '`' {
 						inTemplateLiteral = false
 					}
@@ -512,9 +503,10 @@ func findTestUseCalls(content string) []callRange {
 			ch := content[pos]
 
 			if quote != 0 {
-				if ch == '\\' {
+				switch ch {
+				case '\\':
 					pos++ // skip escaped character
-				} else if ch == quote {
+				case quote:
 					quote = 0
 				}
 
@@ -872,9 +864,10 @@ func scanBalanced(s string, openIdx int, open, close byte) int {
 		ch := s[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -895,23 +888,6 @@ func scanBalanced(s string, openIdx int, open, close byte) int {
 	}
 
 	return -1
-}
-
-// findClosingDelim finds the position after the matching close delimiter
-// for the first open delimiter at or after pos. Returns -1 if not found.
-// Delimiter bytes inside string or template literals are ignored.
-func findClosingDelim(s string, pos int, open, close byte) int {
-	start := strings.IndexByte(s[pos:], open)
-	if start < 0 {
-		return -1
-	}
-
-	end := scanBalanced(s, pos+start, open, close)
-	if end < 0 {
-		return -1
-	}
-
-	return end + 1
 }
 
 // scanTopLevelRecordings extracts recordings: [...] from a test.use() body,
@@ -986,22 +962,6 @@ func parseUserBlock(userBlock string) scannedUser {
 	return user
 }
 
-// extractInner returns the content between the first open delimiter and its
-// matching close, ignoring delimiters inside string/template literals.
-func extractInner(s string, open, close byte) string {
-	start := strings.IndexByte(s, open)
-	if start < 0 {
-		return ""
-	}
-
-	end := scanBalanced(s, start, open, close)
-	if end < 0 {
-		return ""
-	}
-
-	return s[start+1 : end]
-}
-
 // parseTraits parses trait key-value pairs
 // (e.g. `logins: ['root', 'alice'], groups: ['dev']`) into a map.
 func parseTraits(traitsContent string) map[string][]string {
@@ -1049,9 +1009,10 @@ func extractAllOuter(s string, open, close byte) []string {
 		ch := s[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -1088,7 +1049,7 @@ func warnDuplicateRoles(path string, line int, roles []scannedRole) {
 		if roles[i].file != "" {
 			ref = "file:" + roles[i].file
 		}
-		slog.Warn("scan: duplicate role for user", "path", path, "line", line, "role", ref)
+		slog.WarnContext(context.Background(), "scan: duplicate role for user", "path", path, "line", line, "role", ref)
 	}
 }
 

@@ -44,8 +44,8 @@ type reportConfig struct {
 	tracePath string
 }
 
-func runReport(cfg *reportConfig) error {
-	tmpDir, err := downloadArtifact(cfg, "playwright-report")
+func runReport(ctx context.Context, cfg *reportConfig) error {
+	tmpDir, err := downloadArtifact(ctx, cfg, "playwright-report")
 	if err != nil {
 		return err
 	}
@@ -60,15 +60,15 @@ func runReport(cfg *reportConfig) error {
 	return showCmd.Run()
 }
 
-func runTestResults(cfg *reportConfig) error {
-	tmpDir, err := downloadArtifact(cfg, "test-results")
+func runTestResults(ctx context.Context, cfg *reportConfig) error {
+	tmpDir, err := downloadArtifact(ctx, cfg, "test-results")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
 
 	tracePath := filepath.Join(tmpDir, cfg.tracePath)
-	slog.Info("opening trace", "path", tracePath)
+	slog.InfoContext(ctx, "opening trace", "path", tracePath)
 
 	showCmd := exec.Command("pnpm", "exec", "playwright", "show-trace", tracePath)
 	showCmd.Dir = cfg.e2eDir
@@ -96,8 +96,7 @@ func ghClient(ctx context.Context) (*github.Client, error) {
 	return github.NewClient(oauth2.NewClient(ctx, ts)), nil
 }
 
-func downloadArtifact(cfg *reportConfig, artifactName string) (string, error) {
-	ctx := context.Background()
+func downloadArtifact(ctx context.Context, cfg *reportConfig, artifactName string) (string, error) {
 	client, err := ghClient(ctx)
 	if err != nil {
 		return "", err
@@ -114,9 +113,9 @@ func downloadArtifact(cfg *reportConfig, artifactName string) (string, error) {
 		}
 
 		headSHA = pr.GetHead().GetSHA()
-		slog.Debug("resolved PR head SHA", "sha", headSHA)
+		slog.DebugContext(ctx, "resolved PR head SHA", "sha", headSHA)
 	} else {
-		slog.Debug("using provided SHA", "sha", headSHA)
+		slog.DebugContext(ctx, "using provided SHA", "sha", headSHA)
 	}
 
 	opts := &github.ListArtifactsOptions{
@@ -149,7 +148,7 @@ func downloadArtifact(cfg *reportConfig, artifactName string) (string, error) {
 		return "", fmt.Errorf("no artifact %q found for PR head SHA %q", artifactName, headSHA)
 	}
 
-	slog.Debug("found artifact", "id", target.GetID(), "run_id", target.GetWorkflowRun().GetID())
+	slog.DebugContext(ctx, "found artifact", "id", target.GetID(), "run_id", target.GetWorkflowRun().GetID())
 
 	url, _, err := client.Actions.DownloadArtifact(ctx, owner, repoName, target.GetID(), 3)
 	if err != nil {
@@ -178,7 +177,7 @@ func downloadArtifact(cfg *reportConfig, artifactName string) (string, error) {
 		return "", fmt.Errorf("creating temp directory: %w", err)
 	}
 
-	slog.Info("extracting artifact", "artifact", artifactName, "dir", tmpDir)
+	slog.InfoContext(ctx, "extracting artifact", "artifact", artifactName, "dir", tmpDir)
 
 	zr, err := zip.OpenReader(zipFile.Name())
 	if err != nil {
