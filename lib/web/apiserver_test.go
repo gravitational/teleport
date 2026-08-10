@@ -5178,6 +5178,34 @@ func TestCreateAppSessionRBACAware(t *testing.T) {
 	}
 }
 
+func TestGetWebCfgEntitlementsLegacyPolicyFallback(t *testing.T) {
+	t.Parallel()
+
+	got := GetWebCfgEntitlements(map[string]*authproto.EntitlementInfo{
+		string(entitlements.Policy): {Enabled: true},
+	})
+	require.True(t, got[string(entitlements.AccessGraph)].Enabled)
+	require.True(t, got[string(entitlements.ActivityCenter)].Enabled)
+	require.True(t, got[string(entitlements.SessionSummaries)].Enabled)
+
+	got = GetWebCfgEntitlements(map[string]*authproto.EntitlementInfo{
+		string(entitlements.Policy):           {Enabled: true},
+		string(entitlements.AccessGraph):      {Enabled: false},
+		string(entitlements.ActivityCenter):   {Enabled: false},
+		string(entitlements.SessionSummaries): {Enabled: false},
+	})
+	require.False(t, got[string(entitlements.AccessGraph)].Enabled)
+	require.False(t, got[string(entitlements.ActivityCenter)].Enabled)
+	require.False(t, got[string(entitlements.SessionSummaries)].Enabled)
+
+	got = getWebCfgEntitlements(&authproto.Features{
+		Policy: &authproto.PolicyFeature{Enabled: true},
+	})
+	require.True(t, got[string(entitlements.AccessGraph)].Enabled)
+	require.True(t, got[string(entitlements.ActivityCenter)].Enabled)
+	require.True(t, got[string(entitlements.SessionSummaries)].Enabled)
+}
+
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -5242,11 +5270,15 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		JoinActiveSessions: true,
 		Edition:            modules.BuildOSS, // testBuildType is empty
 		Entitlements: map[string]webclient.EntitlementInfo{
+			string(entitlements.AccessGraph):                {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.AccessLists):                {Enabled: false},
 			string(entitlements.AccessMonitoring):           {Enabled: false},
 			string(entitlements.AccessRequests):             {Enabled: false},
+			string(entitlements.ActivityCenter):             {Enabled: false},
 			string(entitlements.App):                        {Enabled: true},
 			string(entitlements.Beams):                      {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
 			string(entitlements.DB):                         {Enabled: true},
 			string(entitlements.Desktop):                    {Enabled: true},
@@ -5257,6 +5289,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.Identity):                   {Enabled: false},
 			string(entitlements.JoinActiveSessions):         {Enabled: true},
 			string(entitlements.K8s):                        {Enabled: true},
+			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.MobileDeviceManagement):     {Enabled: false},
 			string(entitlements.OIDC):                       {Enabled: false},
 			string(entitlements.OktaSCIM):                   {Enabled: false},
@@ -5264,12 +5297,10 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.Policy):                     {Enabled: false},
 			string(entitlements.SAML):                       {Enabled: false},
 			string(entitlements.SessionLocks):               {Enabled: false},
+			string(entitlements.SessionSummaries):           {Enabled: false},
 			string(entitlements.UpsellAlert):                {Enabled: false},
 			string(entitlements.UsageReporting):             {Enabled: false},
-			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
-			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
-			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
@@ -5306,6 +5337,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				entitlements.DB:          {Enabled: true, Limit: 22},
 				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
 				entitlements.Desktop:     {Enabled: true, Limit: 44},
+				entitlements.Policy:      {Enabled: true},
 			},
 		},
 	})
@@ -5335,6 +5367,12 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
 	expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.AccessGraph)] = webclient.EntitlementInfo{Enabled: true}
+	expectedCfg.Entitlements[string(entitlements.ActivityCenter)] = webclient.EntitlementInfo{Enabled: true}
+	expectedCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: true}
+	expectedCfg.Entitlements[string(entitlements.SessionSummaries)] = webclient.EntitlementInfo{Enabled: true}
+	expectedCfg.IdentitySecurity.IsClusterLicensed = true
+	expectedCfg.IsPolicyEnabled = true
 
 	// request and verify enabled features are eventually enabled.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -5358,9 +5396,15 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	env.proxies[0].client = mockClient
 	expectedCfg.AutomaticUpgrades = false
 	expectedCfg.TrustedDevices = false
+	expectedCfg.IsPolicyEnabled = false
+	expectedCfg.IdentitySecurity.IsClusterLicensed = false
+	expectedCfg.Entitlements[string(entitlements.AccessGraph)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.ActivityCenter)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.SessionSummaries)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -5426,6 +5470,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.AccessLists):                {Enabled: true, Limit: 5},
 			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 10},
 			string(entitlements.AccessRequests):             {Enabled: false},
+			string(entitlements.ActivityCenter):             {Enabled: false},
 			string(entitlements.App):                        {Enabled: false},
 			string(entitlements.Beams):                      {Enabled: false},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
@@ -5445,6 +5490,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.Policy):                     {Enabled: false},
 			string(entitlements.SAML):                       {Enabled: false},
 			string(entitlements.SessionLocks):               {Enabled: false},
+			string(entitlements.SessionSummaries):           {Enabled: false},
 			string(entitlements.UpsellAlert):                {Enabled: false},
 			string(entitlements.UsageReporting):             {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
@@ -11965,6 +12011,9 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
 					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraph):                {Enabled: true},
+					string(entitlements.ActivityCenter):             {Enabled: true},
+					string(entitlements.SessionSummaries):           {Enabled: true},
 				},
 			},
 		},
@@ -12089,6 +12138,9 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.OktaSCIM):         {Enabled: true},
 					string(entitlements.OktaUserSync):     {Enabled: true},
 					string(entitlements.SessionLocks):     {Enabled: true},
+					string(entitlements.AccessGraph):      {Enabled: true},
+					string(entitlements.ActivityCenter):   {Enabled: true},
+					string(entitlements.SessionSummaries): {Enabled: true},
 				},
 			},
 		},
@@ -12214,6 +12266,9 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.OktaUserSync):      {Enabled: false},
 					string(entitlements.SessionLocks):      {Enabled: false},
 					string(entitlements.LicenseAutoUpdate): {Enabled: false},
+					string(entitlements.AccessGraph):       {Enabled: true},
+					string(entitlements.ActivityCenter):    {Enabled: true},
+					string(entitlements.SessionSummaries):  {Enabled: true},
 				},
 			},
 		},
@@ -12319,6 +12374,9 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
 					string(entitlements.WorkloadClusters):           {Enabled: false},
+					string(entitlements.AccessGraph):                {Enabled: false},
+					string(entitlements.ActivityCenter):             {Enabled: false},
+					string(entitlements.SessionSummaries):           {Enabled: false},
 				},
 			},
 		},

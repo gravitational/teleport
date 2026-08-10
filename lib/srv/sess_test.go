@@ -939,20 +939,20 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { reg.Close() })
 
-			sess, sessCh := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{
+			sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{
 				SessionRecordingMode: string(tt.sessionRecordingMode),
 			})
 
-			// Write stuff in the session
-			_, err = sessCh.Write([]byte("hello"))
+			// Write terminal output to the session recorder.
+			_, err = sess.io.Write([]byte("hello"))
 			require.NoError(t, err)
 
 			// Close the recorder, indicating there is some error.
 			err = sess.Recorder().Complete(context.Background())
 			require.NoError(t, err)
 
-			// Send more writes.
-			_, err = sessCh.Write([]byte("world"))
+			// Write more terminal output to trigger the recorder failure.
+			_, err = sess.io.Write([]byte("world"))
 			require.NoError(t, err)
 
 			// Ensure the session is stopped.

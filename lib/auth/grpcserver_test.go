@@ -5925,7 +5925,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
 			},
 		},
 	})
@@ -6887,7 +6887,7 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
 			},
 		},
 	})
@@ -7013,7 +7013,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
 			},
 		},
 	})

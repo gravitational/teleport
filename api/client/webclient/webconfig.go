@@ -101,8 +101,8 @@ type WebConfig struct {
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	// Deprecated, use entitlements
 	IsIGSEnabled bool `json:"isIgsEnabled"`
-	// IsPolicyEnabled is true if [Features.Policy] = true
-	// Deprecated, use entitlements
+	// IsPolicyEnabled is true if [Features.Policy] = true.
+	// Deprecated; use the feature-specific identity security entitlements.
 	IsPolicyEnabled bool `json:"isPolicyEnabled"`
 	// TODO (avatus) delete in v18
 	// IsPolicyRoleVisualizerEnabled is the graph visualizer for diffs made
@@ -136,6 +136,7 @@ type WebConfig struct {
 	// Deprecated, use entitlements
 	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
 	// IdentitySecurity contains identity security features and settings.
+	// The individual identity security entitlements should be read from the Entitlements field.
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
 	// BeamsUI indicates whether the Beams lite-mode UI is enabled
 	BeamsUI bool `json:"beamsUi"`
@@ -143,8 +144,8 @@ type WebConfig struct {
 
 // IdentitySecurity contains identity security features and settings.
 type IdentitySecurity struct {
-	// IsClusterLicensed indicates whether identity security features are licensed
-	// for this cluster.
+	// IsClusterLicensed indicates whether any identity security feature is
+	// licensed for this cluster. Deprecated; use the individual entitlements.
 	IsClusterLicensed bool `json:"licensed"`
 	// AccessGraphConfigSet indicates whether access graph configuration is set in
 	// Auth and/or Proxy.

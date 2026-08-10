@@ -72,7 +72,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(features, entitlements.SAML)
-	policy := modules.GetProtoEntitlement(features, entitlements.Policy)
+	sessionSummaries := modules.GetProtoEntitlement(features, entitlements.SessionSummaries)
 
 	if oidc.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOIDCConnector", NewOIDCConnectorReconciler})
@@ -86,7 +86,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		log.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
 	}
 
-	if policy.Enabled {
+	if sessionSummaries.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceModel", NewInferenceModelReconciler})
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferencePolicy", NewInferencePolicyReconciler})
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceSecret", NewInferenceSecretReconciler})
