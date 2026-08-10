@@ -130,11 +130,15 @@ func TestValidateConfigSpec(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name     string
-		config   UpdateSpec
-		override UpdateSpec
-		result   UpdateSpec
-		errMatch string
+		name                         string
+		config                       UpdateSpec
+		override                     UpdateSpec
+		insecureSkipSignatureVerify  bool
+		insecureChanged              bool
+		enableStagingSignatureVerify bool
+		enableStagingChanged         bool
+		result                       UpdateSpec
+		errMatch                     string
 	}{
 		{
 			name: "overrides",
@@ -221,9 +225,76 @@ func TestValidateConfigSpec(t *testing.T) {
 			},
 			errMatch: "must use TLS",
 		},
+		{
+			name: "insecure checksum-only mode allowed",
+			override: UpdateSpec{
+				BaseURL: "https://example.com",
+			},
+			insecureSkipSignatureVerify: true,
+			insecureChanged:             true,
+			result: UpdateSpec{
+				BaseURL:                     "https://example.com",
+				InsecureSkipSignatureVerify: true,
+			},
+		},
+		{
+			name:                        "insecure checksum-only mode allowed with default base URL",
+			insecureSkipSignatureVerify: true,
+			insecureChanged:             true,
+			result: UpdateSpec{
+				InsecureSkipSignatureVerify: true,
+			},
+		},
+		{
+			name: "insecure checksum-only mode can be cleared",
+			config: UpdateSpec{
+				BaseURL:                     "https://example.com",
+				InsecureSkipSignatureVerify: true,
+			},
+			insecureChanged: true,
+			result: UpdateSpec{
+				BaseURL: "https://example.com",
+			},
+		},
+		{
+			name: "enable staging signature verification can be enabled",
+			override: UpdateSpec{
+				BaseURL: "https://cdn.cloud.gravitational.io",
+			},
+			enableStagingSignatureVerify: true,
+			enableStagingChanged:         true,
+			result: UpdateSpec{
+				BaseURL:                      "https://cdn.cloud.gravitational.io",
+				EnableStagingSignatureVerify: true,
+			},
+		},
+		{
+			name: "enable staging signature verification can be cleared",
+			config: UpdateSpec{
+				BaseURL:                      "https://cdn.cloud.gravitational.io",
+				EnableStagingSignatureVerify: true,
+			},
+			enableStagingChanged: true,
+			result: UpdateSpec{
+				BaseURL: "https://cdn.cloud.gravitational.io",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			err := updateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
+			err := updateConfigSpec(&tt.config, OverrideConfig{
+				UpdateSpec: UpdateSpec{
+					Proxy:                        tt.override.Proxy,
+					Path:                         tt.override.Path,
+					Group:                        tt.override.Group,
+					BaseURL:                      tt.override.BaseURL,
+					Enabled:                      tt.override.Enabled,
+					Pinned:                       tt.override.Pinned,
+					InsecureSkipSignatureVerify:  tt.insecureSkipSignatureVerify,
+					EnableStagingSignatureVerify: tt.enableStagingSignatureVerify,
+				},
+				InsecureSkipSignatureVerifyChanged:  tt.insecureChanged,
+				EnableStagingSignatureVerifyChanged: tt.enableStagingChanged,
+			})
 			if tt.errMatch != "" {
 				require.ErrorContains(t, err, tt.errMatch)
 				return
