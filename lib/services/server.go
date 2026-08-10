@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -547,6 +548,13 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// GetCursorForNode returns the resource cursor identifying a node in the
+// logical resource stream: "<name>" for unscoped nodes and
+// "~scoped/<encoded-scope>/<name>" for scoped nodes.
+func GetCursorForNode(server types.Server) string {
+	return scopes.MakeResourceCursor(server.GetScope(), server.GetName())
 }
 
 // NodeHasMissedKeepAlives checks if node has missed its keep alive

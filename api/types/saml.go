@@ -787,6 +787,8 @@ type SAMLConnectorValidationOptions struct {
 	WithSecrets  bool
 	// Transport used to fetch entity descriptor during the validation.
 	Transport http.RoundTripper
+	// WithAttributesToRoles enables validation of attributes_to_roles field on the connector.
+	WithAttributesToRoles bool
 }
 
 // NewSAMLConnectorValidationOptions creates SAMLConnectorValidationOptions from provided options.
@@ -822,5 +824,13 @@ func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidatio
 func SAMLConnectorValidationHTTPTransport(transport http.RoundTripper) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.Transport = transport
+	}
+}
+
+// SAMLConnectorValidationWithAttributesToRoles returns a SAMLConnectorValidationOption
+// that enables validation of attributes_to_roles field on the connector.
+func SAMLConnectorValidationWithAttributesToRoles(withAttributesToRoles bool) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.WithAttributesToRoles = withAttributesToRoles
 	}
 }

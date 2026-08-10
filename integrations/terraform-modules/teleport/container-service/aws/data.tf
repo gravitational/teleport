@@ -20,7 +20,7 @@ data "http" "managed_updates" {
   count = var.create && var.managed_updates_enabled ? 1 : 0
 
   url = format(
-    "https://%s/webapi/find?group=%s",
+    "https://%v/webapi/find?group=%v",
     local.managed_updates_proxy_addr,
     urlencode(coalesce(var.managed_updates_group, "default")),
   )

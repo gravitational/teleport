@@ -89,6 +89,11 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		}
 	}
 
+	ctx, err = withReusableAdminActionMFA(ctx, client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var updatedAccessList *accesslist.AccessList
 	var updatedRoles []string
 	var rolesToDelete []string

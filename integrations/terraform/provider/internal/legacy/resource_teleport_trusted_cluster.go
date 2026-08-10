@@ -279,6 +279,8 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading TrustedCluster", trace.Errorf("Can not convert %T to TrustedClusterV2", trustedClusterI), "trusted_cluster"))
 		return
 	}
+	trustedCluster = trustedClusterResource
+
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -343,4 +345,53 @@ func (r resourceTeleportTrustedCluster) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportTrustedCluster) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	trustedCluster := &apitypes.TrustedClusterV2{}
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2FromTerraform(ctx, config, trustedCluster)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	trustedClusterResource := trustedCluster
+
+	if err := trustedClusterResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting TrustedCluster defaults", trace.Wrap(err), "trusted_cluster"))
+		return
+	}
+
+	trustedCluster = trustedClusterResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2ToTerraformPreserveUnknown(ctx, trustedCluster, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -40,8 +39,23 @@ func (s *TerraformSuiteOSS) TestAuthPreference() {
 				Config: s.getFixture("auth_preference_0_set.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_auth_preference"),
-					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
-					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "true"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "metadata.labels.teleport.dev/origin", "dynamic"),
+					resource.TestCheckResourceAttr(name, "metadata.namespace", "default"),
+					resource.TestCheckResourceAttr(name, "spec.allow_headless", "false"),
+					resource.TestCheckResourceAttr(name, "spec.allow_local_auth", "true"),
+					resource.TestCheckResourceAttr(name, "spec.allow_passwordless", "false"),
+					resource.TestCheckResourceAttr(name, "spec.connector_name", ""),
+					resource.TestCheckResourceAttr(name, "spec.default_session_ttl", "12h0m0s"),
+					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "false"),
+					resource.TestCheckResourceAttr(name, "spec.idp.saml.enabled", "true"),
+					resource.TestCheckResourceAttr(name, "spec.locking_mode", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.message_of_the_day", ""),
+					resource.TestCheckResourceAttr(name, "spec.okta.sync_period", "0s"),
+					resource.TestCheckResourceAttr(name, "spec.require_session_mfa", "0"),
+					resource.TestCheckResourceAttr(name, "spec.second_factor", "otp"),
+					resource.TestCheckResourceAttr(name, "spec.signature_algorithm_suite", "0"),
+					resource.TestCheckResourceAttr(name, "spec.type", "local"),
 				),
 			},
 			{
@@ -52,7 +66,8 @@ func (s *TerraformSuiteOSS) TestAuthPreference() {
 				Config: s.getFixture("auth_preference_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_auth_preference"),
-					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "false"),
+					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
+					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "true"),
 				),
 			},
 			{
@@ -64,12 +79,8 @@ func (s *TerraformSuiteOSS) TestAuthPreference() {
 }
 
 func (s *TerraformSuiteOSS) TestImportAuthPreference() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_auth_preference"
-	id := "test_import"
-	name := r + "." + id
+	name := r + "." + "auth_preference"
 
 	authPreference := &types.AuthPreferenceV2{
 		Metadata: types.Metadata{},
@@ -80,14 +91,14 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 	err := authPreference.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	authPreferencesBefore, err := s.client.GetAuthPreference(ctx)
+	authPreferencesBefore, err := s.client.GetAuthPreference(s.T().Context())
 	require.NoError(s.T(), err)
 
-	_, err = s.client.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
+	_, err = s.client.ClusterConfigClient().UpsertAuthPreference(s.T().Context(), &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		authPreferencesCurrent, err := s.client.GetAuthPreference(ctx)
+		authPreferencesCurrent, err := s.client.GetAuthPreference(s.T().Context())
 		require.NoError(s.T(), err)
 
 		return authPreferencesBefore.GetMetadata().Revision != authPreferencesCurrent.GetMetadata().Revision
@@ -98,10 +109,10 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
+				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "auth_preference" { }`,
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "auth_preference",
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "cluster_auth_preference", state[0].Attributes["kind"])
 					require.Equal(s.T(), "true", state[0].Attributes["spec.disconnect_expired_cert"])

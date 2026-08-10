@@ -220,11 +220,11 @@ type ReadProxyAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// NodesGetter defines methods for fetching node resources.
+	services.NodesGetter
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	//
@@ -397,7 +397,8 @@ type ReadRelayAccessPoint interface {
 
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// NodesGetter defines methods for fetching node resources.
+	services.NodesGetter
 
 	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
 
@@ -448,11 +449,11 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// NodesGetter defines methods for fetching node resources.
+	services.NodesGetter
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	//
@@ -896,8 +897,8 @@ type ReadDiscoveryAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// NodesGetter defines methods for fetching node resources.
+	services.NodesGetter
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
@@ -1189,11 +1190,11 @@ type Cache interface {
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// NodesGetter defines methods for fetching node resources.
+	services.NodesGetter
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	//

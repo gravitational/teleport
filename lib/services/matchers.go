@@ -203,6 +203,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		scope = res.GetScope()
 	case types.AppServer:
 		scope = res.GetScope()
+	case types.Server:
+		scope = res.GetScope()
 	}
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
