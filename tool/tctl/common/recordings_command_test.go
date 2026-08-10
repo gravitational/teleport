@@ -56,10 +56,10 @@ func TestRecordingsSummaryFlags(t *testing.T) {
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
-	summary := &summarizerv1pb.Summary{
+	summary := summarizerv1pb.Summary_builder{
 		SessionId: "session-123",
 		Content:   "Session content",
-	}
+	}.Build()
 
 	t.Run("stdout by default", func(t *testing.T) {
 		var stdout bytes.Buffer
@@ -69,7 +69,7 @@ func TestWriteSummary(t *testing.T) {
 		}
 
 		require.NoError(t, c.writeSummary(summary))
-		require.Contains(t, stdout.String(), `"session_id": "session-123"`)
+		require.JSONEq(t, `{"session_id":"session-123","content":"Session content"}`, stdout.String())
 	})
 
 	t.Run("optional output file", func(t *testing.T) {
@@ -91,6 +91,40 @@ func TestWriteSummary(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 	})
+}
+
+func TestFormatSummaryTextCommands(t *testing.T) {
+	t.Parallel()
+
+	summary := summarizerv1pb.Summary_builder{
+		EnhancedSummary: summarizerv1pb.EnhancedSummary_builder{
+			SessionEvents: []*summarizerv1pb.SessionEvent{
+				summarizerv1pb.SessionEvent_builder{
+					RiskLevel:      summarizerv1pb.RiskLevel_RISK_LEVEL_HIGH,
+					RiskScore:      9,
+					MitreAttackIds: []string{"T1059"},
+					CommandEventDetails: summarizerv1pb.CommandEventDetails_builder{
+						Command:       "rm -rf /",
+						ErrorMessages: []string{"permission denied"},
+					}.Build(),
+				}.Build(),
+				summarizerv1pb.SessionEvent_builder{
+					DesktopEventDetails: summarizerv1pb.DesktopEventDetails_builder{
+						Applications: []string{"Terminal"},
+					}.Build(),
+				}.Build(),
+			},
+		}.Build(),
+	}.Build()
+
+	var output bytes.Buffer
+	require.NoError(t, formatSummaryText(&output, summary))
+	require.Contains(t, output.String(), "Commands Executed (1 total)")
+	require.Contains(t, output.String(), "[1] rm -rf /")
+	require.Contains(t, output.String(), "permission denied")
+	//nolint:misspell // MITRE ATT&CK is the official name.
+	require.Contains(t, output.String(), "MITRE ATT&CK:")
+	require.Contains(t, output.String(), "T1059")
 }
 
 func TestRecordingsSearchResourcePropertyFlags(t *testing.T) {

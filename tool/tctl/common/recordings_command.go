@@ -37,6 +37,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 
@@ -705,9 +706,9 @@ func createFileWriter(ctx context.Context, sessionID session.ID, outputDir strin
 func (c *RecordingsCommand) GetSummary(ctx context.Context, tc *authclient.Client) error {
 	summarizerClient := tc.SummarizerServiceClient()
 
-	resp, err := summarizerClient.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+	resp, err := summarizerClient.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
 		SessionId: c.summarySessionID,
-	})
+	}.Build())
 	if trace.IsNotImplemented(err) {
 		// unlicensedISMessage is returned when the cluster does not have the
 		// Identity Security license, which is required to use Session Summaries.
@@ -763,6 +764,69 @@ func marshalSessionSummary(summary *summarizerv1pb.Summary) ([]byte, error) {
 	return rBytes, nil
 }
 
+type summaryEventAnalysis interface {
+	GetCategory() summarizerv1pb.CommandCategory
+	GetRiskLevel() summarizerv1pb.RiskLevel
+	GetRiskScore() int32
+	GetThreatCategory() summarizerv1pb.ThreatCategory
+	GetShortDescription() string
+	GetDetailedDescription() string
+	GetSuspiciousPatterns() []string
+	GetIocs() []string
+	GetMitreAttackIds() []string
+	GetHasSensitiveData() bool
+	GetPrivilegeEscalation() bool
+	GetDataExfiltration() bool
+	GetPersistence() bool
+	GetStartOffset() *durationpb.Duration
+	GetEndOffset() *durationpb.Duration
+}
+
+type summaryCommand struct {
+	summaryEventAnalysis
+	command       string
+	success       bool
+	errorMessages []string
+}
+
+// summaryCommands normalizes command SessionEvents and commands from older
+// Auth Servers into the shape used by the text formatter.
+func summaryCommands(enhanced *summarizerv1pb.EnhancedSummary) []summaryCommand {
+	if enhanced == nil {
+		return nil
+	}
+
+	if events := enhanced.GetSessionEvents(); len(events) > 0 {
+		commands := make([]summaryCommand, 0, len(events))
+		for _, event := range events {
+			details := event.GetCommandEventDetails()
+			if details == nil {
+				continue
+			}
+			commands = append(commands, summaryCommand{
+				summaryEventAnalysis: event,
+				command:              details.GetCommand(),
+				success:              details.GetSuccess(),
+				errorMessages:        details.GetErrorMessages(),
+			})
+		}
+		return commands
+	}
+
+	//nolint:staticcheck // Read the deprecated field for compatibility with pre-v19 Auth Servers.
+	legacyCommands := enhanced.GetCommands()
+	commands := make([]summaryCommand, 0, len(legacyCommands))
+	for _, command := range legacyCommands {
+		commands = append(commands, summaryCommand{
+			summaryEventAnalysis: command,
+			command:              command.GetCommand(),
+			success:              command.GetSuccess(),
+			errorMessages:        command.GetErrorMessages(),
+		})
+	}
+	return commands
+}
+
 // formatSummaryText formats the summary in human-readable text format.
 func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 	// Build the output in a buffer first
@@ -807,11 +871,11 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 	}
 
 	// Display commands with their details
-	if enhanced := summary.GetEnhancedSummary(); enhanced != nil && len(enhanced.GetCommands()) > 0 {
-		fmt.Fprintf(&buf, "\n%s\n", bold(fmt.Sprintf("Commands Executed (%d total)", len(enhanced.GetCommands()))))
+	if commands := summaryCommands(summary.GetEnhancedSummary()); len(commands) > 0 {
+		fmt.Fprintf(&buf, "\n%s\n", bold(fmt.Sprintf("Commands Executed (%d total)", len(commands))))
 
-		for i, cmd := range enhanced.GetCommands() {
-			fmt.Fprintf(&buf, "[%d] %s\n", i+1, cmd.GetCommand())
+		for i, cmd := range commands {
+			fmt.Fprintf(&buf, "[%d] %s\n", i+1, cmd.command)
 
 			// Risk and category information
 			fmt.Fprintf(&buf, "    %s %s", bold("Risk Level:"), cmd.GetRiskLevel())
@@ -840,7 +904,7 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 			}
 
 			// Status
-			if cmd.GetSuccess() {
+			if cmd.success {
 				fmt.Fprintf(&buf, "    %s Success\n", bold("Status:"))
 			} else {
 				fmt.Fprintf(&buf, "    %s Failed\n", bold("Status:"))
@@ -869,8 +933,9 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 				fmt.Fprintf(&buf, "    %s %s\n", bold("Threat Category:"), cmd.GetThreatCategory())
 			}
 
-			// MITRE ATT&CK
+			// Threat framework mappings
 			if len(cmd.GetMitreAttackIds()) > 0 {
+				//nolint:misspell // MITRE ATT&CK is the official name.
 				fmt.Fprintf(&buf, "    %s %s\n", bold("MITRE ATT&CK:"), strings.Join(cmd.GetMitreAttackIds(), ", "))
 			}
 
@@ -883,9 +948,9 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 			}
 
 			// Error messages
-			if len(cmd.GetErrorMessages()) > 0 {
+			if len(cmd.errorMessages) > 0 {
 				fmt.Fprintf(&buf, "\n    %s\n", bold("Errors:"))
-				for _, errMsg := range cmd.GetErrorMessages() {
+				for _, errMsg := range cmd.errorMessages {
 					fmt.Fprintf(&buf, "      - %s\n", errMsg)
 				}
 			}
