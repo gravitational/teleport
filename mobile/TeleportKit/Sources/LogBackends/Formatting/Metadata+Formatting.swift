@@ -25,12 +25,7 @@ extension Logger.Metadata {
 	var formatted: String {
 		guard !isEmpty else { return "" }
 		let metadataAsStrings = map { key, value in
-			let prefix = if key.lowercased().localizedStandardContains("error") {
-				"❌"
-			} else {
-				"🔸"
-			}
-			return "\(prefix) \(key)=\(value)"
+			"🔸 \(key)=\(value)"
 		}
 		return metadataAsStrings.joined(separator: " ")
 	}
