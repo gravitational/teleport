@@ -102,6 +102,7 @@ export function makeAcl(json): Acl {
   const inferencePolicy = json.inferencePolicy || defaultAccess;
   const inferenceModel = json.inferenceModel || defaultAccess;
   const inferenceSecret = json.inferenceSecret || defaultAccess;
+  const classifier = json.classifier || defaultAccess;
 
   const beam = json.beam || defaultAccess;
 
@@ -160,6 +161,7 @@ export function makeAcl(json): Acl {
     inferencePolicy,
     inferenceModel,
     inferenceSecret,
+    classifier,
     beam,
     mobileDevice,
   };

@@ -20,6 +20,7 @@ package pgevents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -392,22 +393,14 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 		return trace.Wrap(err)
 	}
 
-	eventID := uuid.New()
+	eventID, err := uuid.Parse(event.GetID())
+	if err != nil {
+		eventID = uuid.New()
+	}
 	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
 
 	start := time.Now()
-	// if an event with the same event_id exists, it means that we inserted it
-	// and then failed to receive the success reply from the commit
-	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
-		_, err := l.pool.Exec(ctx,
-			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
-				" VALUES ($1, $2, $3, $4, $5)"+
-				" ON CONFLICT DO NOTHING",
-			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
-		)
-		return struct{}{}, trace.Wrap(err)
-	})
-
+	err = l.insertEvent(ctx, event, eventID, sessionID, string(eventJSON))
 	writeLatencies.Observe(time.Since(start).Seconds())
 
 	if err != nil {
@@ -417,6 +410,84 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	writeRequestsSuccess.Inc()
 
 	return nil
+}
+
+func (l *Log) insertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) error {
+	inserted, matches, err := l.tryInsertEvent(ctx, event, eventID, sessionID, eventJSON)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if inserted {
+		return nil
+	}
+	if matches {
+		writeRequestsDeduped.Inc()
+		return nil
+	}
+
+	newID := uuid.New()
+	l.log.WarnContext(ctx,
+		"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
+		"event_type", event.GetType(),
+		"event_time", event.GetTime().UTC(),
+		"original_event_id", eventID,
+		"new_event_id", newID,
+	)
+	eventIDCollisions.Inc()
+
+	inserted, matches, err = l.tryInsertEvent(ctx, event, newID, sessionID, eventJSON)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if inserted || matches {
+		return nil
+	}
+	return trace.AlreadyExists(
+		"audit event id collision persisted after generating a new id (event_time %v)",
+		event.GetTime().UTC(),
+	)
+}
+
+const insertEventQuery = `INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
+	VALUES ($1, $2, $3, $4, $5)
+	ON CONFLICT (event_time, event_id) DO NOTHING`
+
+const matchEventQuery = `SELECT event_data::jsonb = $3::jsonb
+	FROM events
+	WHERE event_time = $1 AND event_id = $2`
+
+func (l *Log) tryInsertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) (bool, bool, error) {
+	type insertResult struct {
+		inserted bool
+		matches  bool
+	}
+	res, err := pgcommon.RetryIdempotent(ctx, l.log, func() (insertResult, error) {
+		tag, err := l.pool.Exec(ctx, insertEventQuery,
+			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
+		)
+		if err != nil {
+			return insertResult{}, trace.Wrap(err)
+		}
+		if tag.RowsAffected() > 0 {
+			return insertResult{inserted: true}, nil
+		}
+
+		var matches bool
+		err = l.pool.QueryRow(ctx, matchEventQuery,
+			event.GetTime().UTC(), eventID, eventJSON,
+		).Scan(&matches)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return insertResult{}, nil
+		}
+		if err != nil {
+			return insertResult{}, trace.Wrap(err)
+		}
+		return insertResult{matches: matches}, nil
+	})
+	if err != nil {
+		return false, false, trace.Wrap(err)
+	}
+	return res.inserted, res.matches, nil
 }
 
 // searchEvents returns events within the time range, filtering (optionally) by
@@ -593,6 +664,9 @@ func (l *Log) searchEvents(
 
 // SearchEvents implements [events.AuditLogger].
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the postgres audit backend does not support the beam ID filter")
+	}
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 
@@ -610,6 +684,9 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 
 // SearchUnstructuredEvents implements [events.AuditLogger].
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the postgres audit backend does not support the beam ID filter")
+	}
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 

@@ -57,6 +57,30 @@ var softLimitWarnings = prometheus.NewCounter(
 	},
 )
 
+var retryTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_retries_total",
+		Help:      "Total number of audit queue delivery retries.",
+	},
+)
+
+var deadLetterPromotions = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_dead_letter_promotions_total",
+		Help:      "Total number of audit events moved to the dead-letter queue after exhausting retries.",
+	},
+)
+
+var deadLetterExpired = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_dead_letter_expired_total",
+		Help:      "Total number of audit events permanently dropped from the dead-letter queue after exceeding their TTL.",
+	},
+)
+
 var eventsEnqueued = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
@@ -73,11 +97,41 @@ var eventsDelivered = prometheus.NewCounter(
 	},
 )
 
+var corruptEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_events_total",
+		Help:      "Total number of audit events quarantined after failing to deserialize.",
+	},
+)
+
+var corruptRecovered = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_events_recovered_total",
+		Help:      "Total number of quarantined audit events that later deserialized and were re-queued for delivery.",
+	},
+)
+
+var corruptExpired = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_events_expired_total",
+		Help:      "Total number of corrupt audit events permanently dropped after exceeding the retention TTL.",
+	},
+)
+
 var prometheusCollectors = []prometheus.Collector{
 	batchSize,
 	orphansAdopted,
 	orphanScanErrors,
 	softLimitWarnings,
+	retryTotal,
+	deadLetterPromotions,
+	deadLetterExpired,
 	eventsEnqueued,
 	eventsDelivered,
+	corruptEvents,
+	corruptRecovered,
+	corruptExpired,
 }

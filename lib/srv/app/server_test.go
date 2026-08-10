@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -157,6 +158,8 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+	// ModifyRole mutates the user role before it is created.
+	ModifyRole func(*types.RoleV6)
 	// Rewrite configures the rewrite rules for the app.
 	Rewrite *types.Rewrite
 	// Login is used to specify "login" trait in the jwt token
@@ -169,11 +172,13 @@ type suiteConfig struct {
 	OverrideCAs []types.CertAuthority
 	// InsecureMode sets service to insecure mode.
 	InsecureMode bool
+	// TargetHostPolicy restricts application target dials by resolved IP.
+	TargetHostPolicy common.TargetHostPolicy
 }
 
 type fakeConnMonitor struct{}
 
-func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
 }
 
@@ -240,7 +245,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role = &types.RoleV6{
+	role := &types.RoleV6{
 		Metadata: types.Metadata{
 			Name: "foo",
 		},
@@ -251,6 +256,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			},
 		},
 	}
+	if config.ModifyRole != nil {
+		config.ModifyRole(role)
+	}
+	s.role = role
 	// Create user for regular tests.
 	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
@@ -350,13 +359,13 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
+	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly", "")
 
 	// Generate certificate for AWS console application with integration
-	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly")
+	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly", "")
 
 	s.lockWatcher, err = services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -365,10 +374,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "cluster-name",
-		AccessPoint: s.authClient,
-		LockWatcher: s.lockWatcher,
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      "cluster-name",
+		AccessPoint:      s.authClient,
+		ScopedRoleReader: s.authClient.ScopedRoleReader(),
+		LockWatcher:      s.lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -395,6 +405,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		CipherSuites:      utils.DefaultCipherSuites(),
 		ServiceComponent:  teleport.ComponentApp,
 		InsecureMode:      config.InsecureMode,
+		TargetHostPolicy:  config.TargetHostPolicy,
 		AWSConfigOptions: []awsconfig.OptionsFn{
 			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
 				return &mocks.STSClient{}
@@ -465,7 +476,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	return s
 }
 
-func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN string) tls.Certificate {
+func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN, scope string) tls.Certificate {
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	privateKeyPEM, err := keys.MarshalPrivateKey(key)
@@ -480,6 +491,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, a
 		PublicAddr:  publicAddr,
 		ClusterName: "root.example.com",
 		LoginTrait:  s.login,
+		Scope:       scope,
 	}
 	if awsRoleARN != "" {
 		req.AWSRoleARN = awsRoleARN
@@ -863,6 +875,38 @@ func TestHandleConnection(t *testing.T) {
 	})
 }
 
+// TestHandleConnectionV9DefaultDeny verifies that a v9 role without an
+// app_resources rule denies a plain HTTP app request through serveHTTP,
+// while an AWS console app under the same role stays exempt.
+func TestHandleConnectionV9DefaultDeny(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ModifyRole: func(role *types.RoleV6) { role.Version = types.V9 },
+	})
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(buf), "teleport_request_not_allowed")
+	})
+	s.checkHTTPResponse(t, s.awsConsoleCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+	})
+}
+
+// TestHandleConnectionV9AllowAll verifies that a v9 role with an
+// allow_all rule serves a plain HTTP app request through serveHTTP.
+func TestHandleConnectionV9AllowAll(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ModifyRole: func(role *types.RoleV6) {
+			role.Version = types.V9
+			role.Spec.Allow.AppResources = []types.AppResource{{AllowAll: true}}
+		},
+	})
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
 // TestHandleConnectionWS verifies that websocket requests with valid certificates are forwarded and the
 // request had headers rewritten as expected.
 func TestHandleConnectionWS(t *testing.T) {
@@ -1085,7 +1129,7 @@ func TestAuthorize(t *testing.T) {
 				user, err = authServer.Services.UpdateUser(ctx, user)
 				require.NoError(t, err, "UpdateUser")
 
-				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */, "")
 			}
 
 			if test.requireTrustedDevice {
@@ -1129,6 +1173,17 @@ func TestAuthorize(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestAuthorizeScopeMismatch(t *testing.T) {
+	s := SetUpSuite(t)
+
+	// App foo is unscoped, so expect this to fail
+	clientCert := s.generateCertificate(t, s.user, s.appFoo.GetPublicAddr(), "", "/staging")
+
+	s.checkHTTPResponse(t, clientCert, func(resp *http.Response) {
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
 }
 
 // TestAuthorizeWithLocks verifies that requests are forbidden when there is

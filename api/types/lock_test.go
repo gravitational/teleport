@@ -18,7 +18,6 @@ package types
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -74,57 +73,27 @@ func TestLockTargetMatch(t *testing.T) {
 	require.False(t, emptyTarget.Match(lock))
 }
 
-// TestLockTargetIsEmpty checks that the implementation of [LockTarget.IsEmpty]
-// is correct by filling one field at a time and expecting IsEmpty to return
-// false. Only the public fields that don't start with `XXX_` are checked (as
-// those are gogoproto-internal fields).
-func TestLockTargetIsEmpty(t *testing.T) {
-	require.True(t, (LockTarget{}).IsEmpty())
-
-	for i, field := range reflect.VisibleFields(reflect.TypeOf(LockTarget{})) {
-		if strings.HasPrefix(field.Name, "XXX_") {
-			continue
-		}
-
-		var lt LockTarget
-		// if we add non-string fields to LockTarget we need a type switch here
-		reflect.ValueOf(&lt).Elem().Field(i).SetString("nonempty")
-		require.False(t, lt.IsEmpty(), "field name: %v", field.Name)
+func TestLockTargetIsSimple(t *testing.T) {
+	ty := reflect.TypeFor[LockTarget]()
+	for f := range ty.Fields() {
+		// A struct embedded by value that is also "simple" in this sense would
+		// work too, so if we need something like that we can extend this check.
+		// Arrays (of likewise "simple" types) would also work but outside of
+		// nasty gogoproto shenanigans (which we should not make use of) it's
+		// not possible to have an array in a protobuf message struct, so it's a
+		// moot point. Pointers are a no-no, since they are compared by address
+		// rather than by checking the value that they point to.
+		require.Containsf(t, []reflect.Kind{
+			reflect.Bool,
+			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+			reflect.Uintptr,
+			reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+			reflect.String,
+		}, f.Type.Kind(), "field %+q (%#d) is not of a scalar kind (%s)", f.Name, f.Index[0], f.Type.Kind())
+		require.NotEqualf(t, "_", f.Name, "field %+q (#%d) is padding", f.Name, f.Index[0])
+		require.Truef(t, f.IsExported(), "field %+q (#%d) is unexported", f.Name, f.Index[0])
+		// embedding scalar newtypes is weird but technically possible
+		require.Falsef(t, f.Anonymous, "field %+q (#%d) is embedded", f.Name, f.Index[0])
 	}
-}
-
-// TestLockTargetEquals checks that the implementation of [LockTarget.Equals]
-// is correct by filling one field at a time in for two LockTargets and expecting
-// Equals to return the appropriate value. Only the public fields that don't start with
-// `XXX_` are checked (as those are gogoproto-internal fields).
-func TestLockTargetEquals(t *testing.T) {
-	t.Run("equal", func(t *testing.T) {
-		require.True(t, (LockTarget{}).Equals(LockTarget{}), "empty targets equal")
-
-		for i, field := range reflect.VisibleFields(reflect.TypeOf(LockTarget{})) {
-			if strings.HasPrefix(field.Name, "XXX_") {
-				continue
-			}
-
-			var a, b LockTarget
-			// if we add non-string fields to LockTarget we need a type switch here
-			reflect.ValueOf(&a).Elem().Field(i).SetString("nonempty")
-			reflect.ValueOf(&b).Elem().Field(i).SetString("nonempty")
-			require.True(t, a.Equals(b), "field name: %v", field.Name)
-		}
-	})
-
-	t.Run("not equal", func(t *testing.T) {
-		for i, field := range reflect.VisibleFields(reflect.TypeOf(LockTarget{})) {
-			if strings.HasPrefix(field.Name, "XXX_") {
-				continue
-			}
-
-			var a, b LockTarget
-			// if we add non-string fields to LockTarget we need a type switch here
-			reflect.ValueOf(&a).Elem().Field(i).SetString("nonempty")
-			reflect.ValueOf(&b).Elem().Field(i).SetString("other")
-			require.False(t, a.Equals(b), "field name: %v", field.Name)
-		}
-	})
 }

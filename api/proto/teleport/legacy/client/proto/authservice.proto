@@ -263,6 +263,11 @@ message UserCertsRequest {
     // When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
     // AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
     TSH_APP_AWS_CREDENTIALPROCESS = 6;
+    // TSH_KUBE_LOCAL_PROXY_MULTI is set when the request was sent by a tsh kube local proxy
+    // fanning out across multiple Kubernetes clusters. Like TSH_DB_EXEC, it allows reuse of the
+    // MFA session response so one ceremony can authorize per-cluster certificates. Like the other
+    // kube local proxy requesters, the in-memory certificates are not limited to the single use TTL.
+    TSH_KUBE_LOCAL_PROXY_MULTI = 7;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -382,6 +387,8 @@ message RouteToApp {
   // This is a JSON string that conforms with
   // https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
   string AWSCredentialProcessCredentials = 10 [(gogoproto.jsontag) = "aws_credentialprocess_credentials,omitempty"];
+  // Scope is the scope of the target application.
+  string scope = 11;
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -910,6 +917,8 @@ message CreateAppSessionRequest {
   string URI = 10 [(gogoproto.jsontag) = "uri"];
   // ClientAddr is a client (user's) address.
   string ClientAddr = 11 [(gogoproto.jsontag) = "client_addr,omitempty"];
+  // Scope is the requested app session scope.
+  string scope = 12;
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -2347,11 +2356,39 @@ message PaginatedResource {
   // RequiresRequest indicates if a resource requires an access request to access. Only populated with requests
   // that IncludeRequestable.
   bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
+  // Principals holds the resource's principals, one entry per dimension
+  // (e.g., SSH logins, AWS role ARNs), split into granted and requestable.
+  repeated ResourcePrincipalSet Principals = 18 [(gogoproto.jsontag) = "principals,omitempty"];
 
   reserved 4;
   reserved "KubeService";
   reserved 11;
   reserved "AppServerOrSAMLIdPServiceProvider";
+}
+
+// ResourcePrincipalSet is one principal dimension of a resource.
+message ResourcePrincipalSet {
+  // PrincipalType is the dimension's inline constraint key ("logins",
+  // "role_arns").
+  string PrincipalType = 1 [(gogoproto.jsontag) = "principal_type"];
+  // Granted holds values usable without an access request.
+  repeated string Granted = 2 [(gogoproto.jsontag) = "granted,omitempty"];
+  // Requestable holds values usable only via access request.
+  repeated string Requestable = 3 [(gogoproto.jsontag) = "requestable,omitempty"];
+  // ByRole optionally attributes values to the roles granting them, for kinds
+  // whose dimensions must be co-granted by a single role.
+  repeated RolePrincipalValues ByRole = 4 [(gogoproto.jsontag) = "by_role,omitempty"];
+}
+
+// RolePrincipalValues is the subset of one principal dimension's values
+// granted by a single role.
+message RolePrincipalValues {
+  // Role is the granting role's name.
+  string Role = 1 [(gogoproto.jsontag) = "role"];
+  // RequiresRequest is set when the role is not held and must be requested.
+  bool RequiresRequest = 2 [(gogoproto.jsontag) = "requires_request,omitempty"];
+  // Values are the principals the role grants for the parent dimension.
+  repeated string Values = 3 [(gogoproto.jsontag) = "values,omitempty"];
 }
 
 // ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources

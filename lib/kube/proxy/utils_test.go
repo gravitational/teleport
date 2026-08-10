@@ -120,6 +120,7 @@ type TestConfig struct {
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
 	WrapAuthClient       func(authclient.ClientI) authclient.ClientI
+	WrapProxyAccessPoint func(authclient.ClientI) authclient.ClientI
 	ScopesFeatures       scopes.Features
 	Scope                string
 }
@@ -150,12 +151,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Create and start test auth server.
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:         clockwork.NewFakeClockAt(time.Now()),
-		ClusterName:   testCtx.ClusterName,
-		Streamer:      streamer,
-		UploadHandler: testCtx.UploadHandler,
-		Dir:           t.TempDir(),
-		Modules:       cmp.Or(cfg.Modules, modulestest.OSSModules()),
+		Clock:          clockwork.NewFakeClockAt(time.Now()),
+		ClusterName:    testCtx.ClusterName,
+		Streamer:       streamer,
+		UploadHandler:  testCtx.UploadHandler,
+		Dir:            t.TempDir(),
+		Modules:        cmp.Or(cfg.Modules, modulestest.OSSModules()),
+		ScopesFeatures: cfg.ScopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -280,9 +282,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 	)
 	require.NoError(t, err)
-	err = healthCheckManager.Start(testCtx.Context)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+	if cfg.Scope == "" {
+		err = healthCheckManager.Start(testCtx.Context)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+	}
 
 	var authClient authclient.ClientI = client
 	if cfg.WrapAuthClient != nil {
@@ -292,6 +296,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	var accessPoint authclient.ClientI = client
 	if cfg.WrapAuthClient != nil {
 		accessPoint = cfg.WrapAuthClient(client)
+	}
+	// The kube service must use its scoped identity to watch kube_cluster
+	// resources. The proxy, however, watches kube_servers in every scope.
+	proxyAccessPoint := accessPoint
+	if cfg.Scope != "" {
+		proxyAccessPoint = proxyAuthClient
+	}
+	if cfg.WrapProxyAccessPoint != nil {
+		proxyAccessPoint = cfg.WrapProxyAccessPoint(proxyAccessPoint)
 	}
 
 	// Create kubernetes service server.
@@ -352,7 +365,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		testCtx.Context,
 		kubewatcher.ProxyKubeServerWatcherConfig{
 			Logger:           logtest.NewLogger(),
-			AccessPoint:      accessPoint,
+			AccessPoint:      proxyAccessPoint,
 			FallbackGetter:   proxyAuthClient,
 			PrimaryTimeout:   time.Second,
 			FallbackInterval: time.Second,
@@ -415,7 +428,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
-		AccessPoint:              accessPoint,
+		AccessPoint:              proxyAccessPoint,
 		KubernetesServersWatcher: kubeServersWatcher,
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
@@ -583,7 +596,7 @@ func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope stri
 				User: username,
 				Assignments: []*accessv1.Assignment{
 					accessv1.Assignment_builder{
-						Role:  role.GetRole().GetMetadata().GetName(),
+						Role:  scopes.QualifiedName{Scope: role.GetRole().GetScope(), Name: role.GetRole().GetMetadata().GetName()}.String(),
 						Scope: scope,
 					}.Build(),
 				},

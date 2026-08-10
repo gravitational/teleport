@@ -82,14 +82,12 @@ export const AgentWaitingDialogStory = () => (
   </MemoryRouter>
 );
 AgentWaitingDialogStory.storyName = 'AgentWaitingDialog';
-AgentWaitingDialogStory.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.kubernetesPath, () => {
-        return delay('infinite');
-      }),
-    ],
-  },
+AgentWaitingDialogStory.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.kubernetesPath, () => {
+      return delay('infinite');
+    })
+  );
 };
 
 export const AgentWaitingDialogSuccess = () => (
@@ -111,14 +109,12 @@ export const AgentWaitingDialogSuccess = () => (
     </ContextProvider>
   </MemoryRouter>
 );
-AgentWaitingDialogSuccess.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.kubernetesPath, () => {
-        return delay('infinite');
-      }),
-    ],
-  },
+AgentWaitingDialogSuccess.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.kubernetesPath, () => {
+      return delay('infinite');
+    })
+  );
 };
 
 const helmCommandProps = {
@@ -191,17 +187,15 @@ export const ManualHelmDialogStory = () => {
   );
 };
 ManualHelmDialogStory.storyName = 'ManualHelmDialog';
-ManualHelmDialogStory.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () => {
-        return HttpResponse.json({
-          id: 'token-id',
-          suggestedLabels: [
-            { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
-          ],
-        });
-      }),
-    ],
-  },
+ManualHelmDialogStory.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () => {
+      return HttpResponse.json({
+        id: 'token-id',
+        suggestedLabels: [
+          { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
+        ],
+      });
+    })
+  );
 };

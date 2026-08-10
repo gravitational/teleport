@@ -114,7 +114,7 @@ const Arrow = styled.div<{ open?: boolean }>`
   }
 `;
 
-export function UserMenuNav() {
+export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
@@ -139,9 +139,12 @@ export function UserMenuNav() {
     .charAt(0)
     .toUpperCase();
 
-  const topMenuItems = features.filter(
-    feature => Boolean(feature.topMenuItem) && feature.category === undefined
-  );
+  const topMenuItems = hideFeatures
+    ? []
+    : features.filter(
+        feature =>
+          Boolean(feature.topMenuItem) && feature.category === undefined
+      );
 
   const items = [];
 
@@ -224,7 +227,7 @@ export function UserMenuNav() {
         <DeviceTrustStatus />
         {items}
 
-        <DropdownDivider />
+        {items.length > 0 && <DropdownDivider />}
 
         {/* Hide ability to switch themes if the theme is a custom theme */}
         {!theme.isCustomTheme && (

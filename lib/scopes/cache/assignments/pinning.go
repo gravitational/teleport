@@ -91,15 +91,23 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 					continue
 				}
 
+				// the role is referenced by scope-qualified name.
+				role, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+				if err != nil {
+					slog.WarnContext(ctx, "skipping role assignment with malformed role reference", "role", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
+					continue
+				}
+
 				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
 					RoleKind:      pinning.RoleKindUser,
 					ScopeOfOrigin: scopeOfOrigin,
 					ScopeOfEffect: scopeOfEffect,
-					RoleName:      subAssignment.GetRole(),
+					RoleName:      role.Name,
+					RoleScope:     role.Scope,
 				}); err != nil {
-					slog.WarnContext(ctx, "failed to write role assignment to scope pin", "role_name", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
+					slog.WarnContext(ctx, "failed to write role assignment to scope pin", "role_name", role.Name, "role_scope", role.Scope, "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
 					lastErr = trace.Wrap(err)
 					continue
 				}
@@ -235,18 +243,27 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 					continue
 				}
 
+				// the role is referenced by scope-qualified name.
+				role, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+				if err != nil {
+					slog.WarnContext(ctx, "skipping role assignment with malformed role reference", "role", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "bot", botName, "error", err)
+					continue
+				}
+
 				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
 					RoleKind:      pinning.RoleKindUser,
 					ScopeOfOrigin: scopeOfOrigin,
 					ScopeOfEffect: scopeOfEffect,
-					RoleName:      subAssignment.GetRole(),
+					RoleName:      role.Name,
+					RoleScope:     role.Scope,
 				}); err != nil {
 					slog.WarnContext(
 						ctx,
 						"failed to write role assignment to scope pin",
-						"role_name", subAssignment.GetRole(),
+						"role_name", role.Name,
+						"role_scope", role.Scope,
 						"scope_of_origin", scopeOfOrigin,
 						"scope_of_effect", scopeOfEffect,
 						"bot", botName,

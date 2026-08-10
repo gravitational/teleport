@@ -677,7 +677,7 @@ func TestRBAC(t *testing.T) {
 			},
 			expectChecks: []check{
 				{kind: types.KindUser, verb: types.VerbCreate},
-				{kind: types.KindUser, verb: types.VerbRead},
+				{kind: types.KindUser, verb: types.VerbReadNoSecrets},
 			},
 		},
 		{
@@ -744,7 +744,7 @@ func TestRBAC(t *testing.T) {
 				},
 			},
 			expectChecks: []check{
-				{kind: types.KindUser, verb: types.VerbRead},
+				{kind: types.KindUser, verb: types.VerbReadNoSecrets},
 				{kind: types.KindUser, verb: types.VerbCreate},
 			},
 		},

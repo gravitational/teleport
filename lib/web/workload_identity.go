@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -44,6 +45,9 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 		PageToken:        r.URL.Query().Get("page_token"),
 		SortField:        r.URL.Query().Get("sort_field"),
 		FilterSearchTerm: r.URL.Query().Get("search"),
+		// Exhaustive view, so ask for every scope rather than inheriting the
+		// identity-based default.
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 	}.Build()
 
 	if r.URL.Query().Has("page_size") {
@@ -67,6 +71,7 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 	uiItems := tslices.Map(result.GetWorkloadIdentities(), func(item *workloadidentityv1.WorkloadIdentity) WorkloadIdentity {
 		uiItem := WorkloadIdentity{
 			Name:       item.GetMetadata().GetName(),
+			Scope:      item.GetScope(),
 			SpiffeID:   item.GetSpec().GetSpiffe().GetId(),
 			SpiffeHint: item.GetSpec().GetSpiffe().GetHint(),
 			Labels:     item.GetMetadata().GetLabels(),
@@ -88,6 +93,7 @@ type ListWorkloadIdentitiesResponse struct {
 
 type WorkloadIdentity struct {
 	Name       string            `json:"name"`
+	Scope      string            `json:"scope,omitempty"`
 	SpiffeID   string            `json:"spiffe_id"`
 	SpiffeHint string            `json:"spiffe_hint"`
 	Labels     map[string]string `json:"labels"`

@@ -148,3 +148,40 @@ func ParentListOf(member *accesslist.AccessListMember) (NormalizedSQN, error) {
 	}
 	return ParseScopeQualifiedName(member.Spec.AccessList)
 }
+
+// ReviewedList returns the scope-qualified name of the access list reviewed by
+// the given review.
+func ReviewedList(review *accesslist.Review) (NormalizedSQN, error) {
+	if review.Scope == "" {
+		return NormalizedSQN{
+			Name: review.Spec.AccessList,
+		}, nil
+	}
+	listName, err := ParseScopeQualifiedName(review.Spec.AccessList)
+	if err != nil {
+		return NormalizedSQN{}, trace.Wrap(err)
+	}
+	if review.Scope != listName.Scope {
+		return NormalizedSQN{}, trace.BadParameter("access list review scope %q does not match the scope of the reviewed list %q", review.Scope, listName.Scope)
+	}
+	return listName, nil
+}
+
+// AllRemovedMembers returns the scope-qualified names of all members removed
+// by this access list review.
+func AllRemovedMembers(review *accesslist.Review) ([]NormalizedSQN, error) {
+	removedMembers := make([]NormalizedSQN, 0, len(review.Spec.Changes.RemovedMembers)+len(review.Spec.Changes.ScopedRemovedMembers))
+	for _, removedMember := range review.Spec.Changes.RemovedMembers {
+		removedMembers = append(removedMembers, NormalizedSQN{
+			Name: removedMember,
+		})
+	}
+	for _, scopedRemovedMember := range review.Spec.Changes.ScopedRemovedMembers {
+		sqn, err := ParseScopeQualifiedName(scopedRemovedMember)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		removedMembers = append(removedMembers, sqn)
+	}
+	return removedMembers, nil
+}

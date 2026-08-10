@@ -62,9 +62,11 @@ func GenSchemaDatabaseObjectImportRule(ctx context.Context) (github_com_hashicor
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -72,11 +74,14 @@ func GenSchemaDatabaseObjectImportRule(ctx context.Context) (github_com_hashicor
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
+					Computed:      true,
 					Description:   "name is an object name.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
@@ -93,42 +98,56 @@ func GenSchemaDatabaseObjectImportRule(ctx context.Context) (github_com_hashicor
 				"database_labels": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"name": {
-							Description: "The name of the label.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "The name of the label.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"values": {
-							Description: "The values associated with the label.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "The values associated with the label.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Description: "db_labels is a set of labels matched against database labels.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "db_labels is a set of labels matched against database labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"mappings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"add_labels": {
-							Description: "add_labels specifies which labels to add if the match succeeds. At least one should be present.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "add_labels specifies which labels to add if the match succeeds. At least one should be present.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"match": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"procedure_names": {
-									Description: "procedure_names specify the names of the procedures to match. Optional.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "procedure_names specify the names of the procedures to match. Optional.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 								"table_names": {
-									Description: "table_names specify the names of the tables to match. Optional.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "table_names specify the names of the tables to match. Optional.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 								"view_names": {
-									Description: "view_names specify the names of the views to match. Optional.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "view_names specify the names of the views to match. Optional.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
 							Description: "match specifies the matching rules, like the object names.",
@@ -137,36 +156,46 @@ func GenSchemaDatabaseObjectImportRule(ctx context.Context) (github_com_hashicor
 						"scope": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"database_names": {
-									Description: "database_names specify the names of the databases to include in the scope. Optional.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "database_names specify the names of the databases to include in the scope. Optional.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 								"schema_names": {
-									Description: "schema_names specify the names of the schemas to include in the scope. Optional.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "schema_names specify the names of the schemas to include in the scope. Optional.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
 							Description: "scope specifies the object scope. Optional. If not provided, all scopes will be accepted.",
 							Optional:    true,
 						},
 					}),
-					Description: "mappings is a list of matches that will map match conditions to labels.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "mappings is a list of matches that will map match conditions to labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"priority": {
-					Description: "priority represents the priority of the rule application.  Rules are processed from lowest to highest priority. If two rules apply the same label, then the value applied with the rule with the highest priority wins.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					Computed:      true,
+					Description:   "priority represents the priority of the rule application.  Rules are processed from lowest to highest priority. If two rules apply the same label, then the value applied with the rule with the highest priority wins.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
 			}),
 			Description: "spec represents the specifications for the database object import rule.",
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "Mandatory field for all resources. Not populated for this resource type.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "Mandatory field for all resources. Not populated for this resource type.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "The version of the resource being represented.",
@@ -656,6 +685,12 @@ func CopyDatabaseObjectImportRuleFromTerraform(_ context.Context, tf github_com_
 
 // CopyDatabaseObjectImportRuleToTerraform copies contents of the source Terraform object into a target struct
 func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_dbobjectimportrule_v1.DatabaseObjectImportRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyDatabaseObjectImportRuleToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyDatabaseObjectImportRuleToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyDatabaseObjectImportRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_dbobjectimportrule_v1.DatabaseObjectImportRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -669,6 +704,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.kind", err})
@@ -677,10 +715,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -691,6 +732,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.sub_kind", err})
@@ -699,10 +743,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -713,6 +760,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.version", err})
@@ -721,10 +771,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -752,6 +805,7 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -761,6 +815,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.metadata.name", err})
@@ -769,10 +826,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -783,6 +843,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.metadata.description", err})
@@ -791,10 +854,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -820,11 +886,14 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.metadata.labels", err})
@@ -833,17 +902,20 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -853,12 +925,14 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"DatabaseObjectImportRule.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -887,6 +961,7 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -896,6 +971,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 						} else {
 							v, ok := tf.Attrs["priority"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 							if !ok {
+								if tf.Attrs["priority"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.priority", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.priority", err})
@@ -904,10 +982,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.priority", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 								}
-								v.Null = int64(obj.Priority) == 0
 							}
+
+							v.Null = false
 							v.Value = int64(obj.Priority)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["priority"] = v
 						}
 					}
@@ -933,13 +1014,15 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseLabels))
 									}
 								}
-								if obj.DatabaseLabels != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.DatabaseLabels) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseLabels))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseLabels))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.DatabaseLabels {
-										v, ok := tf.Attrs["database_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -954,6 +1037,7 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -963,6 +1047,9 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 												} else {
 													v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["name"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.database_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.database_labels.name", err})
@@ -971,10 +1058,13 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.database_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Name) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Name)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["name"] = v
 												}
 											}
@@ -1000,14 +1090,19 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 															}
 														}
-														if obj.Values != nil {
+														{
 															t := o.ElemType
 															if len(obj.Values) != len(c.Elems) {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																copy(newElems, c.Elems)
+																c.Elems = newElems
 															}
 															for k, a := range obj.Values {
-																v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
+																	if c.Elems[k] != nil {
+																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.database_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.database_labels.values", err})
@@ -1016,30 +1111,35 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.database_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
-																	v.Null = string(a) == ""
 																}
+
+																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
-															if len(obj.Values) > 0 {
-																c.Null = false
-															}
 														}
-														c.Unknown = false
+														c.Null = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["values"] = c
 													}
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.DatabaseLabels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["database_labels"] = c
 							}
 						}
@@ -1066,13 +1166,15 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Mappings))
 									}
 								}
-								if obj.Mappings != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Mappings) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Mappings))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Mappings))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Mappings {
-										v, ok := tf.Attrs["mappings"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1087,6 +1189,7 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -1113,6 +1216,7 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 														if obj.Match == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := obj.Match
 															tf := &v
 															{
@@ -1137,14 +1241,19 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TableNames))
 																			}
 																		}
-																		if obj.TableNames != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.TableNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TableNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TableNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.TableNames {
-																				v, ok := tf.Attrs["table_names"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.mappings.match.table_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.mappings.match.table_names", err})
@@ -1153,17 +1262,20 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.mappings.match.table_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.TableNames) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["table_names"] = c
 																	}
 																}
@@ -1190,14 +1302,19 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ViewNames))
 																			}
 																		}
-																		if obj.ViewNames != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.ViewNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ViewNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ViewNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.ViewNames {
-																				v, ok := tf.Attrs["view_names"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.mappings.match.view_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.mappings.match.view_names", err})
@@ -1206,17 +1323,20 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.mappings.match.view_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.ViewNames) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["view_names"] = c
 																	}
 																}
@@ -1243,14 +1363,19 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProcedureNames))
 																			}
 																		}
-																		if obj.ProcedureNames != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.ProcedureNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProcedureNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ProcedureNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.ProcedureNames {
-																				v, ok := tf.Attrs["procedure_names"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.mappings.match.procedure_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.mappings.match.procedure_names", err})
@@ -1259,23 +1384,28 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.mappings.match.procedure_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.ProcedureNames) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["procedure_names"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["match"] = v
 													}
 												}
@@ -1304,6 +1434,7 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 														if obj.Scope == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := obj.Scope
 															tf := &v
 															{
@@ -1328,14 +1459,19 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseNames))
 																			}
 																		}
-																		if obj.DatabaseNames != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.DatabaseNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DatabaseNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.DatabaseNames {
-																				v, ok := tf.Attrs["database_names"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.mappings.scope.database_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.mappings.scope.database_names", err})
@@ -1344,17 +1480,20 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.mappings.scope.database_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.DatabaseNames) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["database_names"] = c
 																	}
 																}
@@ -1381,14 +1520,19 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SchemaNames))
 																			}
 																		}
-																		if obj.SchemaNames != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.SchemaNames) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SchemaNames))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SchemaNames))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.SchemaNames {
-																				v, ok := tf.Attrs["schema_names"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.mappings.scope.schema_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.mappings.scope.schema_names", err})
@@ -1397,23 +1541,28 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.mappings.scope.schema_names", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.SchemaNames) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["schema_names"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														tf.Attrs["scope"] = v
 													}
 												}
@@ -1440,11 +1589,14 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AddLabels))
 															}
 														}
-														if obj.AddLabels != nil {
+														{
 															t := o.ElemType
 															for k, a := range obj.AddLabels {
-																v, ok := tf.Attrs["add_labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
+																	if c.Elems[k] != nil {
+																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseObjectImportRule.spec.mappings.add_labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"DatabaseObjectImportRule.spec.mappings.add_labels", err})
@@ -1453,36 +1605,43 @@ func CopyDatabaseObjectImportRuleToTerraform(ctx context.Context, obj *github_co
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"DatabaseObjectImportRule.spec.mappings.add_labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
-																	v.Null = false
 																}
+
+																v.Null = false
 																v.Value = string(a)
-																v.Unknown = false
+																if !preserveUnknown {
+																	v.Unknown = false
+																}
 																c.Elems[k] = v
 															}
-															if len(obj.AddLabels) > 0 {
-																c.Null = false
-															}
 														}
-														c.Unknown = false
+														c.Null = false
+														if !preserveUnknown {
+															c.Unknown = false
+														}
 														tf.Attrs["add_labels"] = c
 													}
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Mappings) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["mappings"] = c
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -1595,5 +1754,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

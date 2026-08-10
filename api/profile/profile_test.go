@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // TestProfileBasics verifies basic profile operations such as
@@ -167,6 +168,17 @@ func TestRequireKubeLocalProxy(t *testing.T) {
 				KubeProxyAddr:                 "example.com:443",
 				TLSRoutingEnabled:             true,
 				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.True,
+		},
+		{
+			// A hardware-key policy requires the local proxy even without a TLS
+			// routing connection upgrade (the exec-plugin path can't serialize the key).
+			name: "hardware key policy requires local proxy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "example.com:443",
+				KubeProxyAddr:    "example.com:3026",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 			},
 			checkResult: require.True,
 		},

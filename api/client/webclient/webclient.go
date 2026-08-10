@@ -526,6 +526,8 @@ type ProxySettings struct {
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
 	// ScopesEnabled determines if the scoped rbac feature set is enabled.
 	ScopesEnabled bool `json:"scopes_enabled"`
+	// GroupID is the proxy group ID for the proxy that handled the request.
+	GroupID string `json:"group_id"`
 }
 
 // AutoUpdateSettings contains information about the auto update requirements.

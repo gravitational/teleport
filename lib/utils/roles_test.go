@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -50,12 +51,16 @@ func TestBadRoles(t *testing.T) {
 	t.Parallel()
 
 	bad := types.SystemRole("bad-role")
-	require.ErrorContains(t, bad.Check(), "role bad-role is not registered")
+	err := bad.Check()
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	require.ErrorContains(t, err, "role \"bad-role\" is not a valid system role")
 	badRoles := types.SystemRoles{
 		bad,
 		types.RoleAdmin,
 	}
-	require.ErrorContains(t, badRoles.Check(), "role bad-role is not registered")
+	err = badRoles.Check()
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	require.ErrorContains(t, err, "role \"bad-role\" is not a valid system role")
 }
 
 func TestEquivalence(t *testing.T) {

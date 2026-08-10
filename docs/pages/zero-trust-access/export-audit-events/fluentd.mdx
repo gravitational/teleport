@@ -100,8 +100,8 @@ your Fluentd instance to accept events using TLS and print them:
     </buffer>
 </source>
 
-# Events sent to test.log will be dumped to STDOUT.
-<match test.log>
+# Events sent to events.log will be dumped to STDOUT.
+<match events.log>
   @type stdout
 </match>
 ```

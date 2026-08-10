@@ -54,6 +54,20 @@ var (
 		},
 		labels,
 	)
+	writeRequestsDeduped = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "postgres_events_backend_write_deduped",
+			Help:      "Number of write requests that were de-duplicated because an identical event already existed.",
+		},
+	)
+	eventIDCollisions = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "postgres_events_backend_event_id_collisions",
+			Help:      "Number of distinct audit events that collided with an existing event sharing the same id and were re-inserted under a newly generated id.",
+		},
+	)
 	writeLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: teleport.MetricNamespace,
@@ -95,5 +109,6 @@ var (
 	prometheusCollectors = []prometheus.Collector{
 		writeRequests, batchReadRequests, batchDeleteRequests,
 		writeLatencies, batchReadLatencies, batchDeleteLatencies,
+		writeRequestsDeduped, eventIDCollisions,
 	}
 )

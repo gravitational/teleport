@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
 )
@@ -61,9 +62,12 @@ func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetSc
 		return nil, trace.BadParameter("missing scoped role name in get request")
 	}
 
-	role, ok := c.cache.Get(req.GetName())
+	role, ok := c.cache.Get(cache.ScopedKey[string]{
+		Scope: req.GetScope(),
+		Key:   req.GetName(),
+	})
 	if !ok {
-		return nil, trace.NotFound("scoped role %q not found", req.GetName())
+		return nil, trace.NotFound("scoped role %q not found in scope %q", req.GetName(), req.GetScope())
 	}
 
 	return scopedaccessv1.GetScopedRoleResponse_builder{
@@ -145,7 +149,10 @@ func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
 	return nil
 }
 
-// Delete removes a role from the cache by name.
-func (c *RoleCache) Delete(name string) {
-	c.cache.Del(name)
+// Delete removes a role from the cache by its scope-qualified name.
+func (c *RoleCache) Delete(role scopes.QualifiedName) {
+	c.cache.Del(cache.ScopedKey[string]{
+		Scope: role.Scope,
+		Key:   role.Name,
+	})
 }

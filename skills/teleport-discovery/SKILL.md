@@ -28,10 +28,16 @@ allowed-tools:
   - Bash(aws iam list-open-id-connect-providers:*)
   - Bash(aws iam get-open-id-connect-provider:*)
   - Bash(az account show:*)
+  - Bash(az account list:*)
   - Bash(az group show:*)
 ---
 
 # Teleport Auto-Discovery
+
+Connect Teleport to your cloud to automatically discover and enroll your resources. Use Terraform
+to create an OIDC integration in your cloud provider and configure the Teleport
+Discovery Service. Troubleshoot any issues getting your resources enrolled. Supports AWS EC2
+instances, AWS EKS clusters, and Azure VMS.
 
 ## Communicating
 
@@ -43,7 +49,7 @@ results.
 ## Determine the cloud
 
 Set `CLOUD` before anything else. Infer `aws` when the request names EC2, EKS, or an AWS
-account. Infer `azure` when it names VMs, a subscription, or a resource group. If
+account. Infer `azure` when it names VMs, a subscription, a resource group, or a management group. If
 the request implies neither, stop and ask the user which cloud. Do not run `aws` or `az` commands
 and do not write Terraform until `CLOUD` is set.
 

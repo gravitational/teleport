@@ -33,7 +33,7 @@ resource "teleport_scoped_role_assignment" "example" {
   spec = {
     user = "will"
     assignments = [{
-      role  = "example-scoped-role"
+      role  = "/staging::example-scoped-role"
       scope = "/staging/aa"
     }]
   }

@@ -215,6 +215,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktop, nil
 	case types.KindDynamicWindowsDesktop, "dynamic_win_desktop", "dynamic_desktop":
 		return types.KindDynamicWindowsDesktop, nil
+	case types.KindLinuxDesktop, types.KindLinuxDesktop + "s":
+		return types.KindLinuxDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
 	case types.KindInstaller:
@@ -317,6 +319,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWorkloadCluster, nil
 	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
 		return scopedaccess.KindScopedToken, nil
+	case types.KindBeamsConfig:
+		return types.KindBeamsConfig, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

@@ -1,6 +1,10 @@
 suite: ClusterRoleBinding
 templates:
   - clusterrolebinding.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates a ClusterRoleBinding
     asserts:
@@ -15,7 +19,7 @@ tests:
       - ../.lint/extra-labels.yaml
     asserts:
       - equal:
-          path: metadata.labels.app\.kubernetes\.io/name
+          path: metadata.labels["app.kubernetes.io/name"]
           value: teleport-kube-agent
       - equal:
           path: metadata.labels.resource

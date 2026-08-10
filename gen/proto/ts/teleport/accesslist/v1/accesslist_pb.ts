@@ -286,7 +286,7 @@ export interface AccessListGrants {
  */
 export interface ScopedRoleGrant {
     /**
-     * role is scope-qualified name of the scoped role to be granted.
+     * role is the scope-qualified name of the scoped role to be granted.
      *
      * @generated from protobuf field: string role = 1;
      */

@@ -14,6 +14,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Without the image-resize feature (the standalone tsh decoder), the cursor bitmap is still tracked
+// from the RDP stream but read only by the resize/crop compositor, so its accessors and the
+// synthetic default cursor are unused in that build. Keep them compiled rather than threading cfgs
+// through the decode path.
+#![cfg_attr(not(feature = "image-resize"), allow(dead_code))]
+
 use ironrdp_graphics::pointer::DecodedPointer;
 use std::sync::Arc;
 

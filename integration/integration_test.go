@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -312,7 +313,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest_builder{
+		status, err := clt.GetInventoryStatus(t.Context(), proto.InventoryStatusRequest_builder{
 			Connected: true,
 		}.Build())
 		require.NoError(t, err)
@@ -332,7 +333,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeAddr string
 	// verify node heartbeat was successful, extracting the addr.
 	require.Eventually(t, func() bool {
-		node, err := clt.GetNode(context.Background(), defaults.Namespace, nodeID)
+		node, err := clt.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: nodeID}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -3943,7 +3944,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 			Name:              name,
 			DisableWebService: true,
 		}
-		newConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &newConfig.FileDescriptors)
+		newConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxySSH, &newConfig.FileDescriptors)
 		newConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &newConfig.FileDescriptors)
 		newConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &newConfig.FileDescriptors)
 		reverseTunnelAddr = newConfig.ReverseTunnelAddr
@@ -4074,7 +4075,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		Name:              "cluster-main-proxy",
 		DisableWebService: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
@@ -4206,7 +4207,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		DisableWebInterface:    true,
 		DisableALPNSNIListener: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListener(t, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListener(t, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
@@ -4355,7 +4356,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		Name:              "cluster-main-proxy",
 		DisableWebService: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 

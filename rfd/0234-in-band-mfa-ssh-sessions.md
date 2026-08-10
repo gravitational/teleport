@@ -1,6 +1,6 @@
 ---
 authors: Chris Thach (chris.thach@goteleport.com)
-state: draft
+state: implemented (v19.0.0)
 ---
 
 # RFD 0234 - In-Band MFA for SSH Sessions

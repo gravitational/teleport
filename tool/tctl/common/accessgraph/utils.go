@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
@@ -35,6 +37,23 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// defaultTerminalWidth is the column count assumed when detection fails
+const defaultTerminalWidth = 80
+
+// terminalWidth returns the width of the terminal associated with out,
+// or a default if it cannot be determined.
+func terminalWidth(out io.Writer) int {
+	f, ok := out.(*os.File)
+	if !ok {
+		return defaultTerminalWidth
+	}
+	width, _, err := term.GetSize(int(f.Fd()))
+	if err != nil || width <= 0 {
+		return defaultTerminalWidth
+	}
+	return width
+}
 
 type timeValue struct {
 	target *time.Time

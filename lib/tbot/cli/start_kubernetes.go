@@ -53,8 +53,6 @@ func NewKubernetesCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mo
 	cmd.Flag("kubernetes-cluster", "The name of the Kubernetes cluster in Teleport for which to fetch credentials.").Required().StringVar(&c.KubernetesCluster)
 	cmd.Flag("disable-exec-plugin", "If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.").BoolVar(&c.DisableExecPlugin)
 
-	// Note: excluding roles; the bot will fetch all available in CLI mode.
-
 	return c
 }
 

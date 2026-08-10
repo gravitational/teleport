@@ -209,12 +209,18 @@ func TestCacheFiltering(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range items {
-				_, ok := cache.Get(item.Key())
+				_, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.False(t, ok, "item %+v should not be in cache before Put", item)
 
 				cache.Put(item)
 
-				got, ok := cache.Get(item.Key())
+				got, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.True(t, ok, "item %+v should be in cache after Put", item)
 				require.Equal(t, item, got, "item %+v should match after Put", item)
 				require.Equal(t, 1, cloned)
@@ -344,12 +350,18 @@ func TestCacheScopeAndRelatives(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range items {
-				_, ok := cache.Get(item.Key())
+				_, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.False(t, ok, "item %+v should not be in cache before Put", item)
 
 				cache.Put(item)
 
-				got, ok := cache.Get(item.Key())
+				got, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.True(t, ok, "item %+v should be in cache after Put", item)
 				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
@@ -401,12 +413,18 @@ func TestCacheConcurrency(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, item := range items {
-		_, ok := cache.Get(item.Key())
+		_, ok := cache.Get(ScopedKey[int]{
+			Scope: item.Scope(),
+			Key:   item.Key(),
+		})
 		require.False(t, ok, "item %+v should not be in cache before Put", item)
 
 		cache.Put(item)
 
-		got, ok := cache.Get(item.Key())
+		got, ok := cache.Get(ScopedKey[int]{
+			Scope: item.Scope(),
+			Key:   item.Key(),
+		})
 		require.True(t, ok, "item %+v should be in cache after Put", item)
 		require.Equal(t, item, got, "item %+v should match after Put", item)
 	}
@@ -452,7 +470,10 @@ func TestCacheConcurrency(t *testing.T) {
 	delDone := make(chan struct{})
 	go func() {
 		// perform a delete that will block until the background queries are done
-		cache.Del(1)
+		cache.Del(ScopedKey[int]{
+			Scope: "/",
+			Key:   1,
+		})
 		close(delDone)
 	}()
 
@@ -772,12 +793,18 @@ func TestCursorScenarios(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range tt.items {
-				_, ok := cache.Get(item.Key())
+				_, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.False(t, ok, "item %+v should not be in cache before Put", item)
 
 				cache.Put(item)
 
-				got, ok := cache.Get(item.Key())
+				got, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.True(t, ok, "item %+v should be in cache after Put", item)
 				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
@@ -958,12 +985,18 @@ func TestCursorPagination(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, item := range tt.items {
-				_, ok := cache.Get(item.Key())
+				_, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.False(t, ok, "item %+v should not be in cache before Put", item)
 
 				cache.Put(item)
 
-				got, ok := cache.Get(item.Key())
+				got, ok := cache.Get(ScopedKey[int]{
+					Scope: item.Scope(),
+					Key:   item.Key(),
+				})
 				require.True(t, ok, "item %+v should be in cache after Put", item)
 				require.Equal(t, item, got, "item %+v should match after Put", item)
 			}
@@ -1137,7 +1170,10 @@ func TestCacheOperations(t *testing.T) {
 	}
 
 	// verify deletion of a single intermediate item
-	cache.Del("child-scoped")
+	cache.Del(ScopedKey[string]{
+		Scope: "/child",
+		Key:   "child-scoped",
+	})
 	require.Equal(t, len(items)-1, cache.Len())
 
 	require.Equal(t, map[string][]string{
@@ -1154,7 +1190,10 @@ func TestCacheOperations(t *testing.T) {
 	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify deletion of a single root-scoped item
-	cache.Del("root-scoped")
+	cache.Del(ScopedKey[string]{
+		Scope: "/",
+		Key:   "root-scoped",
+	})
 	require.Equal(t, len(items)-2, cache.Len())
 
 	require.Equal(t, map[string][]string{
@@ -1171,7 +1210,10 @@ func TestCacheOperations(t *testing.T) {
 	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify full deletion of all contents of an intermediate scope
-	cache.Del("child-scoped-other")
+	cache.Del(ScopedKey[string]{
+		Scope: "/child",
+		Key:   "child-scoped-other",
+	})
 	require.Equal(t, len(items)-3, cache.Len())
 
 	require.Equal(t, map[string][]string{
@@ -1186,7 +1228,10 @@ func TestCacheOperations(t *testing.T) {
 	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verfiy full deletion of all contents of a root scope
-	cache.Del("root-scoped-other")
+	cache.Del(ScopedKey[string]{
+		Scope: "/",
+		Key:   "root-scoped-other",
+	})
 	require.Equal(t, len(items)-4, cache.Len())
 
 	require.Equal(t, map[string][]string{
@@ -1199,7 +1244,10 @@ func TestCacheOperations(t *testing.T) {
 	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify deletion of leaf scope
-	cache.Del("child-sub-scoped")
+	cache.Del(ScopedKey[string]{
+		Scope: "/child/subchild",
+		Key:   "child-sub-scoped",
+	})
 	require.Equal(t, len(items)-5, cache.Len())
 
 	require.Equal(t, map[string][]string{},
@@ -1225,21 +1273,40 @@ func TestCacheOperations(t *testing.T) {
 		"/orthogonal": {"child-orthogonal"},
 	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
-	// verify overwrite of existing item by primary key
+	// verify that the same key at a different scope is a distinct entry rather than
+	// displacing the existing one.
 	cache.Put(item[string]{
 		key:   "child-scoped",
 		scope: "/child/other",
 	})
-	require.Equal(t, len(items)-4, cache.Len())
+	require.Equal(t, len(items)-3, cache.Len())
 
-	require.Equal(t, map[string][]string{},
-		collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
+	// /child still contains its own "child-scoped" (it was not moved).
+	require.Equal(t, map[string][]string{
+		"/child": {"child-scoped"},
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
+		"/child":       {"child-scoped"},
 		"/child/other": {"child-scoped"},
 	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/other")))
 
 	require.Equal(t, map[string][]string{
+		"/child":       {"child-scoped"},
+		"/child/other": {"child-scoped"},
+		"/orthogonal":  {"child-orthogonal"},
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
+
+	// verify overwrite of an existing item at the same (scope, key) replaces in place without
+	// growing the cache.
+	cache.Put(item[string]{
+		key:   "child-scoped",
+		scope: "/child/other",
+	})
+	require.Equal(t, len(items)-3, cache.Len())
+
+	require.Equal(t, map[string][]string{
+		"/child":       {"child-scoped"},
 		"/child/other": {"child-scoped"},
 		"/orthogonal":  {"child-orthogonal"},
 	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))

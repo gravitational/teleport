@@ -255,7 +255,7 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	// Provided name may be unscoped or an SQN
 	name := c.workloadIdentityName
 	var scope string
-	if strings.Contains(name, scopes.QualifiedNameSeparator) {
+	if scopes.MaybeSQN(name) {
 		qn, err := scopes.ParseQualifiedName(name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -571,10 +571,7 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		}
 		certs, err := tlsca.ParseCertificatePEMs(f)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(certs) < 1 {
-			return trace.BadParameter("got no certificates from fullchain PEM file %q", p)
+			return trace.Wrap(err, "parsing fullchain PEM file %q", p)
 		}
 		overrides = append(overrides, certs)
 	}
