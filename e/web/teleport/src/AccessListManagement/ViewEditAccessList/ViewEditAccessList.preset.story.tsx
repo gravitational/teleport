@@ -199,15 +199,14 @@ export default {
 };
 
 export const WithAccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        ...makeAccessListHandlers(accessListWithPreset),
-        makeRolesHandler([presetStandardRole, presetAwsIcRole]),
-        ...commonHandlers,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeAccessListHandlers(accessListWithPreset),
+      makeRolesHandler([presetStandardRole, presetAwsIcRole]),
+      ...commonHandlers
+    );
   },
+
   render() {
     return (
       <Provider
@@ -225,14 +224,13 @@ export const WithAccess: StoryObj = {
 };
 
 export const NoReadPerm: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        ...makeAccessListHandlers(accessListWithPreset),
-        makeRolesHandler([presetStandardRole]),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeAccessListHandlers(accessListWithPreset),
+      makeRolesHandler([presetStandardRole])
+    );
   },
+
   render() {
     const restrictedAcl = makeAcl({
       ...allAccessAcl,
@@ -257,15 +255,14 @@ export const NoReadPerm: StoryObj = {
 };
 
 export const NoWritePerm: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        ...makeAccessListHandlers(accessListWithStandardRoleOnly),
-        makeRolesHandler([presetStandardRoleWithDeny]),
-        ...commonHandlers,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeAccessListHandlers(accessListWithStandardRoleOnly),
+      makeRolesHandler([presetStandardRoleWithDeny]),
+      ...commonHandlers
+    );
   },
+
   render() {
     const restrictedAcl = makeAcl({
       ...allAccessAcl,
@@ -295,15 +292,14 @@ export const NoWritePerm: StoryObj = {
 };
 
 export const InvalidRole: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        ...makeAccessListHandlers(accessListWithUnknownRoles),
-        makeRolesHandler([presetStandardRoleWithDeny]),
-        ...commonHandlers,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeAccessListHandlers(accessListWithUnknownRoles),
+      makeRolesHandler([presetStandardRoleWithDeny]),
+      ...commonHandlers
+    );
   },
+
   render() {
     return (
       <Provider
@@ -321,15 +317,14 @@ export const InvalidRole: StoryObj = {
 };
 
 export const NoAccessDefined: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        ...makeAccessListHandlers(accessListWithNoAccess),
-        makeRolesHandler([]),
-        ...commonHandlers,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeAccessListHandlers(accessListWithNoAccess),
+      makeRolesHandler([]),
+      ...commonHandlers
+    );
   },
+
   render() {
     return (
       <Provider

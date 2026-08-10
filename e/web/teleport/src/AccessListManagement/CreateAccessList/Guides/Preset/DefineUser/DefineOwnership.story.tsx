@@ -30,10 +30,8 @@ export default {
 };
 
 export const LongTerm: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: sharedHandlers,
-    },
+  beforeEach({ msw }) {
+    msw.use(...sharedHandlers);
   },
   render() {
     return (
@@ -47,10 +45,8 @@ export const LongTerm: StoryObj = {
 };
 
 export const ShortTerm: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: sharedHandlers,
-    },
+  beforeEach({ msw }) {
+    msw.use(...sharedHandlers);
   },
   render() {
     return (

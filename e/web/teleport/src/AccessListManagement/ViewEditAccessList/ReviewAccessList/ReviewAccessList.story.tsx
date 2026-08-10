@@ -51,10 +51,8 @@ export const WithFullAccessList = () => {
     </TeleportProviderBasicE>
   );
 };
-WithFullAccessList.parameters = {
-  msw: {
-    handlers: [getRolesHandler],
-  },
+WithFullAccessList.beforeEach = ({ msw }) => {
+  msw.use(getRolesHandler);
 };
 
 export const WithFullScimAccessList = () => {
@@ -70,10 +68,8 @@ export const WithFullScimAccessList = () => {
     </TeleportProviderBasicE>
   );
 };
-WithFullScimAccessList.parameters = {
-  msw: {
-    handlers: [getRolesHandler],
-  },
+WithFullScimAccessList.beforeEach = ({ msw }) => {
+  msw.use(getRolesHandler);
 };
 
 export const WithFullEntraIDAccessList = () => {
@@ -89,10 +85,8 @@ export const WithFullEntraIDAccessList = () => {
     </TeleportProviderBasicE>
   );
 };
-WithFullEntraIDAccessList.parameters = {
-  msw: {
-    handlers: [getRolesHandler],
-  },
+WithFullEntraIDAccessList.beforeEach = ({ msw }) => {
+  msw.use(getRolesHandler);
 };
 
 export const WithSparseAccessList = () => {
@@ -108,10 +102,8 @@ export const WithSparseAccessList = () => {
     </TeleportProviderBasicE>
   );
 };
-WithSparseAccessList.parameters = {
-  msw: {
-    handlers: [getRolesHandler],
-  },
+WithSparseAccessList.beforeEach = ({ msw }) => {
+  msw.use(getRolesHandler);
 };
 
 export const WithFullAccessListOwner = () => {
@@ -127,10 +119,8 @@ export const WithFullAccessListOwner = () => {
     </TeleportProviderBasicE>
   );
 };
-WithFullAccessListOwner.parameters = {
-  msw: {
-    handlers: [getRolesHandler],
-  },
+WithFullAccessListOwner.beforeEach = ({ msw }) => {
+  msw.use(getRolesHandler);
 };
 
 export const WithSparseAccessListOwner = () => {
@@ -146,10 +136,8 @@ export const WithSparseAccessListOwner = () => {
     </TeleportProviderBasicE>
   );
 };
-WithSparseAccessListOwner.parameters = {
-  msw: {
-    handlers: [getRolesHandler],
-  },
+WithSparseAccessListOwner.beforeEach = ({ msw }) => {
+  msw.use(getRolesHandler);
 };
 
 const mockAccessListFull: AccessListModified = {

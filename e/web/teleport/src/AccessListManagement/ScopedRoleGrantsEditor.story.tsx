@@ -39,33 +39,30 @@ export default {
 };
 
 export const EmptyWithoutAvailableRoles: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [makeRootScopedRolesHandler([])],
-    },
+  beforeEach({ msw }) {
+    msw.use(makeRootScopedRolesHandler([]));
   },
+
   render() {
     return <EditorStory initialGrants={[]} />;
   },
 };
 
 export const EmptyWithAvailableRoles: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [makeRootScopedRolesHandler(scopedRoles)],
-    },
+  beforeEach({ msw }) {
+    msw.use(makeRootScopedRolesHandler(scopedRoles));
   },
+
   render() {
     return <EditorStory initialGrants={[]} />;
   },
 };
 
 export const ExistingGrant: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [makeRootScopedRolesHandler(scopedRoles)],
-    },
+  beforeEach({ msw }) {
+    msw.use(makeRootScopedRolesHandler(scopedRoles));
   },
+
   render() {
     return (
       <EditorStory
@@ -76,11 +73,10 @@ export const ExistingGrant: StoryObj = {
 };
 
 export const ValidationError: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [makeRootScopedRolesHandler(scopedRoles)],
-    },
+  beforeEach({ msw }) {
+    msw.use(makeRootScopedRolesHandler(scopedRoles));
   },
+
   render() {
     return (
       <EditorStory

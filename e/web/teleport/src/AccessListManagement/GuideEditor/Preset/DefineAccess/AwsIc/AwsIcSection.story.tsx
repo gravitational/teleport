@@ -17,10 +17,8 @@ export default {
 };
 
 export const NoResourcesCta: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('get')]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('get')]));
   },
   render() {
     return (
@@ -32,12 +30,12 @@ export const NoResourcesCta: StoryObj = {
 };
 
 export const NoSelection: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeHandlers([
         fetchUnifiedResources('get', appsWithSomePermissionSets),
-      ]),
-    },
+      ])
+    );
   },
   render() {
     return (
@@ -49,12 +47,12 @@ export const NoSelection: StoryObj = {
 };
 
 export const WithSelection: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeHandlers([
         fetchUnifiedResources('get', appsWithSomePermissionSets),
-      ]),
-    },
+      ])
+    );
   },
   render() {
     return (
@@ -68,12 +66,12 @@ export const WithSelection: StoryObj = {
 };
 
 export const WithWildcardSelection: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeHandlers([
         fetchUnifiedResources('get', appsWithAllMatchingPermissionSet),
-      ]),
-    },
+      ])
+    );
   },
   render() {
     return (
@@ -87,10 +85,8 @@ export const WithWildcardSelection: StoryObj = {
 };
 
 export const Loading: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('loading')]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('loading')]));
   },
   render() {
     return (

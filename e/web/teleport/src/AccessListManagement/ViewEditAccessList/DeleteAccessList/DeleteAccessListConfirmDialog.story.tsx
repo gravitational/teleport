@@ -77,12 +77,10 @@ export const WithPresetLoading = () => {
     </StoryProvider>
   );
 };
-WithPresetLoading.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getRoleUrl({ action: 'listv2' }), () => delay('infinite')),
-    ],
-  },
+WithPresetLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getRoleUrl({ action: 'listv2' }), () => delay('infinite'))
+  );
 };
 
 export const WithPresetFetchError = () => {
@@ -95,17 +93,15 @@ export const WithPresetFetchError = () => {
     </StoryProvider>
   );
 };
-WithPresetFetchError.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getRoleUrl({ action: 'listv2' }), async () => {
-        return HttpResponse.json(
-          { message: 'Failed to fetch roles: whoops error' },
-          { status: 500 }
-        );
-      }),
-    ],
-  },
+WithPresetFetchError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getRoleUrl({ action: 'listv2' }), async () => {
+      return HttpResponse.json(
+        { message: 'Failed to fetch roles: whoops error' },
+        { status: 500 }
+      );
+    })
+  );
 };
 
 export const WithPresetRolesToBeDeletedTable = () => {
@@ -119,51 +115,46 @@ export const WithPresetRolesToBeDeletedTable = () => {
     </StoryProvider>
   );
 };
-WithPresetRolesToBeDeletedTable.parameters = {
-  msw: {
-    handlers: [
-      http.delete(
-        cfgE.getAccessManagementListUrl(':accessListId'),
-        async () => {
-          return HttpResponse.json({});
-        }
-      ),
-      http.get(cfg.getRoleUrl({ action: 'listv2' }), async () => {
-        return HttpResponse.json({
-          items: [
-            {
-              id: 'id1',
-              kind: 'role',
-              name: 'preset-role-abc123',
-              content: '',
-              object: {
-                metadata: {
-                  labels: {
-                    'teleport.internal/access-list-preset':
-                      'b59c9b50-b534-52ca-870e-9f7069b205dc',
-                  },
+WithPresetRolesToBeDeletedTable.beforeEach = ({ msw }) => {
+  msw.use(
+    http.delete(cfgE.getAccessManagementListUrl(':accessListId'), async () => {
+      return HttpResponse.json({});
+    }),
+    http.get(cfg.getRoleUrl({ action: 'listv2' }), async () => {
+      return HttpResponse.json({
+        items: [
+          {
+            id: 'id1',
+            kind: 'role',
+            name: 'preset-role-abc123',
+            content: '',
+            object: {
+              metadata: {
+                labels: {
+                  'teleport.internal/access-list-preset':
+                    'b59c9b50-b534-52ca-870e-9f7069b205dc',
                 },
               },
             },
-            {
-              id: 'id2',
-              kind: 'role',
-              name: 'preset-role-def456',
-              content: '',
-              object: {
-                metadata: {
-                  labels: {
-                    'teleport.internal/access-list-preset':
-                      'b59c9b50-b534-52ca-870e-9f7069b205dc',
-                  },
+          },
+          {
+            id: 'id2',
+            kind: 'role',
+            name: 'preset-role-def456',
+            content: '',
+            object: {
+              metadata: {
+                labels: {
+                  'teleport.internal/access-list-preset':
+                    'b59c9b50-b534-52ca-870e-9f7069b205dc',
                 },
               },
             },
-          ],
-        });
-      }),
-    ],
-  },
+          },
+        ],
+      });
+    })
+  );
 };
 
 const baseAccessList: AccessListModified = {

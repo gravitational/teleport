@@ -70,16 +70,13 @@ const standardRoleConditions = {
 };
 
 export const Default: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        listHandler,
-        http.post(cfg.getAccessManagementListUrl(), () =>
-          HttpResponse.json({})
-        ),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listHandler,
+      http.post(cfg.getAccessManagementListUrl(), () => HttpResponse.json({}))
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -91,19 +88,18 @@ export const Default: StoryObj = {
 };
 
 export const CreateFailed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        listHandler,
-        http.post(cfg.getAccessManagementListUrl(), () =>
-          HttpResponse.json(
-            { error: { message: 'Failed to create access list' } },
-            { status: 500 }
-          )
-        ),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listHandler,
+      http.post(cfg.getAccessManagementListUrl(), () =>
+        HttpResponse.json(
+          { error: { message: 'Failed to create access list' } },
+          { status: 500 }
+        )
+      )
+    );
   },
+
   render() {
     return (
       <Provider>

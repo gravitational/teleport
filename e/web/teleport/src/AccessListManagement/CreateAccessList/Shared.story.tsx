@@ -116,17 +116,15 @@ export function Loaded() {
     </Validation>
   );
 }
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getRoleUrl({ action: 'list' }), async () => {
-        await delay(1000);
-        return HttpResponse.json({
-          items: rawRoles,
-        });
-      }),
-    ],
-  },
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getRoleUrl({ action: 'list' }), async () => {
+      await delay(1000);
+      return HttpResponse.json({
+        items: rawRoles,
+      });
+    })
+  );
 };
 
 export function LoadError() {
@@ -145,19 +143,17 @@ export function LoadError() {
     </Validation>
   );
 }
-LoadError.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getRoleUrl({ action: 'list' }), () => {
-        return HttpResponse.json(
-          {
-            error: { message: 'Whoops, some error' },
-          },
-          { status: 404 }
-        );
-      }),
-    ],
-  },
+LoadError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getRoleUrl({ action: 'list' }), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Whoops, some error' },
+        },
+        { status: 404 }
+      );
+    })
+  );
 };
 
 export function Loading() {
@@ -176,14 +172,12 @@ export function Loading() {
     </Validation>
   );
 }
-Loading.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getRoleUrl({ action: 'list' }), async () => {
-        return delay('infinite');
-      }),
-    ],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getRoleUrl({ action: 'list' }), async () => {
+      return delay('infinite');
+    })
+  );
 };
 
 export function UserPickerDisplayNames() {

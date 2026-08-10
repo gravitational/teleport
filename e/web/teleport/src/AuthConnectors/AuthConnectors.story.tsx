@@ -19,14 +19,12 @@ export function Loaded() {
     </ContextWrapper>
   );
 }
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getAuthConnectorsListUrl(), () =>
-        HttpResponse.json({ connectors })
-      ),
-    ],
-  },
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getAuthConnectorsListUrl(), () =>
+      HttpResponse.json({ connectors })
+    )
+  );
 };
 
 export function Empty() {
@@ -36,12 +34,10 @@ export function Empty() {
     </ContextWrapper>
   );
 }
-Empty.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getAuthConnectorsListUrl(), () => HttpResponse.json([])),
-    ],
-  },
+Empty.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getAuthConnectorsListUrl(), () => HttpResponse.json([]))
+  );
 };
 
 export function Processing() {
@@ -51,15 +47,13 @@ export function Processing() {
     </ContextWrapper>
   );
 }
-Processing.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getAuthConnectorsListUrl(),
-        async () => await delay('infinite')
-      ),
-    ],
-  },
+Processing.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getAuthConnectorsListUrl(),
+      async () => await delay('infinite')
+    )
+  );
 };
 
 export function Failed() {
@@ -69,19 +63,17 @@ export function Failed() {
     </ContextWrapper>
   );
 }
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getAuthConnectorsListUrl(), () =>
-        HttpResponse.json(
-          { message: 'something went wrong' },
-          {
-            status: 500,
-          }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getAuthConnectorsListUrl(), () =>
+      HttpResponse.json(
+        { message: 'something went wrong' },
+        {
+          status: 500,
+        }
+      )
+    )
+  );
 };
 
 function ContextWrapper({ children }: { children: JSX.Element }) {

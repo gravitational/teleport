@@ -30,10 +30,8 @@ export default {
 };
 
 export const BasicInformation: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: sharedHandlers,
-    },
+  beforeEach({ msw }) {
+    msw.use(...sharedHandlers);
   },
   render() {
     return (

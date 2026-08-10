@@ -14,45 +14,39 @@ export default {
 export function Success() {
   return <Component />;
 }
-Success.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.accessMonitoringRule.terraform, () =>
-        HttpResponse.json({
-          terraform: ruleTerraform,
-        })
-      ),
-    ],
-  },
+Success.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.accessMonitoringRule.terraform, () =>
+      HttpResponse.json({
+        terraform: ruleTerraform,
+      })
+    )
+  );
 };
 
 export function Loading() {
   return <Component />;
 }
-Loading.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.accessMonitoringRule.terraform, () => {
-        return new Promise(() => {});
-      }),
-    ],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.accessMonitoringRule.terraform, () => {
+      return new Promise(() => {});
+    })
+  );
 };
 
 export function Failed() {
   return <Component />;
 }
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.accessMonitoringRule.terraform, () => {
-        return HttpResponse.json(
-          { message: 'Failed to fetch Terraform' },
-          { status: 404 }
-        );
-      }),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.accessMonitoringRule.terraform, () => {
+      return HttpResponse.json(
+        { message: 'Failed to fetch Terraform' },
+        { status: 404 }
+      );
+    })
+  );
 };
 
 const Component = () => {

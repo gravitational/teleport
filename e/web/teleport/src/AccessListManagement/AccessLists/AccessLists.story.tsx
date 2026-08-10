@@ -41,19 +41,18 @@ export default {
 };
 
 export const ListUnlimited: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return new Response(
-            JSON.stringify({
-              accessLists: mockAccessLists(),
-            })
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return new Response(
+          JSON.stringify({
+            accessLists: mockAccessLists(),
+          })
+        );
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
 
@@ -66,17 +65,14 @@ export const ListUnlimited: StoryObj = {
 };
 
 export const ListLimitedAccessCta: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return new Response(
-            JSON.stringify({ accessLists: mockAccessLists() })
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return new Response(JSON.stringify({ accessLists: mockAccessLists() }));
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 45 };
 
@@ -91,20 +87,19 @@ export const ListLimitedAccessCta: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json(
-            {
-              error: { message: 'Whoops, something went wrong.' },
-            },
-            { status: 400 }
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 400 }
+        );
+      })
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -115,15 +110,14 @@ export const Failed: StoryObj = {
 };
 
 export const NoAccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return new HttpResponse(null, { status: 403 });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return new HttpResponse(null, { status: 403 });
+      })
+    );
   },
+
   render() {
     return (
       <Provider customAcl={getAcl({ noAccess: true })}>
@@ -134,19 +128,18 @@ export const NoAccess: StoryObj = {
 };
 
 export const EmptyUnlimitedAccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [],
-            })
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [],
+          })
+        );
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = {
       enabled: true,
@@ -162,15 +155,14 @@ export const EmptyUnlimitedAccess: StoryObj = {
 };
 
 export const EmptyLimitedAccessCta: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return new HttpResponse(JSON.stringify({ accessLists: [] }));
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return new HttpResponse(JSON.stringify({ accessLists: [] }));
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 4 };
 

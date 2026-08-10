@@ -31,7 +31,16 @@ export default {
 
 export const ListSummariesEnabled: StoryObj = {
   name: 'List with session summaries enabled',
-  beforeEach() {
+  beforeEach({ msw }) {
+    msw.use(
+      withMockCluster(),
+      withMockEvents(),
+      withMockThumbnails(),
+      withSuccessSummary('session-001', 'This is a summary of session 001.'),
+      withSummaryWithGenerationError('session-004'),
+      withPendingSummary('session-005')
+    );
+
     cfg.oss.sessionSummarizerEnabled = true;
 
     localStorage.setItem(KeysEnum.ACCESS_GRAPH_ENABLED, 'true');
@@ -44,16 +53,6 @@ export const ListSummariesEnabled: StoryObj = {
   },
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        withMockCluster(),
-        withMockEvents(),
-        withMockThumbnails(),
-        withSuccessSummary('session-001', 'This is a summary of session 001.'),
-        withSummaryWithGenerationError('session-004'),
-        withPendingSummary('session-005'),
-      ],
-    },
   },
   render: () =>
     render({
@@ -63,7 +62,9 @@ export const ListSummariesEnabled: StoryObj = {
 
 export const ListSessionSummariesDisabled: StoryObj = {
   name: 'List with session summaries disabled',
-  beforeEach() {
+  beforeEach({ msw }) {
+    msw.use(withMockCluster(), withMockEvents(), withMockThumbnails());
+
     localStorage.setItem(KeysEnum.ACCESS_GRAPH_ENABLED, 'true');
 
     return () => {
@@ -72,9 +73,6 @@ export const ListSessionSummariesDisabled: StoryObj = {
   },
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [withMockCluster(), withMockEvents(), withMockThumbnails()],
-    },
   },
   render: () =>
     render({
@@ -84,7 +82,9 @@ export const ListSessionSummariesDisabled: StoryObj = {
 
 export const ListSessionSummariesNoAccessToSetup: StoryObj = {
   name: 'List with session summaries disabled and no access to setup',
-  beforeEach() {
+  beforeEach({ msw }) {
+    msw.use(withMockCluster(), withMockEvents(), withMockThumbnails());
+
     localStorage.setItem(KeysEnum.ACCESS_GRAPH_ENABLED, 'true');
 
     return () => {
@@ -93,9 +93,6 @@ export const ListSessionSummariesNoAccessToSetup: StoryObj = {
   },
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [withMockCluster(), withMockEvents(), withMockThumbnails()],
-    },
   },
   render: () =>
     render({

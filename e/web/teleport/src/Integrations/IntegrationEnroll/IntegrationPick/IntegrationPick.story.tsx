@@ -60,18 +60,17 @@ export default {
 };
 
 export const NoPluginsEnrolled: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.pluginTypesPath, () => {
-          return HttpResponse.json(onboardSupportPluginKinds);
-        }),
-        http.get(cfg.api.plugin.list, () => {
-          return HttpResponse.json([]);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.pluginTypesPath, () => {
+        return HttpResponse.json(onboardSupportPluginKinds);
+      }),
+      http.get(cfg.api.plugin.list, () => {
+        return HttpResponse.json([]);
+      })
+    );
   },
+
   render() {
     const ctx = createTeleportContextE();
     return render(ctx);
@@ -79,18 +78,17 @@ export const NoPluginsEnrolled: StoryObj = {
 };
 
 export const PluginsEnrolled: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.pluginTypesPath, () => {
-          return HttpResponse.json(onboardSupportPluginKinds);
-        }),
-        http.get(cfg.api.plugin.list, () => {
-          return HttpResponse.json(mockGetPluginsReply);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.pluginTypesPath, () => {
+        return HttpResponse.json(onboardSupportPluginKinds);
+      }),
+      http.get(cfg.api.plugin.list, () => {
+        return HttpResponse.json(mockGetPluginsReply);
+      })
+    );
   },
+
   render() {
     const ctx = createTeleportContextE();
 
@@ -99,20 +97,19 @@ export const PluginsEnrolled: StoryObj = {
 };
 
 export const Error: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.pluginTypesPath, () => {
-          return HttpResponse.json(
-            {
-              message: 'some error message',
-            },
-            { status: 500 }
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.pluginTypesPath, () => {
+        return HttpResponse.json(
+          {
+            message: 'some error message',
+          },
+          { status: 500 }
+        );
+      })
+    );
   },
+
   render() {
     const ctx = createTeleportContextE();
 
@@ -133,18 +130,17 @@ export const NoAccess = () => {
 };
 
 export const RequiresEnterprise: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.pluginTypesPath, () => {
-          return HttpResponse.json(onboardSupportPluginKinds);
-        }),
-        http.get(cfg.api.plugin.list, () => {
-          return HttpResponse.json(mockGetPluginsReply);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.pluginTypesPath, () => {
+        return HttpResponse.json(onboardSupportPluginKinds);
+      }),
+      http.get(cfg.api.plugin.list, () => {
+        return HttpResponse.json(mockGetPluginsReply);
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.ExternalAuditStorage = { enabled: false, limit: 0 };
     const ctx = createTeleportContextE();
@@ -154,18 +150,17 @@ export const RequiresEnterprise: StoryObj = {
 };
 
 export const FullFeatures: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.pluginTypesPath, () => {
-          return HttpResponse.json(onboardSupportPluginKinds);
-        }),
-        http.get(cfg.api.plugin.list, () => {
-          return HttpResponse.json(mockGetPluginsReply);
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.pluginTypesPath, () => {
+        return HttpResponse.json(onboardSupportPluginKinds);
+      }),
+      http.get(cfg.api.plugin.list, () => {
+        return HttpResponse.json(mockGetPluginsReply);
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };

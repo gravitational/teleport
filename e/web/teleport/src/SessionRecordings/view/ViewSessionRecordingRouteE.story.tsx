@@ -48,17 +48,20 @@ export default meta;
 
 export const ViewWithSessionSummary: StoryObj = {
   name: 'View with session summary available',
+
+  beforeEach({ msw }) {
+    msw.use(
+      withMockCluster(),
+      withMockEvents(),
+      withMockThumbnails(),
+      withSuccessSummary('session-001', 'This is a summary of session 001.')
+    );
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        withMockCluster(),
-        withMockEvents(),
-        withMockThumbnails(),
-        withSuccessSummary('session-001', 'This is a summary of session 001.'),
-      ],
-    },
   },
+
   render: () =>
     render(
       '/web/cluster/teleport/session/session-001?recordingType=ssh&durationMs=20000',
@@ -71,17 +74,19 @@ export const ViewWithSessionSummary: StoryObj = {
 export const ViewWithSessionSummaryPending: StoryObj = {
   name: 'View with session summary generation pending',
 
+  beforeEach({ msw }) {
+    msw.use(
+      withMockCluster(),
+      withMockEvents(),
+      withMockThumbnails(),
+      withPendingSummary('session-001')
+    );
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        withMockCluster(),
-        withMockEvents(),
-        withMockThumbnails(),
-        withPendingSummary('session-001'),
-      ],
-    },
   },
+
   render: () =>
     render(
       '/web/cluster/teleport/session/session-001?recordingType=ssh&durationMs=20000',
@@ -94,17 +99,19 @@ export const ViewWithSessionSummaryPending: StoryObj = {
 export const ViewWithSessionSummaryGenerationError: StoryObj = {
   name: 'View with session summary generation error',
 
+  beforeEach({ msw }) {
+    msw.use(
+      withMockCluster(),
+      withMockEvents(),
+      withMockThumbnails(),
+      withSummaryWithGenerationError('session-001')
+    );
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        withMockCluster(),
-        withMockEvents(),
-        withMockThumbnails(),
-        withSummaryWithGenerationError('session-001'),
-      ],
-    },
   },
+
   render: () =>
     render(
       '/web/cluster/teleport/session/session-001?recordingType=ssh&durationMs=20000',

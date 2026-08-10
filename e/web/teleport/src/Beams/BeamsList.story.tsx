@@ -36,10 +36,8 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBeamsSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBeamsSuccess());
   },
 };
 
@@ -47,85 +45,66 @@ const ownedBeams = defaultBeams.map(b => ({ ...b, user: 'llama' }));
 
 export const WithFullAccess: Story = {
   args: { hasChangePermission: true },
-  parameters: {
-    msw: {
-      handlers: [listBeamsSuccess({ items: ownedBeams, next_page_token: '' })],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(listBeamsSuccess({ items: ownedBeams, next_page_token: '' }));
   },
 };
 
 export const AdminViewingOthers: Story = {
   args: { hasChangePermission: true, showMyBeamsOnly: false },
-  parameters: {
-    msw: {
-      handlers: [listBeamsSuccess()],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(listBeamsSuccess());
   },
 };
 
 export const Empty: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        listBeamsSuccess({
-          items: [],
-          next_page_token: '',
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listBeamsSuccess({
+        items: [],
+        next_page_token: '',
+      })
+    );
   },
 };
 
 export const NoListPermission: Story = {
   args: { hasListPermission: false },
-  parameters: {
-    msw: {
-      handlers: [
-        /* should never make a call */
-      ],
-    },
-  },
 };
 
 export const Error: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBeamsError(500, 'something went wrong')],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBeamsError(500, 'something went wrong'));
   },
 };
 
 export const OutdatedProxy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        listBeamsError(404, 'path not found', {
-          proxyVersion: {
-            major: 18,
-            minor: 0,
-            patch: 0,
-            preRelease: '',
-            string: '18.0.0',
-          },
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listBeamsError(404, 'path not found', {
+        proxyVersion: {
+          major: 18,
+          minor: 0,
+          patch: 0,
+          preRelease: '',
+          string: '18.0.0',
+        },
+      })
+    );
   },
 };
 
 export const UnsupportedSort: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBeamsError(400, 'unsupported sort, with some more info')],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBeamsError(400, 'unsupported sort, with some more info'));
   },
 };
 
 export const Loading: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBeamsForever()],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBeamsForever());
   },
 };
 

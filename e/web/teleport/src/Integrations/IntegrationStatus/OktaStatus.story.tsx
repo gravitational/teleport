@@ -97,13 +97,12 @@ const basePluginResp = {
 };
 
 export const WithAllFeaturesEnabled = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.plugin.get, () => HttpResponse.json(basePluginResp)),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.plugin.get, () => HttpResponse.json(basePluginResp))
+    );
   },
+
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
     storageService.getAccessGraphEnabled = () => true;
@@ -112,30 +111,29 @@ export const WithAllFeaturesEnabled = {
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const WithAllFeaturesEnabledWithoutAppName = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.plugin.get, () =>
-          HttpResponse.json({
-            ...basePluginResp,
-            status: {
-              ...basePluginResp.status,
-              details: {
-                ...basePluginResp.status.details,
-                okta: {
-                  ...basePluginResp.status.details.okta,
-                  sso_details: {
-                    ...basePluginResp.status.details.okta.sso_details,
-                    app_name: '',
-                  },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.plugin.get, () =>
+        HttpResponse.json({
+          ...basePluginResp,
+          status: {
+            ...basePluginResp.status,
+            details: {
+              ...basePluginResp.status.details,
+              okta: {
+                ...basePluginResp.status.details.okta,
+                sso_details: {
+                  ...basePluginResp.status.details.okta.sso_details,
+                  app_name: '',
                 },
               },
             },
-          })
-        ),
-      ],
-    },
+          },
+        })
+      )
+    );
   },
+
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
     storageService.getAccessGraphEnabled = () => true;
@@ -144,95 +142,92 @@ export const WithAllFeaturesEnabledWithoutAppName = {
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const Loading = {
-  parameters: {
-    msw: {
-      handlers: [http.get(cfg.api.plugin.get, () => delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(http.get(cfg.api.plugin.get, () => delay('infinite')));
   },
+
   render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'okta')),
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const Failed = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.plugin.get, () =>
-          HttpResponse.json(
-            {
-              message: 'Whoops, some kind of bad parameter message',
-            },
-            { status: 404 }
-          )
-        ),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.plugin.get, () =>
+        HttpResponse.json(
+          {
+            message: 'Whoops, some kind of bad parameter message',
+          },
+          { status: 404 }
+        )
+      )
+    );
   },
+
   render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'okta')),
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const WithSyncErrors = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.plugin.get, () =>
-          HttpResponse.json({
-            ...basePluginResp,
-            spec: {
-              ...basePluginResp.spec,
-              enableUserSync: true,
-              enableAppGroupSync: true,
-              enableAccessListSync: true,
-              credentialsInfo: {
-                hasConfiguredOauthCredentials: true,
-                hasSCIMToken: true,
-              },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.plugin.get, () =>
+        HttpResponse.json({
+          ...basePluginResp,
+          spec: {
+            ...basePluginResp.spec,
+            enableUserSync: true,
+            enableAppGroupSync: true,
+            enableAccessListSync: true,
+            credentialsInfo: {
+              hasConfiguredOauthCredentials: true,
+              hasSCIMToken: true,
             },
-            statusCode: PluginOktaSyncStatusCode.Error,
-            status: {
-              details: {
-                okta: {
-                  sso_details: {
-                    enabled: false,
-                    app_id: 'banana',
-                    app_name: 'banana',
-                    okta_group_everyone_mapped_roles: ['banana'],
-                  },
-                  app_group_sync_details: {
-                    status_code: PluginOktaSyncStatusCode.Error,
-                    error:
-                      'lorem ipsum dolores some long error message george washington was the first president of the united states',
-                    last_successful: null,
-                    last_failed: new Date(Date.now() - 1000 * 60),
-                    num_apps_synced: 0,
-                    num_groups_synced: 0,
-                  },
-                  users_sync_details: {
-                    enabled: false,
-                    status_code: PluginOktaSyncStatusCode.Error,
-                    error: 'some error message',
-                    last_successful: null,
-                    last_failed: new Date(Date.now() - 1000 * 60),
-                    numUsers: 0,
-                  },
-                  access_lists_sync_details: {
-                    app_filters: ['app*'],
-                    group_filters: [],
-                    enabled: false,
-                    status_code: PluginOktaSyncStatusCode.Error,
-                    error: 'some error message',
-                    last_successful: null,
-                    last_failed: new Date(Date.now() - 1000 * 60),
-                    num_apps_synced: 0,
-                    num_groups_synced: 0,
-                  },
+          },
+          statusCode: PluginOktaSyncStatusCode.Error,
+          status: {
+            details: {
+              okta: {
+                sso_details: {
+                  enabled: false,
+                  app_id: 'banana',
+                  app_name: 'banana',
+                  okta_group_everyone_mapped_roles: ['banana'],
+                },
+                app_group_sync_details: {
+                  status_code: PluginOktaSyncStatusCode.Error,
+                  error:
+                    'lorem ipsum dolores some long error message george washington was the first president of the united states',
+                  last_successful: null,
+                  last_failed: new Date(Date.now() - 1000 * 60),
+                  num_apps_synced: 0,
+                  num_groups_synced: 0,
+                },
+                users_sync_details: {
+                  enabled: false,
+                  status_code: PluginOktaSyncStatusCode.Error,
+                  error: 'some error message',
+                  last_successful: null,
+                  last_failed: new Date(Date.now() - 1000 * 60),
+                  numUsers: 0,
+                },
+                access_lists_sync_details: {
+                  app_filters: ['app*'],
+                  group_filters: [],
+                  enabled: false,
+                  status_code: PluginOktaSyncStatusCode.Error,
+                  error: 'some error message',
+                  last_successful: null,
+                  last_failed: new Date(Date.now() - 1000 * 60),
+                  num_apps_synced: 0,
+                  num_groups_synced: 0,
                 },
               },
             },
-          })
-        ),
-      ],
-    },
+          },
+        })
+      )
+    );
   },
+
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
     return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
@@ -240,40 +235,39 @@ export const WithSyncErrors = {
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const WithCta = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.plugin.get, () =>
-          HttpResponse.json({
-            ...basePluginResp,
-            spec: {
-              orgUrl: basePluginResp.spec.orgUrl,
-              teleportSsoConnector: basePluginResp.spec.teleportSsoConnector,
-            },
-            status: {
-              details: {
-                okta: {
-                  sso_details: basePluginResp.status.details.okta.sso_details,
-                  app_group_sync_details: {
-                    last_successful: null,
-                    last_failed: null,
-                  },
-                  users_sync_details: {
-                    last_successful: null,
-                    last_failed: null,
-                  },
-                  access_lists_sync_details: {
-                    last_successful: null,
-                    last_failed: null,
-                  },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.plugin.get, () =>
+        HttpResponse.json({
+          ...basePluginResp,
+          spec: {
+            orgUrl: basePluginResp.spec.orgUrl,
+            teleportSsoConnector: basePluginResp.spec.teleportSsoConnector,
+          },
+          status: {
+            details: {
+              okta: {
+                sso_details: basePluginResp.status.details.okta.sso_details,
+                app_group_sync_details: {
+                  last_successful: null,
+                  last_failed: null,
+                },
+                users_sync_details: {
+                  last_successful: null,
+                  last_failed: null,
+                },
+                access_lists_sync_details: {
+                  last_successful: null,
+                  last_failed: null,
                 },
               },
             },
-          })
-        ),
-      ],
-    },
+          },
+        })
+      )
+    );
   },
+
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: false, limit: 0 };
     return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));

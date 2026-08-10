@@ -15,16 +15,15 @@ import { UpdateAccessRolesDialog as Component } from './UpdateAccessRolesDialog'
 
 export default {
   title: 'TeleportE/AccessLists/Guide/UpdateAccessListDialog',
-  parameters: {
-    msw: {
-      handlers: [
-        ...makeHandlers(),
-        http.delete(cfg.api.role.delete, async () => {
-          await delay(300);
-          return HttpResponse.json({});
-        }),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeHandlers(),
+      http.delete(cfg.api.role.delete, async () => {
+        await delay(300);
+        return HttpResponse.json({});
+      })
+    );
   },
 };
 

@@ -26,15 +26,11 @@ export const Success = () => {
     </MemoryRouter>
   );
 };
-Success.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
-      http.put(cfg.api.gitServer.createOrOverwrite, () =>
-        HttpResponse.json({})
-      ),
-    ],
-  },
+Success.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
+    http.put(cfg.api.gitServer.createOrOverwrite, () => HttpResponse.json({}))
+  );
 };
 
 export const LoadingCreateIntegration = () => {
@@ -44,10 +40,8 @@ export const LoadingCreateIntegration = () => {
     </MemoryRouter>
   );
 };
-LoadingCreateIntegration.parameters = {
-  msw: {
-    handlers: [http.post(cfg.api.integrationsPath, () => delay('infinite'))],
-  },
+LoadingCreateIntegration.beforeEach = ({ msw }) => {
+  msw.use(http.post(cfg.api.integrationsPath, () => delay('infinite')));
 };
 
 export const LoadingCreateServer = () => {
@@ -57,13 +51,11 @@ export const LoadingCreateServer = () => {
     </MemoryRouter>
   );
 };
-LoadingCreateServer.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
-      http.put(cfg.api.gitServer.createOrOverwrite, () => delay('infinite')),
-    ],
-  },
+LoadingCreateServer.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
+    http.put(cfg.api.gitServer.createOrOverwrite, () => delay('infinite'))
+  );
 };
 
 export const FailedCreateIntegration = () => {
@@ -73,19 +65,17 @@ export const FailedCreateIntegration = () => {
     </MemoryRouter>
   );
 };
-FailedCreateIntegration.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error creating integration.' },
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+FailedCreateIntegration.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error creating integration.' },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const FailedCreateServer = () => {
@@ -95,21 +85,18 @@ export const FailedCreateServer = () => {
     </MemoryRouter>
   );
 };
-FailedCreateServer.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
-
-      http.put(cfg.api.gitServer.createOrOverwrite, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error creating server.' },
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+FailedCreateServer.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
+    http.put(cfg.api.gitServer.createOrOverwrite, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error creating server.' },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const IntegrationAlreadyExists = () => {
@@ -119,19 +106,17 @@ export const IntegrationAlreadyExists = () => {
     </MemoryRouter>
   );
 };
-IntegrationAlreadyExists.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error creating integration.' },
-          },
-          { status: 409 }
-        )
-      ),
-    ],
-  },
+IntegrationAlreadyExists.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error creating integration.' },
+        },
+        { status: 409 }
+      )
+    )
+  );
 };
 
 export const ServerAlreadyExists = () => {
@@ -141,19 +126,16 @@ export const ServerAlreadyExists = () => {
     </MemoryRouter>
   );
 };
-ServerAlreadyExists.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
-
-      http.put(cfg.api.gitServer.createOrOverwrite, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error creating server.' },
-          },
-          { status: 409 }
-        )
-      ),
-    ],
-  },
+ServerAlreadyExists.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
+    http.put(cfg.api.gitServer.createOrOverwrite, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error creating server.' },
+        },
+        { status: 409 }
+      )
+    )
+  );
 };

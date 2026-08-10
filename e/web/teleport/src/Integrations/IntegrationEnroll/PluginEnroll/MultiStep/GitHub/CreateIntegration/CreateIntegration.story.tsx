@@ -24,13 +24,9 @@ export const Success = () => {
     </MemoryRouter>
   );
 };
-Success.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
-      http.put(cfg.api.gitServer.createOrOverwrite, () =>
-        HttpResponse.json({})
-      ),
-    ],
-  },
+Success.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.integrationsPath, () => HttpResponse.json({})),
+    http.put(cfg.api.gitServer.createOrOverwrite, () => HttpResponse.json({}))
+  );
 };

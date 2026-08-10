@@ -54,17 +54,15 @@ export const Enroll = () => {
   );
 };
 
-Enroll.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponse)
-      ),
-      http.post(cfg.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponse)
-      ),
-    ],
-  },
+Enroll.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponse)
+    ),
+    http.post(cfg.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponse)
+    )
+  );
 };
 
 export const MissingPermissions = () => {
@@ -82,20 +80,18 @@ export const MissingPermissions = () => {
   );
 };
 
-MissingPermissions.parameters = {
-  msw: {
-    handlers: [
-      http.post(ecfg.getPluginValidateUrl(), () =>
-        HttpResponse.json(
-          {
-            error: {
-              message: `You are missing the following permissions to complete this plugin installation:\n- Verb create on resource kind integration\n- Verb create on resource kind saml_idp_service_provider\n- Version 8 role allowing "app_labels" matching label "teleport.dev/origin : aws-identity-center"`,
-              response: { status: 401 } as Response,
-            },
+MissingPermissions.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(ecfg.getPluginValidateUrl(), () =>
+      HttpResponse.json(
+        {
+          error: {
+            message: `You are missing the following permissions to complete this plugin installation:\n- Verb create on resource kind integration\n- Verb create on resource kind saml_idp_service_provider\n- Version 8 role allowing "app_labels" matching label "teleport.dev/origin : aws-identity-center"`,
+            response: { status: 401 } as Response,
           },
-          { status: 401 }
-        )
-      ),
-    ],
-  },
+        },
+        { status: 401 }
+      )
+    )
+  );
 };

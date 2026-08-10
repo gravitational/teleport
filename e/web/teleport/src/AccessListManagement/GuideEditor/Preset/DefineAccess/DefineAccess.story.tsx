@@ -10,10 +10,8 @@ export default {
 };
 
 export const WithResourcesInCluster: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('get', null)]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('get', null)]));
   },
   render() {
     return (
@@ -25,10 +23,8 @@ export const WithResourcesInCluster: StoryObj = {
 };
 
 export const NoResourceInCluster: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('get', [])]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('get', [])]));
   },
   render() {
     return (
@@ -40,10 +36,8 @@ export const NoResourceInCluster: StoryObj = {
 };
 
 export const LoadingResources: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('loading')]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('loading')]));
   },
   render() {
     return (
@@ -55,10 +49,8 @@ export const LoadingResources: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('any-error')]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('any-error')]));
   },
   render() {
     return (

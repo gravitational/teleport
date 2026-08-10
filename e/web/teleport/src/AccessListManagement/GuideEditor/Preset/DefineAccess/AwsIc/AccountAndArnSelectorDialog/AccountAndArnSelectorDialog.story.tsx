@@ -19,12 +19,10 @@ export default {
 };
 
 export const NoPermissionSets: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([
-        fetchUnifiedResources('get', appsWithoutPermissionSets),
-      ]),
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeHandlers([fetchUnifiedResources('get', appsWithoutPermissionSets)])
+    );
   },
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
@@ -39,12 +37,12 @@ export const NoPermissionSets: StoryObj = {
 };
 
 export const WithPermissionSets: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([
+  beforeEach({ msw }) {
+    msw.use(
+      ...makeHandlers([
         fetchUnifiedResources('get', appsWithAllMatchingPermissionSet),
-      ]),
-    },
+      ])
+    );
   },
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
@@ -59,10 +57,8 @@ export const WithPermissionSets: StoryObj = {
 };
 
 export const FetchFailed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('any-error')]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('any-error')]));
   },
   render() {
     return (
@@ -74,10 +70,8 @@ export const FetchFailed: StoryObj = {
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('loading')]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('loading')]));
   },
   render() {
     return (

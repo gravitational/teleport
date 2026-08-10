@@ -47,45 +47,44 @@ const getRootScopedRolesHandler = http.get(rootScopedRolesPath, () => {
 });
 
 export const ViewingAsOwnerWithNoRbac: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListAsOwner,
-            });
-          }
-        ),
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawAccessListAsOwner.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json(rawReviewsResponse);
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawNestedAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessListAsOwner, rawNestedAccessList],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListAsOwner,
+          });
+        }
+      ),
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawAccessListAsOwner.metadata.name },
         }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json(rawReviewsResponse);
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawNestedAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessListAsOwner, rawNestedAccessList],
+          })
+        );
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -107,36 +106,35 @@ export const ViewingAsOwnerWithNoRbac: StoryObj = {
 };
 
 export const ViewingAsMember: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListAsMember,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessListAsMember, rawNestedAccessList],
-            })
-          );
-        }),
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListAsMember,
-            });
-          }
-        ),
-        getRootScopedRolesHandler,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListAsMember,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessListAsMember, rawNestedAccessList],
+          })
+        );
+      }),
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListAsMember,
+          });
+        }
+      ),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -158,65 +156,64 @@ export const ViewingAsMember: StoryObj = {
 };
 
 export const ViewingAsAdmin: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawAccessList.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json(rawReviewsResponse);
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessList,
-            });
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawNestedAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessList, rawNestedAccessList],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawAccessList.metadata.name },
         }),
-        http.get(cfg.oss.getUsersUrl(), () => {
-          return HttpResponse.json([
-            { name: 'apple' },
-            { name: 'banana' },
-            {
-              name: 'carrot',
-              roles: ['reviewer', 'auditor'],
-              allTraits: { fruit: ['carrot'] },
-            },
-          ]);
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([
-            { name: 'admin' },
-            { name: 'auditor' },
-            { name: 'reviewer' },
-            { name: 'access' },
-            { name: 'editor' },
-          ]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json(rawReviewsResponse);
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessList,
+          });
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawNestedAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessList, rawNestedAccessList],
+          })
+        );
+      }),
+      http.get(cfg.oss.getUsersUrl(), () => {
+        return HttpResponse.json([
+          { name: 'apple' },
+          { name: 'banana' },
+          {
+            name: 'carrot',
+            roles: ['reviewer', 'auditor'],
+            allTraits: { fruit: ['carrot'] },
+          },
+        ]);
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([
+          { name: 'admin' },
+          { name: 'auditor' },
+          { name: 'reviewer' },
+          { name: 'access' },
+          { name: 'editor' },
+        ]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -234,56 +231,55 @@ export const ViewingAsAdmin: StoryObj = {
 };
 
 export const ViewingAsAdminOktaList: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawAccessListOkta.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json(rawReviewsResponse);
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessListOkta.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListOkta,
-            });
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawNestedAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessListOkta, rawNestedAccessList],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawAccessListOkta.metadata.name },
         }),
-        http.get(cfg.oss.getUsersUrl(), () => {
-          return HttpResponse.json([
-            { name: 'apple' },
-            {
-              name: 'carrot',
-            },
-          ]);
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json(rawReviewsResponse);
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessListOkta.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListOkta,
+          });
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawNestedAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessListOkta, rawNestedAccessList],
+          })
+        );
+      }),
+      http.get(cfg.oss.getUsersUrl(), () => {
+        return HttpResponse.json([
+          { name: 'apple' },
+          {
+            name: 'carrot',
+          },
+        ]);
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -304,56 +300,55 @@ export const ViewingAsAdminOktaList: StoryObj = {
 };
 
 export const ViewingAsAdminStaticList: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawAccessListStatic.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json(rawReviewsResponse);
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessListStatic.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListStatic,
-            });
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawNestedAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessListStatic, rawNestedAccessList],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawAccessListStatic.metadata.name },
         }),
-        http.get(cfg.oss.getUsersUrl(), () => {
-          return HttpResponse.json([
-            { name: 'apple' },
-            {
-              name: 'carrot',
-            },
-          ]);
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json(rawReviewsResponse);
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessListStatic.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListStatic,
+          });
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawNestedAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessListStatic, rawNestedAccessList],
+          })
+        );
+      }),
+      http.get(cfg.oss.getUsersUrl(), () => {
+        return HttpResponse.json([
+          { name: 'apple' },
+          {
+            name: 'carrot',
+          },
+        ]);
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -373,56 +368,55 @@ export const ViewingAsAdminStaticList: StoryObj = {
 };
 
 export const ViewingAsAdminScimList: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawAccessListScim.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json(rawReviewsResponse);
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessListScim.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListScim,
-            });
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawNestedAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessListScim, rawNestedAccessList],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawAccessListScim.metadata.name },
         }),
-        http.get(cfg.oss.getUsersUrl(), () => {
-          return HttpResponse.json([
-            { name: 'apple' },
-            {
-              name: 'carrot',
-            },
-          ]);
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json(rawReviewsResponse);
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessListScim.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListScim,
+          });
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawNestedAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessListScim, rawNestedAccessList],
+          })
+        );
+      }),
+      http.get(cfg.oss.getUsersUrl(), () => {
+        return HttpResponse.json([
+          { name: 'apple' },
+          {
+            name: 'carrot',
+          },
+        ]);
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -442,56 +436,55 @@ export const ViewingAsAdminScimList: StoryObj = {
 };
 
 export const ViewingAsAdminEntraIDList: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawAccessListEntraID.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json(rawReviewsResponse);
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessListEntraID.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawAccessListEntraID,
-            });
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawNestedAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [rawAccessListEntraID, rawNestedAccessList],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawAccessListEntraID.metadata.name },
         }),
-        http.get(cfg.oss.getUsersUrl(), () => {
-          return HttpResponse.json([
-            { name: 'apple' },
-            {
-              name: 'carrot',
-            },
-          ]);
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json(rawReviewsResponse);
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessListEntraID.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawAccessListEntraID,
+          });
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawNestedAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [rawAccessListEntraID, rawNestedAccessList],
+          })
+        );
+      }),
+      http.get(cfg.oss.getUsersUrl(), () => {
+        return HttpResponse.json([
+          { name: 'apple' },
+          {
+            name: 'carrot',
+          },
+        ]);
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -512,43 +505,42 @@ export const ViewingAsAdminEntraIDList: StoryObj = {
 };
 
 export const ViewingAsAdminEmptyList: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessListUrl({
-            action: 'reviews',
-            params: { accessListId: rawEmptyAccessList.metadata.name },
-          }),
-          () => {
-            return HttpResponse.json({});
-          }
-        ),
-        http.get(
-          cfg.getAccessManagementListUrl(rawEmptyAccessList.metadata.name),
-          () => {
-            return HttpResponse.json({
-              accessList: rawEmptyAccessList,
-            });
-          }
-        ),
-        http.get(cfg.getAccessManagementListUrl(), () => {
-          return new HttpResponse(
-            JSON.stringify({
-              accessLists: [],
-            })
-          );
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessListUrl({
+          action: 'reviews',
+          params: { accessListId: rawEmptyAccessList.metadata.name },
         }),
-        http.get(cfg.oss.getUsersUrl(), () => {
-          return HttpResponse.json([]);
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+        () => {
+          return HttpResponse.json({});
+        }
+      ),
+      http.get(
+        cfg.getAccessManagementListUrl(rawEmptyAccessList.metadata.name),
+        () => {
+          return HttpResponse.json({
+            accessList: rawEmptyAccessList,
+          });
+        }
+      ),
+      http.get(cfg.getAccessManagementListUrl(), () => {
+        return new HttpResponse(
+          JSON.stringify({
+            accessLists: [],
+          })
+        );
+      }),
+      http.get(cfg.oss.getUsersUrl(), () => {
+        return HttpResponse.json([]);
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider
@@ -569,23 +561,22 @@ export const ViewingAsAdminEmptyList: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(
-          cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
-          () => {
-            return HttpResponse.json(
-              {
-                error: { message: 'Whoops, something went wrong.' },
-              },
-              { status: 500 }
-            );
-          }
-        ),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(
+        cfg.getAccessManagementListUrl(rawAccessList.metadata.name),
+        () => {
+          return HttpResponse.json(
+            {
+              error: { message: 'Whoops, something went wrong.' },
+            },
+            { status: 500 }
+          );
+        }
+      )
+    );
   },
+
   render() {
     return (
       <Provider

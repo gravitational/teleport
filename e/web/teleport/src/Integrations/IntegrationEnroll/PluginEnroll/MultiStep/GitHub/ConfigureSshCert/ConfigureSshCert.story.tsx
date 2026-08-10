@@ -24,16 +24,14 @@ export const Loaded = () => {
     </MemoryRouter>
   );
 };
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.integrationCa.export, () =>
-        HttpResponse.json({
-          ssh: [{ publicKey: 'a public key', fingerprint: 'a thumb print' }],
-        })
-      ),
-    ],
-  },
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.integrationCa.export, () =>
+      HttpResponse.json({
+        ssh: [{ publicKey: 'a public key', fingerprint: 'a thumb print' }],
+      })
+    )
+  );
 };
 
 export const Loading = () => {
@@ -50,10 +48,8 @@ export const Loading = () => {
     </MemoryRouter>
   );
 };
-Loading.parameters = {
-  msw: {
-    handlers: [http.get(cfg.api.integrationCa.export, () => delay('infinite'))],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(http.get(cfg.api.integrationCa.export, () => delay('infinite')));
 };
 
 export const FetchFailed = () => {
@@ -70,17 +66,15 @@ export const FetchFailed = () => {
     </MemoryRouter>
   );
 };
-FetchFailed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.integrationCa.export, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error creating.' },
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+FetchFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.integrationCa.export, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error creating.' },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };

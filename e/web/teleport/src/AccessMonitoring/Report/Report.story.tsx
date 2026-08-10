@@ -42,54 +42,52 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const MaxResults: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfgE.api.accessMonitoring.reportState, () => {
-          return HttpResponse.json({
-            status: ReportState.Ready,
-          } satisfies GetReportStateResponse);
-        }),
-        http.get(cfgE.api.accessMonitoring.reportResult, () => {
-          return HttpResponse.json({
-            name: 'privilege_access_report',
-            description: 'Lorem ipsum delor sit amet',
-            updated_at: new Date().toISOString(),
-            audit_query_results: [
-              {
-                result: {
-                  column_info: [
-                    {
-                      name: 'event_date',
-                      type: ColumnType.Date,
-                    },
-                    {
-                      name: 'user',
-                      type: ColumnType.VarChar,
-                    },
-                    {
-                      name: 'count',
-                      type: ColumnType.BigInt,
-                    },
-                  ],
-                  rows: generateSampleRows({
-                    name: 'cert_expiration_more_than_1d',
-                    days: 40,
-                    users: 25,
-                  }),
-                },
-                audit_query: {
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfgE.api.accessMonitoring.reportState, () => {
+        return HttpResponse.json({
+          status: ReportState.Ready,
+        } satisfies GetReportStateResponse);
+      }),
+      http.get(cfgE.api.accessMonitoring.reportResult, () => {
+        return HttpResponse.json({
+          name: 'privilege_access_report',
+          description: 'Lorem ipsum delor sit amet',
+          updated_at: new Date().toISOString(),
+          audit_query_results: [
+            {
+              result: {
+                column_info: [
+                  {
+                    name: 'event_date',
+                    type: ColumnType.Date,
+                  },
+                  {
+                    name: 'user',
+                    type: ColumnType.VarChar,
+                  },
+                  {
+                    name: 'count',
+                    type: ColumnType.BigInt,
+                  },
+                ],
+                rows: generateSampleRows({
                   name: 'cert_expiration_more_than_1d',
-                  title: 'Long Lived Certificates',
-                  description: 'Lorem ipsum delor sit amet',
-                  query: "select 'mocked query';",
-                },
+                  days: 40,
+                  users: 25,
+                }),
               },
-            ],
-          } satisfies GetReportResponse);
-        }),
-      ],
-    },
+              audit_query: {
+                name: 'cert_expiration_more_than_1d',
+                title: 'Long Lived Certificates',
+                description: 'Lorem ipsum delor sit amet',
+                query: "select 'mocked query';",
+              },
+            },
+          ],
+        } satisfies GetReportResponse);
+      })
+    );
   },
 };
 

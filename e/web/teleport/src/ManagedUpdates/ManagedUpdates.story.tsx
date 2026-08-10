@@ -61,19 +61,17 @@ export function LoadedCloud() {
     </StoryContainer>
   );
 }
-LoadedCloud.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.oss.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesTimeBasedCloud);
-      }),
-      http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
-      http.get(cfg.api.environmentProfileUrl, () => {
-        return HttpResponse.json({ environmentProfile: 'production' });
-      }),
-      http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
-    ],
-  },
+LoadedCloud.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.oss.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesTimeBasedCloud);
+    }),
+    http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
+    http.get(cfg.api.environmentProfileUrl, () => {
+      return HttpResponse.json({ environmentProfile: 'production' });
+    }),
+    http.post(cfg.api.environmentProfileUrl, environmentPostHandler)
+  );
 };
 
 export function CloudWithOrphanedAgents() {
@@ -83,22 +81,20 @@ export function CloudWithOrphanedAgents() {
     </StoryContainer>
   );
 }
-CloudWithOrphanedAgents.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.oss.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json({
-          ...mockManagedUpdatesWithOrphaned,
-          clusterMaintenance: mockClusterMaintenance,
-        });
-      }),
-      http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
-      http.get(cfg.api.environmentProfileUrl, () => {
-        return HttpResponse.json({ environmentProfile: 'production' });
-      }),
-      http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
-    ],
-  },
+CloudWithOrphanedAgents.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.oss.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json({
+        ...mockManagedUpdatesWithOrphaned,
+        clusterMaintenance: mockClusterMaintenance,
+      });
+    }),
+    http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
+    http.get(cfg.api.environmentProfileUrl, () => {
+      return HttpResponse.json({ environmentProfile: 'production' });
+    }),
+    http.post(cfg.api.environmentProfileUrl, environmentPostHandler)
+  );
 };
 
 export function NotConfiguredCloud() {
@@ -108,19 +104,17 @@ export function NotConfiguredCloud() {
     </StoryContainer>
   );
 }
-NotConfiguredCloud.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.oss.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesNotConfiguredCloud);
-      }),
-      http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
-      http.get(cfg.api.environmentProfileUrl, () => {
-        return HttpResponse.json({ environmentProfile: 'production' });
-      }),
-      http.post(cfg.api.environmentProfileUrl, environmentPostHandler),
-    ],
-  },
+NotConfiguredCloud.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.oss.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesNotConfiguredCloud);
+    }),
+    http.post(cfg.getWindowUpgradeStartUrl('aws'), windowPostHandler),
+    http.get(cfg.api.environmentProfileUrl, () => {
+      return HttpResponse.json({ environmentProfile: 'production' });
+    }),
+    http.post(cfg.api.environmentProfileUrl, environmentPostHandler)
+  );
 };
 
 async function environmentPostHandler(req) {

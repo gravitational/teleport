@@ -42,10 +42,8 @@ const meta: Meta<StoryProps> = {
     server: false,
     windowsDesktop: false,
   },
-  parameters: {
-    msw: {
-      handlers: makeHandlers([fetchUnifiedResources('get', [])]),
-    },
+  beforeEach({ msw }) {
+    msw.use(...makeHandlers([fetchUnifiedResources('get', [])]));
   },
 };
 export default meta;

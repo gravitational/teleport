@@ -45,19 +45,18 @@ export default {
 };
 
 export const Default: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-        http.post(cfg.getAccessManagementListUrl(), () => {
-          return HttpResponse.json({});
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      }),
+      http.post(cfg.getAccessManagementListUrl(), () => {
+        return HttpResponse.json({});
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -68,19 +67,18 @@ export const Default: StoryObj = {
 };
 
 export const DefaultWithoutScopedRoles: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-        http.post(cfg.getAccessManagementListUrl(), () => {
-          return HttpResponse.json({});
-        }),
-        getEmptyRootScopedRolesHandler,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      }),
+      http.post(cfg.getAccessManagementListUrl(), () => {
+        return HttpResponse.json({});
+      }),
+      getEmptyRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -91,22 +89,21 @@ export const DefaultWithoutScopedRoles: StoryObj = {
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-        http.post(cfg.getAccessManagementListUrl(), () => {
-          return delay('infinite');
-        }),
-        http.get(cfg.oss.api.usersPath, () => {
-          return HttpResponse.json([{ name: 'alice' }]);
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      }),
+      http.post(cfg.getAccessManagementListUrl(), () => {
+        return delay('infinite');
+      }),
+      http.get(cfg.oss.api.usersPath, () => {
+        return HttpResponse.json([{ name: 'alice' }]);
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -118,27 +115,26 @@ export const Processing: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-        http.get(cfg.oss.api.usersPath, () => {
-          return HttpResponse.json([{ name: 'alice' }]);
-        }),
-        http.post(cfg.getAccessManagementListUrl(), () => {
-          return HttpResponse.json(
-            {
-              error: { message: 'Whoops, creating list error' },
-            },
-            { status: 500 }
-          );
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      }),
+      http.get(cfg.oss.api.usersPath, () => {
+        return HttpResponse.json([{ name: 'alice' }]);
+      }),
+      http.post(cfg.getAccessManagementListUrl(), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Whoops, creating list error' },
+          },
+          { status: 500 }
+        );
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider>

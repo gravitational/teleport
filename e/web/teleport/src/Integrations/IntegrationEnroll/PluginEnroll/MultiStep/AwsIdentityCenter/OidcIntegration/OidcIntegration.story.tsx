@@ -37,20 +37,18 @@ export const ConfigureIntegration = () => {
   );
 };
 
-ConfigureIntegration.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponse)
-      ),
-      http.post(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponse.items[0])
-      ),
-      http.post(ecfg.getPluginValidateUrl(), () =>
-        HttpResponse.json({ message: 'ok' })
-      ),
-    ],
-  },
+ConfigureIntegration.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponse)
+    ),
+    http.post(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponse.items[0])
+    ),
+    http.post(ecfg.getPluginValidateUrl(), () =>
+      HttpResponse.json({ message: 'ok' })
+    )
+  );
 };
 
 export const ExistingIntegration = () => {
@@ -66,14 +64,12 @@ export const ExistingIntegration = () => {
   );
 };
 
-ExistingIntegration.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponseWithAwsIcAudience)
-      ),
-    ],
-  },
+ExistingIntegration.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponseWithAwsIcAudience)
+    )
+  );
 };
 
 export const Loading = () => {
@@ -89,15 +85,13 @@ export const Loading = () => {
   );
 };
 
-Loading.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), async () => {
-        await delay(5000);
-        return HttpResponse.json(integrationsResponse);
-      }),
-    ],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), async () => {
+      await delay(5000);
+      return HttpResponse.json(integrationsResponse);
+    })
+  );
 };
 
 export const FetchIntegrationFailed = () => {
@@ -113,27 +107,25 @@ export const FetchIntegrationFailed = () => {
   );
 };
 
-FetchIntegrationFailed.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Failed to fetch integrations' },
-          },
-          { status: 500 }
-        )
-      ),
-      http.post(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Failed to create new integration' },
-          },
-          { status: 500 }
-        )
-      ),
-    ],
-  },
+FetchIntegrationFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Failed to fetch integrations' },
+        },
+        { status: 500 }
+      )
+    ),
+    http.post(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Failed to create new integration' },
+        },
+        { status: 500 }
+      )
+    )
+  );
 };
 
 export const CreateIntegrationError = () => {
@@ -150,22 +142,20 @@ export const CreateIntegrationError = () => {
   );
 };
 
-CreateIntegrationError.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponse)
-      ),
-      http.post(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Failed to create new integration' },
-          },
-          { status: 500 }
-        )
-      ),
-    ],
-  },
+CreateIntegrationError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponse)
+    ),
+    http.post(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Failed to create new integration' },
+        },
+        { status: 500 }
+      )
+    )
+  );
 };
 
 export const CredentialValidationFailed = () => {
@@ -181,25 +171,23 @@ export const CredentialValidationFailed = () => {
   );
 };
 
-CredentialValidationFailed.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponseWithAwsIcAudience)
-      ),
-      http.post(ecfg.getPluginValidateUrl(), () =>
-        HttpResponse.json(
-          {
-            error: {
-              message: `unauthorized`,
-              response: { status: 401 } as Response,
-            },
+CredentialValidationFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponseWithAwsIcAudience)
+    ),
+    http.post(ecfg.getPluginValidateUrl(), () =>
+      HttpResponse.json(
+        {
+          error: {
+            message: `unauthorized`,
+            response: { status: 401 } as Response,
           },
-          { status: 401 }
-        )
-      ),
-    ],
-  },
+        },
+        { status: 401 }
+      )
+    )
+  );
 };
 
 export const CredentialValidationFailedWithNotFoundError = () => {
@@ -215,23 +203,21 @@ export const CredentialValidationFailedWithNotFoundError = () => {
   );
 };
 
-CredentialValidationFailedWithNotFoundError.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.oss.getIntegrationsUrl(), () =>
-        HttpResponse.json(integrationsResponseWithAwsIcAudience)
-      ),
-      http.post(ecfg.getPluginValidateUrl(), () =>
-        HttpResponse.json(
-          {
-            error: {
-              message: `integration "aws-oidc" doesn't exist`,
-              response: { status: 404 } as Response,
-            },
+CredentialValidationFailedWithNotFoundError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.oss.getIntegrationsUrl(), () =>
+      HttpResponse.json(integrationsResponseWithAwsIcAudience)
+    ),
+    http.post(ecfg.getPluginValidateUrl(), () =>
+      HttpResponse.json(
+        {
+          error: {
+            message: `integration "aws-oidc" doesn't exist`,
+            response: { status: 404 } as Response,
           },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };

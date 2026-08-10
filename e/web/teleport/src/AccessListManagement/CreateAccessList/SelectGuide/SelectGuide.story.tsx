@@ -39,15 +39,14 @@ export default {
 };
 
 export const NoAccessListAccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      })
+    );
   },
+
   render() {
     const acl = makeAcl({});
     acl.roles = fullAccess;
@@ -60,15 +59,14 @@ export const NoAccessListAccess: StoryObj = {
 };
 
 export const NoRoleAccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      })
+    );
   },
+
   render() {
     const acl = makeAcl({});
     acl.accessList = fullAccess;
@@ -81,15 +79,14 @@ export const NoRoleAccess: StoryObj = {
 };
 
 export const NoRoleAccessPartial: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      })
+    );
   },
+
   render() {
     const acl = makeAcl({});
     acl.accessList = fullAccess;
@@ -103,15 +100,14 @@ export const NoRoleAccessPartial: StoryObj = {
 };
 
 export const FullAccessWithNoLicenseLimits: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
 
@@ -124,30 +120,29 @@ export const FullAccessWithNoLicenseLimits: StoryObj = {
 };
 
 export const FullAccessWithLicenseLimitReached: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({
-            accessLists: [
-              {
-                metadata: { name: 'aaa' },
-                spec: {
-                  title: 'Interns',
-                  description: 'lorem ipsum description',
-                  audit: { frequency: '', next_audit_date: new Date() },
-                  grants: { roles: ['access', 'editor'] },
-                  ownership_requires: { roles: [] },
-                  owners: [],
-                },
-                membersCount: 0,
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({
+          accessLists: [
+            {
+              metadata: { name: 'aaa' },
+              spec: {
+                title: 'Interns',
+                description: 'lorem ipsum description',
+                audit: { frequency: '', next_audit_date: new Date() },
+                grants: { roles: ['access', 'editor'] },
+                ownership_requires: { roles: [] },
+                owners: [],
               },
-            ],
-          });
-        }),
-      ],
-    },
+              membersCount: 0,
+            },
+          ],
+        });
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 1 };
 

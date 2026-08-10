@@ -441,127 +441,119 @@ const getRoles = http.get(cfg.oss.api.role.listWithoutQueryParam, () => {
 export const CreateAndViewValidRule = () => {
   return <Component />;
 };
-CreateAndViewValidRule.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      withPlugins,
-      deleteRule,
-      createRule,
-      getRoles,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({
-          resource: validRuleObjectSlack,
-        })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({
-          yaml: ruleYaml,
-        })
-      ),
-      http.get(cfg.api.accessMonitoringRule.terraform, () =>
-        HttpResponse.json({
-          terraform: ruleTerraform,
-        })
-      ),
-    ],
-  },
+CreateAndViewValidRule.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    withPlugins,
+    deleteRule,
+    createRule,
+    getRoles,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({
+        resource: validRuleObjectSlack,
+      })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({
+        yaml: ruleYaml,
+      })
+    ),
+    http.get(cfg.api.accessMonitoringRule.terraform, () =>
+      HttpResponse.json({
+        terraform: ruleTerraform,
+      })
+    )
+  );
 };
 
 export const CreateAndViewReviewRule = () => {
   return <Component />;
 };
-CreateAndViewReviewRule.parameters = {
-  msw: {
-    handlers: [
-      withReviewRule,
-      withPlugins,
-      deleteRule,
-      createRule,
-      getRoles,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({
-          resource: validCombinedRuleObject,
-        })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({
-          yaml: reviewRuleYaml,
-        })
-      ),
-      http.get(cfg.api.accessMonitoringRule.terraform, () =>
-        HttpResponse.json({
-          terraform: reviewRuleTerraform,
-        })
-      ),
-    ],
-  },
+CreateAndViewReviewRule.beforeEach = ({ msw }) => {
+  msw.use(
+    withReviewRule,
+    withPlugins,
+    deleteRule,
+    createRule,
+    getRoles,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({
+        resource: validCombinedRuleObject,
+      })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({
+        yaml: reviewRuleYaml,
+      })
+    ),
+    http.get(cfg.api.accessMonitoringRule.terraform, () =>
+      HttpResponse.json({
+        terraform: reviewRuleTerraform,
+      })
+    )
+  );
 };
 
 export const ViewRuleThatRequireReset = () => {
   return <Component />;
 };
-ViewRuleThatRequireReset.parameters = {
-  msw: {
-    handlers: [
-      http.get(accessMonitoringRuleListWithoutQuery, () =>
-        HttpResponse.json({
-          rules: [
-            {
-              object: {
-                ...invalidRuleObject,
-                metadata: { name: 'invalid-default-to-yaml-editor' },
-              },
-              yaml: ruleYaml,
+ViewRuleThatRequireReset.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(accessMonitoringRuleListWithoutQuery, () =>
+      HttpResponse.json({
+        rules: [
+          {
+            object: {
+              ...invalidRuleObject,
+              metadata: { name: 'invalid-default-to-yaml-editor' },
             },
-          ],
-          startKey: '',
-        })
-      ),
-      withPlugins,
-      deleteRule,
-      createRule,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: invalidRuleObject })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({ yaml: ruleYaml })
-      ),
-    ],
-  },
+            yaml: ruleYaml,
+          },
+        ],
+        startKey: '',
+      })
+    ),
+    withPlugins,
+    deleteRule,
+    createRule,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({ resource: invalidRuleObject })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({ yaml: ruleYaml })
+    )
+  );
 };
 
 export const ViewReviewRuleThatRequireReset = () => {
   return <Component />;
 };
-ViewReviewRuleThatRequireReset.parameters = {
-  msw: {
-    handlers: [
-      http.get(accessMonitoringRuleListWithoutQuery, () =>
-        HttpResponse.json({
-          rules: [
-            {
-              object: {
-                ...invalidReviewRuleObject,
-                metadata: { name: 'review-rule' },
-              },
-              yaml: reviewRuleYaml,
+ViewReviewRuleThatRequireReset.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(accessMonitoringRuleListWithoutQuery, () =>
+      HttpResponse.json({
+        rules: [
+          {
+            object: {
+              ...invalidReviewRuleObject,
+              metadata: { name: 'review-rule' },
             },
-          ],
-          startKey: '',
-        })
-      ),
-      withPlugins,
-      deleteRule,
-      createRule,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: invalidReviewRuleObject })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({ yaml: reviewRuleYaml })
-      ),
-    ],
-  },
+            yaml: reviewRuleYaml,
+          },
+        ],
+        startKey: '',
+      })
+    ),
+    withPlugins,
+    deleteRule,
+    createRule,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({ resource: invalidReviewRuleObject })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({ yaml: reviewRuleYaml })
+    )
+  );
 };
 
 // Click on "create" button on story
@@ -569,121 +561,109 @@ ViewReviewRuleThatRequireReset.parameters = {
 export const NoPlugins = () => {
   return <Component />;
 };
-NoPlugins.parameters = {
-  msw: {
-    handlers: [
-      noRules,
-      http.get(cfg.api.plugin.list, () => HttpResponse.json([])),
-      deleteRule,
-      createRule,
-    ],
-  },
+NoPlugins.beforeEach = ({ msw }) => {
+  msw.use(
+    noRules,
+    http.get(cfg.api.plugin.list, () => HttpResponse.json([])),
+    deleteRule,
+    createRule
+  );
 };
 
 export const WithListRuleErrors = () => {
   return <Component />;
 };
-WithListRuleErrors.parameters = {
-  msw: {
-    handlers: [
-      withPlugins,
-      deleteRule,
-      createRule,
-      http.get(accessMonitoringRuleListWithoutQuery, () =>
-        HttpResponse.json(
-          {
-            message: 'some listing rules error',
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+WithListRuleErrors.beforeEach = ({ msw }) => {
+  msw.use(
+    withPlugins,
+    deleteRule,
+    createRule,
+    http.get(accessMonitoringRuleListWithoutQuery, () =>
+      HttpResponse.json(
+        {
+          message: 'some listing rules error',
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const WithPluginError = () => {
   return <Component />;
 };
-WithPluginError.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      deleteRule,
-      createRule,
-      http.get(cfg.api.plugin.list, () =>
-        HttpResponse.json(
-          {
-            message: 'some listing plugin error',
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+WithPluginError.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    deleteRule,
+    createRule,
+    http.get(cfg.api.plugin.list, () =>
+      HttpResponse.json(
+        {
+          message: 'some listing plugin error',
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const WithDeleteRuleError = () => {
   return <Component />;
 };
-WithDeleteRuleError.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      createRule,
-      withPlugins,
-      http.delete(cfg.api.accessMonitoringRule.delete, () =>
-        HttpResponse.json(
-          {
-            message: 'some delete error',
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+WithDeleteRuleError.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    createRule,
+    withPlugins,
+    http.delete(cfg.api.accessMonitoringRule.delete, () =>
+      HttpResponse.json(
+        {
+          message: 'some delete error',
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const WithCreateRuleError = () => {
   return <Component />;
 };
-WithCreateRuleError.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      withPlugins,
-      deleteRule,
-      http.post(cfg.api.accessMonitoringRule.create, () => {
-        HttpResponse.json(
-          {
-            message: 'some create error',
-          },
-          {
-            status: 404,
-          }
-        );
-      }),
-    ],
-  },
+WithCreateRuleError.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    withPlugins,
+    deleteRule,
+    http.post(cfg.api.accessMonitoringRule.create, () => {
+      HttpResponse.json(
+        {
+          message: 'some create error',
+        },
+        {
+          status: 404,
+        }
+      );
+    })
+  );
 };
 
 export const WithNoCreateAccess = () => {
   return <Component noAccess={true} />;
 };
-WithNoCreateAccess.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      withPlugins,
-      deleteRule,
-      createRule,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: validRuleObjectSlack })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({ yaml: ruleYaml })
-      ),
-    ],
-  },
+WithNoCreateAccess.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    withPlugins,
+    deleteRule,
+    createRule,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({ resource: validRuleObjectSlack })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({ yaml: ruleYaml })
+    )
+  );
 };
 
 export const WithNoEditAccess = () => {
@@ -697,26 +677,24 @@ export const WithNoEditAccess = () => {
     </TeleportProviderBasic>
   );
 };
-WithNoEditAccess.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      withPlugins,
-      deleteRule,
-      createRule,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: validRuleObjectSlack })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({ yaml: ruleYaml })
-      ),
-      http.get(cfg.api.accessMonitoringRule.terraform, () =>
-        HttpResponse.json({
-          terraform: ruleTerraform,
-        })
-      ),
-    ],
-  },
+WithNoEditAccess.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    withPlugins,
+    deleteRule,
+    createRule,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({ resource: validRuleObjectSlack })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({ yaml: ruleYaml })
+    ),
+    http.get(cfg.api.accessMonitoringRule.terraform, () =>
+      HttpResponse.json({
+        terraform: ruleTerraform,
+      })
+    )
+  );
 };
 
 export const WithNoViewAccess = () => {
@@ -730,26 +708,24 @@ export const WithNoViewAccess = () => {
     </TeleportProviderBasic>
   );
 };
-WithNoViewAccess.parameters = {
-  msw: {
-    handlers: [
-      withRule,
-      withPlugins,
-      deleteRule,
-      createRule,
-      http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: validRuleObjectSlack })
-      ),
-      http.post(cfg.oss.api.yaml.stringify, () =>
-        HttpResponse.json({ yaml: ruleYaml })
-      ),
-      http.get(cfg.api.accessMonitoringRule.terraform, () =>
-        HttpResponse.json({
-          terraform: ruleTerraform,
-        })
-      ),
-    ],
-  },
+WithNoViewAccess.beforeEach = ({ msw }) => {
+  msw.use(
+    withRule,
+    withPlugins,
+    deleteRule,
+    createRule,
+    http.post(cfg.oss.api.yaml.parse, () =>
+      HttpResponse.json({ resource: validRuleObjectSlack })
+    ),
+    http.post(cfg.oss.api.yaml.stringify, () =>
+      HttpResponse.json({ yaml: ruleYaml })
+    ),
+    http.get(cfg.api.accessMonitoringRule.terraform, () =>
+      HttpResponse.json({
+        terraform: ruleTerraform,
+      })
+    )
+  );
 };
 
 const Component = ({ noAccess = false }: { noAccess?: boolean }) => {

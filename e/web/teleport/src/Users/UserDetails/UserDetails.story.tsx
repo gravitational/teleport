@@ -128,81 +128,73 @@ function Story(props: StoryProps) {
 }
 
 export const NoAccessLists: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/v2/webapi/sites/:clusterId/locks', () => {
-          return HttpResponse.json({
-            items: [],
-          });
-        }),
-        http.get('/v1/enterprise/users/:username/accesslists', () => {
-          return HttpResponse.json({
-            accessLists: [],
-            nextPageToken: '',
-            totalCount: 0,
-          });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/v2/webapi/sites/:clusterId/locks', () => {
+        return HttpResponse.json({
+          items: [],
+        });
+      }),
+      http.get('/v1/enterprise/users/:username/accesslists', () => {
+        return HttpResponse.json({
+          accessLists: [],
+          nextPageToken: '',
+          totalCount: 0,
+        });
+      })
+    );
   },
 };
 
 export const SomeAccessLists: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/v2/webapi/sites/:clusterId/locks', () => {
-          return HttpResponse.json({
-            items: [],
-          });
-        }),
-        http.get('/v1/enterprise/users/:username/accesslists', () => {
-          return HttpResponse.json({
-            accessLists: generateAccessLists(5),
-            nextPageToken: '',
-            totalCount: 5,
-          });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/v2/webapi/sites/:clusterId/locks', () => {
+        return HttpResponse.json({
+          items: [],
+        });
+      }),
+      http.get('/v1/enterprise/users/:username/accesslists', () => {
+        return HttpResponse.json({
+          accessLists: generateAccessLists(5),
+          nextPageToken: '',
+          totalCount: 5,
+        });
+      })
+    );
   },
 };
 
 export const ManyAccessLists: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/v2/webapi/sites/:clusterId/locks', () => {
-          return HttpResponse.json({
-            items: [],
-          });
-        }),
-        http.get('/v1/enterprise/users/:username/accesslists', () => {
-          return HttpResponse.json({
-            accessLists: generateAccessLists(100),
-            nextPageToken: 'next-page-token',
-            totalCount: 25000,
-          });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/v2/webapi/sites/:clusterId/locks', () => {
+        return HttpResponse.json({
+          items: [],
+        });
+      }),
+      http.get('/v1/enterprise/users/:username/accesslists', () => {
+        return HttpResponse.json({
+          accessLists: generateAccessLists(100),
+          nextPageToken: 'next-page-token',
+          totalCount: 25000,
+        });
+      })
+    );
   },
 };
 
 export const LoadingAccessLists: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/v2/webapi/sites/:clusterId/locks', () => {
-          return HttpResponse.json({
-            items: [],
-          });
-        }),
-        http.get('/v1/enterprise/users/:username/accesslists', () => {
-          return new Promise(() => {});
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/v2/webapi/sites/:clusterId/locks', () => {
+        return HttpResponse.json({
+          items: [],
+        });
+      }),
+      http.get('/v1/enterprise/users/:username/accesslists', () => {
+        return new Promise(() => {});
+      })
+    );
   },
 };

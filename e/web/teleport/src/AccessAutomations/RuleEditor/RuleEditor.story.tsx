@@ -11,19 +11,9 @@ export default {
 export const Notification = () => {
   return <Component editor={AccessMonitoringRuleType.Notification} />;
 };
-Notification.parameters = {
-  msw: {
-    handlers: [],
-  },
-};
 
 export const Review = () => {
   return <Component editor={AccessMonitoringRuleType.Review} />;
-};
-Notification.parameters = {
-  msw: {
-    handlers: [],
-  },
 };
 
 const Component = ({

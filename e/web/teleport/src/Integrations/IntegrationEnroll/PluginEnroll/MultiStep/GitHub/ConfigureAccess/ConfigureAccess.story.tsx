@@ -30,10 +30,8 @@ export const SkipOrCreateRole = () => {
     </MemoryRouter>
   );
 };
-SkipOrCreateRole.parameters = {
-  msw: {
-    handlers: [http.post(cfg.api.role.create, () => HttpResponse.json({}))],
-  },
+SkipOrCreateRole.beforeEach = ({ msw }) => {
+  msw.use(http.post(cfg.api.role.create, () => HttpResponse.json({})));
 };
 
 export const CreateRoleLoading = () => {
@@ -50,10 +48,8 @@ export const CreateRoleLoading = () => {
     </MemoryRouter>
   );
 };
-CreateRoleLoading.parameters = {
-  msw: {
-    handlers: [http.post(cfg.api.role.create, () => delay('infinite'))],
-  },
+CreateRoleLoading.beforeEach = ({ msw }) => {
+  msw.use(http.post(cfg.api.role.create, () => delay('infinite')));
 };
 
 export const CreateRoleFailed = () => {
@@ -70,17 +66,15 @@ export const CreateRoleFailed = () => {
     </MemoryRouter>
   );
 };
-CreateRoleFailed.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.role.create, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error creating.' },
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+CreateRoleFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.role.create, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error creating.' },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };

@@ -64,35 +64,34 @@ export default {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        http.get(cfg.oss.api.usersPath, () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json(
-            {
-              error: { message: 'Whoops, listing access lists error' },
-            },
-            { status: 500 }
-          );
-        }),
-        http.post(cfg.getAccessManagementListUrl(), () => {
-          return HttpResponse.json(
-            {
-              error: { message: 'Whoops, creating list error' },
-            },
-            { status: 500 }
-          );
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      http.get(cfg.oss.api.usersPath, () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler,
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Whoops, listing access lists error' },
+          },
+          { status: 500 }
+        );
+      }),
+      http.post(cfg.getAccessManagementListUrl(), () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Whoops, creating list error' },
+          },
+          { status: 500 }
+        );
+      })
+    );
   },
+
   render() {
     return (
       <Provider>
@@ -106,19 +105,18 @@ export const Failed: StoryObj = {
 };
 
 export const NoAccess: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.oss.api.usersPath, () => {
-          return new HttpResponse();
-        }),
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return new HttpResponse();
-        }),
-        getRootScopedRolesHandler,
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.oss.api.usersPath, () => {
+        return new HttpResponse();
+      }),
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return new HttpResponse();
+      }),
+      getRootScopedRolesHandler
+    );
   },
+
   render() {
     return (
       <Provider customAcl={getAcl({ noAccess: true })}>
@@ -129,25 +127,24 @@ export const NoAccess: StoryObj = {
 };
 
 export const LoadedWithoutLimit: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        http.get(cfg.oss.api.usersPath, () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({ accessLists: [] });
-        }),
-        http.post(cfg.getAccessManagementListUrl(), () => {
-          return HttpResponse.json({});
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      http.get(cfg.oss.api.usersPath, () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler,
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({ accessLists: [] });
+      }),
+      http.post(cfg.getAccessManagementListUrl(), () => {
+        return HttpResponse.json({});
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
 
@@ -160,37 +157,36 @@ export const LoadedWithoutLimit: StoryObj = {
 };
 
 export const LoadedReachedLimit: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
-          return HttpResponse.json([]);
-        }),
-        http.get(cfg.oss.api.usersPath, () => {
-          return HttpResponse.json([]);
-        }),
-        getRootScopedRolesHandler,
-        http.get(cfg.getAccessManagementListUrlV2({}), () => {
-          return HttpResponse.json({
-            accessLists: [
-              {
-                metadata: { name: 'aaa' },
-                spec: {
-                  title: 'Interns',
-                  description: 'lorem ipsum description',
-                  audit: { frequency: '', next_audit_date: new Date() },
-                  grants: { roles: ['access', 'editor'] },
-                  ownership_requires: { roles: [] },
-                  owners: [],
-                },
-                membersCount: 0,
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+        return HttpResponse.json([]);
+      }),
+      http.get(cfg.oss.api.usersPath, () => {
+        return HttpResponse.json([]);
+      }),
+      getRootScopedRolesHandler,
+      http.get(cfg.getAccessManagementListUrlV2({}), () => {
+        return HttpResponse.json({
+          accessLists: [
+            {
+              metadata: { name: 'aaa' },
+              spec: {
+                title: 'Interns',
+                description: 'lorem ipsum description',
+                audit: { frequency: '', next_audit_date: new Date() },
+                grants: { roles: ['access', 'editor'] },
+                ownership_requires: { roles: [] },
+                owners: [],
               },
-            ],
-          });
-        }),
-      ],
-    },
+              membersCount: 0,
+            },
+          ],
+        });
+      })
+    );
   },
+
   render() {
     cfg.oss.entitlements.AccessLists = { enabled: true, limit: 1 };
 

@@ -118,10 +118,8 @@ export const EnterpriseNonCloud = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-EnterpriseNonCloud.parameters = {
-  msw: {
-    handlers: createMSWHandlers('test-cluster'),
-  },
+EnterpriseNonCloud.beforeEach = ({ msw }) => {
+  msw.use(...createMSWHandlers('test-cluster'));
 };
 
 export const CloudWithExternalAuditStorageCTA = () => {
@@ -135,10 +133,8 @@ export const CloudWithExternalAuditStorageCTA = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-CloudWithExternalAuditStorageCTA.parameters = {
-  msw: {
-    handlers: createMSWHandlers('test-cluster'),
-  },
+CloudWithExternalAuditStorageCTA.beforeEach = ({ msw }) => {
+  msw.use(...createMSWHandlers('test-cluster'));
 };
 
 export const CloudWithoutExternalAuditStorageCTA = () => {
@@ -152,10 +148,8 @@ export const CloudWithoutExternalAuditStorageCTA = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-CloudWithoutExternalAuditStorageCTA.parameters = {
-  msw: {
-    handlers: createMSWHandlers('test-cluster'),
-  },
+CloudWithoutExternalAuditStorageCTA.beforeEach = ({ msw }) => {
+  msw.use(...createMSWHandlers('test-cluster'));
 };
 
 export const WithContactsReadOnlyAccess = () => {
@@ -169,10 +163,8 @@ export const WithContactsReadOnlyAccess = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-WithContactsReadOnlyAccess.parameters = {
-  msw: {
-    handlers: createMSWHandlers('test-cluster'),
-  },
+WithContactsReadOnlyAccess.beforeEach = ({ msw }) => {
+  msw.use(...createMSWHandlers('test-cluster'));
 };
 
 export const ContactsLoading = () => {
@@ -186,15 +178,13 @@ export const ContactsLoading = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-ContactsLoading.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getContactsUrl('test-cluster'),
-        async () => await delay('infinite')
-      ),
-    ],
-  },
+ContactsLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getContactsUrl('test-cluster'),
+      async () => await delay('infinite')
+    )
+  );
 };
 
 export const FailedContactsAndWindow = () => {
@@ -208,27 +198,25 @@ export const FailedContactsAndWindow = () => {
   return <SupportWrapper ctx={ctx} />;
 };
 
-FailedContactsAndWindow.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getContactsUrl('test-cluster'), () => {
-        return HttpResponse.json(
-          { message: 'something went wrong' },
-          {
-            status: 500,
-          }
-        );
-      }),
-      http.get(cfg.getWindowUpgradeStartUrl('test-cluster'), () => {
-        return HttpResponse.json(
-          { message: 'something went wrong' },
-          {
-            status: 500,
-          }
-        );
-      }),
-    ],
-  },
+FailedContactsAndWindow.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getContactsUrl('test-cluster'), () => {
+      return HttpResponse.json(
+        { message: 'something went wrong' },
+        {
+          status: 500,
+        }
+      );
+    }),
+    http.get(cfg.getWindowUpgradeStartUrl('test-cluster'), () => {
+      return HttpResponse.json(
+        { message: 'something went wrong' },
+        {
+          status: 500,
+        }
+      );
+    })
+  );
 };
 
 const getContactsResponse = {

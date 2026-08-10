@@ -35,14 +35,12 @@ export function EmptyNoCTA() {
 
   return <Component ctx={ctx} />;
 }
-EmptyNoCTA.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: [] })
-      ),
-    ],
-  },
+EmptyNoCTA.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.getTrustedDevicesUrl({}), () =>
+      HttpResponse.json({ items: [] })
+    )
+  );
 };
 
 export function EmptyWithCTA() {
@@ -51,14 +49,12 @@ export function EmptyWithCTA() {
 
   return <Component ctx={ctx} />;
 }
-EmptyWithCTA.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: [] })
-      ),
-    ],
-  },
+EmptyWithCTA.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.getTrustedDevicesUrl({}), () =>
+      HttpResponse.json({ items: [] })
+    )
+  );
 };
 
 export function Processing() {
@@ -66,14 +62,12 @@ export function Processing() {
 
   return <Component ctx={ctx} />;
 }
-Processing.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), async () => {
-        await delay('infinite');
-      }),
-    ],
-  },
+Processing.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.getTrustedDevicesUrl({}), async () => {
+      await delay('infinite');
+    })
+  );
 };
 
 export function LoadedEnabledAndUnlimited() {
@@ -82,14 +76,12 @@ export function LoadedEnabledAndUnlimited() {
 
   return <Component ctx={ctx} />;
 }
-LoadedEnabledAndUnlimited.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: devices })
-      ),
-    ],
-  },
+LoadedEnabledAndUnlimited.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.getTrustedDevicesUrl({}), () =>
+      HttpResponse.json({ items: devices })
+    )
+  );
 };
 
 export function LoadedEnabledAndLimitedCTA() {
@@ -98,14 +90,12 @@ export function LoadedEnabledAndLimitedCTA() {
 
   return <Component ctx={ctx} />;
 }
-LoadedEnabledAndLimitedCTA.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json({ items: devices })
-      ),
-    ],
-  },
+LoadedEnabledAndLimitedCTA.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.getTrustedDevicesUrl({}), () =>
+      HttpResponse.json({ items: devices })
+    )
+  );
 };
 
 export function Failed() {
@@ -113,19 +103,17 @@ export function Failed() {
 
   return <Component ctx={ctx} />;
 }
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(ecfg.getTrustedDevicesUrl({}), () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, something went wrong.' },
-          },
-          { status: 500 }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(ecfg.getTrustedDevicesUrl({}), () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, something went wrong.' },
+        },
+        { status: 500 }
+      )
+    )
+  );
 };
 
 const Component = ({ ctx }: { ctx: TeleportEContext }) => {

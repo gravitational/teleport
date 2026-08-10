@@ -10,17 +10,16 @@ import { EditGroupsImport } from './GroupsImport';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/Entra/Edit/GroupsImport',
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getUsersUrlV2(), () => {
-          return HttpResponse.json({
-            items: [{ name: 'alice' }, { name: 'bob' }, { name: 'carol' }],
-            startKey: '',
-          });
-        }),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [{ name: 'alice' }, { name: 'bob' }, { name: 'carol' }],
+          startKey: '',
+        });
+      })
+    );
   },
 };
 

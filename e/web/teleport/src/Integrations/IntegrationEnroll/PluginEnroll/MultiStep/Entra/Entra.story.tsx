@@ -22,6 +22,7 @@ const render = (ctx: TeleportEContext) => (
 
 export default {
   title: 'TeleportE/Integrations/Enroll/Entra',
+
   decorators: [
     Story => {
       useEffect(() => {
@@ -34,24 +35,23 @@ export default {
       return <Story />;
     },
   ],
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.api.usersPath, () => {
-          return HttpResponse.json([
-            { name: 'alice' },
-            { name: 'bob' },
-            { name: 'carol' },
-          ]);
-        }),
-        http.get(ecfg.api.pluginNeedsCleanupPath, () => {
-          return HttpResponse.json({ needsCleanup: false });
-        }),
-        http.post(ecfg.getPluginValidateUrl(), () => {
-          return HttpResponse.json({});
-        }),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.usersPath, () => {
+        return HttpResponse.json([
+          { name: 'alice' },
+          { name: 'bob' },
+          { name: 'carol' },
+        ]);
+      }),
+      http.get(ecfg.api.pluginNeedsCleanupPath, () => {
+        return HttpResponse.json({ needsCleanup: false });
+      }),
+      http.post(ecfg.getPluginValidateUrl(), () => {
+        return HttpResponse.json({});
+      })
+    );
   },
 };
 

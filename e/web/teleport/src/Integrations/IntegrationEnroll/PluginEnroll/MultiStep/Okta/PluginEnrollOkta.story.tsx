@@ -104,13 +104,14 @@ export default {
 } satisfies Meta<typeof PluginEnroll>;
 
 export const OverviewNoStepsComplete = {
-  parameters: {
-    msw: [
+  beforeEach({ msw }) {
+    msw.use(
       http.get(cfg.getPluginUrl('okta', 'get'), async () => {
         return HttpResponse.json({});
-      }),
-    ],
+      })
+    );
   },
+
   render: args => {
     cfg.oss.entitlements.Identity = {
       enabled: (args as { hasIdentity: boolean }).hasIdentity,
@@ -121,13 +122,14 @@ export const OverviewNoStepsComplete = {
 } satisfies StoryObj<typeof PluginEnroll>;
 
 export const OverviewAllStepsComplete = {
-  parameters: {
-    msw: [
+  beforeEach({ msw }) {
+    msw.use(
       http.get(cfg.getPluginUrl('okta', 'get'), async () => {
         return HttpResponse.json(StubPluginAllStepsComplete);
-      }),
-    ],
+      })
+    );
   },
+
   render: args => {
     cfg.oss.entitlements.Identity = {
       enabled: (args as { hasIdentity: boolean }).hasIdentity,
@@ -138,13 +140,14 @@ export const OverviewAllStepsComplete = {
 } satisfies StoryObj<typeof PluginEnroll>;
 
 export const OverviewAllExceptAppGroupSyncComplete = {
-  parameters: {
-    msw: [
+  beforeEach({ msw }) {
+    msw.use(
       http.get(cfg.getPluginUrl('okta', 'get'), async () => {
         return HttpResponse.json(StubPluginAllExceptAppGroupSyncComplete);
-      }),
-    ],
+      })
+    );
   },
+
   render: args => {
     cfg.oss.entitlements.Identity = {
       enabled: (args as { hasIdentity: boolean }).hasIdentity,
@@ -416,7 +419,13 @@ const steps = [
   USER_SYNC_CONFIG,
   IDENTITY_SECURITY_SYNC_CONFIG,
   APP_GROUP_SYNC_CONFIG,
-].map(step => ({ ...step, enabled: true }) as OktaIntegrationStepWithEnabled);
+].map(
+  step =>
+    ({
+      ...step,
+      enabled: true,
+    }) as OktaIntegrationStepWithEnabled
+);
 
 const RenderStep = ({
   step,

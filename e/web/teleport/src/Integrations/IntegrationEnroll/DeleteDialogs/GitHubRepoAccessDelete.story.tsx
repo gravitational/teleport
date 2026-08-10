@@ -47,10 +47,8 @@ export const Success = () => {
     </MemoryRouter>
   );
 };
-Success.parameters = {
-  msw: {
-    handlers: [http.delete(endpoint, () => HttpResponse.json({}))],
-  },
+Success.beforeEach = ({ msw }) => {
+  msw.use(http.delete(endpoint, () => HttpResponse.json({})));
 };
 
 export const IntegrationDeleteFailed = () => {
@@ -60,19 +58,17 @@ export const IntegrationDeleteFailed = () => {
     </MemoryRouter>
   );
 };
-IntegrationDeleteFailed.parameters = {
-  msw: {
-    handlers: [
-      http.delete(endpoint, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error deleting integration.' },
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+IntegrationDeleteFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.delete(endpoint, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error deleting integration.' },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const Loading = () => {
@@ -82,8 +78,6 @@ export const Loading = () => {
     </MemoryRouter>
   );
 };
-Loading.parameters = {
-  msw: {
-    handlers: [http.delete(endpoint, () => delay('infinite'))],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(http.delete(endpoint, () => delay('infinite')));
 };
