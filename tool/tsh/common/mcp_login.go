@@ -453,8 +453,9 @@ func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI string) (*http
 
 // hostRoutingTransport sends OAuth metadata requests for the MCP server
 // through the Teleport ALPN tunnel and everything else directly. If a
-// provider does not implement RFC 9728's path-aware well-known URL, a 404 or
-// cross-origin redirect is retried at the root URL for compatibility.
+// provider does not implement RFC 9728's path-aware well-known URL, a 401,
+// 403, 404, or cross-origin redirect is retried at the root URL for
+// compatibility.
 type hostRoutingTransport struct {
 	tunneled        http.RoundTripper
 	direct          http.RoundTripper
@@ -534,7 +535,8 @@ func shouldTryOAuthMetadataRootFallback(r *http.Request, resp *http.Response) bo
 	if resp == nil || !isOAuthMetadataPath(r.URL.Path) {
 		return false
 	}
-	if resp.StatusCode == http.StatusNotFound {
+	switch resp.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
 		return true
 	}
 	if !isHTTPRedirect(resp.StatusCode) {
