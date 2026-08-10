@@ -188,7 +188,7 @@ reverse tunnel.
    Service:
 
    ```code
-   $ tctl tokens add --type=db --ttl=15m --format=json | jq -r '.token' > dbtoken
+   $ tctl tokens add --type=db --ttl=15m --format=text > dbtoken
    ```
 
 1. Write a configuration file for the Teleport Database Service to your
@@ -196,29 +196,15 @@ reverse tunnel.
    with the following content, replacing <Var name="example.beams.sh" /> with
    the address of your Teleport Proxy Service:
 
-   ```yaml
-   version: v3
-   auth_service:
-     enabled: false
-   proxy_service:
-     enabled: false
-   ssh_service:
-     enabled: false
-
-   teleport:
-     nodename: "local-postgres"
-     data_dir: "/var/lib/teleport"
-     proxy_server: '<Var name="example.beams.sh" />:443'
-     auth_token: "/tmp/token"
-
-   db_service:
-     enabled: true
-     databases:
-     - name: "local-postgres"
-       protocol: "postgres"
-       uri: "postgres:5432"
-       static_labels:
-         service: local-postgres
+   ```code
+   $ teleport db configure create \
+     -o file:///$(pwd)/db-service-config.yaml \
+     --token=/tmp/token \
+     --proxy='<Var name="example.beams.sh" />:443' \
+     --name=local-postgres \
+     --protocol=postgres \
+     --uri=postgres:5432 \
+     --labels=service=local-postgres
    ```
 
 1. Start the Teleport Database Service in the same local Docker network as the
