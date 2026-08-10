@@ -197,11 +197,29 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			assertErr: requireAccessDenied,
 		},
 		{
+			// bot_instance is namespaced and carries its scope on delete events, so it is
+			// whitelisted for scope-targeting watch filters.
+			name:      "bot_instance default resolves to EXACT at pin",
+			kind:      types.KindBotInstance,
+			filter:    nil,
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_EXACT,
+			wantScope: pinScope,
+		},
+		{
 			name:      "workload_identity default resolves to EXACT at pin",
 			kind:      types.KindWorkloadIdentity,
 			filter:    nil,
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_EXACT,
+			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance DESCENDANTS at pin",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_DESCENDANTS, pinScope),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
 			wantScope: pinScope,
 		},
 		{
@@ -213,12 +231,26 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			wantScope: pinScope,
 		},
 		{
+			name:      "bot_instance ALL rewritten to DESCENDANTS at pin",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_ALL, ""),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
+			wantScope: pinScope,
+		},
+		{
 			name:      "workload_identity ALL rewritten to DESCENDANTS at pin",
 			kind:      types.KindWorkloadIdentity,
 			filter:    filter(scopesv1.Mode_MODE_ALL, ""),
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
 			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance EXACT at orthogonal scope denied by pin enforcement",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_EXACT, "/bar"),
+			assertErr: requireAccessDenied,
 		},
 		{
 			name:      "workload_identity EXACT at orthogonal scope denied by pin enforcement",
@@ -430,11 +462,25 @@ func TestUnscopedWatchKindAuthz(t *testing.T) {
 			wantMode:  scopesv1.Mode_MODE_EXACT,
 		},
 		{
+			name:      "bot_instance defaults to UNSCOPED for unscoped caller",
+			kind:      types.KindBotInstance,
+			filter:    nil,
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_UNSCOPED,
+		},
+		{
 			name:      "workload_identity defaults to UNSCOPED for unscoped caller",
 			kind:      types.KindWorkloadIdentity,
 			filter:    nil,
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_UNSCOPED,
+		},
+		{
+			name:      "bot_instance EXACT allowed for unscoped caller",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_EXACT, "/foo"),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_EXACT,
 		},
 		{
 			name:      "workload_identity EXACT allowed for unscoped caller",

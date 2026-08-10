@@ -224,7 +224,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWorkloadIdentity, ScopeFilter: allScopes},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindRelayServer},
-		{Kind: types.KindBotInstance},
+		{Kind: types.KindBotInstance, ScopeFilter: allScopes},
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},

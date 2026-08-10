@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2487,6 +2488,19 @@ func (rc *ResourceCommand) getCollectionByScopedRef(ctx context.Context, client 
 func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authclient.Client, ref services.Ref, opts resources.GetOpts) (resources.Collection, error) {
 	if ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+
+	// ParseRef splits on '/', so a scope-qualified name given in the single-arg
+	// form arrives with its scope stranded in the name or the sub-kind. Kinds with
+	// only a scoped handler are already rejected below; kinds with both would
+	// otherwise treat it as an unscoped name and match nothing.
+	_, classicFound := resources.Handlers()[ref.Kind]
+	_, scopedFound := resources.ScopedHandlers()[ref.Kind]
+	if classicFound && scopedFound && (scopes.MaybeSQN(ref.Name) || scopes.MaybeSQN(ref.SubKind)) {
+		return nil, trace.BadParameter(
+			"resource type %q does not accept a scope-qualified name in the single-arg '<kind>/<name>' form, try:\n  tctl get %s <scope>::<name>",
+			ref.Kind, ref.Kind,
+		)
 	}
 
 	if handler, found := resources.Handlers()[ref.Kind]; found {
