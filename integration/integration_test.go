@@ -1083,6 +1083,8 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				uploadChan = leaf.UploadEventsC
 			}
 
+			helpers.WaitForActiveTunnelConnections(t, root.Tunnel, leaf.Secrets.SiteName, 1)
+
 			tc, err := root.NewClient(helpers.ClientConfig{
 				Login:   suite.Me.Username,
 				Cluster: "leaf-test",
@@ -1104,15 +1106,15 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			tc.Stdout = term
 			tc.Stdin = term
 
-			go func() {
-				nodeClient, err := tc.ConnectToNode(
-					ctx,
-					clt,
-					client.NodeDetails{Addr: "leaf-zero:0", Cluster: clt.ClusterName()},
-					tc.Config.HostLogin,
-				)
-				assert.NoError(t, err)
+			nodeClient, err := tc.ConnectToNode(
+				ctx,
+				clt,
+				client.NodeDetails{Addr: "leaf-zero:0", Cluster: clt.ClusterName()},
+				tc.Config.HostLogin,
+			)
+			require.NoError(t, err)
 
+			go func() {
 				errCh <- nodeClient.RunInteractiveShell(ctx, "", "", nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
