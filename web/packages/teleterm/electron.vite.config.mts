@@ -21,7 +21,7 @@ import { builtinModules } from 'node:module';
 import path from 'node:path';
 
 import { defineConfig, UserConfig } from 'electron-vite';
-import type { Plugin, Rolldown } from 'vite';
+import { normalizePath, type Plugin, type Rolldown } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
@@ -62,6 +62,28 @@ const config = defineConfig(env => {
         outDir: path.resolve(outputDirectory, 'main'),
         rolldownOptions: {
           ...nodeExternalOptions,
+          checks: {
+            circularDependency: true,
+          },
+          onLog(level, log, defaultHandler) {
+            // Vite suppresses circular dependency warnings by default.
+            // In development, a cycle in the main process can cause Rolldown
+            // to emit an empty main.mjs entry without reporting an error,
+            // so Electron is unable to start.
+            if (log.code === 'CIRCULAR_DEPENDENCY') {
+              // Skip circular dependencies inside external packages.
+              const containsApplicationModule = log.ids?.some(
+                id => !normalizePath(id).includes('/node_modules/')
+              );
+
+              if (containsApplicationModule) {
+                throw new Error(log.message);
+              }
+              return;
+            }
+
+            defaultHandler(level, log);
+          },
           input: {
             index: path.resolve(import.meta.dirname, 'src/main.ts'),
             sharedProcess: path.resolve(
