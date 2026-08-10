@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -137,11 +138,22 @@ func (c *mcpLoginCommand) run() error {
 		}
 	}
 
+	if clientID == "" {
+		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client %q for MCP server %q...\n", defaultMCPOAuthClientName, c.cf.AppSQN.Name)
+		discoveryHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{HTTPClient: httpClient})
+		discoveryHandler.SetBaseURL(oauthBaseURL)
+		clientID, clientSecret, err = registerMCPOAuthClient(ctx, discoveryHandler, httpClient, redirectURI, scopes)
+		if err != nil {
+			return wrapMCPClientRegistrationError(err, c.cf.AppSQN.Name)
+		}
+	} else {
+		fmt.Fprintf(c.cf.Stdout(), "Using pre-registered OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
+	}
+
 	tokenStore := mcpclienttransport.NewMemoryTokenStore()
 	oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
-		ClientURI:    mcpOAuthClientURI,
 		RedirectURI:  redirectURI,
 		Scopes:       scopes,
 		PKCEEnabled:  true,
@@ -149,15 +161,6 @@ func (c *mcpLoginCommand) run() error {
 		TokenStore:   tokenStore,
 	})
 	oauthHandler.SetBaseURL(oauthBaseURL)
-
-	if clientID == "" {
-		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client %q for MCP server %q...\n", defaultMCPOAuthClientName, c.cf.AppSQN.Name)
-		if err := oauthHandler.RegisterClient(ctx, defaultMCPOAuthClientName); err != nil {
-			return wrapMCPClientRegistrationError(err, c.cf.AppSQN.Name)
-		}
-	} else {
-		fmt.Fprintf(c.cf.Stdout(), "Using pre-registered OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
-	}
 
 	codeVerifier, err := mcpclienttransport.GenerateCodeVerifier()
 	if err != nil {
@@ -255,6 +258,64 @@ func fetchAdvertisedMCPOAuthScopes(ctx context.Context, httpClient *http.Client,
 	return metadata.ScopesSupported, nil
 }
 
+func registerMCPOAuthClient(ctx context.Context, discoveryHandler *mcpclienttransport.OAuthHandler, httpClient *http.Client, redirectURI string, scopes []string) (string, string, error) {
+	metadata, err := discoveryHandler.GetServerMetadata(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get server metadata: %w", err)
+	}
+	if metadata.RegistrationEndpoint == "" {
+		return "", "", errors.New("server does not support dynamic client registration")
+	}
+
+	registration := map[string]any{
+		"client_name":                defaultMCPOAuthClientName,
+		"client_uri":                 mcpOAuthClientURI,
+		"redirect_uris":              []string{redirectURI},
+		"token_endpoint_auth_method": "none",
+		"grant_types":                []string{"authorization_code", "refresh_token"},
+		"response_types":             []string{"code"},
+	}
+	if len(scopes) > 0 {
+		registration["scope"] = strings.Join(scopes, " ")
+	}
+	body, err := json.Marshal(registration)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to marshal registration request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, metadata.RegistrationEndpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create registration request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to send registration request: %w", err)
+	}
+	defer closeOAuthResponse(resp)
+	body, err = io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read registration response: %w", err)
+	}
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		var oauthErr mcpclienttransport.OAuthError
+		if err := json.Unmarshal(body, &oauthErr); err == nil && oauthErr.ErrorCode != "" {
+			return "", "", fmt.Errorf("registration request failed: %w", oauthErr)
+		}
+		return "", "", fmt.Errorf("registration request failed with status %d: %s", resp.StatusCode, body)
+	}
+
+	var registrationResponse struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret,omitempty"`
+	}
+	if err := json.Unmarshal(body, &registrationResponse); err != nil {
+		return "", "", fmt.Errorf("failed to decode registration response: %w", err)
+	}
+	return registrationResponse.ClientID, registrationResponse.ClientSecret, nil
+}
+
 // wrapMCPClientRegistrationError adds instructions for using a pre-registered
 // OAuth client when dynamic client registration is not an option: either the
 // provider does not offer it at all, or it offers it but refused this client.
@@ -275,6 +336,11 @@ provider already publishes), then retry with the pre-registered client:
 Set --callback-port so the redirect URI matches one registered for that client,
 and add --client-secret if the client is confidential.`, appName)
 
+	case isMCPInvalidClientMetadata(err):
+		return trace.Wrap(err, `The client metadata sent by tsh is invalid for the MCP server's OAuth
+provider. This indicates a dynamic client registration compatibility problem,
+not a provider client allowlist rejection.`)
+
 	case isMCPClientRegistrationRejected(err):
 		return trace.Wrap(err, `The MCP server's OAuth provider rejected the client registration. Some
 providers only let an approved set of MCP clients register, so registration
@@ -291,10 +357,15 @@ and add --client-secret if the client is confidential.`, appName)
 	return trace.Wrap(err)
 }
 
+func isMCPInvalidClientMetadata(err error) bool {
+	oauthErr, ok := errors.AsType[mcpclienttransport.OAuthError](err)
+	return ok && oauthErr.ErrorCode == "invalid_client_metadata"
+}
+
 // isMCPClientRegistrationRejected reports whether the authorization server
 // answered the registration request with a refusal, as opposed to failing to
-// process it. mcp-go turns an OAuth error body into transport.OAuthError and
-// anything else into a message carrying the raw status code.
+// process it. OAuth error bodies become transport.OAuthError and anything else
+// becomes a message carrying the raw status code.
 func isMCPClientRegistrationRejected(err error) bool {
 	if _, ok := errors.AsType[mcpclienttransport.OAuthError](err); ok {
 		return true
