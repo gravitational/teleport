@@ -3619,7 +3619,7 @@ func makeUnifiedResourceRequest(r *http.Request, scopePin *scopesv1.Pin) (*proto
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    useSearchAsRoles,
-		IncludeLogins:       !scopedIdentity,
+		IncludeLogins:       true,
 		IncludeRequestable:  includeRequestable,
 	}, nil
 }

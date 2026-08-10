@@ -276,6 +276,13 @@ func (c *SSHAccessChecker) MaxSessions() int64 {
 	return c.checker.role.GetSpec().GetSsh().GetMaxSessions()
 }
 
+func (c *SSHAccessChecker) GetAllowedLoginsForServer(server types.Server) ([]string, error) {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.GetAllowedLoginsForResource(server)
+	}
+	return c.checker.scopedCompatChecker.GetAllowedLoginsForResource(server)
+}
+
 // getScopedLogins returns the OS logins permitted by this scoped role. Returns nil for unscoped
 // identities, which aggregate logins differently via [CertificateParameterContext.GetSSHLoginsForTTL].
 // This method is intentionally unexported to prevent accidental use outside cert-param aggregation.

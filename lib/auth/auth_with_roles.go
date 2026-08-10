@@ -1961,8 +1961,6 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 		return nil, trace.AccessDenied("include_requestable is not supported for scoped identities")
 	case req.PinnedOnly:
 		return nil, trace.AccessDenied("pinned_only is not supported for scoped identities")
-	case req.IncludeLogins:
-		return nil, trace.AccessDenied("include_logins is not supported for scoped identities")
 	}
 
 	if len(req.Kinds) != 1 || req.Kinds[0] != types.KindNode {
@@ -1989,49 +1987,20 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 		return nil, trace.Wrap(err)
 	}
 
+	resourceLister := &unifiedResourceLister{}
+	resourceLister.accessChecker = &scopedResourceChecker{
+		ctx:           ctx,
+		scopedContext: *a.scopedContext,
+	}
+
 	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
 		// currently only nodes are supported
 		if resource.GetKind() != types.KindNode {
 			return false, nil
 		}
 
-		// Filter first and only check RBAC if there is a match to improve perf.
-		match, err := services.MatchResourceByFilters(resource, userFilter, nil)
-		if err != nil {
-			logger.WarnContext(ctx, "Unable to determine access to resource, matching with filter failed",
-				"resource_name", resource.GetName(),
-				"resource_kind", resource.GetKind(),
-				"error", err,
-			)
-			return false, nil
-		}
-		if !match {
-			return false, nil
-		}
-
-		server, ok := resource.(*types.ServerV2)
-		if !ok {
-			logger.WarnContext(ctx, "Unable to cast unified resource to server",
-				"resource_name", resource.GetName(),
-				"resource_kind", resource.GetKind(),
-			)
-			return false, nil
-		}
-
-		serverScope := scopes.Root
-		if server.Scope != "" {
-			serverScope = server.Scope
-		}
-
-		if err := a.scopedContext.CheckerContext.Decision(ctx, serverScope, func(checker *services.ScopedAccessChecker) error {
-			return checker.SSH().CanAccessSSHServer(server)
-		}); err == nil {
-			return true, nil
-		} else if !trace.IsAccessDenied(err) {
-			return false, trace.Wrap(err)
-		}
-
-		return false, nil
+		match, err := resourceLister.canList(resource, userFilter)
+		return match, trace.Wrap(err)
 	}, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2040,6 +2009,22 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources, nil /* requestable resources map */)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
+	}
+
+	if req.IncludeLogins {
+		for _, r := range paginatedResources {
+			if n := r.GetNode(); n != nil {
+				logins, err := resourceLister.getAllowedLogins(n)
+				if err != nil {
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for node",
+						"error", err,
+						"resource", n.GetName(),
+					)
+					continue
+				}
+				r.Logins = logins
+			}
+		}
 	}
 
 	return &proto.ListUnifiedResourcesResponse{
@@ -2696,6 +2681,65 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
+}
+
+type scopedResourceChecker struct {
+	ctx           context.Context
+	scopedContext authz.ScopedContext
+}
+
+func (c *scopedResourceChecker) CanAccess(resource types.ResourceWithLabels) error {
+	server, ok := resource.(*types.ServerV2)
+	if !ok {
+		logger.WarnContext(c.ctx, "Unable to cast unified resource to server",
+			"resource_name", resource.GetName(),
+			"resource_kind", resource.GetKind(),
+		)
+		return trace.AccessDenied("scoped resource checker only supports servers")
+	}
+
+	serverScope := scopes.Root
+	if server.Scope != "" {
+		serverScope = server.Scope
+	}
+
+	err := c.scopedContext.CheckerContext.Decision(c.ctx, serverScope,
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.SSH().CanAccessSSHServer(server)
+		})
+	return trace.Wrap(err)
+}
+
+func (c *scopedResourceChecker) GetAllowedLoginsForResource(
+	resource services.AccessCheckable,
+) ([]string, error) {
+	server, ok := resource.(*types.ServerV2)
+	if !ok {
+		logger.WarnContext(c.ctx, "Unable to cast unified resource to server",
+			"resource_name", resource.GetName(),
+			"resource_kind", resource.GetKind(),
+		)
+		return nil, trace.AccessDenied("scoped resource checker only supports servers")
+	}
+
+	serverScope := scopes.Root
+	if server.Scope != "" {
+		serverScope = server.Scope
+	}
+
+	var logins []string
+	for checker, err := range c.scopedContext.CheckerContext.CheckersForResourceScope(c.ctx, serverScope) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverLogins, err := checker.SSH().GetAllowedLoginsForServer(server)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		logins = append(logins, serverLogins...)
+	}
+
+	return logins, nil
 }
 
 // createOktaRequestableResourceChecker creates [oktaRequestableResoruceChecker].
