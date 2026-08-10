@@ -288,6 +288,7 @@ func NewPresetAccessRole() types.Role {
 				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
@@ -327,6 +328,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetLinuxDesktopLogins(types.Allow, []string{teleport.TraitInternalLinuxDesktopLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
@@ -637,6 +639,43 @@ func NewPresetAccessPluginRole() types.Role {
 					PreviewAsRoles: []string{
 						teleport.PresetListAccessRequestResourcesRoleName,
 					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetAccessPluginWithReviewRole returns a new pre-defined role for self-hosted
+// access request plugins that permits review.
+func NewPresetAccessPluginWithReviewRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessPluginWithReviewRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default access plugin with review role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessRequest, RO()),
+					types.NewRule(types.KindAccessPluginData, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RO()),
+					types.NewRule(types.KindAccessList, RO()),
+					types.NewRule(types.KindRole, RO()),
+					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
+				},
+				ReviewRequests: &types.AccessReviewConditions{
+					PreviewAsRoles: []string{
+						teleport.PresetListAccessRequestResourcesRoleName,
+					},
+					SubmitForUsers: []string{"*"},
 				},
 			},
 		},
@@ -1105,6 +1144,7 @@ func defaultAllowRules(buildType string) map[string][]types.Rule {
 		NewPresetAccessRole(),
 		NewPresetTerraformProviderRole(),
 		NewPresetAccessPluginRole(),
+		NewPresetAccessPluginWithReviewRole(),
 		NewPresetListAccessRequestResourcesRole(),
 		NewPresetDeviceAdminRole(buildType),
 		NewPresetBeamUserRole(buildType),

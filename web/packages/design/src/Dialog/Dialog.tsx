@@ -83,5 +83,8 @@ const DialogBox = styled.div<{
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
+  //TODO(gzdunek): Remove once all width overrides via dialogCss are updated for border-box sizing
+  // (they should become 64px wider).
+  box-sizing: content-box;
   ${props => props.dialogCss?.(props)};
 `;

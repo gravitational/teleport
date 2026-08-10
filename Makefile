@@ -1285,7 +1285,7 @@ e2e-binaries:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
+lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions lint-e2e-runner
 
 #
 # Runs linters without dedicated GitHub Actions.
@@ -1371,6 +1371,12 @@ lint-api:
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
 lint-kube-agent-updater:
 	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
+
+# e2e/runner is its own module, so the root golangci-lint run doesn't reach it.
+.PHONY: lint-e2e-runner
+lint-e2e-runner: GO_LINT_FLAGS ?=
+lint-e2e-runner:
+	cd e2e/runner && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh

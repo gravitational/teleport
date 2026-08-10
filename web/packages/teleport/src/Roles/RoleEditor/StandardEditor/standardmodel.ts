@@ -140,6 +140,7 @@ export type ResourceAccess =
   | AppAccess
   | DatabaseAccess
   | WindowsDesktopAccess
+  | LinuxDesktopAccess
   | GitHubOrganizationAccess;
 
 /**
@@ -165,6 +166,7 @@ export type ResourceAccessKind =
   | 'app'
   | 'db'
   | 'windows_desktop'
+  | 'linux_desktop'
   | 'git_server';
 
 /*
@@ -464,6 +466,20 @@ export type WindowsDesktopAccess = ResourceAccessBase<'windows_desktop'> &
   WindowsDesktopAccessFields;
 
 /*
+ * Models for the linux desktop resource access section.
+ */
+type LinuxDesktopAccessFields = {
+  labels: UILabel[];
+  logins: Option[];
+};
+
+export type LinuxDesktopAccessInputFields =
+  FieldTypesToBoolean<LinuxDesktopAccessFields>;
+
+export type LinuxDesktopAccess = ResourceAccessBase<'linux_desktop'> &
+  LinuxDesktopAccessFields;
+
+/*
  * Models for the git server resource access section.
  */
 type GitHubOrganizationAccessFields = {
@@ -652,6 +668,11 @@ export function newResourceAccess(
 ): WindowsDesktopAccess;
 
 export function newResourceAccess(
+  kind: 'linux_desktop',
+  roleVersion: RoleVersion
+): LinuxDesktopAccess;
+
+export function newResourceAccess(
   kind: 'git_server',
   roleVersion: RoleVersion
 ): GitHubOrganizationAccess;
@@ -708,6 +729,13 @@ export function newResourceAccess(
         kind: 'windows_desktop',
         labels: [],
         logins: [stringToOption('{{internal.windows_logins}}')],
+        hideValidationErrors: true,
+      };
+    case 'linux_desktop':
+      return {
+        kind: 'linux_desktop',
+        labels: [],
+        logins: [stringToOption('{{internal.linux_desktop_logins}}')],
         hideValidationErrors: true,
       };
     case 'git_server':
@@ -868,6 +896,10 @@ function roleConditionsToModel(
     windows_desktop_labels,
     windows_desktop_logins,
 
+    // Linux desktop access
+    linux_desktop_labels,
+    linux_desktop_logins,
+
     // GitHub organization access
     github_permissions,
 
@@ -989,6 +1021,17 @@ function roleConditionsToModel(
       kind: 'windows_desktop',
       labels: windowsDesktopLabelsModel,
       logins: windowsDesktopLoginsModel,
+      hideValidationErrors: false,
+    });
+  }
+
+  const linuxDesktopLabelsModel = labelsToModel(linux_desktop_labels);
+  const linuxDesktopLoginsModel = stringsToOptions(linux_desktop_logins ?? []);
+  if (someNonEmpty(linuxDesktopLabelsModel, linuxDesktopLoginsModel)) {
+    resources.push({
+      kind: 'linux_desktop',
+      labels: linuxDesktopLabelsModel,
+      logins: linuxDesktopLoginsModel,
       hideValidationErrors: false,
     });
   }
@@ -1627,6 +1670,11 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
           res.labels
         );
         role.spec.allow.windows_desktop_logins = optionsToStrings(res.logins);
+        break;
+
+      case 'linux_desktop':
+        role.spec.allow.linux_desktop_labels = labelsModelToLabels(res.labels);
+        role.spec.allow.linux_desktop_logins = optionsToStrings(res.logins);
         break;
 
       case 'git_server':

@@ -16,9 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode, useEffect, useState } from 'react';
+import {
+  createThemeSystem,
+  ThemeProvider as NewThemeProvider,
+  TELEPORT_THEME,
+  THEMES,
+  UiThemeMode,
+} from '@gravitational/design-system';
+import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { useMediaQuery } from 'usehooks-ts';
 
-import { bblpTheme, darkTheme, lightTheme, Theme } from 'design/theme';
+import {
+  bblpTheme,
+  darkTheme,
+  lightTheme,
+  resolveTheme,
+  Theme,
+  type ThemeDefinition,
+} from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
@@ -31,7 +46,68 @@ const customThemes = {
   mc: { ...lightTheme, isCustomTheme: true },
 };
 
-export const ThemeProvider = (props: { children?: ReactNode }) => {
+export function ThemeProvider({ children }: PropsWithChildren) {
+  const themePreference = useThemePreference();
+  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+
+  const selectedTheme = useMemo(() => {
+    const theme =
+      THEMES.find(t => t.name === cfg.customTheme) ??
+      THEMES.find(t => t.name === TELEPORT_THEME.name);
+
+    return {
+      ...theme,
+      system: createThemeSystem(theme.config),
+    };
+  }, []);
+
+  // `UiThemeMode` controls how a theme reacts to user preference:
+  //
+  //   SingleColor  the theme has no light/dark variant (e.g. `bblp`).
+  //                colorMode is left undefined; nothing to force.
+  //   ForcedColor  the theme is locked to one mode (e.g. `mc` is forced
+  //                light). colorMode comes from the theme itself, not
+  //                from `ThemePreference`.
+  //   LightAndDark the theme has both variants (e.g. `teleport`).
+  //                colorMode is derived from `ThemePreference`, falling
+  //                back to the OS `prefers-color-scheme` when UNSPECIFIED.
+  const colorMode = useMemo(() => {
+    switch (selectedTheme.mode) {
+      case UiThemeMode.SingleColor:
+        return;
+
+      case UiThemeMode.ForcedColor:
+        return selectedTheme.forcedColorMode;
+
+      case UiThemeMode.LightAndDark:
+        if (themePreference === ThemePreference.UNSPECIFIED) {
+          return prefersDark ? 'dark' : 'light';
+        }
+
+        return themePreference === ThemePreference.LIGHT ? 'light' : 'dark';
+    }
+  }, [themePreference, selectedTheme, prefersDark]);
+
+  const legacyTheme: Theme = useMemo(() => {
+    let theme = themePreferenceToTheme(themePreference, prefersDark);
+
+    if (customThemes[cfg.customTheme]) {
+      theme = customThemes[cfg.customTheme];
+    }
+
+    return resolveTheme(theme);
+  }, [themePreference, prefersDark]);
+
+  return (
+    <NewThemeProvider forcedTheme={colorMode} system={selectedTheme.system}>
+      <ConfiguredThemeProvider theme={legacyTheme}>
+        {children}
+      </ConfiguredThemeProvider>
+    </NewThemeProvider>
+  );
+}
+
+function useThemePreference() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     storageService.getThemePreference()
   );
@@ -61,21 +137,15 @@ export const ThemeProvider = (props: { children?: ReactNode }) => {
     };
   }, [themePreference]);
 
-  let theme = themePreferenceToTheme(themePreference);
-  if (customThemes[cfg.customTheme]) {
-    theme = customThemes[cfg.customTheme];
-  }
+  return themePreference;
+}
 
-  return (
-    <ConfiguredThemeProvider theme={theme}>
-      {props.children}
-    </ConfiguredThemeProvider>
-  );
-};
-
-function themePreferenceToTheme(themePreference: ThemePreference): Theme {
+function themePreferenceToTheme(
+  themePreference: ThemePreference,
+  prefersDark: boolean
+): ThemeDefinition {
   if (themePreference === ThemePreference.UNSPECIFIED) {
-    return getPrefersDark() ? lightTheme : darkTheme;
+    return prefersDark ? darkTheme : lightTheme;
   }
   return themePreference === ThemePreference.LIGHT ? lightTheme : darkTheme;
 }

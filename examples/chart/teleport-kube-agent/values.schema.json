@@ -433,6 +433,12 @@
                             "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/minAvailable",
                             "type": "integer",
                             "default": 1
+                        },
+                        "unhealthyPodEvictionPolicy": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/unhealthyPodEvictionPolicy",
+                            "type": "string",
+                            "enum": ["", "AlwaysAllow", "IfHealthyBudget"],
+                            "default": ""
                         }
                     }
                 },

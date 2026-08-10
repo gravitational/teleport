@@ -139,6 +139,13 @@ func TestAccessReviewConditionsIsEmpty(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "submit_for_users",
+			arc: AccessReviewConditions{
+				SubmitForUsers: []string{"test"},
+			},
+			expected: false,
+		},
 	}
 
 	for _, test := range tests {

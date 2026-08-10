@@ -21,11 +21,14 @@ const esModules = [
   '@exodus/bytes',
   'rettime',
   '@open-draft/deferred-promise',
+  '@gravitational/design-system',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
 module.exports = {
   ...config,
+  maxWorkers: '75%',
+  workerIdleMemoryLimit: '1GB',
   globals: {
     electron: {},
   },
