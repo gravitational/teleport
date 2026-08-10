@@ -181,9 +181,7 @@ extension LandingViewModel {
 				try deleteOperation().execute(db)
 			}
 		} catch {
-			logger.warning("Failed to forget clusters", metadata: [
-				"error": .string(String(describing: error)),
-			])
+			logger.warning("Failed to forget clusters", error: error)
 			destination = .notice(AlertState(
 				title: {
 					TextState("Could Not Forget Clusters")
