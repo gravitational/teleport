@@ -170,6 +170,7 @@ export function DesktopSession() {
         }
       }}
       aclAttempt={aclAttempt}
+      linuxDesktop={linuxDesktop}
       browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
       keyboardLayout={preferences.keyboardLayout}
