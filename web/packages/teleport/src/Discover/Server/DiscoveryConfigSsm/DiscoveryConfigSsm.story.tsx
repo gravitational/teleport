@@ -54,17 +54,15 @@ export const SuccessCloud = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-SuccessCloud.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () =>
-        HttpResponse.json({ id: 'token-id' })
-      ),
-      http.post(cfg.api.discoveryConfigPath, () =>
-        HttpResponse.json({ name: 'discovery-cfg-name' })
-      ),
-    ],
-  },
+SuccessCloud.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () =>
+      HttpResponse.json({ id: 'token-id' })
+    ),
+    http.post(cfg.api.discoveryConfigPath, () =>
+      HttpResponse.json({ name: 'discovery-cfg-name' })
+    )
+  );
 };
 
 export const SuccessSelfHosted = () => (
@@ -78,54 +76,48 @@ export const SuccessSelfHosted = () => (
     }}
   />
 );
-SuccessSelfHosted.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () =>
-        HttpResponse.json({ id: 'token-id' })
-      ),
-      http.post(cfg.api.discoveryConfigPath, () =>
-        HttpResponse.json({ name: 'discovery-cfg-name' })
-      ),
-    ],
-  },
+SuccessSelfHosted.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () =>
+      HttpResponse.json({ id: 'token-id' })
+    ),
+    http.post(cfg.api.discoveryConfigPath, () =>
+      HttpResponse.json({ name: 'discovery-cfg-name' })
+    )
+  );
 };
 
 export const Loading = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-Loading.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () =>
-        HttpResponse.json({ id: 'token-id' })
-      ),
-      http.post(cfg.api.discoveryConfigPath, () => delay('infinite')),
-    ],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () =>
+      HttpResponse.json({ id: 'token-id' })
+    ),
+    http.post(cfg.api.discoveryConfigPath, () => delay('infinite'))
+  );
 };
 
 export const Failed = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () =>
-        HttpResponse.json({ id: 'token-id' })
-      ),
-      http.post(cfg.api.discoveryConfigPath, () =>
-        HttpResponse.json(
-          {
-            message: 'Some kind of error message',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () =>
+      HttpResponse.json({ id: 'token-id' })
+    ),
+    http.post(cfg.api.discoveryConfigPath, () =>
+      HttpResponse.json(
+        {
+          message: 'Some kind of error message',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 const Component = ({

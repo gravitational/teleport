@@ -50,7 +50,7 @@ func TestBotResourceName(t *testing.T) {
 			name:      "scoped",
 			scope:     "/staging",
 			botName:   "name",
-			want:      "bot-++staging+name",
+			want:      "bot-30010173746167696e670000-name",
 			assertErr: require.NoError,
 		},
 		{
@@ -59,7 +59,7 @@ func TestBotResourceName(t *testing.T) {
 			name:      "scoped, child scope",
 			scope:     "/staging/eu",
 			botName:   "name",
-			want:      "bot-++staging+eu+name",
+			want:      "bot-30010173746167696e6700000165750000-name",
 			assertErr: require.NoError,
 		},
 		{

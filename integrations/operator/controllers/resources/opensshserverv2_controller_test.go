@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
@@ -64,11 +64,11 @@ func (g *opensshServerV2TestingPrimitives) CreateTeleportResource(ctx context.Co
 }
 
 func (g *opensshServerV2TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Server, error) {
-	return g.setup.TeleportClient.GetNode(ctx, defaults.Namespace, name)
+	return g.setup.TeleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
 }
 
 func (g *opensshServerV2TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	return trace.Wrap(g.setup.TeleportClient.DeleteNode(ctx, defaults.Namespace, name))
+	return trace.Wrap(g.setup.TeleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: name}.Build()))
 }
 
 func (g *opensshServerV2TestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {

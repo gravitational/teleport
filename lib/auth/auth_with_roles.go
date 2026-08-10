@@ -1116,7 +1116,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 	scopedServer := a.ScopedServerWithRoles()
 	switch handle.GetType() {
 	case constants.KeepAliveNode:
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.Name, types.RoleNode); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction(handle.Scope, handle.Name, types.RoleNode); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveApp:
@@ -1308,7 +1308,8 @@ func supportedScopedWatchKind(kind string) bool {
 		scopedaccess.KindScopedRole,
 		scopedaccess.KindScopedRoleAssignment,
 		types.KindKubernetesCluster,
-		types.KindWorkloadIdentity:
+		types.KindWorkloadIdentity,
+		types.KindNode:
 		return true
 	default:
 		return false
@@ -1515,20 +1516,28 @@ func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) 
 	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
 
-// DeleteNode deletes node in the namespace
+// DeleteNode deletes an unscoped node in the namespace.
+//
+// Deprecated: use PresenceService.DeleteSSHServer instead.
+// TODO(williamo): Remove in v20
 func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string) error {
 	if err := a.actionNamespace(namespace, types.KindNode, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteNode(ctx, namespace, node)
+	return a.authServer.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: node}.Build())
 }
 
-// GetNode gets a node by name and namespace.
+// GetNode gets an unscoped node by name and namespace.
+//
+// Deprecated: use PresenceService.GetSSHServer instead.
+// TODO(williamo): Remove in v20
 func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	if err := a.actionNamespace(namespace, types.KindNode, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	node, err := a.authServer.GetNode(ctx, namespace, name)
+	node, err := a.authServer.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5850,14 +5859,6 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// DELETE IN (7.0)
-	// It's OK to delete this code alongside migrateOSS code in auth.
-	// It prevents 6.0 from migrating resources multiple times
-	// and the role is used for `tctl users add` code too.
-	if a.authServer.modules.IsOSSBuild() && name == teleport.AdminRoleName {
-		return trace.AccessDenied("can not delete system role %q", name)
 	}
 
 	return a.authServer.DeleteRole(ctx, name)

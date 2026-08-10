@@ -564,14 +564,24 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 	resourceTypes := legacy.ResourceTypes()
 
 	genericResourceTypes := map[string]tfsdk.ResourceType{
-		"teleport_access_list":            resources.NewAccessListResourceType(),
-		"teleport_access_list_member":     resources.NewAccessListMemberResourceType(),
-		"teleport_app":                    resources.NewAppResourceType(),
-		"teleport_kube_cluster":           resources.NewKubernetesClusterResourceType(),
-		"teleport_saml_connector":         resources.NewSAMLConnectorResourceType(),
-		"teleport_scoped_role":            resources.NewScopedRoleResourceType(),
-		"teleport_scoped_role_assignment": resources.NewScopedRoleAssignmentResourceType(),
-		"teleport_scoped_token":           resources.NewScopedTokenResourceType(),
+		"teleport_access_list":             resources.NewAccessListResourceType(),
+		"teleport_access_list_member":      resources.NewAccessListMemberResourceType(),
+		"teleport_access_monitoring_rule":  resources.NewAccessMonitoringRuleResourceType(),
+		"teleport_app":                     resources.NewAppResourceType(),
+		"teleport_auth_preference":         resources.NewAuthPreferenceResourceType(),
+		"teleport_database":                resources.NewDatabaseResourceType(),
+		"teleport_dynamic_windows_desktop": resources.NewDynamicWindowsDesktopResourceType(),
+		"teleport_health_check_config":     resources.NewHealthCheckConfigResourceType(),
+		"teleport_installer":               resources.NewInstallerResourceType(),
+		"teleport_kube_cluster":            resources.NewKubernetesClusterResourceType(),
+		"teleport_lock":                    resources.NewLockResourceType(),
+		"teleport_role":                    resources.NewRoleResourceType(),
+		"teleport_saml_connector":          resources.NewSAMLConnectorResourceType(),
+		"teleport_scoped_role":             resources.NewScopedRoleResourceType(),
+		"teleport_static_host_user":        resources.NewStaticHostUserResourceType(),
+		"teleport_scoped_role_assignment":  resources.NewScopedRoleAssignmentResourceType(),
+		"teleport_scoped_token":            resources.NewScopedTokenResourceType(),
+		"teleport_user":                    resources.NewUserResourceType(),
 	}
 
 	maps.Insert(resourceTypes, maps.All(genericResourceTypes))
@@ -584,14 +594,24 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 	dataSourceTypes := legacy.DataSourceTypes()
 
 	genericDataSourceTypes := map[string]tfsdk.DataSourceType{
-		"teleport_access_list":            resources.NewAccessListDataSourceType(),
-		"teleport_access_list_member":     resources.NewAccessListMemberDataSourceType(),
-		"teleport_app":                    resources.NewAppDataSourceType(),
-		"teleport_kube_cluster":           resources.NewKubernetesClusterDataSourceType(),
-		"teleport_saml_connector":         resources.NewSAMLConnectorDataSourceType(),
-		"teleport_scoped_role":            resources.NewScopedRoleDataSourceType(),
-		"teleport_scoped_role_assignment": resources.NewScopedRoleAssignmentDataSourceType(),
-		"teleport_scoped_token":           resources.NewScopedTokenDataSourceType(),
+		"teleport_access_list":             resources.NewAccessListDataSourceType(),
+		"teleport_access_list_member":      resources.NewAccessListMemberDataSourceType(),
+		"teleport_access_monitoring_rule":  resources.NewAccessMonitoringRuleDataSourceType(),
+		"teleport_app":                     resources.NewAppDataSourceType(),
+		"teleport_auth_preference":         resources.NewAuthPreferenceDataSourceType(),
+		"teleport_database":                resources.NewDatabaseDataSourceType(),
+		"teleport_dynamic_windows_desktop": resources.NewDynamicWindowsDesktopDataSourceType(),
+		"teleport_health_check_config":     resources.NewHealthCheckConfigDataSourceType(),
+		"teleport_installer":               resources.NewInstallerDataSourceType(),
+		"teleport_kube_cluster":            resources.NewKubernetesClusterDataSourceType(),
+		"teleport_lock":                    resources.NewLockDataSourceType(),
+		"teleport_role":                    resources.NewRoleDataSourceType(),
+		"teleport_saml_connector":          resources.NewSAMLConnectorDataSourceType(),
+		"teleport_scoped_role":             resources.NewScopedRoleDataSourceType(),
+		"teleport_static_host_user":        resources.NewStaticHostUserDataSourceType(),
+		"teleport_scoped_role_assignment":  resources.NewScopedRoleAssignmentDataSourceType(),
+		"teleport_scoped_token":            resources.NewScopedTokenDataSourceType(),
+		"teleport_user":                    resources.NewUserDataSourceType(),
 	}
 
 	maps.Insert(dataSourceTypes, maps.All(genericDataSourceTypes))

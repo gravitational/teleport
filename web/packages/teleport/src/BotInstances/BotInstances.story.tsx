@@ -96,34 +96,28 @@ const listBotInstances = {
 };
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        listBotInstancesSuccess(listBotInstances, 'v1'),
-        listBotInstancesSuccess(listBotInstances, 'v2'),
-        getBotInstanceSuccess(),
-        getBotInstanceMetricsSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listBotInstancesSuccess(listBotInstances, 'v1'),
+      listBotInstancesSuccess(listBotInstances, 'v2'),
+      getBotInstanceSuccess(),
+      getBotInstanceMetricsSuccess()
+    );
   },
 };
 
 export const ErrorLoadingList: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        listBotInstancesError(500, 'something went wrong'),
-        getBotInstanceMetricsSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listBotInstancesError(500, 'something went wrong'),
+      getBotInstanceMetricsSuccess()
+    );
   },
 };
 
 export const StillLoadingList: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBotInstancesForever(), getBotInstanceMetricsSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBotInstancesForever(), getBotInstanceMetricsSuccess());
   },
 };
 
@@ -131,16 +125,15 @@ export const NoListPermission: Story = {
   args: {
     hasBotInstanceListPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        listBotInstancesError(
-          500,
-          'this call should never be made without permissions'
-        ),
-        getBotInstanceMetricsSuccess(),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      listBotInstancesError(
+        500,
+        'this call should never be made without permissions'
+      ),
+      getBotInstanceMetricsSuccess()
+    );
   },
 };
 
@@ -148,18 +141,17 @@ export const NoReadPermission: Story = {
   args: {
     hasBotInstanceReadPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        listBotInstancesSuccess(listBotInstances, 'v1'),
-        listBotInstancesSuccess(listBotInstances, 'v2'),
-        getBotInstanceError(
-          500,
-          'this call should never be made without permissions'
-        ),
-        getBotInstanceMetricsSuccess(),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      listBotInstancesSuccess(listBotInstances, 'v1'),
+      listBotInstancesSuccess(listBotInstances, 'v2'),
+      getBotInstanceError(
+        500,
+        'this call should never be made without permissions'
+      ),
+      getBotInstanceMetricsSuccess()
+    );
   },
 };
 
