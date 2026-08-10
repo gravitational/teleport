@@ -212,11 +212,12 @@ export function DocumentVnetDiagReport(props: {
               IPv4 CIDR {pluralize(networkStack.ipv4CidrRanges.length, 'range')}
               : <code>{networkStack.ipv4CidrRanges.join(', ')}</code>
               <br />
-              IPv6 prefix:{' '}
               {networkStack.ipv6Prefix ? (
-                <code>{networkStack.ipv6Prefix}</code>
+                <>
+                  IPv6 prefix: <code>{networkStack.ipv6Prefix}</code>
+                </>
               ) : (
-                'disabled on this host'
+                'IPv6: Disabled on this host'
               )}
               <br />
               DNS {pluralize(networkStack.dnsZones.length, 'zone')}:{' '}
