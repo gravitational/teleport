@@ -12,7 +12,7 @@ require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.4
-	github.com/hashicorp/terraform-plugin-framework v0.10.0
+	github.com/hashicorp/terraform-plugin-framework v0.15.0
 	github.com/hashicorp/terraform-plugin-go v0.18.0
 	github.com/hashicorp/terraform-plugin-log v0.10.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.10.1
@@ -267,7 +267,7 @@ require (
 	github.com/grafana/pyroscope-go v1.2.7 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 // indirect
-	github.com/gravitational/protoc-gen-terraform/v4 v4.0.0 // indirect
+	github.com/gravitational/protoc-gen-terraform/v5 v5.0.0-dev.1 // indirect
 	github.com/gravitational/roundtrip v1.0.3 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3 // indirect
@@ -549,4 +549,4 @@ replace (
 tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
 // Protoc plugin generating terraform schema
-tool github.com/gravitational/protoc-gen-terraform/v4
+tool github.com/gravitational/protoc-gen-terraform/v5
