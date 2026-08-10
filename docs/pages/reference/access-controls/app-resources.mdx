@@ -32,6 +32,13 @@ spec:
       - allow_all: true
 ```
 
+The schema declares the other rule fields, `paths`, `methods`, `where`,
+`allow_encoded`, `allow_code`, `allow_reason`, `deny_code_hint`, and
+`deny_reason_hint`, together with `spec.allow.app_resources_expressions`, which
+expresses the same rules as predicates. Teleport 19 rejects a role that sets any
+of these fields. The schema declares them so that version skew or a rollback
+cannot silently drop one and widen the access a role grants.
+
 When a v9 role and a v8 or older role both grant the same application, Teleport
 drops the older roles from the decision, so they cannot restore unrestricted
 access to an application a v9 role restricts.

@@ -7209,6 +7209,22 @@ func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
 		require.Empty(t, got.Spec.Deny.AppResources)
 	})
 
+	t.Run("allow expressions strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Allow.AppResourcesExpressions)
+	})
+
+	t.Run("deny expressions strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Deny.AppResourcesExpressions = []string{`path.match(literal("admin"))`}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Deny.AppResourcesExpressions)
+	})
+
 	t.Run("deny scopes to the role's own labels, not a blanket wildcard", func(t *testing.T) {
 		input := newV9Role(ruleWithoutAllowAll)
 		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
