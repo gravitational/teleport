@@ -295,7 +295,7 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 		requests = append(requests, req.URL.String())
 		var body string
 		switch {
-		case req.URL.Host == "mcp.example.com" && req.URL.Path == "/.well-known/oauth-protected-resource/v2/mcp":
+		case req.URL.Host == "localhost" && req.URL.Path == "/.well-known/oauth-protected-resource/v2/mcp":
 			body = `{"resource":"` + publicResource + `","authorization_servers":["https://auth.example.com"]}`
 		case req.URL.Host == "auth.example.com" && req.URL.Path == "/.well-known/oauth-authorization-server":
 			body = `{"issuer":"https://auth.example.com","authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token"}`
@@ -337,7 +337,7 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 	authorizationURL, err := handler.GetAuthorizationURL(t.Context(), "state", "challenge")
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		"https://mcp.example.com/.well-known/oauth-protected-resource/v2/mcp",
+		"http://localhost/.well-known/oauth-protected-resource/v2/mcp",
 		"https://auth.example.com/.well-known/oauth-authorization-server",
 	}, requests)
 
@@ -346,6 +346,67 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 	require.Equal(t, "https://auth.example.com/authorize", parsedAuthorizationURL.Scheme+"://"+parsedAuthorizationURL.Host+parsedAuthorizationURL.Path)
 	require.Equal(t, publicResource, parsedAuthorizationURL.Query().Get("resource"))
 	require.NotContains(t, parsedAuthorizationURL.Query().Get("resource"), "localhost")
+}
+
+func TestHostRoutingTransportOAuthMetadataRootFallback(t *testing.T) {
+	t.Parallel()
+
+	const (
+		pathAwarePath = "/.well-known/oauth-protected-resource/mcp"
+		rootPath      = "/.well-known/oauth-protected-resource"
+	)
+	tests := []struct {
+		name            string
+		pathAwareStatus int
+		wantPaths       []string
+	}{
+		{
+			name:            "unauthorized",
+			pathAwareStatus: http.StatusUnauthorized,
+			wantPaths:       []string{pathAwarePath, rootPath},
+		},
+		{
+			name:            "forbidden",
+			pathAwareStatus: http.StatusForbidden,
+			wantPaths:       []string{pathAwarePath, rootPath},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var paths []string
+			mockTransport := mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				paths = append(paths, req.URL.Path)
+				statusCode := test.pathAwareStatus
+				if req.URL.Path == rootPath {
+					statusCode = http.StatusOK
+				}
+				return &http.Response{
+					StatusCode: statusCode,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(http.StatusText(statusCode))),
+					Request:    req,
+				}, nil
+			})
+			mcpServerOrigin, err := url.Parse("https://mcp.example.com/mcp")
+			require.NoError(t, err)
+			transport := &hostRoutingTransport{
+				tunneled:        mockTransport,
+				direct:          mockTransport,
+				mcpServerOrigin: mcpServerOrigin,
+			}
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://mcp.example.com"+pathAwarePath, nil)
+			require.NoError(t, err)
+
+			resp, err := transport.RoundTrip(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, test.wantPaths, paths)
+			require.NoError(t, resp.Body.Close())
+		})
+	}
 }
 
 func TestFetchAdvertisedMCPOAuthScopes(t *testing.T) {
