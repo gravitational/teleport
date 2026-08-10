@@ -137,6 +137,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -3969,7 +3970,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		}
 	}
 
-	// Ensure that the Kubernetes cluster name specified in the request exists
+	// Ensure that the Kubernetes cluster name (or SQN) specified in the request exists
 	// when the certificate is intended for a local Kubernetes cluster.
 	// If the certificate is targeting a trusted Teleport cluster, it is the
 	// responsibility of the cluster to ensure its existence.
@@ -3979,8 +3980,24 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			if pinnedScope := scopePin.GetScope(); pinnedScope != "" {
+				if !scopes.ResourceScope(ks.GetCluster().GetScope()).IsSubjectToScopeOfEffect(pinnedScope) {
+					// Skip kube clusters that aren't subject to the pinned scope. This prevents discovering the
+					// names of unscoped or orthogonally scoped kube clusters by attempting to generate credentials
+					// for them.
+					continue
+				}
+			}
 
-			if ks.GetCluster().GetName() == req.KubernetesCluster {
+			clusterSQN := scopes.QualifiedName{Name: req.KubernetesCluster}
+			if scopes.MaybeSQN(req.KubernetesCluster) {
+				var err error
+				clusterSQN, err = scopes.ParseQualifiedName(req.KubernetesCluster)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			if kubeutils.KubeClusterMatchesSQN(ks.GetCluster(), clusterSQN) {
 				found = true
 				break
 			}

@@ -1246,12 +1246,16 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
-	const kubeClusterName = "kube-cluster-1"
+	const (
+		kubeClusterName = "kube-cluster-1"
+		scope           = "/test"
+	)
 	kubeCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name: kubeClusterName,
 		},
 		types.KubernetesClusterSpecV3{},
+		types.KubeClusterWithScope(scope),
 	)
 	require.NoError(t, err)
 
@@ -1268,6 +1272,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	kubeServer.Scope = scope
 
 	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
@@ -1305,7 +1310,6 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
 	}
 
-	scope := "/test"
 	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
@@ -1415,7 +1419,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          tt.user.GetName(),
 				Expires:           srv.Auth().GetClock().Now().Add(defaultDuration),
-				KubernetesCluster: kubeClusterName,
+				KubernetesCluster: scopes.QualifiedName{Name: kubeClusterName, Scope: scope}.String(),
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 				Usage:             proto.UserCertsRequest_Kubernetes,
 			})
@@ -14410,7 +14414,8 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	client, err := srv.NewClient(ident)
 	require.NoError(t, err)
 
-	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "scoped-kube-host", scope)
+	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "unscoped-kube-host", "")
 
 	scopedApp, err := types.NewAppV3(types.Metadata{
 		Name:   "test-app",
@@ -14425,6 +14430,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
 	require.NoError(t, err)
 
+	clusterSQN := scopes.QualifiedName{Scope: scope, Name: "kube-cluster"}
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -14432,7 +14438,18 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		assertCert func(t *testing.T, cert *x509.Certificate)
 	}{
 		{
-			name: "valid request",
+			name: "valid scoped request",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: clusterSQN.String(),
+				Expires:           time.Now().Add(time.Hour),
+			},
+		},
+		{
+			name: "valid unscoped request",
 			req: proto.UserCertsRequest{
 				SSHPublicKey:      sshPubKey,
 				TLSPublicKey:      tlsPubKey,
@@ -14440,6 +14457,13 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Usage:             proto.UserCertsRequest_Kubernetes,
 				KubernetesCluster: "kube-cluster",
 				Expires:           time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				// a scoped identity should not be able to request a cert for an unscoped
+				// kube cluster
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "is not registered")
 			},
 		},
 		{
@@ -14450,7 +14474,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: clusterSQN.String(),
 				Expires:           time.Now().Add(time.Hour * 24 * 7),
 			},
 			assertCert: func(t *testing.T, cert *x509.Certificate) {

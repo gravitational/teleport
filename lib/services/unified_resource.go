@@ -605,6 +605,9 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 			name = r.GetCluster().GetName()
 			kind = types.KindKubernetesCluster
 		}
+		if scope := r.GetScope(); scope != "" {
+			name = scopes.QualifiedName{Name: name, Scope: scope}.String()
+		}
 	case types.DatabaseServer:
 		db := r.GetDatabase()
 		if db != nil {

@@ -985,7 +985,7 @@ func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.
 	})
 }
 
-func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
+func TestUnifiedResourceWatcher_ScopedApps(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	client := newClient(t)
@@ -1064,6 +1064,94 @@ func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
 		require.ElementsMatch(t, []string{"/prod"}, getScopes(res))
 	}, 5*time.Second, 10*time.Millisecond)
 
+}
+
+func TestUnifiedResourceWatcher_ScopedKube(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	client := newClient(t)
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    client,
+		},
+		ResourceGetter: client,
+	})
+	require.NoError(t, err)
+
+	newScopedKubeServer := func(scope string) *types.KubernetesServerV3 {
+		const name = "kube"
+		return &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Scope: scope,
+			Spec: types.KubernetesServerSpecV3{
+				HostID: uuid.NewString(),
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: name,
+					},
+					Scope: scope,
+				},
+			},
+		}
+	}
+
+	staging := newScopedKubeServer("/staging")
+	prod := newScopedKubeServer("/prod")
+	unscoped := newScopedKubeServer("")
+
+	for _, srv := range []*types.KubernetesServerV3{staging, prod, unscoped} {
+		_, err = client.UpsertKubernetesServer(ctx, srv)
+		require.NoError(t, err)
+	}
+
+	getScopes := func(res []types.ResourceWithLabels) []string {
+		require.NoError(t, err)
+		scopes := []string{}
+		for _, r := range res {
+			kubeServer, ok := r.(types.KubeServer)
+			require.True(t, ok, "expected types.KubeServer, got %T", r)
+			scopes = append(scopes, kubeServer.GetScope())
+		}
+		return scopes
+	}
+
+	// All three same-named kube servers must be distinct entries.
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 3)
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// Deleting the staging kube server (identified by hostID/name only, like the
+	// real deletion paths) must prune exactly the staging entry.
+	require.NoError(t, client.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		HostId: staging.Spec.HostID,
+		Name:   staging.GetName(),
+		Scope:  staging.GetScope(),
+	}.Build()))
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 2)
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// The unscoped kube server is still deletable through the legacy path.
+	require.NoError(t, client.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		HostId: unscoped.Spec.HostID,
+		Name:   unscoped.GetName(),
+		Scope:  unscoped.GetScope(),
+	}.Build()))
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		require.ElementsMatch(t, []string{"/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {

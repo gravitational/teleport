@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -1132,13 +1133,21 @@ func (s *PresenceService) RangeKubernetesServersWithName(ctx context.Context, cl
 		return stream.Fail[types.KubeServer](trace.BadParameter("missing kubernetes cluster name"))
 	}
 
+	sqn := scopes.QualifiedName{Name: clusterName}
+	if scopes.MaybeSQN(clusterName) {
+		var err error
+		sqn, err = scopes.ParseQualifiedName(clusterName)
+		if err != nil {
+			return stream.Fail[types.KubeServer](trace.Wrap(err))
+		}
+	}
 	// TODO(wethreetrees): if Metadata.Name == Spec.Cluster.GetName() becomes a
 	// CheckAndSetDefaults invariant, this filter could check against the backend
 	// key's trailing component before unmarshalling. Currently no such invariant
 	// exists, so we unmarshal every item to read the embedded cluster name.
 	mapFn := func(server types.KubeServer) (types.KubeServer, bool) {
 		cluster := server.GetCluster()
-		return server, cluster != nil && cluster.GetName() == clusterName
+		return server, cluster != nil && kubeutils.KubeClusterMatchesSQN(cluster, sqn)
 	}
 
 	return stream.FilterMap(s.kubeServers.Resources(ctx, "", ""), mapFn)
