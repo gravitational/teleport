@@ -402,9 +402,6 @@ const api = {
     if (mfaResponse) {
       options.headers[MFA_HEADER] = JSON.stringify({
         ...mfaResponse,
-        // TODO(Joerger): DELETE IN v19.0.0.
-        // We include webauthnAssertionResponse for backwards compatibility.
-        webauthnAssertionResponse: mfaResponse.webauthn_response,
       });
     }
 
