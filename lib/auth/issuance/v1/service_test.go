@@ -730,7 +730,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		// scope pin check rejects.
 
 		// Create a scoped role at child scope for the child bot.
-		_, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		_, err := scopedSvc.CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: scopedaccessv1.ScopedRole_builder{
 				Kind:    scopedaccess.KindScopedRole,
 				Version: types.V1,
@@ -754,7 +754,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a child-scoped bot.
-		childBot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		childBot, err := adminClient.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
 			Bot: machineidv1pb.Bot_builder{
 				Kind:    types.KindBot,
 				Version: types.V1,
@@ -767,7 +767,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		}.Build())
 		require.NoError(t, err)
 
-		childSRAResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		childSRAResp, err := scopedSvc.CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
