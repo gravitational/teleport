@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
 	name: "TeleportKit",
-	platforms: [.iOS(.v26)],
+	platforms: [.iOS(.v26), .macOS(.v26)],
 	products: [
 		.library(name: "SystemClients", targets: ["SystemClients"]),
 		.library(name: "LogBackends", targets: ["LogBackends"]),
@@ -28,6 +28,15 @@ let package = Package(
 			dependencies: [
 				.logging,
 				.dependencies,
+				"SystemClients",
+			],
+		),
+		.testTarget(
+			name: "LogBackendsTests",
+			dependencies: [
+				.dependencies,
+				.logging,
+				"LogBackends",
 				"SystemClients",
 			],
 		),
