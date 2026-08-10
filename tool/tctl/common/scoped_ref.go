@@ -130,7 +130,7 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 					return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid scope: %v", qn, err)
 				}
 				for _, part := range []string{botName, instanceID} {
-					if err := scopes.StrongValidateSegment(part); err != nil {
+					if err := scopes.StrongValidateResourceName(part); err != nil {
 						return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid name: %v", qn, err)
 					}
 				}
