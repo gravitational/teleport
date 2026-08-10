@@ -1759,8 +1759,8 @@ func TestUpsertBot(t *testing.T) {
 				}.Build(),
 			}.Build(),
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "does not belong to this bot")
-				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+				require.ErrorContains(t, err, "backing user is held by a different bot or user")
+				require.True(t, trace.IsAlreadyExists(err), "error should be already exists")
 			},
 		},
 		{
