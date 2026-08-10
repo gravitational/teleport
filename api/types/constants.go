@@ -730,9 +730,6 @@ const (
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
-	// KindAppAuthConfig is the resource kind for app auth configs.
-	KindAppAuthConfig = "app_auth_config"
-
 	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
 	KindValidatedMFAChallenge = "validated_mfa_challenge"
 

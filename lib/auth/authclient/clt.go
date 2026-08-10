@@ -1650,8 +1650,6 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
-	services.AppAuthConfig
-	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
 	services.SubCAServiceGetter
