@@ -256,7 +256,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)
 
-discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.K8sRestConfig)
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.K8sRestConfig)
 	require.NoError(t, err)
 	if err != nil {
 		setupLog.Error(err, "unable to create kubernetes client")

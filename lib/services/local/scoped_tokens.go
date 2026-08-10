@@ -47,7 +47,7 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc      *generic.ScopeAwareServiceWrapper[*joiningv1.ScopedToken]
+	svc            *generic.ScopeAwareServiceWrapper[*joiningv1.ScopedToken]
 	scopesFeatures scopes.Features
 }
 
