@@ -1528,7 +1528,7 @@ export const formatters: Formatters = {
     type: 'device.enroll_pairing.deny',
     desc: 'Device Enroll Pairing Denied',
     format: ({ user, device, error }) => {
-      let msg = `Device enrollment request for user [${user}] was not approved${formatDevice(device)}`;
+      let msg = `Device enrollment request for user [${user}] was denied${formatDevice(device)}`;
       if (error) {
         msg += `: ${error}`;
       }
