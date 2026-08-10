@@ -30,6 +30,12 @@ This guide shows you how to connect to Teleport Kubernetes clusters with MCP cli
 (!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 - Kubernetes Clusters enrolled with Teleport. See our [guides](../../enroll-resources/kubernetes-access/getting-started.mdx).
 
+<Admonition type="tip" title="Headless and automated environments">
+This guide uses interactive `tsh login`. For headless environments, CI/CD
+pipelines, or automation, use [Machine ID](../../machine-workload-identity/getting-started.mdx)
+(`tbot`) to issue short-lived credentials without interactive authentication.
+</Admonition>
+
 ## Step 1/2. List available MCP servers
 
 First, sign in into your Teleport cluster using `tsh login`:

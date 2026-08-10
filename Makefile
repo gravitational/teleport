@@ -395,6 +395,12 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_DEV_BUILD ?=
+TELEPORT_UPDATE_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community -X main.artifactSignaturePublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64) -X main.artifactSignatureBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64) -X main.artifactSignatureAdditionalPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64) -X main.artifactSignatureAdditionalBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64)'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -459,7 +465,11 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
+	@if [[ (-z "$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64)" || -z "$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64)") && "$(TELEPORT_UPDATE_DEV_BUILD)" != "1" ]]; then \
+		echo "TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 and TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 must be set when building teleport-update (or set TELEPORT_UPDATE_DEV_BUILD=1 for unsigned dev builds)" >&2; \
+		exit 1; \
+	fi
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TELEPORT_UPDATE_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -1332,7 +1342,7 @@ e2e-binaries:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
+lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions lint-e2e-runner
 
 #
 # Runs linters without dedicated GitHub Actions.
@@ -1413,6 +1423,12 @@ lint-api:
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
 lint-kube-agent-updater:
 	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
+
+# e2e/runner is its own module, so the root golangci-lint run doesn't reach it.
+.PHONY: lint-e2e-runner
+lint-e2e-runner: GO_LINT_FLAGS ?=
+lint-e2e-runner:
+	cd e2e/runner && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -1497,7 +1513,7 @@ fix-license:
 # Used prior to a release by bumping VERSION in this Makefile and then
 # running "make update-version".
 .PHONY: update-version
-update-version: version test-helm-update-snapshots
+update-version: version
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
@@ -1559,6 +1575,7 @@ IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS
 .PHONY: tag-build
 tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
 tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/build,stage/build)
+tag-build: MANAGED_UPDATES_SIGNING_KEY ?= primary
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
@@ -1567,7 +1584,8 @@ tag-build:
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
-		-f "environment=$(ENVIRONMENT)"
+		-f "environment=$(ENVIRONMENT)" \
+		-f "managed-updates-signing-key=$(MANAGED_UPDATES_SIGNING_KEY)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
@@ -2100,7 +2118,7 @@ export rust_shadowed_warning
 # on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
 # silently bypasses the toolchain file even though the checks below pass.
 .PHONY: rustup-toolchain-warning
-rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) --no-print-directory print-rust-toolchain-version)
 rustup-toolchain-warning:
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
 		echo -en "\033[31m";\

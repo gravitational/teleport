@@ -28,6 +28,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	convertv1 "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -48,8 +49,10 @@ func NewAccessListDataSourceType() tfdriver.DataSourceType[accesslist.AccessList
 			},
 		},
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(
-			path.Root("header").AtName("metadata").AtName("name"),
-			path.Root("scope"),
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("header").AtName("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
 		),
 	}
 }
@@ -87,10 +90,15 @@ func NewAccessListResourceType() tfdriver.ResourceType[accesslist.AccessList, tf
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[accesslist.AccessList](),
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
-			path.Root("header").AtName("metadata").AtName("name"),
-			path.Root("scope"),
-			func(av *accesslist.AccessList) (string, string) {
-				return av.GetMetadata().Name, av.GetScope()
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("header").AtName("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+			func(av *accesslist.AccessList) scopes.QualifiedName {
+				return scopes.QualifiedName{
+					Name:  av.GetMetadata().Name,
+					Scope: av.GetScope(),
+				}
 			},
 		),
 		ResourceRevision: func(st *accesslist.AccessList) string {

@@ -406,7 +406,14 @@ func TestTerraformJoinScoped(t *testing.T) {
 			Rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedToken},
-					Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbUpdate, types.VerbCreate, types.VerbDelete, types.VerbRead},
+					Verbs: scopedaccess.EncodeScopedVerbs(
+						scopedaccess.List,
+						scopedaccess.Read,
+						scopedaccess.Secrets,
+						scopedaccess.Create,
+						scopedaccess.Update,
+						scopedaccess.Delete,
+					),
 				}.Build(),
 			},
 		}.Build(),

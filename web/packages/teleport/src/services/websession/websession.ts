@@ -39,29 +39,37 @@ const session = {
   _isDeviceTrustRequired: false,
   _isDeviceTrusted: false,
 
-  logout(rememberLocation = false) {
+  async logout(rememberLocation = false) {
     let samlSloUrl = '';
+    try {
+      const response = await this._plainLogout();
+      samlSloUrl = response?.samlSloUrl;
+    } finally {
+      if (samlSloUrl) {
+        window.open(samlSloUrl, '_self');
+      } else {
+        history.goToLogin({ rememberLocation });
+      }
+    }
+  },
 
-    api
-      .delete(cfg.api.webSessionPath)
-      .then(response => {
-        samlSloUrl = response?.samlSloUrl;
-      })
-      .catch(err => {
-        // This request can fail if the session is already expired, which isn't an issue, but we should still catch the error.
-        logger.error(
-          'Failed to delete session. This can happen if the session has already expired.',
-          err
-        );
-      })
-      .finally(() => {
-        this.clear();
-        if (samlSloUrl) {
-          window.open(samlSloUrl, '_self');
-        } else {
-          history.goToLogin({ rememberLocation });
-        }
-      });
+  async _plainLogout(): Promise<{ samlSloUrl: string } | undefined> {
+    try {
+      return await api.deleteWithOptions(cfg.api.webSessionPath, {});
+    } catch (err) {
+      // This request can fail if the session is already expired, which isn't an issue, but we should still catch the error.
+      logger.error(
+        'Failed to delete session. This can happen if the session has already expired.',
+        err
+      );
+    } finally {
+      this.clear();
+    }
+  },
+
+  async switchScope(scope: string) {
+    await this._plainLogout();
+    history.goToLogin({ scope });
   },
 
   logoutWithoutSlo({

@@ -22,6 +22,7 @@ import { useLocation, useParams } from 'react-router';
 import { Flex, Indicator } from 'design';
 import { AccessDenied } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrorMessage } from 'shared/utils/error';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
@@ -207,7 +208,7 @@ export function AppLauncher({
           // `fetch` returns `TypeError` when there is a network error.
           statusText = `Unable to access "${fqdn}". This may happen if your Teleport Proxy is using an untrusted or self-signed certificate. Please ensure Teleport Proxy service uses a valid certificate or access the application domain directly (https://${fqdn}${port}) and accept the certificate exception from your browser.`;
         } else if (isRedirectFlow) {
-          statusText = `Error while authenticating a required app: ${err.message}`;
+          statusText = `Error while authenticating a required app: ${getErrorMessage(err)}`;
         } else if (err instanceof Error) {
           statusText = err.message;
         }
@@ -354,6 +355,6 @@ function getNewAuthExchangeUrl({
   return url;
 }
 
-function throwFailedToParseUrlError(err: TypeError) {
-  throw Error(`Failed to parse URL: ${err.message}`);
+function throwFailedToParseUrlError(err: unknown) {
+  throw Error(`Failed to parse URL: ${getErrorMessage(err)}`);
 }

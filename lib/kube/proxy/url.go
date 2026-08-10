@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -100,11 +101,14 @@ type apiResource struct {
 	resourceName    string
 	skipEvent       bool
 	isWatch         bool
+	isProxyVerb     bool
 }
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
 // All fields of the returned apiResource may be empty.
-func parseResourcePath(p string) apiResource {
+//
+// TODO(jakealti): reuse k8s.io/apiserver request.RequestInfoFactory here instead of re-implementing it.
+func parseResourcePath(p string) (apiResource, error) {
 	// Kubernetes API reference: https://kubernetes.io/docs/reference/kubernetes-api/
 	// Let's try to parse this. Here be dragons!
 	//
@@ -130,6 +134,15 @@ func parseResourcePath(p string) apiResource {
 	// for live updates on resources (specific resources or all of one kind)
 	var r apiResource
 
+	// Cleaning below resolves "." and ".." segments, which changes which resource the path names.
+	// The raw path is what gets forwarded, so parsing one and forwarding the other
+	// would authorize a name the cluster never resolves.
+	for segment := range strings.SplitSeq(p, "/") {
+		if segment == "." || segment == ".." {
+			return r, trace.BadParameter("kubernetes request path must not contain %q segments", segment)
+		}
+	}
+
 	// Clean up the path and make it absolute.
 	p = path.Clean(p)
 	if !path.IsAbs(p) {
@@ -152,17 +165,24 @@ func parseResourcePath(p string) apiResource {
 		// This is part of API discovery. Don't emit to audit log to reduce
 		// noise.
 		r.skipEvent = true
-		return r
+		return r, nil
 	default:
 		// Doesn't look like a k8s API path, return empty result.
-		return r
+		return r, nil
 	}
 
-	// Watch API endpoints have an extra /watch/ prefix. For now, silently
-	// strip it from our result.
-	if len(parts) > 0 && parts[0] == "watch" {
-		r.isWatch = true
-		parts = parts[1:]
+	// Special verb endpoints carry the verb in a segment ahead of the resource path.
+	// The API server consumes that segment and parses the rest as a normal resource path, so we do the same.
+	// See specialVerbs in https://github.com/kubernetes/apiserver/blob/master/pkg/endpoints/request/requestinfo.go
+	if len(parts) > 1 {
+		switch parts[0] {
+		case "watch":
+			r.isWatch = true
+			parts = parts[1:]
+		case "proxy":
+			r.isProxyVerb = true
+			parts = parts[1:]
+		}
 	}
 
 	switch len(parts) {
@@ -171,7 +191,7 @@ func parseResourcePath(p string) apiResource {
 		// This is part of API discovery. Don't emit to audit log to reduce
 		// noise.
 		r.skipEvent = true
-		return r
+		return r, nil
 	case 1:
 		// e.g. /api/v1/pods - list pods in all namespaces
 		r.resourceKind = parts[0]
@@ -212,7 +232,24 @@ func parseResourcePath(p string) apiResource {
 			}
 		}
 	}
-	return r
+
+	// The proxy special verb takes no subresource.
+	// Kubernetes apiserver stops parsing at the name and hands every segment after it to the proxied backend.
+	// Drop them so the kind we record and report is the one the API server resolved.
+	if r.isProxyVerb {
+		r.resourceKind = getResourceFromAPIResource(r.resourceKind)
+	}
+
+	// The core API accepts [scheme:]name[:port] in the name segment of its pods/services/nodes proxy endpoints,
+	// so the special verb form has to be normalized the same way the subresource form above is.
+	// Otherwise a rule naming the resource stops matching once a scheme or port is supplied.
+	if r.isProxyVerb && r.apiGroup == "" {
+		switch r.resourceKind {
+		case "pods", "services", "nodes":
+			r.resourceName = stripProxyNamePortScheme(r.resourceName)
+		}
+	}
+	return r, nil
 }
 
 // stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
@@ -260,7 +297,10 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
 func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
-	apiResource := parseResourcePath(req.URL.Path)
+	apiResource, err := parseResourcePath(req.URL.Path)
+	if err != nil {
+		return metaResource{}, trace.Wrap(err)
+	}
 
 	out := metaResource{
 		requestedResource: apiResource,
@@ -292,9 +332,9 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 	}
 	out.resourceDefinition = &resource
 
-	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
-		// if the resource is supported but the resource name is not present and not a create request,
-		// return nil because it's a list request.
+	if apiResource.resourceName == "" && !slices.Contains([]string{types.KubeVerbCreate, types.KubeVerbProxy}, out.verb) {
+		// A missing name means the request targets the whole collection: a list.
+		// Create and proxy are the exceptions. Create has the name in the body, proxy has none.
 		out.isList = true
 		return out, nil
 	}
@@ -410,6 +450,10 @@ func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 }
 
 func (r apiResource) getVerb(req *http.Request) string {
+	if r.isProxyVerb {
+		return types.KubeVerbProxy
+	}
+
 	verb := ""
 	isWatch := isKubeWatchRequest(req, r)
 	switch r.resourceKind {

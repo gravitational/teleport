@@ -33,7 +33,6 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 			name: "full",
 			in: OutputV1Config{
 				Destination:         dest,
-				Roles:               []string{"access"},
 				KubernetesCluster:   "k8s.example.com",
 				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
@@ -60,7 +59,6 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *OutputV1Config {
 				return &OutputV1Config{
 					Destination:       destination.NewMemory(),
-					Roles:             []string{"access"},
 					KubernetesCluster: "my-cluster",
 				}
 			},
@@ -85,16 +83,15 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "kubernetes_cluster must not be empty",
 		},
 		{
-			name: "delegation session id conflicts with roles",
+			name: "roles is no longer supported",
 			in: func() *OutputV1Config {
 				return &OutputV1Config{
-					Destination:         destination.NewMemory(),
-					Roles:               []string{"access"},
-					KubernetesCluster:   "my-cluster",
-					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+					Destination:       destination.NewMemory(),
+					KubernetesCluster: "my-cluster",
+					DeprecatedRoles:   []string{"access"},
 				}
 			},
-			wantErr: "delegation_session_id: is mutually-exclusive with roles",
+			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name:   "scoped",

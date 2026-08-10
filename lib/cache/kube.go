@@ -220,6 +220,7 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 					PageSize:    int32(pageSize),
 					PageToken:   pageToken,
 					ScopeFilter: w.ScopeFilter.ToProto(),
+					WithSecrets: loadSecrets,
 				}.Build())
 			}))
 		},
@@ -239,6 +240,11 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
+//
+// Deprecated: this predates both scope filtering and with_secrets, so whether the returned clusters
+// carry secrets depends on whether this cache's watch loads them (as with the cert authority getters).
+// Use RangeKubeClusters, which is explicit about it.
+// TODO(okraport): remove in v21, along with the legacy GetKubernetesClusters RPC.
 func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
 	defer span.End()
@@ -283,7 +289,18 @@ func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeCl
 			return scopes.MatchScope(scopeFilter, cluster.GetScope())
 		},
 	}
-	return lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+	clusters, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	// censor here rather than relying on the store (which holds secrets whenever this cache's watch
+	// loads them) or the upstream (which is only consulted when the cache is unhealthy).
+	if !req.GetWithSecrets() {
+		for i, cluster := range clusters {
+			clusters[i] = cluster.WithoutSecrets().(types.KubeCluster)
+		}
+	}
+	return clusters, next, nil
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
@@ -304,6 +321,7 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeC
 				PageSize:    int32(pageSize),
 				PageToken:   pageToken,
 				ScopeFilter: scopeFilter,
+				WithSecrets: req.GetWithSecrets(),
 			}.Build())
 		},
 		filter: func(cluster types.KubeCluster) bool {
@@ -312,7 +330,13 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeC
 		nextToken: services.GetCursorForKubeCluster,
 	}
 
-	return lister.Range(ctx, req.GetPageToken(), "")
+	clusters := lister.Range(ctx, req.GetPageToken(), "")
+	if req.GetWithSecrets() {
+		return clusters
+	}
+	return stream.FilterMap(clusters, func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+		return cluster.WithoutSecrets().(types.KubeCluster), true
+	})
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.
@@ -334,6 +358,9 @@ func (c *Cache) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClust
 	out, err := getter.get(ctx, clusterCursor)
 	if out == nil {
 		return nil, trace.Wrap(err)
+	}
+	if !req.GetWithSecrets() {
+		out = out.WithoutSecrets().(types.KubeCluster)
 	}
 	return out.Copy(), trace.Wrap(err)
 }

@@ -2756,16 +2756,30 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// GetNode returns a node by name and namespace.
+// GetNode returns an unscoped node by name and namespace.
+//
+// Deprecated: Use [Client.GetSSHServer] instead, which supports scoped nodes.
+// TODO(williamo): Remove in v20
 func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	resp, err := c.grpc.GetNode(ctx, &types.ResourceInNamespaceRequest{
-		Name:      name,
-		Namespace: namespace,
-	})
+	return c.GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{Name: name}.Build())
+}
+
+// GetSSHServer returns a scoped or unscoped ssh servers by name.
+func (c *Client) GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error) {
+	resp, err := c.PresenceServiceClient().GetSSHServer(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotImplemented(trace.Wrap(err)) {
+			return nil, trace.Wrap(err)
+		}
+		if req.GetScope() != "" {
+			return nil, trace.BadParameter("requesting a scoped node from an outdated Teleport control plane that does not support it")
+		}
+		return c.grpc.GetNode(ctx, &types.ResourceInNamespaceRequest{
+			Name:      req.Name,
+			Namespace: defaults.Namespace,
+		})
 	}
-	return resp, nil
+	return resp.GetServer(), nil
 }
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
@@ -2776,6 +2790,94 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	})
 
 	return servers, trace.Wrap(err)
+}
+
+// ListSSHServers returns a page of registered ssh servers respecting scope filters.
+func (c *Client) ListSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) ([]types.Server, string, error) {
+	res, err := c.PresenceServiceClient().ListSSHServers(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// only allow fallback if the request is not expecting results to be scope filtered
+		if req.GetScopeFilter().GetScope() != "" {
+			return nil, "", trace.BadParameter("requesting list of scoped nodes from an outdated Teleport control plane that does not support it")
+		}
+
+		return c.listNodesFallback(ctx, int(req.GetPageSize()), req.GetPageToken())
+	}
+
+	servers := make([]types.Server, 0, len(res.GetServers()))
+	for _, server := range res.GetServers() {
+		servers = append(servers, server)
+	}
+	return servers, res.GetNextPageToken(), nil
+}
+
+func (c *Client) listNodesFallback(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        int32(pageSize),
+		StartKey:     pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, 0, len(resp.Resources))
+	for _, resource := range resp.Resources {
+		server, ok := resource.(types.Server)
+		if !ok {
+			return nil, "", trace.BadParameter("expected types.Server, got %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, resp.NextKey, nil
+}
+
+// RangeSSHServers returns a sequence of ssh servers filtered by the given
+// [*presencepb.ListSSHServersRequest].
+func (c *Client) RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error] {
+	if req == nil {
+		req = presencepb.ListSSHServersRequest_builder{}.Build()
+	}
+
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+		req.SetPageToken(pageToken)
+		req.SetPageSize(int32(pageSize))
+		return c.ListSSHServers(ctx, req)
+	}
+	return func(yield func(cluster types.Server, err error) bool) {
+		var fallback bool
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, types.Server.GetName) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListNodes, we should try to fallback to the
+				// ListResources API
+				fallback = true
+				break
+			}
+			if !yield(cluster, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		if req.GetScopeFilter().GetScope() != "" {
+			// only allow fallback if the request is not expecting results to be scope filtered
+			yield(nil, trace.BadParameter("requesting range of scoped kube cluster from an outdated Teleport control plane that does not support it"))
+			return
+		}
+		// fallback iterator
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.listNodesFallback, nil) {
+			if !yield(cluster, err) {
+				return
+			}
+		}
+	}
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -2795,7 +2897,10 @@ func (c *Client) UpsertNode(ctx context.Context, node types.Server) (*types.Keep
 	return keepAlive, nil
 }
 
-// DeleteNode deletes a node by name and namespace.
+// DeleteNode deletes an unscoped node by name and namespace.
+//
+// Deprecated: Use [Client.DeleteSSHServer] instead, which supports scoped nodes.
+// TODO(williamo): Remove in v20
 func (c *Client) DeleteNode(ctx context.Context, namespace, name string) error {
 	if namespace == "" {
 		return trace.BadParameter("missing parameter namespace")
@@ -2803,11 +2908,29 @@ func (c *Client) DeleteNode(ctx context.Context, namespace, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	_, err := c.grpc.DeleteNode(ctx, &types.ResourceInNamespaceRequest{
-		Name:      name,
-		Namespace: namespace,
-	})
-	return trace.Wrap(err)
+	return trace.Wrap(c.DeleteSSHServer(ctx, presencepb.DeleteSSHServerRequest_builder{Name: name}.Build()))
+}
+
+// DeleteSSHServer deletes a scoped or unscoped ssh server by name.
+func (c *Client) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteSSHServer(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(trace.Wrap(err)) {
+			return trace.Wrap(err)
+		}
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of a scoped node from an outdated Teleport control plane that does not support it")
+		}
+
+		if _, err := c.grpc.DeleteNode(ctx, &types.ResourceInNamespaceRequest{
+			Namespace: defaults.Namespace,
+			Name:      req.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
+	}
+	return nil
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace.
@@ -3884,7 +4007,8 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 // TODO (eriktate): remove in v20
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	return c.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
-		Name: name,
+		Name:        name,
+		WithSecrets: true, // preserves legacy secret-inclusive default behavior
 	}.Build())
 }
 
@@ -3904,9 +4028,19 @@ func (c *Client) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClus
 
 		// fallback to legacy GetKubernetesCluster API
 		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
-		return c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{
+		cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{
 			Name: req.GetName(),
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// the legacy API is always secret-inclusive. if we didn't have permission to read secrets we'd
+		// have gotten a permission error, but we still want to respect the request's with_secrets flag
+		// and omit secrets locally to keep behavior consistent.
+		if !req.GetWithSecrets() {
+			return cluster.WithoutSecrets().(types.KubeCluster), nil
+		}
+		return cluster, nil
 	}
 	return res.GetCluster(), trace.Wrap(err)
 }
@@ -3932,8 +4066,9 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 // TODO (eriktate): remove in v20
 func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	return c.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
-		PageSize:  int32(limit),
-		PageToken: start,
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: true, // preserves legacy secret-inclusive default behavior
 	}.Build())
 }
 
@@ -3975,12 +4110,18 @@ func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeC
 	}
 	kubeClusters := make([]types.KubeCluster, len(clusters))
 	for i, cluster := range clusters {
+		// legacy fallback is always secret-inclusive.
+		if !req.GetWithSecrets() {
+			kubeClusters[i] = cluster.WithoutSecrets().(types.KubeCluster)
+			continue
+		}
 		kubeClusters[i] = cluster
 	}
 	return kubeClusters, nextPageToken, nil
 }
 
-// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end), including their
+// secrets.
 //
 // Deprecated: Use RangeKubeClusters instead.
 // TODO (eriktate): remove in v20
@@ -3993,6 +4134,7 @@ func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string)
 			ScopeFilter: scopesv1.Filter_builder{
 				Mode: scopesv1.Mode_MODE_UNSCOPED,
 			}.Build(),
+			WithSecrets: true, // preserves legacy secret-inclusive default behavior
 		}.Build())
 		return res.GetClusters(), res.GetNextPageToken(), err
 	}
@@ -4060,6 +4202,10 @@ func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKube
 		// fallback iterator
 		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
 		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.legacyListKubeClusters, nil) {
+			// the legacy API is always secret-inclusive.
+			if err == nil && !req.GetWithSecrets() {
+				cluster = cluster.WithoutSecrets().(*types.KubernetesClusterV3)
+			}
 			if !yield(cluster, err) {
 				return
 			}
@@ -4733,17 +4879,43 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
+// convertResourcePrincipalSets converts proto principal sets to their api/types form.
+func convertResourcePrincipalSets(sets []*proto.ResourcePrincipalSet) []types.ResourcePrincipalSet {
+	if len(sets) == 0 {
+		return nil
+	}
+	out := make([]types.ResourcePrincipalSet, 0, len(sets))
+	for _, s := range sets {
+		if s == nil {
+			continue
+		}
+		rps := types.ResourcePrincipalSet{PrincipalType: s.PrincipalType, Granted: s.Granted, Requestable: s.Requestable}
+		for _, br := range s.ByRole {
+			if br == nil {
+				continue
+			}
+			rps.ByRole = append(rps.ByRole, types.RolePrincipalValues{
+				Role:            br.Role,
+				RequiresRequest: br.RequiresRequest,
+				Values:          br.Values,
+			})
+		}
+		out = append(out, rps)
+	}
+	return out
+}
+
 // convertEnrichedResource extracts the resource and any enriched information from the
 // PaginatedResource returned from the rpc ListUnifiedResources.
 func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
@@ -4753,14 +4925,14 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetLinuxDesktop(); r != nil {
 		desktop := proto.UnpackLinuxDesktop(r)
-		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
@@ -4887,7 +5059,7 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 			}
 
-			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins})
+			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins, Principals: convertResourcePrincipalSets(respResource.Principals)})
 		}
 
 		out.NextKey = resp.NextKey

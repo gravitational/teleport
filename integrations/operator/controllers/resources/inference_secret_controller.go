@@ -89,7 +89,7 @@ func (c inferenceSecretClient) Mutate(ctx context.Context, new, _ *summarizerv1.
 // NewInferenceSecretReconciler creates a new Kubernetes controller reconciling
 // inference_secret resources.
 func NewInferenceSecretReconciler(
-	client kclient.Client, tClient *client.Client,
+	client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	secretClient := &inferenceSecretClient{
 		teleportClient: tClient,
@@ -102,7 +102,7 @@ func NewInferenceSecretReconciler(
 		client,
 		secretClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 

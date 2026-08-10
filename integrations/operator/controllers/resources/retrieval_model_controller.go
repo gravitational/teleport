@@ -83,7 +83,7 @@ func (r retrievalModelClient) Mutate(_ context.Context, _, _ *summarizerv1.Retri
 }
 
 // NewRetrievalModelV1Reconciler instantiates a new Kubernetes controller reconciling RetrievalModel resources.
-func NewRetrievalModelV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRetrievalModelV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	rmClient := &retrievalModelClient{
 		teleportClient: tClient,
 	}
@@ -94,7 +94,7 @@ func NewRetrievalModelV1Reconciler(client kclient.Client, tClient *client.Client
 		client,
 		rmClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 

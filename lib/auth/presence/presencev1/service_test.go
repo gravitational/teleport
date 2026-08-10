@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"net"
 	"os"
 	"testing"
@@ -40,18 +41,27 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func newTestTLSServer(t testing.TB) *authtest.TLSServer {
@@ -1702,4 +1712,211 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, sras ...*scopedacces
 			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+const (
+	testLocalCluster    = "test-cluster"
+	testParentScope     = "/aa"
+	testScope           = "/aa/aa"
+	testOrthogonalScope = "/aa/bb"
+)
+
+func newPresenceService(t *testing.T, backend presencev1.Backend, authorizer authz.ScopedAuthorizer) *presencev1.Service {
+	t.Helper()
+
+	svc, err := presencev1.NewService(presencev1.ServiceConfig{
+		Backend:          backend,
+		Authorizer:       stubAuthorizer{},
+		ScopedAuthorizer: authorizer,
+		AuthServer:       stubAuthServer{},
+		Cache:            stubCache{},
+		Emitter:          &eventstest.MockRecorderEmitter{},
+		Reporter:         usagereporter.DiscardUsageReporter{},
+		Clock:            clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	return svc
+}
+
+type (
+	stubAuthorizer struct{ authz.Authorizer }
+	stubAuthServer struct{ presencev1.AuthServer }
+	stubCache      struct{ presencev1.Cache }
+)
+
+type backend struct {
+	presencev1.Backend
+	presence *local.PresenceService
+	kube     *local.KubernetesService
+}
+
+func (b backend) GetSSHServer(ctx context.Context, req *presencev1pb.GetSSHServerRequest) (types.Server, error) {
+	return b.presence.GetSSHServer(ctx, req)
+}
+
+func (b backend) RangeSSHServers(ctx context.Context, req *presencev1pb.ListSSHServersRequest) iter.Seq2[types.Server, error] {
+	return b.presence.RangeSSHServers(ctx, req)
+}
+
+func (b backend) DeleteSSHServer(ctx context.Context, req *presencev1pb.DeleteSSHServerRequest) error {
+	return b.presence.DeleteSSHServer(ctx, req)
+}
+
+func (b backend) GetKubeCluster(ctx context.Context, req *presencev1pb.GetKubeClusterRequest) (types.KubeCluster, error) {
+	return b.kube.GetKubeCluster(ctx, req)
+}
+
+func (b backend) RangeKubeClusters(ctx context.Context, req *presencev1pb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	return b.kube.RangeKubeClusters(ctx, req)
+}
+
+func (b backend) DeleteKubeCluster(ctx context.Context, req *presencev1pb.DeleteKubeClusterRequest) error {
+	return b.kube.DeleteKubeCluster(ctx, req)
+}
+
+func newFakeAuthorizer(t *testing.T, username, kind string, verbs ...string) fakeScopedAuthorizer {
+	t.Helper()
+
+	role, err := types.NewRole(username+"-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"root"},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			KubernetesLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			Rules: []types.Rule{types.NewRule(kind, verbs)},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+
+	return fakeScopedAuthorizer{
+		ctx: authz.ScopedContextFromUnscopedContext(&authz.Context{
+			User: user,
+			Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+				Username: username,
+				Roles:    []string{role.GetName()},
+			}, testLocalCluster, services.NewRoleSet(role)),
+			AdminActionAuthState: authz.AdminActionAuthNotRequired,
+		}),
+	}
+}
+
+type fakeScopedAuthorizer struct {
+	ctx *authz.ScopedContext
+}
+
+func (f fakeScopedAuthorizer) AuthorizeScoped(context.Context) (*authz.ScopedContext, error) {
+	return f.ctx, nil
+}
+
+func newFakeScopedAuthorizer(t *testing.T, username, pinScope string, reader fakeScopedRoleReader, roles ...*scopedaccessv1.ScopedRole) fakeScopedAuthorizer {
+	t.Helper()
+
+	assigned := make([]string, 0, len(roles))
+	for _, role := range roles {
+		assigned = append(assigned, scopes.QualifiedName{
+			Scope: role.GetScope(),
+			Name:  role.GetMetadata().GetName(),
+		}.String())
+	}
+
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+
+	checkerContext, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
+		Username: username,
+		ScopePin: scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: pinScope,
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				pinScope: {pinScope: assigned},
+			}),
+		}.Build(),
+	}, testLocalCluster, reader)
+	require.NoError(t, err)
+
+	return fakeScopedAuthorizer{
+		ctx: &authz.ScopedContext{
+			User:           user,
+			CheckerContext: checkerContext,
+		},
+	}
+}
+
+type fakeScopedRoleReader struct {
+	roles map[string]*scopedaccessv1.ScopedRole
+}
+
+func (r fakeScopedRoleReader) createScopedRole(name string, verbs ...string) *scopedaccessv1.ScopedRole {
+	role := scopedaccessv1.ScopedRole_builder{
+		Kind:    scopedaccess.KindScopedRole,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: name,
+		}.Build(),
+		Scope: testParentScope,
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{testScope, testOrthogonalScope},
+			Rules: []*scopedaccessv1.ScopedRule{
+				scopedaccessv1.ScopedRule_builder{
+					Resources: []string{
+						types.KindNode,
+						types.KindKubernetesCluster,
+					},
+					Verbs: verbs,
+				}.Build(),
+			},
+			Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				Logins: []string{"root"},
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   types.Wildcard,
+						Values: []string{types.Wildcard},
+					}.Build(),
+				},
+			}.Build(),
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   types.Wildcard,
+						Values: []string{types.Wildcard},
+					}.Build(),
+				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      types.Wildcard,
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						ApiGroup:  types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build()
+
+	r.roles[scopes.QualifiedName{Scope: role.GetScope(), Name: name}.String()] = role
+	return role
+}
+
+func (r fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	role, ok := r.roles[scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}.String()]
+	if !ok {
+		return nil, trace.NotFound("scoped role %q not found", req.GetName())
+	}
+	return scopedaccessv1.GetScopedRoleResponse_builder{Role: role}.Build(), nil
+}
+
+func (r fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	roles := make([]*scopedaccessv1.ScopedRole, 0, len(r.roles))
+	for _, role := range r.roles {
+		roles = append(roles, role)
+	}
+	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: roles}.Build(), nil
 }

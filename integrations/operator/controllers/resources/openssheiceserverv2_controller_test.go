@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
@@ -72,11 +72,11 @@ func (g *opensshEICEServerV2TestingPrimitives) CreateTeleportResource(ctx contex
 }
 
 func (g *opensshEICEServerV2TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Server, error) {
-	return g.setup.TeleportClient.GetNode(ctx, defaults.Namespace, name)
+	return g.setup.TeleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
 }
 
 func (g *opensshEICEServerV2TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	return trace.Wrap(g.setup.TeleportClient.DeleteNode(ctx, defaults.Namespace, name))
+	return trace.Wrap(g.setup.TeleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: name}.Build()))
 }
 
 func (g *opensshEICEServerV2TestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
@@ -126,20 +126,20 @@ func (g *opensshEICEServerV2TestingPrimitives) CompareTeleportAndKubernetesResou
 
 func TestTeleportOpensshEICEServerV2Creation(t *testing.T) {
 	test := &opensshEICEServerV2TestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewOpenSSHEICEServerV2Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](t, resources.NewOpenSSHEICEServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshEICEServerV2Deletion(t *testing.T) {
 	test := &opensshEICEServerV2TestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewOpenSSHEICEServerV2Reconciler, test)
+	testlib.ResourceDeletionSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](t, resources.NewOpenSSHEICEServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshEICEServerV2DeletionDrift(t *testing.T) {
 	test := &opensshEICEServerV2TestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOpenSSHEICEServerV2Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](t, resources.NewOpenSSHEICEServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshEICEServerV2Update(t *testing.T) {
 	test := &opensshEICEServerV2TestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewOpenSSHEICEServerV2Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](t, resources.NewOpenSSHEICEServerV2Reconciler, test)
 }

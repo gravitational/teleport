@@ -107,7 +107,7 @@ func newErrorMessage(err error) errorMessage {
 		Message: err.Error(),
 	}
 	switch {
-	case errors.Is(err, llmerrors.ErrRejected):
+	case errors.Is(err, llmerrors.ErrRejected), errors.Is(err, llmerrors.ErrLimitExceeded):
 		msg.Type = errorTypeRateLimitExceeded
 	case errors.Is(err, llmerrors.ErrBadRequest),
 		errors.Is(err, llmerrors.ErrUnauthorized),

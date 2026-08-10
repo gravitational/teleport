@@ -4,7 +4,7 @@
 
 variable "ecs_service_subnets" {
   description = <<EOF
-Subnet IDs where the Teleport agent will be deployed.
+Subnet IDs where Teleport will be deployed.
 If var.assign_public_ip is true, then all of these subnets must be public subnets (route to an internet gateway).
 If var.assign_public_ip is false, then all of these subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -12,7 +12,7 @@ EOF
 }
 
 variable "vpc_id" {
-  description = "VPC ID where the Teleport agent will be deployed."
+  description = "VPC ID where Teleport will be deployed."
   type        = string
 }
 
@@ -32,8 +32,8 @@ variable "apply_aws_tags" {
 }
 
 variable "managed_updates_enabled" {
-  default     = false
-  description = "Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module."
+  default     = true
+  description = "Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module."
   type        = bool
 }
 
@@ -46,7 +46,7 @@ variable "managed_updates_group" {
 variable "assign_public_ip" {
   default     = false
   description = <<EOF
-Whether to assign public IP addresses to Teleport agent ECS tasks.
+Whether to assign public IP addresses to Teleport ECS tasks.
 If this is set to true, then var.ecs_service_subnets must be public subnets (route to an internet gateway).
 Otherwise, var.ecs_service_subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -61,7 +61,7 @@ variable "create" {
 
 variable "create_security_group" {
   default     = true
-  description = "Whether to create a security group for the Teleport agent ECS tasks."
+  description = "Whether to create a security group for the Teleport ECS tasks."
   type        = bool
 }
 
@@ -71,8 +71,14 @@ variable "ecs_cluster_name" {
   type        = string
 }
 
+variable "ecs_cluster_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name."
+  type        = bool
+}
+
 variable "ecs_service_name" {
-  default     = "teleport-service"
+  default     = "teleport"
   description = "Name of the ECS service."
   type        = string
 }
@@ -83,9 +89,22 @@ variable "ecs_task_cloudwatch_log_group_name" {
   type        = string
 }
 
+variable "ecs_task_cloudwatch_log_group_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_task_cloudwatch_log_group_name` is used as a prefix of the ECS task CloudWatch log group name."
+  type        = bool
+}
+
 variable "ecs_task_cloudwatch_log_group_region" {
   default     = null
   description = "AWS region for the ECS task CloudWatch log group. Defaults to the AWS provider region."
+  nullable    = true
+  type        = string
+}
+
+variable "ecs_task_cloudwatch_log_group_kms_key_id" {
+  default     = null
+  description = "KMS key ID or ARN used to encrypt the ECS task CloudWatch log group. When null, CloudWatch Logs uses its default encryption key."
   nullable    = true
   type        = string
 }
@@ -106,9 +125,21 @@ EOF
 }
 
 variable "ecs_task_cpu" {
-  default     = "2048"
+  default     = 2048
   description = "Number of cpu units used by the ECS task."
+  type        = number
+}
+
+variable "ecs_task_definition_name" {
+  default     = "teleport"
+  description = "Name of the ECS task."
   type        = string
+}
+
+variable "ecs_task_definition_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_task_definition_name` is used as a prefix of the ECS task definition name."
+  type        = bool
 }
 
 variable "ecs_task_desired_count" {
@@ -124,22 +155,22 @@ variable "ecs_task_force_new_deployment" {
 }
 
 variable "ecs_task_memory" {
-  default     = "4096"
+  default     = 4096
   description = "Amount (in MiB) of memory used by the ECS task."
-  type        = string
-}
-
-variable "ecs_task_name" {
-  default     = "teleport-agent"
-  description = "Name of the ECS task."
-  type        = string
+  type        = number
 }
 
 variable "ecs_task_role_inline_policy" {
   default     = null
-  description = "Optional JSON policy document to attach inline to the ECS task IAM role."
+  description = "Optional JSON policy document to merge into the inline policy attached to the ECS task IAM role."
   nullable    = true
   type        = string
+}
+
+variable "ecs_task_role_self_assumption_allowed" {
+  default     = true
+  description = "Whether the ECS task IAM role can assume itself."
+  type        = bool
 }
 
 variable "environment_vars" {
@@ -150,7 +181,7 @@ variable "environment_vars" {
 
 variable "security_group_ids" {
   default     = []
-  description = "Additional security group IDs to attach to the Teleport agent ECS tasks."
+  description = "Additional security group IDs to attach to the Teleport ECS tasks."
   type        = list(string)
 }
 
