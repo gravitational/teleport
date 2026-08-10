@@ -23,8 +23,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/e2e/runner/fixtures"
 	"github.com/moby/moby/client"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 type nodeArch string
