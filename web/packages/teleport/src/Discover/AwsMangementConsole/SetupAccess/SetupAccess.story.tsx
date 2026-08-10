@@ -72,10 +72,8 @@ export const NoTraits = () => (
     <SetupAccess />
   </Provider>
 );
-NoTraits.parameters = {
-  msw: {
-    handlers: [defaultUserGet],
-  },
+NoTraits.beforeEach = ({ msw }) => {
+  msw.use(defaultUserGet);
 };
 
 export const WithTraits = () => (
@@ -83,23 +81,21 @@ export const WithTraits = () => (
     <SetupAccess />
   </Provider>
 );
-WithTraits.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.api.userWithUsernamePath, () =>
-        HttpResponse.json({
-          name: 'user-1',
-          roles: [],
-          authType: 'local',
-          isLocal: true,
-          traits: {
-            awsRoleArns: ['arn:aws:iam::123456789012:role/dynamic1'],
-          },
-          allTraits: {},
-        })
-      ),
-    ],
-  },
+WithTraits.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.userWithUsernamePath, () =>
+      HttpResponse.json({
+        name: 'user-1',
+        roles: [],
+        authType: 'local',
+        isLocal: true,
+        traits: {
+          awsRoleArns: ['arn:aws:iam::123456789012:role/dynamic1'],
+        },
+        allTraits: {},
+      })
+    )
+  );
 };
 
 export const NoAccess = () => (
@@ -107,10 +103,8 @@ export const NoAccess = () => (
     <SetupAccess />
   </Provider>
 );
-NoAccess.parameters = {
-  msw: {
-    handlers: [defaultUserGet],
-  },
+NoAccess.beforeEach = ({ msw }) => {
+  msw.use(defaultUserGet);
 };
 
 export const SsoUser = () => (
@@ -118,10 +112,8 @@ export const SsoUser = () => (
     <SetupAccess />
   </Provider>
 );
-SsoUser.parameters = {
-  msw: {
-    handlers: [defaultUserGet],
-  },
+SsoUser.beforeEach = ({ msw }) => {
+  msw.use(defaultUserGet);
 };
 
 const Provider = ({
