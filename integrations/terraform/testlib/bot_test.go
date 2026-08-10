@@ -31,6 +31,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func (s *TerraformSuiteOSS) TestBot() {
@@ -273,17 +274,23 @@ func (s *TerraformSuiteOSSScopedResources) TestBotWithScope() {
 	ctx := t.Context()
 
 	checkResourcesDestroyed := func(state *terraform.State) error {
+		const tokenResourceName = "bot-test-scoped"
 		var errs []error
-		if _, err := s.client.GetToken(ctx, "bot-test-scoped"); err != nil {
+		if _, err := s.client.GetToken(ctx, tokenResourceName); err == nil {
+			errs = append(errs, fmt.Errorf("token %q still exists", tokenResourceName))
+		} else {
 			if !trace.IsNotFound(err) {
-				errs = append(errs, err)
+				errs = append(errs, trace.Wrap(err, "failed to get token"))
 			}
 		}
 
-		if _, err := s.client.GetUser(ctx, "bot-test-scoped-bot", false); err != nil {
-			if !trace.IsNotFound(err) {
-				errs = append(errs, err)
-			}
+		const botResourceName = "test-scoped-bot"
+		if _, err := s.client.BotServiceClient().GetBot(ctx,
+			&machineidv1.GetBotRequest{BotName: botResourceName, Scope: "/test-scope"},
+		); err == nil {
+			errs = append(errs, fmt.Errorf("bot %q still exists", botResourceName))
+		} else if !trace.IsNotFound(err) {
+			errs = append(errs, trace.Wrap(err, "failed to get bot"))
 		}
 
 		return trace.NewAggregate(errs...)
@@ -309,7 +316,7 @@ func (s *TerraformSuiteOSSScopedResources) TestBotWithScope() {
 					resource.TestCheckResourceAttr(assignmentName, "metadata.name", "test-bot-assignment"),
 					resource.TestCheckResourceAttr(assignmentName, "scope", "/test-scope"),
 					resource.TestCheckResourceAttr(assignmentName, "spec.bot", "/test-scope::test-scoped-bot"),
-					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.role", "scoped-operator"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.role", "/test-scope::scoped-operator"),
 					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.scope", "/test-scope"),
 				),
 			},
@@ -345,6 +352,58 @@ func (s *TerraformSuiteOSSScopedResources) TestBotWithScope() {
 			{
 				Config:   s.getFixture("bot_scoped_2_change_scope.tf"),
 				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSSScopedResources) TestImportScopedBot() {
+	t := s.T()
+	ctx := t.Context()
+
+	r := "teleport_bot"
+	id := "test_import"
+	name := r + "." + id
+	const testScope = "/staging"
+
+	bot := &machineidv1.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: id,
+		},
+		Spec:  &machineidv1.BotSpec{},
+		Scope: testScope,
+	}
+	bot, err := s.client.BotServiceClient().
+		CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, err := s.client.BotServiceClient().
+			GetBot(ctx, &machineidv1.GetBotRequest{
+				BotName: bot.Metadata.Name,
+				Scope:   testScope,
+			})
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	sqn := scopes.QualifiedName{Name: id, Scope: testScope}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
+				ResourceName:  name,
+				ImportState:   true,
+				ImportStateId: sqn.String(),
+				ImportStateCheck: func(state []*terraform.InstanceState) error {
+					assert.Equal(t, types.KindBot, state[0].Attributes["kind"])
+					assert.Equal(t, id, state[0].Attributes["metadata.name"])
+					return nil
+				},
 			},
 		},
 	})
