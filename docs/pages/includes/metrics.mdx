@@ -164,12 +164,12 @@ OpenAI-compatible proxies.
 | `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
 | `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
 
-### Kubernetes access
+## Kubernetes Access (Proxy)
 
 The following tables identify all metrics available in the Teleport Proxy
 Service if at least one Kubernetes cluster is enrolled in your Teleport cluster.
 
-#### Client
+### Client
 
 The following table identifies all metrics available when the service connects
 to upstream servers. In the case of `proxy`, the upstream server can be a
@@ -184,7 +184,7 @@ to upstream servers. In the case of `proxy`, the upstream server can be a
 | `teleport_kubernetes_client_first_byte_response_duration_seconds` | histogram | Teleport Kubernetes Proxy | Latency distribution of time to receive the first response byte from the upstream server.                 |
 | `teleport_kubernetes_client_request_duration_seconds`             | histogram | Teleport Kubernetes Proxy | Latency distribution of the upstream request time.                                                        |
 
-#### Server
+### Server
 
 The following table identifies all metrics available for incoming connections.
 
@@ -214,7 +214,7 @@ The following table identifies all metrics available for incoming connections.
 | - | - | - | - |
 | `user_max_concurrent_sessions_hit_total` | counter | Teleport SSH | Number of times a user exceeded their concurrent session limit. |
 
-## Teleport Kubernetes Service
+## Teleport Kubernetes Service (Agent)
 
 The following table identifies all metrics available when the service connects
 to upstream servers. In the case of `kubernetes_service`, the upstream server
