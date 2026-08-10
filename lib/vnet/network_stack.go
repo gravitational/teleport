@@ -66,6 +66,11 @@ type networkStackConfig struct {
 	ipv6Prefix tcpip.Address
 	// dnsIPv6 is the IPv6 address on which to host the DNS server. It must be under IPv6Prefix.
 	dnsIPv6 tcpip.Address
+	// ipv6Disabled is true when IPv6 is disabled on the host. The network
+	// stack keeps its internal IPv6 prefix, but VNet doesn't answer AAAA
+	// queries, has no IPv6 DNS address, and doesn't register the IPv6
+	// prefix on its TUN device.
+	ipv6Disabled bool
 	// tcpHandlerResolver will be used to resolve all DNS queries that VNet may
 	// need to handle.
 	tcpHandlerResolver *tcpHandlerResolver
@@ -83,10 +88,23 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 	if c.ipv6Prefix.Len() != 16 || c.ipv6Prefix.AsSlice()[0] != 0xfd {
 		return trace.BadParameter("ipv6Prefix must be an IPv6 ULA address")
 	}
+	if !c.ipv6Disabled && c.dnsIPv6 == (tcpip.Address{}) {
+		return trace.BadParameter("dnsIPv6 is required when IPv6 is enabled")
+	}
 	if c.tcpHandlerResolver == nil {
 		return trace.BadParameter("tcpHandlerResolver is required")
 	}
 	return nil
+}
+
+// getIPv6Prefix returns the IPv6 prefix to expose outside the network stack:
+// empty when IPv6 is disabled on the host, even though ipv6Prefix is always
+// set internally. Use it whenever the prefix leaves the network stack.
+func (c *networkStackConfig) getIPv6Prefix() string {
+	if c.ipv6Disabled {
+		return ""
+	}
+	return c.ipv6Prefix.String()
 }
 
 // errNoTCPHandler should be returned by tcpHandlerResolvers when no handler
@@ -163,6 +181,12 @@ type networkStack struct {
 
 	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
 	ipv6Prefix tcpip.Address
+
+	// ipv6Disabled is true when IPv6 is disabled on the host. The network
+	// stack keeps its internal IPv6 prefix, but VNet doesn't answer AAAA
+	// queries, has no IPv6 DNS address, and doesn't register the IPv6
+	// prefix on its TUN device.
+	ipv6Disabled bool
 
 	// diagProbeIPv6 is the IPv6 address (ipv6Prefix::2) returned to diagnostic probe queries.
 	// Set once in newNetworkStack.
@@ -299,6 +323,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		stack:              stack,
 		linkEndpoint:       linkEndpoint,
 		ipv6Prefix:         cfg.ipv6Prefix,
+		ipv6Disabled:       cfg.ipv6Disabled,
 		tcpHandlerResolver: cfg.tcpHandlerResolver,
 		destroyed:          make(chan struct{}),
 		state:              newState(),
@@ -340,9 +365,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		}
 		logger.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
 	} else {
-		// This branch shouldn't be reachable, every caller sets cfg.dnsIPv6.
-		// Added it so the probe handler can return a stable value if a future caller
-		// forgets to set it.
+		// Added it so the probe handler can always return a stable value
 		ns.diagProbeIPv6 = ipv6WithSuffix(cfg.ipv6Prefix, dns.DNSServerSuffix).As16()
 	}
 
@@ -706,6 +729,10 @@ func (ns *networkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, 
 
 // ResolveAAAA implements [dns.Resolver.ResolveAAAA].
 func (ns *networkStack) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
+	if ns.ipv6Disabled {
+		// IPv6 is disabled on this host, return no AAAA records.
+		return dns.Result{NoRecord: true}, nil
+	}
 	// Diagnostic probes return the stable IPv6 probe address — the value the diagnostic
 	// check compares against. No handler is allocated.
 	if dns.HasDiagProbePrefix(fqdn) {
