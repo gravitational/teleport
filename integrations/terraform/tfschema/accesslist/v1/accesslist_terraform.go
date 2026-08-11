@@ -80,7 +80,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 						"name": {
 							Description:   "name is an object name.",
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 							Required:      true,
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -114,7 +114,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -122,7 +122,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Computed:      true,
 			Description:   "scope is the scope of the Access List.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
@@ -449,7 +449,7 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"name": {
 							Description:   "name is an object name.",
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 							Required:      true,
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -483,7 +483,7 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -491,14 +491,14 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Computed:      true,
 			Description:   "scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"access_list": {
 					Description:   "associated Access List",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -508,7 +508,7 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				}),
 				"membership_kind": {
 					Description:   "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},

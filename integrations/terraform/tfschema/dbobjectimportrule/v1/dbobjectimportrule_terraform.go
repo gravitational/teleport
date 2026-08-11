@@ -49,7 +49,7 @@ func GenSchemaDatabaseObjectImportRule(ctx context.Context) (github_com_hashicor
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -85,7 +85,7 @@ func GenSchemaDatabaseObjectImportRule(ctx context.Context) (github_com_hashicor
 					Computed:      true,
 					Description:   "name is an object name.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),

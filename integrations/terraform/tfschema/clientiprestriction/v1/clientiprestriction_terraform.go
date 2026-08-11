@@ -48,7 +48,7 @@ func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_ter
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},

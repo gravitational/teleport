@@ -54,7 +54,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -90,7 +90,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -787,7 +787,7 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -824,7 +824,7 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					Computed:      true,
 					Description:   "Name is an object name",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown(), github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown(), github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"namespace": {
@@ -844,7 +844,7 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 			Computed:      true,
 			Description:   "The advertized scope of the server which can not change once assigned.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
@@ -1104,7 +1104,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -1139,7 +1139,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -1160,7 +1160,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 			Computed:      true,
 			Description:   "The App's scope.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
@@ -1589,7 +1589,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -1626,7 +1626,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Computed:      true,
 					Description:   "Name is an object name",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace(), github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace(), github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Sensitive:     true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -2859,7 +2859,7 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -3064,7 +3064,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -3241,7 +3241,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -3588,7 +3588,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -3623,7 +3623,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -5552,7 +5552,7 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -5587,7 +5587,7 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -5784,7 +5784,7 @@ func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_ter
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -5819,7 +5819,7 @@ func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_ter
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -5840,7 +5840,7 @@ func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_ter
 			Computed:      true,
 			Description:   "The scope of the kube cluster.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
@@ -6004,7 +6004,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -6039,7 +6039,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -6342,7 +6342,7 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -6377,7 +6377,7 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -6733,7 +6733,7 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -6768,7 +6768,7 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -6951,7 +6951,7 @@ func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraf
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -6986,7 +6986,7 @@ func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -7088,7 +7088,7 @@ func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7125,7 +7125,7 @@ func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Computed:      true,
 					Description:   "Name is an object name",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"namespace": {
@@ -7270,7 +7270,7 @@ func GenSchemaDynamicWindowsDesktopV1(ctx context.Context) (github_com_hashicorp
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7305,7 +7305,7 @@ func GenSchemaDynamicWindowsDesktopV1(ctx context.Context) (github_com_hashicorp
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -7389,7 +7389,7 @@ func GenSchemaUIConfigV1(ctx context.Context) (github_com_hashicorp_terraform_pl
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7479,7 +7479,7 @@ func GenSchemaInstallerV1(ctx context.Context) (github_com_hashicorp_terraform_p
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7514,7 +7514,7 @@ func GenSchemaInstallerV1(ctx context.Context) (github_com_hashicorp_terraform_p
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -7562,7 +7562,7 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7597,7 +7597,7 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -7657,14 +7657,14 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 					Computed:      true,
 					Description:   "EntityDescriptor is the entity descriptor for the service provider",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"entity_id": {
 					Computed:      true,
 					Description:   "EntityID is the entity ID for the entity descriptor. If entity descriptor is provided, this value is checked that it matches the entity ID in the entity descriptor at upsert time to avoid having to parse the XML blob in the entity descriptor every time we need to use this resource.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"launch_urls": {
@@ -7678,14 +7678,14 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 					Computed:      true,
 					Description:   "Preset is used to define service provider profile that will have a custom behavior processed by Teleport.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"relay_state": {
 					Computed:      true,
 					Description:   "RelayState is used to add custom value in the SAML response as a relay_state HTTP parameter. The value can contain service provider specific redirect URL, static state token etc. The value is only applied in the IdP initiated SSO flow.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
@@ -7715,7 +7715,7 @@ func GenSchemaClusterMaintenanceConfigV1(ctx context.Context) (github_com_hashic
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7809,7 +7809,7 @@ func GenSchemaOktaImportRuleV1(ctx context.Context) (github_com_hashicorp_terraf
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7844,7 +7844,7 @@ func GenSchemaOktaImportRuleV1(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -7947,7 +7947,7 @@ func GenSchemaIntegrationV1(ctx context.Context) (github_com_hashicorp_terraform
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -7982,7 +7982,7 @@ func GenSchemaIntegrationV1(ctx context.Context) (github_com_hashicorp_terraform
 				},
 				"name": {
 					Description:   "Name is an object name",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},

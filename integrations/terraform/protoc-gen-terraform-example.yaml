@@ -24,14 +24,14 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   TypeB:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
 
 # These fields will be excluded
 exclude_fields:
@@ -73,7 +73,7 @@ custom_types:
 plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time
 # fields are overridden (because the protobuf timestamps contain locks and the

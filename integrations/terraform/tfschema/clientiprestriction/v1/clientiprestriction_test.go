@@ -69,7 +69,7 @@ func TestCopyClientIPRestrictionRoundTrip(t *testing.T) {
 
 	schema, diags := GenSchemaClientIPRestriction(ctx)
 	require.False(t, diags.HasError(), "unexpected diagnostics: %v", diags)
-	objectType, ok := schema.AttributeType().(types.ObjectType)
+	objectType, ok := schema.Type().(types.ObjectType)
 	require.True(t, ok, "schema attribute type should be an object")
 
 	expires := timestamppb.New(time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC))

@@ -47,7 +47,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 		"id": {
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
@@ -81,7 +81,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 				},
 				"name": {
 					Description:   "name is an object name.",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
