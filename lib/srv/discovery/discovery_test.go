@@ -2133,20 +2133,21 @@ func TestServerKubeFetchersFromDynamicAKSMatchers(t *testing.T) {
 
 	for _, tt := range []struct {
 		name                  string
-		subscriptions         []string
+		subscriptionMatcher   []string
+		existingSubscriptions []string
 		subscriptionListAPI   *azure.ARMSubscriptionsMock
-		expectedSubscriptions []string
 	}{
 		{
-			name:          "explicit subscriptions",
-			subscriptions: []string{"sub-1", "sub-2"},
+			name:                  "explicit subscriptions",
+			subscriptionMatcher:   []string{"sub-1", "sub-2"},
+			existingSubscriptions: []string{"sub-1", "sub-2"},
 			// Explicit subscriptions must not require permission to list all subscriptions.
-			subscriptionListAPI:   &azure.ARMSubscriptionsMock{NoAuth: true},
-			expectedSubscriptions: []string{"sub-1", "sub-2"},
+			subscriptionListAPI: &azure.ARMSubscriptionsMock{NoAuth: true},
 		},
 		{
-			name:          "wildcard subscription",
-			subscriptions: []string{types.Wildcard},
+			name:                  "wildcard subscription",
+			subscriptionMatcher:   []string{types.Wildcard},
+			existingSubscriptions: []string{"sub-1", "sub-2"},
 			subscriptionListAPI: &azure.ARMSubscriptionsMock{
 				Subscriptions: []*armsubscription.Subscription{
 					{
@@ -2163,19 +2164,19 @@ func TestServerKubeFetchersFromDynamicAKSMatchers(t *testing.T) {
 					},
 				},
 			},
-			expectedSubscriptions: []string{"sub-1", "sub-2"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			aksClients := make(map[string]azure.AKSClient, len(tt.expectedSubscriptions))
-			for _, subscription := range tt.expectedSubscriptions {
+			aksClients := make(map[string]azure.AKSClient, len(tt.existingSubscriptions))
+			for _, subscription := range tt.existingSubscriptions {
 				aksClients[subscription] = newPopulatedAKSMock()
 			}
+			azureSubscritpionClient, err := azure.NewSubscriptionClient(tt.subscriptionListAPI)
+			require.NoError(t, err)
+
 			azureClients := &azuretest.Clients{
-				AzureAKSClientPerSub: aksClients,
-				AzureSubscriptionClient: azure.NewSubscriptionClient(
-					tt.subscriptionListAPI,
-				),
+				AzureAKSClientPerSub:    aksClients,
+				AzureSubscriptionClient: azureSubscritpionClient,
 			}
 
 			s := &Server{
@@ -2201,7 +2202,7 @@ func TestServerKubeFetchersFromDynamicAKSMatchers(t *testing.T) {
 						// Mixed matchers are supported by DiscoveryConfig and
 						// must still produce an AKS fetcher.
 						Types:          []string{types.AzureMatcherVM, types.AzureMatcherKubernetes},
-						Subscriptions:  tt.subscriptions,
+						Subscriptions:  tt.subscriptionMatcher,
 						ResourceGroups: []string{types.Wildcard},
 						Regions:        []string{types.Wildcard},
 						ResourceTags:   types.Labels{types.Wildcard: {types.Wildcard}},
@@ -2210,7 +2211,8 @@ func TestServerKubeFetchersFromDynamicAKSMatchers(t *testing.T) {
 				},
 			}, discoveryConfigName)
 			require.NoError(t, err)
-			require.Len(t, kubeFetchers, len(tt.expectedSubscriptions))
+
+			require.Len(t, kubeFetchers, 1, "expected exactly one AKS fetcher to be created")
 
 			for _, fetcher := range kubeFetchers {
 				require.Equal(t, discoveryConfigName, fetcher.GetDiscoveryConfigName())
@@ -2219,6 +2221,14 @@ func TestServerKubeFetchersFromDynamicAKSMatchers(t *testing.T) {
 				resources, err := fetcher.Get(t.Context())
 				require.NoError(t, err)
 				require.NotEmpty(t, resources)
+
+				var expectedResourceCount int
+				for _, client := range aksClients {
+					clusters, err := client.ListAll(t.Context())
+					require.NoError(t, err)
+					expectedResourceCount += len(clusters)
+				}
+				require.Len(t, resources, expectedResourceCount)
 			}
 		})
 	}

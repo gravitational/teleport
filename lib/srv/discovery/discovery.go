@@ -487,11 +487,6 @@ type Server struct {
 
 	// azureClientCache caches instances of integration-specific Azure clients.
 	azureClientCache *utils.FnCache
-
-	// azureSubscriptionCache caches integration-to-subscription-list mapping.
-	// This cache avoids repeated API calls when multiple discovery matchers for
-	// the same integration use a wildcard subscription.
-	azureSubscriptionCache *utils.FnCache
 }
 
 // New initializes a discovery Server
@@ -893,53 +888,14 @@ func (s *Server) handleAzureSubscriptionListError(integration string, err error)
 	}
 }
 
-func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {
+func (s *Server) getAzureSubscriptionList(ctx context.Context, integration string) ([]string, error) {
 	azureClients, err := s.getAzureClients(ctx, integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	subsClient, err := azureClients.GetSubscriptionClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	subscriptions, err := subsClient.ListSubscriptionIDs(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return subscriptions, nil
-}
-
-func (s *Server) getAzureSubscriptionList(ctx context.Context, integration string) ([]string, error) {
-	err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if s.azureSubscriptionCache == nil {
-			azureSubscriptionCache, err := utils.NewFnCache(utils.FnCacheConfig{
-				// Making an API call to list subscriptions at most once per
-				// minute is fine and limits the delay before changes to Azure
-				// permissions or subscriptions are seen by discovery services.
-				TTL:   time.Minute,
-				Clock: s.clock,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			s.azureSubscriptionCache = azureSubscriptionCache
-		}
-		return nil
-	}()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := utils.FnCacheGet(ctx, s.azureSubscriptionCache, integration, func(ctx context.Context) ([]string, error) {
-		return s.getAzureSubscriptionListNoCache(ctx, integration)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
+	subIDs, err := azure.ExpandSubscriptionIDs(ctx, azureClients, []string{types.Wildcard})
+	return subIDs, trace.Wrap(err)
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.

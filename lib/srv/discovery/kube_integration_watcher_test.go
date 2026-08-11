@@ -122,40 +122,56 @@ func TestServer_getKubeFetchers(t *testing.T) {
 	require.Len(t, azureFetchers, 1)
 	aks3 := azureFetchers[0]
 
+	azureFetchers, err = fetchers.MakeAKSFetchersFromAzureMatchers(t.Context(), logtest.NewLogger(), azureClientsGetter, []types.AzureMatcher{{
+		ResourceTags:  types.Labels{"l1": []string{"v1"}},
+		Regions:       []string{"region1"},
+		Subscriptions: []string{"subID"},
+		Types:         []string{types.AzureMatcherKubernetes},
+	}}, "group1")
+	require.NoError(t, err)
+	require.Len(t, azureFetchers, 1)
+	aks4 := azureFetchers[0]
+
 	testCases := []struct {
-		kubeFetchers                   []common.Fetcher
-		kubeDynamicFetchers            map[string][]common.Fetcher
-		expectedIntegrationFetchers    []common.Fetcher
-		expectedNonIntegrationFetchers []common.Fetcher
+		kubeFetchers                             []common.Fetcher
+		kubeDynamicFetchers                      map[string][]common.Fetcher
+		expectedFetchersRemoteAgentDeployment    []common.Fetcher
+		expectedFetchersKubernetesServiceAsProxy []common.Fetcher
 	}{
 		{
-			kubeFetchers:                   []common.Fetcher{eks1},
-			expectedNonIntegrationFetchers: []common.Fetcher{eks1},
+			kubeFetchers:                             []common.Fetcher{eks1},
+			expectedFetchersKubernetesServiceAsProxy: []common.Fetcher{eks1},
 		},
 		{
-			kubeFetchers:                   []common.Fetcher{eks1, eks2, eks3, aks1, aks2, aks3},
-			expectedIntegrationFetchers:    []common.Fetcher{eks2, eks3},
-			expectedNonIntegrationFetchers: []common.Fetcher{eks1, aks1, aks2, aks3},
+			kubeFetchers:                             []common.Fetcher{eks1, eks2, eks3, aks1, aks2, aks3},
+			expectedFetchersRemoteAgentDeployment:    []common.Fetcher{eks2, eks3},
+			expectedFetchersKubernetesServiceAsProxy: []common.Fetcher{eks1, aks1, aks2, aks3},
 		},
 		{
-			kubeFetchers:                   []common.Fetcher{eks1},
-			kubeDynamicFetchers:            map[string][]common.Fetcher{"group1": {eks2}},
-			expectedIntegrationFetchers:    []common.Fetcher{eks2},
-			expectedNonIntegrationFetchers: []common.Fetcher{eks1},
+			kubeFetchers:                             []common.Fetcher{eks1},
+			kubeDynamicFetchers:                      map[string][]common.Fetcher{"group1": {eks2}},
+			expectedFetchersRemoteAgentDeployment:    []common.Fetcher{eks2},
+			expectedFetchersKubernetesServiceAsProxy: []common.Fetcher{eks1},
 		},
 		{
-			kubeFetchers:                   []common.Fetcher{aks1, aks2},
-			kubeDynamicFetchers:            map[string][]common.Fetcher{"group1": {eks1}},
-			expectedIntegrationFetchers:    []common.Fetcher{},
-			expectedNonIntegrationFetchers: []common.Fetcher{eks1, aks1, aks2},
+			kubeFetchers:                             []common.Fetcher{aks1, aks2},
+			kubeDynamicFetchers:                      map[string][]common.Fetcher{"group1": {eks1}},
+			expectedFetchersRemoteAgentDeployment:    []common.Fetcher{},
+			expectedFetchersKubernetesServiceAsProxy: []common.Fetcher{eks1, aks1, aks2},
+		},
+		{
+			kubeFetchers:                             []common.Fetcher{},
+			kubeDynamicFetchers:                      map[string][]common.Fetcher{"group1": {aks4}},
+			expectedFetchersRemoteAgentDeployment:    []common.Fetcher{},
+			expectedFetchersKubernetesServiceAsProxy: []common.Fetcher{aks4},
 		},
 	}
 
 	for _, tc := range testCases {
 		s := Server{kubeFetchers: tc.kubeFetchers, dynamicKubeFetchers: tc.kubeDynamicFetchers}
 
-		require.ElementsMatch(t, tc.expectedIntegrationFetchers, s.getKubeFetchers(true))
-		require.ElementsMatch(t, tc.expectedNonIntegrationFetchers, s.getKubeFetchers(false))
+		require.ElementsMatch(t, tc.expectedFetchersRemoteAgentDeployment, s.getKubeFetchersUsingRemoteAgentDeployment())
+		require.ElementsMatch(t, tc.expectedFetchersKubernetesServiceAsProxy, s.getKubeFetchersUsingKubernetesServiceAsProxy())
 	}
 }
 

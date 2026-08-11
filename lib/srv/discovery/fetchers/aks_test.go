@@ -113,11 +113,12 @@ func TestAKSFetcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := aksFetcherConfig{
-				Client:         newPopulatedAKSMock(),
+				AzureClients:   &mockAzureClients{kubernetesClient: newPopulatedAKSMock()},
 				FilterLabels:   tt.args.filterLabels,
 				Regions:        tt.args.regions,
 				ResourceGroups: tt.args.resourceGroups,
 				Logger:         logtest.NewLogger(),
+				Subscriptions:  []string{"sub1"},
 			}
 			fetcher, err := newAKSFetcher(cfg)
 			require.NoError(t, err)
@@ -150,6 +151,16 @@ func newPopulatedAKSMock() *mockAKSAPI {
 	return &mockAKSAPI{
 		group: aksMockClusters,
 	}
+}
+
+type mockAzureClients struct {
+	azure.Clients
+
+	kubernetesClient azure.AKSClient
+}
+
+func (m *mockAzureClients) GetKubernetesClient(ctx context.Context, subscription string) (azure.AKSClient, error) {
+	return m.kubernetesClient, nil
 }
 
 var aksMockClusters = map[string][]*azure.AKSCluster{
