@@ -90,11 +90,26 @@ func TestGitHubIntegrationHandler(t *testing.T) {
 	igSvc, err := local.NewIntegrationsService(process.GetBackend())
 	require.NoError(t, err)
 
+	const proxyPublicAddr = "proxy.example.com:443"
+	presenceSvc := local.NewPresenceService(process.GetBackend())
+	_, err = presenceSvc.UpsertProxyServer(t.Context(), &types.ServerV2{
+		Kind:    types.KindProxy,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "test-proxy",
+		},
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{proxyPublicAddr},
+		},
+	})
+	require.NoError(t, err)
+
 	makeGitHubIntegration := func(name, clientID, clientSecret string) types.Resource {
 		ig, err := types.NewIntegrationGitHub(
 			types.Metadata{Name: name},
 			&types.GitHubIntegrationSpecV1{
-				Organization: name,
+				Organization:     name,
+				OAuthCallbackURL: "https://" + proxyPublicAddr + types.IntegrationGitHubOAuthCallbackPath,
 			},
 		)
 		require.NoError(t, err)
