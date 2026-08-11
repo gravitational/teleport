@@ -714,8 +714,8 @@ const (
 	DeviceEnrollPairingRequestEvent = "device.enroll_pairing.request"
 	// DeviceEnrollPairingApproveEvent is emitted when the user approves an enroll
 	// pairing in the Web UI, which lets the device retrieve its enrollment token.
-	// It is also emitted on failure, for example when the MFA ceremony does not
-	// check out.
+	// It is also emitted on a failed approval attempt, for example one arriving
+	// after the pairing expired or was already approved.
 	DeviceEnrollPairingApproveEvent = "device.enroll_pairing.approve"
 	// DeviceEnrollPairingDenyEvent is emitted when an enroll pairing ends without
 	// an enrollment token being issued, either because the user denied it in the
