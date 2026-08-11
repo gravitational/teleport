@@ -1327,8 +1327,8 @@ test.describe('other', () => {
 }
 
 func TestNormalizeEnvText(t *testing.T) {
-	require.Equal(t, "", normalizeEnvText(nil))
-	require.Equal(t, "", normalizeEnvText(map[string]string{}))
+	require.Empty(t, normalizeEnvText(nil))
+	require.Empty(t, normalizeEnvText(map[string]string{}))
 
 	// Same content, different key order, normalizes the same
 	a := normalizeEnvText(map[string]string{"A": "1", "B": "2"})
