@@ -63,6 +63,7 @@ export interface UserDefinition {
  **/
 export interface TeleportOption {
   config: Record<string, unknown>;
+  env?: Record<string, string>;
 }
 
 const e2eDir =

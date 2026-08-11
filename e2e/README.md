@@ -242,6 +242,27 @@ test.describe('custom license', () => {
 Note that the e2e runner will only restart Teleport with the different config and not re-initialize it from fresh, so the data directory
 will remains the same for all tests which means the cluster's identity like cluster name, CA, bootstrapped users, and roles will carry over unchanged.
 
+A declared config can also set process environment variables scoped to just that config's Teleport restart via
+`test.use({ teleport: { env: {...} } })`. These are not inherited by the default config or by other declared configs,
+which avoids a variable meant for one config leaking into unrelated tests:
+
+```ts
+test.describe('cloud license', () => {
+  test.use({
+    teleport: {
+      config: {
+        auth_service: {
+          license_file: '${E2E_DIR}/testdata/licenses/cloud-license.pem',
+        },
+      },
+      env: {
+        TELEPORT_CLOUD_HOSTPORT: 'api.cloud.gravitational.io',
+      },
+    },
+  });
+});
+```
+
 ### Restricting a spec to certain browsers
 
 Web specs run against every browser by default. A test whose subject is not the browser can opt out:

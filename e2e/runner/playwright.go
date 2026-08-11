@@ -268,6 +268,7 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 	}
 	inst.teleport.configPath = mergedPath
 	inst.teleportConfigPath = mergedPath
+	inst.teleport.envOverrides = cfg.env
 
 	if err := inst.teleport.start(ctx); err != nil {
 		return fmt.Errorf("re-initializing teleport for %s: %w", inst.browser, err)
