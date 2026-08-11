@@ -1,4 +1,4 @@
-.version: &version "17.7.26"
+.version: &version "17.7.26-dev.aadc.811.1"
 
 name: tbot
 apiVersion: v2
