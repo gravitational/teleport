@@ -211,6 +211,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			opts: []resourceSchemaOption{
 				withNameOverride("OpenSSHServer"),
 				withAdditionalColumns(serverColumns),
+				withScope(),
 			},
 		},
 		{
@@ -218,6 +219,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			opts: []resourceSchemaOption{
 				withNameOverride("OpenSSHEICEServer"),
 				withAdditionalColumns(serverColumns),
+				withScope(),
 			},
 		},
 		{name: "TrustedClusterV2"},

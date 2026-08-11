@@ -40,7 +40,10 @@ type openSSHServerClient struct {
 
 // Get gets the Teleport OpenSSH server of a given name.
 func (r openSSHServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
-	server, err := r.teleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: key.Name, Scope: key.Scope}.Build())
+	server, err := r.teleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build())
 	if err != nil {
 		return server, trace.Wrap(err)
 	}
@@ -68,20 +71,24 @@ func (r openSSHServerClient) Update(ctx context.Context, server types.Server) er
 
 // Delete deletes a Teleport OpenSSH server.
 func (r openSSHServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return trace.Wrap(r.teleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: key.Name, Scope: key.Scope}.Build()))
+	return trace.Wrap(r.teleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build()))
 }
 
 // NewOpenSSHServerV2Reconciler instantiates a new Kubernetes controller
 // reconciling OpenSSH server resources.
-func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
+func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client, metadata reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	serverClient := &openSSHServerClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
+	resourceReconciler, err := reconcilers.NewTeleportScopedResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
 		client,
 		serverClient,
-		reconcilers.Config{},
+		reconcilers.Config{Scoped: true},
+		metadata,
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
