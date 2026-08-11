@@ -198,7 +198,7 @@ func (s *OutputV2Service) generateScoped(ctx context.Context) error {
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateScopedFacade(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageIdentity(),
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating scoped identity")
@@ -503,7 +503,8 @@ func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2,
 	}
 
 	// Configure primary user/AuthInfo.
-	execArgs := []string{"kube", "credentials",
+	execArgs := []string{
+		"kube", "credentials",
 		fmt.Sprintf("--destination-dir=%s", absDestPath),
 	}
 	config.AuthInfos[ks.teleportClusterName] = &clientcmdapi.AuthInfo{
