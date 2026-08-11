@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -40,6 +41,16 @@ func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClust
 
 // DefaultAppPublicAddr returns the default publicAddr for an app.
 // Format: <appName>.<localProxyDNSName>
+//
+// Any port present in localProxyDNSName is stripped. An app FQDN must not carry
+// the proxy's web port: the web UI app launcher appends the browser's
+// location.port when building the redirect URL, so a port here would be
+// doubled (e.g. host:3080:3080) and fail `new URL()` construction. This matters
+// on clusters whose proxy runs on a non-standard port (e.g. :3080), where
+// proxy.GetPublicAddr() always carries the port. See web AppLauncher.
 func DefaultAppPublicAddr(appName, localProxyDNSName string) string {
+	if host, _, err := net.SplitHostPort(localProxyDNSName); err == nil {
+		localProxyDNSName = host
+	}
 	return fmt.Sprintf("%v.%v", appName, localProxyDNSName)
 }
