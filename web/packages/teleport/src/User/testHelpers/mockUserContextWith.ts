@@ -16,17 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { MockInstance } from 'vitest';
-
-import { mockFn } from 'build/testMock';
-
 import * as UserContext from 'teleport/User/UserContext';
 import { UserContextValue } from 'teleport/User/UserContext';
 
 export const mockUserContextProviderWith = (
   data: UserContextValue
-): MockInstance => {
-  const hookSpy = mockFn.spyOn(UserContext, 'useUser');
+): jest.SpyInstance => {
+  const hookSpy = jest.spyOn(UserContext, 'useUser');
   hookSpy.mockReturnValue(data);
   return hookSpy;
 };

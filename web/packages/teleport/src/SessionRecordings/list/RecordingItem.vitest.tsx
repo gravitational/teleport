@@ -22,7 +22,6 @@ import { MemoryRouter } from 'react-router';
 import { vi, test, afterEach, expect, beforeEach } from 'vitest';
 
 import {
-  enableMswServer,
   render,
   screen,
   server,
@@ -38,8 +37,6 @@ import type { Recording } from 'teleport/services/recordings';
 import { getThumbnail, MOCK_THUMBNAIL, thumbnailError } from './mock';
 import { RecordingItem, type RecordingItemProps } from './RecordingItem';
 import { Density, ViewMode } from './ViewSwitcher';
-
-enableMswServer();
 
 const mockRecording: Recording = {
   sid: 'test-session',

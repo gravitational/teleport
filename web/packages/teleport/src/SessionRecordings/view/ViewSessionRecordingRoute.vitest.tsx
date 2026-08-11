@@ -23,12 +23,7 @@ import type { ComponentType } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { vi, expect, test, afterEach } from 'vitest';
 
-import {
-  enableMswServer,
-  render,
-  server,
-  testQueryClient,
-} from 'design/utils/testing';
+import { render, server, testQueryClient } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -53,8 +48,6 @@ vi.mock('teleport/lib/AuthenticatedWebSocket', async () => ({
     await import('teleport/lib/AuthenticatedWebSocket.mock')
   ).MockAuthenticatedWebSocket,
 }));
-
-enableMswServer();
 
 afterEach(() => {
   testQueryClient.clear();

@@ -23,10 +23,10 @@ import { spawnSync } from 'node:child_process';
 // each one's own testMatch/include already narrows the filter to the files it owns. With no args, both full
 // suites run.
 //
-// For advanced flag combos across a mixture (e.g. `-t <pattern>` alongside both file kinds), call `pnpm test-jest`
-// or `pnpm test-vitest` directly, since a flag can only be forwarded verbatim to each selected runner. Watching a
-// path is one such case: the runners are spawned in sequence, so the first watcher holds the terminal and the
-// second never starts.
+// For advanced flag combos across a mixture (e.g. `-t <pattern>` alongside both file kinds), run `pnpm jest` or
+// `pnpm vitest` directly, since a flag can only be forwarded verbatim to each selected runner. Watching a path is
+// one such case: the runners are spawned in sequence, so the first watcher holds the terminal and the second
+// never starts.
 
 const args = process.argv.slice(2);
 const isVitestFile = arg => arg.includes('.vitest.');

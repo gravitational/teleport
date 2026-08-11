@@ -18,18 +18,10 @@
 
 import { expect, test, afterEach } from 'vitest';
 
-import {
-  enableMswServer,
-  render,
-  screen,
-  server,
-  testQueryClient,
-} from 'design/utils/testing';
+import { render, screen, server, testQueryClient } from 'design/utils/testing';
 
 import { getThumbnail, MOCK_THUMBNAIL } from './mock';
 import { RecordingThumbnail } from './RecordingThumbnail';
-
-enableMswServer();
 
 afterEach(() => {
   testQueryClient.clear();

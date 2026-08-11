@@ -22,7 +22,6 @@ import { vi, test, afterEach, expect, beforeEach } from 'vitest';
 
 import {
   createDeferredResponse,
-  enableMswServer,
   render,
   screen,
   server,
@@ -37,8 +36,6 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { ListSessionRecordingsRoute } from './ListSessionRecordingsRoute';
 import { getThumbnail, MOCK_EVENTS, MOCK_THUMBNAIL } from './mock';
-
-enableMswServer();
 
 beforeEach(() => {
   server.use(

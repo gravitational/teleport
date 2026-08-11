@@ -46,11 +46,6 @@ export function createVitestConfig(testInclude: string[]): ViteUserConfig {
     plugins: [reactPlugin('test'), assetStubPlugin()],
     resolve: { tsconfigPaths: true },
     test: {
-      // Only for the dual-runner helpers (enableMswServer, trackingTester) that
-      // call bare beforeAll/afterEach/expect and can't import from vitest without
-      // breaking jest. Test files import from vitest directly.
-      globals: true,
-      pool: 'vmThreads',
       include: testInclude,
       exclude: standardExclude,
       // happy-dom resolves the design system's modern CSS that jsdom's parser drops (breaking toHaveStyle).

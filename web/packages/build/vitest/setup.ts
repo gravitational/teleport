@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// vmThreads VM contexts don't inherit Node globals, and MSW 2.x needs the web
-// streams and BroadcastChannel at import time.
-if (typeof globalThis.WritableStream === 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const streams = require('node:stream/web');
-  globalThis.ReadableStream =
-    globalThis.ReadableStream || streams.ReadableStream;
-  globalThis.WritableStream = streams.WritableStream;
-  globalThis.TransformStream =
-    globalThis.TransformStream || streams.TransformStream;
-}
-if (typeof globalThis.BroadcastChannel === 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  globalThis.BroadcastChannel = require('node:worker_threads').BroadcastChannel;
-}
+// The '@testing-library/jest-dom/vitest' entry self-imports 'vitest', which
+// pnpm's isolated store can't resolve from inside the jest-dom package, so
+// extend expect with the matchers directly.
+import * as jestDomMatchers from '@testing-library/jest-dom/matchers';
+// The /vitest entry registers its beforeEach and matchers against vitest's imported API rather than globals.
+// Lets toHaveStyle read the injected styled-system CSS and adds toHaveStyleRule.
+import 'jest-styled-components/vitest';
+import { cleanup } from '@testing-library/react';
+
+import '../jest/canvasMock';
+import { afterAll, afterEach, beforeAll, expect } from 'vitest';
+import failOnConsole from 'vitest-fail-on-console';
+
+import { server } from 'design/utils/testing';
+
 // happy-dom doesn't implement requestIdleCallback (SessionRecordings timeline).
 if (typeof globalThis.requestIdleCallback === 'undefined') {
   globalThis.requestIdleCallback = ((cb: IdleRequestCallback) =>
@@ -42,16 +42,19 @@ if (typeof globalThis.requestIdleCallback === 'undefined') {
     clearTimeout(id)) as unknown as typeof globalThis.cancelIdleCallback;
 }
 
-// The '@testing-library/jest-dom/vitest' entry self-imports 'vitest', which
-// pnpm's isolated store can't resolve from inside the jest-dom package, so
-// extend expect with the matchers directly.
-import * as jestDomMatchers from '@testing-library/jest-dom/matchers';
-// Lets toHaveStyle read the injected styled-system CSS and adds toHaveStyleRule.
-import 'jest-styled-components';
-import '../jest/canvasMock';
-import { expect } from 'vitest';
-import failOnConsole from 'vitest-fail-on-console';
-
 expect.extend(jestDomMatchers);
 
 failOnConsole();
+
+// @testing-library/react only self-registers this when a global afterEach exists.
+afterEach(cleanup);
+
+// React reads this to decide whether act() is supported. RTL only sets it around its own act() calls, so without
+// it React warns on every state update and vitest-fail-on-console turns that into a failure.
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());

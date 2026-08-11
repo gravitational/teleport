@@ -21,7 +21,6 @@ import { generatePath, MemoryRouter } from 'react-router';
 import { vi, beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import {
-  enableMswServer,
   render,
   screen,
   server,
@@ -48,8 +47,6 @@ import {
 } from './RecordingsList';
 import type { RecordingsListState } from './state';
 import { Density, ViewMode } from './ViewSwitcher';
-
-enableMswServer();
 
 beforeEach(() => {
   server.use(
