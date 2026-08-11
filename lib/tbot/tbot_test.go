@@ -2056,7 +2056,7 @@ func TestScopedBotApp(t *testing.T) {
 		unscopedBot := New(unscopedBotConfig, log)
 		err = unscopedBot.Run(ctx)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "app_name: needs to be a scope-qualified name when in scope mode")
+		require.ErrorContains(t, err, "app_name: needs to be a scope-qualified name when in scope mode")
 	})
 }
 
