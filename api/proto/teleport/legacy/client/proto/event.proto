@@ -75,6 +75,7 @@ message Event {
   reserved "StaticHostUser";
   reserved "AutoUpdateAgentPlan";
   reserved "WorkloadCluster";
+  reserved "AppAuthConfig";
 
   // Operation identifies operation
   Operation Type = 1;

@@ -5225,6 +5225,7 @@ message OneOf {
   // Event is one of the audit events
   reserved 185, 186, 187, 228, 229, 230, 231;
   reserved "AutoUpdateAgentPlanCreate", "AutoUpdateAgentPlanUpdate", "AutoUpdateAgentPlanDelete";
+  reserved "AppAuthConfigCreate", "AppAuthConfigUpdate", "AppAuthConfigDelete", "AppAuthConfigVerify";
   oneof Event {
     events.UserLogin UserLogin = 1;
     events.UserCreate UserCreate = 2;
