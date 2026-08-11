@@ -248,6 +248,9 @@ func (entraIDPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx 
 	settings.SyncSettings.DefaultOwners = req.EntraID.DefaultOwners
 	settings.SyncSettings.GroupFilters = filters
 	settings.SyncSettings.AccessListOwnersSource = ownersSource
+	if req.EntraID.SyncIntervals != nil {
+		settings.SyncSettings.SyncIntervals = req.EntraID.SyncIntervals
+	}
 	newPlugin.Spec.Settings = &types.PluginSpecV1_EntraId{
 		EntraId: settings,
 	}

@@ -1,150 +1,31 @@
-import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
-
-import {
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  Link,
-  Text,
-  Toggle,
-} from 'design';
+import { Box, Flex, Link, Text, Toggle } from 'design';
 import { RadioGroup } from 'design/RadioGroup';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
-import { Option } from 'shared/components/Select';
-import Validation, { Validator } from 'shared/components/Validation';
+import { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { useUserOptions } from 'e-teleport/AccessListManagement/Shared/hooks';
-import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import {
   CreateFilters,
   FilterOption,
 } from 'e-teleport/Integrations/shared/CreateFilters';
-import cfg from 'teleport/config';
-import { StyledBox } from 'teleport/Discover/Shared';
-import type { Plugin, PluginEntraIdSpec } from 'teleport/services/integrations';
 import { type User } from 'teleport/services/user';
 
 import {
   AccessListOwnersSource,
   Filters,
   toFrienldyAccessListOwnersSource,
-} from './types';
+} from '../types';
+import { filterCollection } from './constants';
+import type { UserOption } from './types';
 
-export function EditGroupsImport({
-  plugin,
-  onSave,
-  disabled,
-}: {
-  plugin?: Plugin;
-  onSave: (filters: Filters, owners: string[], ownersSource: string) => void;
-  disabled: boolean;
-}) {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const {
-    filters,
-    setFilters,
-    selectedOwners,
-    setSelectedOwners,
-    loadOptions,
-    accessListOwnersSource,
-    setAccessListOwnersSource,
-  } = useGroupImportsSettings(plugin);
-
-  const [importAll, setImportAll] = useState(
-    hasZeroFilters(plugin?.spec?.groupFilters)
-  );
-
-  function save(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-
-    let filterValue = emptyFilter;
-    if (!importAll) {
-      // Toggle on (import all) state should wipe out
-      // filters because the "import all" behavior
-      // requires zero configured filters.
-      filterValue = filters;
-    }
-
-    onSave(
-      filterValue,
-      selectedOwners.map(o => o.label),
-      accessListOwnersSource
-    );
-  }
-
-  function goBack() {
-    if (!location.key || location.key === 'default') {
-      navigate(cfg.getIntegrationStatusRoute('entra-id', plugin.name));
-    } else {
-      navigate(-1);
-    }
-  }
-
-  return (
-    <Box mt={3} width="800px">
-      <Header header="Edit Group Import Settings" />
-      <Text>
-        Groups imported from the Microsoft Entra ID directory will be created as
-        Access Lists <br /> and their respective group members will be created
-        as an Access List member.
-      </Text>
-      <Text mb={4} mt={2}>
-        Changes will be applied in the next import cycle.
-      </Text>
-
-      <Validation>
-        {({ validator }) => (
-          <>
-            <StyledBox mt={4}>
-              <ConfigureFilters
-                enabled={importAll}
-                setEnabled={setImportAll}
-                filters={filters}
-                onFilterChange={setFilters}
-                validator={validator}
-                disabled={disabled}
-              />
-            </StyledBox>
-
-            <StyledBox mt={4}>
-              <AccessListOwners
-                loadOptions={loadOptions}
-                selectedOptions={selectedOwners}
-                onOptionChange={setSelectedOwners}
-                accessListOwnersSource={accessListOwnersSource}
-                onOwnersSourceChange={setAccessListOwnersSource}
-                disabled={disabled}
-              />
-            </StyledBox>
-            <Box mt={6} mb={6}>
-              <ButtonPrimary onClick={() => save(validator)} mr={3}>
-                Save
-              </ButtonPrimary>
-              <ButtonSecondary onClick={goBack}>Back</ButtonSecondary>
-            </Box>
-          </>
-        )}
-      </Validation>
-    </Box>
-  );
-}
-
-function AccessListOwners({
-  loadOptions,
+export function AccessListOwners({
   selectedOptions,
   onOptionChange,
   accessListOwnersSource,
   onOwnersSourceChange,
   disabled,
 }: {
-  loadOptions: (input: string) => Promise<UserOption[]>;
   selectedOptions: UserOption[];
   onOptionChange: (UserOption) => void;
   accessListOwnersSource: string;
@@ -162,7 +43,6 @@ function AccessListOwners({
       </Text>
       <Flex gap={4} flexDirection="column" mt={4}>
         <DefaultOwners
-          loadOptions={loadOptions}
           selectedOptions={selectedOptions}
           onOptionChange={onOptionChange}
           disabled={disabled}
@@ -184,16 +64,20 @@ function AccessListOwners({
 }
 
 function DefaultOwners({
-  loadOptions,
   selectedOptions,
   onOptionChange,
   disabled,
 }: {
-  loadOptions: (input: string) => Promise<UserOption[]>;
   selectedOptions: UserOption[];
   onOptionChange: (UserOption) => void;
   disabled: boolean;
 }) {
+  const { loadOptions } = useUserOptions<UserOption>((user: User[]) => {
+    return user.map(user => ({
+      label: user.name,
+      value: user.name,
+    }));
+  });
   return (
     <Box maxWidth="600px">
       <Text typography="subtitle2" mb={1}>
@@ -207,7 +91,6 @@ function DefaultOwners({
       <FieldSelectCreatableAsync
         width="540px"
         required={true}
-        autoFocus={true}
         placeholder="Type a username and press enter"
         isMulti
         isClearable
@@ -275,7 +158,7 @@ export function ConfigureSource({
   );
 }
 
-function ConfigureFilters({
+export function ConfigureFilters({
   enabled,
   setEnabled,
   filters,
@@ -344,12 +227,6 @@ function ConfigureFilters({
   );
 }
 
-type filter = {
-  name: keyof Filters;
-  label: string;
-  placeholder: string;
-};
-
 /**
  * toFilterOption converts filter input array to [FilterOption].
  */
@@ -360,93 +237,3 @@ export function toFilterOption(filters: string[]): FilterOption[] {
   // TODO(sshah): report invalid filters.
   return filters.map(f => ({ label: f, value: f, invalid: false }));
 }
-
-/**
- * filterCollection defines the supported filter modes for the Entra ID plugin.
- */
-export const filterCollection: filter[] = [
-  {
-    name: 'id',
-    label: 'Include Groups Matching the Specified Group IDs',
-    placeholder: 'Type a group ID and press enter',
-  },
-  {
-    name: 'nameRegex',
-    label:
-      'Include Groups Matching the Specified Group Name(s) - Regex and Glob Supported',
-    placeholder:
-      'Type a group name, regex or glob matching group name(s) and press enter',
-  },
-  {
-    name: 'excludeId',
-    label: 'Exclude Groups Matching the Specified Group IDs',
-    placeholder: 'Type a group ID and press enter',
-  },
-  {
-    name: 'excludeNameRegex',
-    label:
-      'Exclude Groups Matching the Specified Group Name(s) - Regex and Glob Supported',
-    placeholder:
-      'Type a group name, regex or glob matching group name(s) and press enter',
-  },
-];
-
-export function hasZeroFilters(filters: Filters): boolean {
-  if (!filters) {
-    return true;
-  }
-  const hasFilters =
-    filters.id?.length > 0 ||
-    filters.nameRegex?.length > 0 ||
-    filters.excludeId?.length > 0 ||
-    filters.excludeNameRegex?.length > 0;
-
-  return !hasFilters;
-}
-
-type UserOption = Option<string, string>;
-
-function useGroupImportsSettings(plugin?: Plugin<PluginEntraIdSpec>) {
-  function toUserOption(owners: string[]): UserOption[] {
-    if (!owners) {
-      return [];
-    }
-    return owners.map(u => ({ value: u, label: u }));
-  }
-
-  const [selectedOwners, setSelectedOwners] = useState<UserOption[]>(
-    toUserOption(plugin?.spec.defaultOwners)
-  );
-
-  const [filters, setFilters] = useState<Filters>(
-    plugin?.spec?.groupFilters ? plugin?.spec?.groupFilters : emptyFilter
-  );
-
-  const [accessListOwnersSource, setAccessListOwnersSource] = useState(
-    plugin?.spec?.accessListOwnersSource ?? AccessListOwnersSource.Plugin
-  );
-
-  const { loadOptions } = useUserOptions<UserOption>((user: User[]) => {
-    return user.map(user => ({
-      label: user.name,
-      value: user.name,
-    }));
-  });
-
-  return {
-    loadOptions,
-    selectedOwners,
-    setSelectedOwners,
-    filters,
-    setFilters,
-    accessListOwnersSource,
-    setAccessListOwnersSource,
-  };
-}
-
-export const emptyFilter: Filters = {
-  id: [],
-  nameRegex: [],
-  excludeId: [],
-  excludeNameRegex: [],
-};

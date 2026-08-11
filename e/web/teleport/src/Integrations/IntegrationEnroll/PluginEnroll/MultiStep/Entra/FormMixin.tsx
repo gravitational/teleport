@@ -15,12 +15,8 @@ import { StyledBox } from 'teleport/Discover/Shared';
 import { useTeleport } from 'teleport/index';
 import userService, { User } from 'teleport/services/user';
 
-import {
-  ConfigureSource,
-  emptyFilter,
-  filterCollection,
-  toFilterOption,
-} from './GroupsImport';
+import { emptyFilter, filterCollection } from './SyncSettings/constants';
+import { ConfigureSource, toFilterOption } from './SyncSettings/GroupsImport';
 import { AccessListOwnersSource, Filters, FormDataField } from './types';
 
 type UserOption = Option<User>;

@@ -20,7 +20,7 @@ import { userEventService } from 'teleport/services/userEvent';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { PluginEnroll } from '../../PluginEnroll';
-import { emptyFilter, filterCollection } from './GroupsImport';
+import { emptyFilter, filterCollection } from './SyncSettings/constants';
 import { AccessListOwnersSource, Filters } from './types';
 
 jest.mock('shared/libs/logger', () => {

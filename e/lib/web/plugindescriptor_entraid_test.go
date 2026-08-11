@@ -320,6 +320,22 @@ func TestEntraIDUpdatePlugin(t *testing.T) {
 			statusCode: http.StatusBadRequest,
 		},
 		{
+			name: "invalid sync interval",
+			req: &ui.PluginUpdateRequest{
+				Plugin: types.PluginTypeEntraID,
+				EntraID: &ui.EntraIDPluginUpdate{
+					Name:                   types.PluginTypeEntraID,
+					DefaultOwners:          []string{"user3"},
+					AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID.String(),
+					SyncIntervals:          &types.PluginEntraIDSyncIntervals{Delta: "4h", Full: "2h"}, // Delta greater than full not allowed.
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "delta sync interval value should be less than")
+			},
+			statusCode: http.StatusBadRequest,
+		},
+		{
 			name: "valid",
 			req: &ui.PluginUpdateRequest{
 				Plugin: types.PluginTypeEntraID,
@@ -330,6 +346,7 @@ func TestEntraIDUpdatePlugin(t *testing.T) {
 						ID: []string{"abc-id"},
 					},
 					AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID.String(),
+					SyncIntervals:          &types.PluginEntraIDSyncIntervals{Delta: "2m", Full: "1h"},
 				},
 			},
 			errAssertion: require.NoError,
@@ -407,6 +424,88 @@ func TestEntraIDPluginUpdatePreservesStatus(t *testing.T) {
 	require.Equal(t, expectedStatus.ImportedGroups, wantStatus.ImportedGroups)
 }
 
+// TestEntraIDPluginUpdatePreservesSyncIntervals checks existing sync intervals are preserved
+// when an older Web UI client hits the proxy endpoint without sync interval fields.
+func TestEntraIDPluginUpdatePreservesSyncIntervals(t *testing.T) {
+	t.Parallel()
+	env := createEntraIDTEnv(t)
+	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
+	require.NoError(t, err)
+
+	// Install plugin, web endpoint does not currently support sync interval config on create request.
+	installPluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugins", "staticauth")
+	resp, err := env.pack.clt.PostForm(t.Context(), installPluginEndPoint, entraInstallRequestURLValues(t))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	installedPlugin, err := env.s.testAuthServer.AuthServer.AuthServer.Plugins.GetPlugin(t.Context(), types.PluginTypeEntraID, false)
+	require.NoError(t, err)
+
+	// Update plugin out-of-band from the proxy to mimic sync interval updated using tctl.
+	pluginV1, ok := installedPlugin.(*types.PluginV1)
+	require.True(t, ok, "expected plugin type to be PluginV1")
+	settings := pluginV1.Spec.GetEntraId()
+	settings.SyncSettings.SyncIntervals = &types.PluginEntraIDSyncIntervals{Delta: "2m", Full: "1h"}
+	pluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: settings,
+	}
+	updatedPlugin, err := env.s.testAuthServer.AuthServer.AuthServer.Plugins.UpdatePlugin(t.Context(), pluginV1)
+	require.NoError(t, err)
+
+	updatedPluginV1, ok := updatedPlugin.(*types.PluginV1)
+	require.True(t, ok, "expected plugin type to be PluginV1")
+	require.Equal(t, &types.PluginEntraIDSyncIntervals{Delta: "2m", Full: "1h"}, updatedPluginV1.Spec.GetEntraId().SyncSettings.SyncIntervals)
+
+	// Update plugin without the sync interval, mimicking plugin update request from an older UI clients.
+	updatePluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugin")
+	resp, err = env.pack.clt.PutJSON(t.Context(), updatePluginEndPoint, &ui.PluginUpdateRequest{
+		Plugin: types.PluginTypeEntraID,
+		EntraID: &ui.EntraIDPluginUpdate{
+			Name:                   types.PluginTypeEntraID,
+			DefaultOwners:          []string{"user3"}, // new owner
+			AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID.String(),
+			// missing sync intervals
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// Check settings update does not override sync interval
+	updatedPlugin, err = env.s.testAuthServer.AuthServer.AuthServer.Plugins.GetPlugin(t.Context(), types.PluginTypeEntraID, false)
+	require.NoError(t, err)
+	updatedPluginV1, ok = updatedPlugin.(*types.PluginV1)
+	require.True(t, ok, "expected plugin type to be PluginV1")
+
+	gotSettings := updatedPluginV1.Spec.GetEntraId().SyncSettings
+	// Verify new owner was updated.
+	require.ElementsMatch(t, []string{"user3"}, gotSettings.DefaultOwners)
+	require.Equal(t, filter.ToInputs([]*types.PluginSyncFilter{}), filter.ToInputs(gotSettings.GroupFilters))
+	// Verify sync interval remains the same.
+	require.Equal(t, &types.PluginEntraIDSyncIntervals{Delta: "2m", Full: "1h"}, updatedPluginV1.Spec.GetEntraId().SyncSettings.SyncIntervals)
+
+	// Update sync interval using web API.
+	resp, err = env.pack.clt.PutJSON(t.Context(), updatePluginEndPoint, &ui.PluginUpdateRequest{
+		Plugin: types.PluginTypeEntraID,
+		EntraID: &ui.EntraIDPluginUpdate{
+			Name:                   types.PluginTypeEntraID,
+			DefaultOwners:          []string{"user3"}, // new owner
+			AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID.String(),
+			SyncIntervals:          &types.PluginEntraIDSyncIntervals{Delta: "1m", Full: "0s"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// Verify the web API updated the sync intervals.
+	updatedPlugin, err = env.s.testAuthServer.AuthServer.AuthServer.Plugins.GetPlugin(t.Context(), types.PluginTypeEntraID, false)
+	require.NoError(t, err)
+	updatedPluginV1, ok = updatedPlugin.(*types.PluginV1)
+	require.True(t, ok, "expected plugin type to be PluginV1")
+
+	gotSettings = updatedPluginV1.Spec.GetEntraId().SyncSettings
+	require.Equal(t, &types.PluginEntraIDSyncIntervals{Delta: "1m", Full: "0s"}, gotSettings.SyncIntervals)
+}
+
 func createEntraConnector(t *testing.T, s *webSuite) string {
 	t.Helper()
 	_, err := s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
@@ -477,6 +576,7 @@ func entraInstallRequestValidURLValues(t *testing.T) url.Values {
 		"clientId":               {"e1b69fdf-8e18-47f0-864c-94ca7f8d0e1f"},
 		"groupFilters":           {`{"id":["c8d8f374-1072-4adf-aa5e-75036e8ccc41"],"nameRegex":[],"excludeId":[],"excludeNameRegex":["finance-*"]}`},
 		"accessListOwnersSource": {types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN.String()},
+		"syncIntervals":          {`{"full": "1h", "delta": "2m"}`},
 	}
 }
 

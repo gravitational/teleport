@@ -31,6 +31,8 @@ type EntraPluginSpec struct {
 	// state. AppSsoSettingsCache value can be large and the UI only needs the
 	// enabled/disabled state.
 	AccessGraphEnabled bool `json:"accessGraphEnabled,omitempty"`
+	// SyncIntervals is the sync intervals used by the Entra ID service.
+	SyncIntervals *types.PluginEntraIDSyncIntervals `json:"syncIntervals,omitempty"`
 }
 
 // PluginSpecType implements PluginSpec for EntraPluginSpec

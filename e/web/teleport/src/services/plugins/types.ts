@@ -5,7 +5,11 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { BaseView } from 'teleport/components/Wizard/flow';
 import { IntegrationTag } from 'teleport/Integrations/Enroll/Shared';
-import { Filters, PluginKind } from 'teleport/services/integrations';
+import {
+  Filters,
+  PluginEntraIdSyncIntervals,
+  PluginKind,
+} from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
 /**
@@ -288,6 +292,7 @@ export type entraPluginUpdate = {
   defaultOwners: string[];
   groupFilters: Filters;
   accessListOwnersSource: string;
+  syncIntervals: PluginEntraIdSyncIntervals;
 };
 
 export type PluginUpdateRequest<T extends string = ''> = {

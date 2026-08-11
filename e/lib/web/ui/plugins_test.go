@@ -161,6 +161,7 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 									{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "b*"}},
 									{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "admin*"}},
 								},
+								SyncIntervals: &types.PluginEntraIDSyncIntervals{Full: "1h", Delta: "2m"},
 							},
 							AccessGraphSettings: &types.PluginEntraIDAccessGraphSettings{
 								AppSsoSettingsCache: []*types.PluginEntraIDAppSSOSettings{
@@ -204,6 +205,7 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 						ExcludeID:        []string{"6"},
 						ExcludeNameRegex: []string{"b*", "admin*"},
 					},
+					SyncIntervals:      &types.PluginEntraIDSyncIntervals{Full: "1h", Delta: "2m"},
 					AccessGraphEnabled: true,
 				},
 				Status: &PluginStatusV1{

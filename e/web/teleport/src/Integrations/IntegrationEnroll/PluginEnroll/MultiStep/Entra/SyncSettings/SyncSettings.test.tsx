@@ -13,13 +13,10 @@ import { ContextProvider } from 'teleport/index';
 import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
 import userService from 'teleport/services/user';
 
-import {
-  EditGroupsImport,
-  emptyFilter,
-  filterCollection,
-  hasZeroFilters,
-} from './GroupsImport';
-import { AccessListOwnersSource, Filters } from './types';
+import { AccessListOwnersSource, Filters } from '../types';
+import { emptyFilter, filterCollection } from './constants';
+import {} from './GroupsImport';
+import { SyncSettings } from './SyncSettings';
 
 beforeEach(() => {
   jest.spyOn(userService, 'fetchUsersV2').mockResolvedValue({
@@ -36,13 +33,21 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-test('edit page default', async () => {
+test('edit settings', async () => {
   const onSave = jest.fn();
-  renderGroupsImport(undefined /** plugin */, onSave);
+  renderSyncSettings(undefined /** plugin */, onSave);
 
   await waitFor(() => {
-    expect(screen.getByText('Edit Group Import Settings')).toBeInTheDocument();
+    expect(screen.getByText('Edit Sync Settings')).toBeInTheDocument();
   });
+
+  const deltaInterval = screen.getByLabelText('Delta Sync Interval');
+  await userEvent.clear(deltaInterval); // clear default 0s
+  await userEvent.type(deltaInterval, '2m');
+
+  const fullInterval = screen.getByLabelText('Full Sync Interval');
+  await userEvent.clear(fullInterval); // clear default 0s
+  await userEvent.type(fullInterval, '1h');
 
   expect(screen.getByText('Group Filters')).toBeInTheDocument();
   const importAll = screen.getByTestId('toggle');
@@ -68,7 +73,8 @@ test('edit page default', async () => {
   expect(onSave).toHaveBeenCalledWith(
     filters,
     ['alice'],
-    AccessListOwnersSource.Plugin
+    AccessListOwnersSource.Plugin,
+    { delta: '2m', full: '1h' }
   );
 });
 
@@ -90,10 +96,10 @@ test('import all toogle on', async () => {
       groupFilters: filters,
     },
   };
-  renderGroupsImport(plugin, onSave);
+  renderSyncSettings(plugin, onSave);
 
   await waitFor(() => {
-    expect(screen.getByText('Edit Group Import Settings')).toBeInTheDocument();
+    expect(screen.getByText('Edit Sync Settings')).toBeInTheDocument();
   });
 
   // Group filters
@@ -106,7 +112,8 @@ test('import all toogle on', async () => {
   expect(onSave).toHaveBeenCalledWith(
     plugin.spec.groupFilters,
     plugin.spec.defaultOwners,
-    AccessListOwnersSource.Plugin
+    AccessListOwnersSource.Plugin,
+    { delta: '0s', full: '0s' }
   );
 
   onSave.mockReset();
@@ -119,15 +126,16 @@ test('import all toogle on', async () => {
   expect(onSave).toHaveBeenCalledWith(
     emptyFilter,
     plugin.spec.defaultOwners,
-    AccessListOwnersSource.Plugin
+    AccessListOwnersSource.Plugin,
+    { delta: '0s', full: '0s' }
   );
 });
 
 test('default owner validation', async () => {
-  renderGroupsImport();
+  renderSyncSettings();
 
   await waitFor(() => {
-    expect(screen.getByText('Edit Group Import Settings')).toBeInTheDocument();
+    expect(screen.getByText('Edit Sync Settings')).toBeInTheDocument();
   });
 
   expect(screen.getByText('Group Filters')).toBeInTheDocument();
@@ -157,12 +165,13 @@ test('prefill values from plugin spec', async () => {
     spec: {
       defaultOwners: ['alice', 'bob'],
       groupFilters: filters,
+      syncIntervals: { delta: '0s', full: '1h' },
     },
   };
-  renderGroupsImport(plugin, onSave);
+  renderSyncSettings(plugin, onSave);
 
   await waitFor(() => {
-    expect(screen.getByText('Edit Group Import Settings')).toBeInTheDocument();
+    expect(screen.getByText('Edit Sync Settings')).toBeInTheDocument();
   });
 
   expect(screen.getByText('Group Filters')).toBeInTheDocument();
@@ -173,18 +182,19 @@ test('prefill values from plugin spec', async () => {
   expect(onSave).toHaveBeenCalledWith(
     plugin.spec.groupFilters,
     plugin.spec.defaultOwners,
-    AccessListOwnersSource.Plugin
+    AccessListOwnersSource.Plugin,
+    { delta: '0s', full: '1h' }
   );
 });
 
-function renderGroupsImport(
+function renderSyncSettings(
   plugin?: Plugin,
   onSave?: (filters: Filters, owners: string[], ownersSource: string) => void
 ) {
   render(
     <MemoryRouter>
       <ContextProvider ctx={createTeleportContextE()}>
-        <EditGroupsImport plugin={plugin} onSave={onSave} disabled={false} />
+        <SyncSettings plugin={plugin} onSave={onSave} disabled={false} />
       </ContextProvider>
     </MemoryRouter>
   );
@@ -216,50 +226,3 @@ function setFilterInputs(filter: Filters) {
   });
   fireEvent.keyDown(excludeNameRegex, { key: 'Enter' });
 }
-
-describe('hasZeroFilters', () => {
-  const predicates: {
-    name: string;
-    filters: any;
-    expected: boolean;
-  }[] = [
-    {
-      name: 'with all filters',
-      filters: {
-        id: ['g1', 'g2'],
-        nameRegex: ['admin-*'],
-        excludeId: ['g2'],
-        excludeNameRegex: ['hr*'],
-      },
-      expected: false,
-    },
-    {
-      name: 'partial filters',
-      filters: {
-        id: ['g1', 'g2'],
-        nameRegex: [],
-        excludeId: ['g2'],
-        excludeNameRegex: ['hr*'],
-      },
-      expected: false,
-    },
-    {
-      name: 'empty filters',
-      filters: {
-        id: [],
-        nameRegex: [],
-        excludeId: [],
-        excludeNameRegex: [],
-      },
-      expected: true,
-    },
-    {
-      name: 'empty',
-      filters: {},
-      expected: true,
-    },
-  ];
-  test.each(predicates)('$name', ({ filters, expected }) => {
-    expect(hasZeroFilters(filters)).toBe(expected);
-  });
-});

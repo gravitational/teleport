@@ -373,6 +373,7 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			GroupFilters:           filter.ToInputs(settings.EntraId.SyncSettings.GroupFilters),
 			AccessGraphEnabled:     entraidui.AccessGraphSyncEnabled(settings.EntraId.AccessGraphSettings),
 			AccessListOwnersSource: settings.EntraId.SyncSettings.AccessListOwnersSource.String(),
+			SyncIntervals:          settings.EntraId.SyncSettings.SyncIntervals,
 		}
 	default:
 		return nil
@@ -456,4 +457,6 @@ type EntraIDPluginUpdate struct {
 	AccessListOwnersSource string `json:"accessListOwnersSource,omitempty"`
 	// GroupFilters is the group filter inputs.
 	GroupFilters filter.Inputs `json:"groupFilters"`
+	// SyncIntervals configures full and delta sync intervals.
+	SyncIntervals *types.PluginEntraIDSyncIntervals `json:"syncIntervals"`
 }

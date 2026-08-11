@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { Alert, Box, ButtonWarning, Flex, Text } from 'design';
 import { Trash } from 'design/Icon';
 
-import { EditGroupsImport } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/GroupsImport';
+import { SyncSettings } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/SyncSettings';
 import { SettingsType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/types';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
@@ -15,6 +15,7 @@ import {
   Plugin,
   PluginEntraIdSpec,
   PluginEntraIDStatusDetails,
+  PluginEntraIdSyncIntervals,
   type Filters,
 } from 'teleport/services/integrations';
 
@@ -45,7 +46,7 @@ export function EntraStatusRoutes({
           SettingsType.GroupImport
         )}
       >
-        <GroupsImport existingPlugin={plugin} />
+        <EditSyncSettings existingPlugin={plugin} />
       </Route>
       <Route path={cfg.getIntegrationStatusRoute('entra-id', plugin.name)}>
         <StatusDetails onDelete={deletePlugin} plugin={plugin} />
@@ -54,7 +55,7 @@ export function EntraStatusRoutes({
   );
 }
 
-function GroupsImport({
+function EditSyncSettings({
   existingPlugin,
 }: {
   existingPlugin: Plugin<PluginEntraIdSpec, PluginEntraIDStatusDetails>;
@@ -100,13 +101,15 @@ function GroupsImport({
   function onSave(
     filters: Filters,
     owners: string[],
-    accessListOwnersSource: string
+    accessListOwnersSource: string,
+    syncIntervals: PluginEntraIdSyncIntervals
   ) {
     const req: entraPluginUpdate = {
       name: existingPlugin.name,
       defaultOwners: owners,
       groupFilters: filters,
       accessListOwnersSource,
+      syncIntervals: syncIntervals,
     };
     memoizedUpdatePlugin(req);
   }
@@ -118,7 +121,7 @@ function GroupsImport({
           <Alert>{updatePlugin.error.message}</Alert>
         </Box>
       )}
-      <EditGroupsImport
+      <SyncSettings
         plugin={existingPlugin}
         onSave={onSave}
         disabled={updatePlugin.isPending}

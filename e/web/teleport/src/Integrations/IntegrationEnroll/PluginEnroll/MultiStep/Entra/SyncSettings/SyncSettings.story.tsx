@@ -6,7 +6,7 @@ import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
 
-import { EditGroupsImport } from './GroupsImport';
+import { SyncSettings } from './SyncSettings';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/Entra/Edit/GroupsImport',
@@ -27,7 +27,7 @@ export const Default = () => {
   return (
     <MemoryRouter>
       <ContextProvider ctx={createTeleportContextE()}>
-        <EditGroupsImport disabled={false} onSave={() => null} />
+        <SyncSettings disabled={false} onSave={() => null} />
       </ContextProvider>
     </MemoryRouter>
   );
@@ -44,16 +44,13 @@ export const PrefillFromPluginSpec = () => {
       groupFilters: { id: ['abc123', 'abc456'], excludeNameRegex: ['admin*'] },
       accessListOwnersSource:
         'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID',
+      syncIntervals: { delta: '2m', full: '1h' },
     },
   };
   return (
     <MemoryRouter>
       <ContextProvider ctx={createTeleportContextE()}>
-        <EditGroupsImport
-          plugin={plugin}
-          disabled={false}
-          onSave={() => null}
-        />
+        <SyncSettings plugin={plugin} disabled={false} onSave={() => null} />
       </ContextProvider>
     </MemoryRouter>
   );
