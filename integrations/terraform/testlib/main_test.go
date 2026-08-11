@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 	"time"
 
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -61,7 +61,7 @@ type TerraformBaseSuite struct {
 	// terraformConfig represents Terraform provider configuration
 	terraformConfig string
 	// terraformProvider represents an instance of a Terraform provider
-	terraformProvider tfsdk.Provider
+	terraformProvider tfprovider.Provider
 	// terraformProviders represents an array of provider factories that Terraform will use to instantiate the provider(s) under test.
 	terraformProviders map[string]func() (tfprotov6.ProviderServer, error)
 }

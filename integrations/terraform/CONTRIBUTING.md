@@ -118,7 +118,7 @@ package resources
 
 import (
     "github.com/hashicorp/terraform-plugin-framework/path"
-    "github.com/hashicorp/terraform-plugin-framework/tfsdk"
+    "github.com/hashicorp/terraform-plugin-framework/provider"
 
     apitypes "github.com/gravitational/teleport/api/types"
 
@@ -129,10 +129,11 @@ import (
 
 func NewFooDataSourceType() tfdriver.DataSourceType[apitypes.FooV1, tfdriver.NameIdentifier] {
     return tfdriver.DataSourceType[apitypes.FooV1, tfdriver.NameIdentifier]{
-        NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.FooV1, tfdriver.NameIdentifier] {
+        NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[apitypes.FooV1, tfdriver.NameIdentifier] {
             return teleport.NewFooClient(clientFromProvider(p))
         },
         Kind: apitypes.KindFoo,
+        Name: "foo",
         Codec: tfdriver.DataSourceCodecFuncs[apitypes.FooV1]{
             SchemaFunc:  tfschema.GenSchemaFooV1,
             ToStateFunc: tfschema.CopyFooV1ToTerraform,
@@ -143,10 +144,11 @@ func NewFooDataSourceType() tfdriver.DataSourceType[apitypes.FooV1, tfdriver.Nam
 
 func NewFooResourceType() tfdriver.ResourceType[apitypes.FooV1, tfdriver.NameIdentifier] {
     return tfdriver.ResourceType[apitypes.FooV1, tfdriver.NameIdentifier]{
-        NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.FooV1, tfdriver.NameIdentifier] {
+        NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[apitypes.FooV1, tfdriver.NameIdentifier] {
             return teleport.NewFooClient(clientFromProvider(p))
         },
         Kind: apitypes.KindFoo,
+        Name: "foo",
         Codec: tfdriver.ResourceCodecFuncs[apitypes.FooV1]{
             SchemaFunc:   tfschema.GenSchemaFooV1,
             FromPlanFunc: tfschema.CopyFooV1FromTerraform,
