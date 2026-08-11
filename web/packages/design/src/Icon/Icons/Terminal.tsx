@@ -56,6 +56,7 @@ export const Terminal = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-terminal"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Sparkle = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-sparkle"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Facebook = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-facebook"
+
       {...otherProps}
       ref={ref}
     >

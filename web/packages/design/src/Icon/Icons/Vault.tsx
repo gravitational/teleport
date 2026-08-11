@@ -56,6 +56,7 @@ export const Vault = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-vault"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const CCMasterCard = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ccmastercard"
+
       {...otherProps}
       ref={ref}
     >
