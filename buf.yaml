@@ -93,9 +93,7 @@ breaking:
     - WIRE_JSON
   # TODO(juliaogris): Remove the except once the buf breaking baseline no
   # longer holds the app_resources reservations. They were never in a
-  # release, so deleting them breaks no released wire or JSON format, but
-  # the rule flags any reserved-entry deletion and its ignore lists do not
-  # apply to deletion findings.
+  # release, so deleting them breaks no released wire or JSON format.
   except:
     - RESERVED_MESSAGE_NO_DELETE
   ignore:
