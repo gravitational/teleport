@@ -1,4 +1,4 @@
-.version: &version "18.10.3-aadc.signbprt.3"
+.version: &version "18.10.3-aadc.signbprt.4"
 
 name: tbot
 apiVersion: v2

@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.10.3-aadc.signbprt.3"
+const Version = "18.10.3-aadc.signbprt.4"
 
 const VersionMajor = 18
 const VersionMinor = 10
 const VersionPatch = 3
-const VersionPreRelease = "aadc.signbprt.3"
+const VersionPreRelease = "aadc.signbprt.4"
 const VersionMetadata = ""
