@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/auth/oidctest"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend"
@@ -116,10 +118,13 @@ func TestSAML(t *testing.T) {
 				mustSetupAccessList(t, ctx, s, "ops@gravitational.io", "access")
 			}
 
-			connector := prepareSSOConnectorSetup(t, input, ctx, s)
+			connector := prepareSAMLSSOConnectorSetup(t, input, ctx, s)
 
 			clt := s.clientNoRedirects()
-			resp := initSSOLogin(t, clt, connector, csrfCookie)
+
+			baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
+			require.NoError(t, err)
+			resp := mustSendRequest(t, clt, csrfCookie, baseURL.String())
 			// we got a redirect
 			id := mustExtractSAMLRequestID(t, resp)
 			getAuthRequestAndSwapID(t, ctx, s, id, csrfToken)
@@ -201,10 +206,12 @@ func TestSAMLNoEphemeralUser(t *testing.T) {
 				mustSetupAccessList(t, ctx, s, username, accessListRole)
 			}
 
-			connector := prepareSSOConnectorSetup(t, tc.rawConnector, ctx, s)
+			connector := prepareSAMLSSOConnectorSetup(t, tc.rawConnector, ctx, s)
 
 			clt := s.clientNoRedirects()
-			resp := initSSOLogin(t, clt, connector, csrfCookie)
+			baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
+			require.NoError(t, err)
+			resp := mustSendRequest(t, clt, csrfCookie, baseURL.String())
 			id := mustExtractSAMLRequestID(t, resp)
 			getAuthRequestAndSwapID(t, ctx, s, id, csrfToken)
 			mustSendSAMLResponse(t, clt, csrfCookie)
@@ -245,6 +252,150 @@ func TestSAMLNoEphemeralUser(t *testing.T) {
 	}
 }
 
+func TestOIDC(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	const connectorMappedRole = "access"
+	const accessListRole = "admin"
+
+	// userID and username already exist in IdP users.
+	const userID = "id1"
+	const username = "test-user@example.com"
+
+	tests := []struct {
+		name                    string
+		hasAccessListRoles      bool
+		hasConnectorMappedRoles bool
+		claimsToRoles           []types.ClaimMapping
+		expectedRedirectURL     string
+	}{
+		{
+			name:                    "mapped claims to roles without access list roles",
+			claimsToRoles:           []types.ClaimMapping{{Claim: "groups", Value: connectorMappedRole, Roles: []string{connectorMappedRole}}},
+			hasConnectorMappedRoles: true,
+			expectedRedirectURL:     "/after",
+		},
+		{
+			name:                    "mapped claims to roles with access list roles",
+			claimsToRoles:           []types.ClaimMapping{{Claim: "groups", Value: connectorMappedRole, Roles: []string{connectorMappedRole}}},
+			hasConnectorMappedRoles: true,
+			hasAccessListRoles:      true,
+			expectedRedirectURL:     "/after",
+		},
+		{
+			name:                "fail to map claims to roles without access list roles",
+			claimsToRoles:       []types.ClaimMapping{{Claim: "groups", Value: "unknown", Roles: []string{"unknown"}}},
+			expectedRedirectURL: sso.LoginFailedUnauthorizedRedirectURL,
+		},
+		{
+			name:                "fail to map claims to roles with access list roles",
+			claimsToRoles:       []types.ClaimMapping{{Claim: "groups", Value: "unknown", Roles: []string{"unknown"}}},
+			hasAccessListRoles:  true,
+			expectedRedirectURL: "/after",
+		},
+		{
+			name:                "no claims to roles without access list roles",
+			expectedRedirectURL: sso.LoginFailedUnauthorizedRedirectURL,
+		},
+		{
+			name:                "no claims to roles with access list roles",
+			hasAccessListRoles:  true,
+			expectedRedirectURL: "/after",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			idpServer, err := oidctest.NewIdPServer()
+			require.NoError(t, err)
+			t.Cleanup(idpServer.Close)
+
+			s := newWebSuite(t, withIdPServer(idpServer),
+				withModules(&modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OIDC: {Enabled: true},
+						},
+					},
+				}),
+			)
+
+			connector, err := types.NewOIDCConnector("oidc-connector", types.OIDCConnectorSpecV3{
+				IssuerURL:    idpServer.URL,
+				ClientID:     "test",
+				ClientSecret: "secret",
+				Scope:        []string{"openid", "email", "profile"},
+				RedirectURLs: wrappers.Strings{idpServer.URL + "/oidc/callback"},
+			})
+			require.NoError(t, err)
+			if tc.claimsToRoles != nil {
+				connector.SetClaimsToRoles(tc.claimsToRoles)
+			}
+
+			mustCreateBackendOIDCConnector(t, ctx, connector, s)
+			mustCreateRole(t, ctx, s, connectorMappedRole)
+
+			if tc.hasAccessListRoles {
+				mustCreateRole(t, ctx, s, accessListRole)
+				mustSetupAccessList(t, ctx, s, username, accessListRole)
+			}
+
+			clt := s.clientNoRedirects()
+
+			loginURL, err := url.Parse(clt.Endpoint("webapi", "oidc", "login", "web") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
+			require.NoError(t, err)
+			loginResp := mustSendRequest(t, clt, csrfCookie, loginURL.String())
+
+			locationURL, err := url.Parse(loginResp.Headers().Get("Location"))
+			require.NoError(t, err)
+
+			state := locationURL.Query().Get("state")
+
+			code, err := idpServer.Authorize(ctx, &oidc.AuthRequest{
+				Scopes:      []string{"openid", "email", "profile"},
+				ClientID:    connector.GetClientID(),
+				RedirectURI: connector.GetRedirectURLs()[0],
+				State:       state,
+				Display:     "none",
+			}, userID)
+			require.NoError(t, err)
+
+			callbackURL, err := url.Parse(clt.Endpoint("webapi", "oidc", "callback") + "?code=" + code + "&state=" + state)
+			require.NoError(t, err)
+			callbackResp := mustSendRequest(t, clt, csrfCookie, callbackURL.String())
+
+			webSessions, err := s.testAuthServer.AuthServer.AuthServer.WebSessions().List(ctx)
+			require.NoError(t, err)
+
+			// If user has no roles from any source, assert no web session created
+			// and return from test with no further assertions.
+			if !tc.hasAccessListRoles && !tc.hasConnectorMappedRoles {
+				require.Empty(t, webSessions)
+				return
+			}
+			require.Len(t, webSessions, 1)
+
+			userIdentity := mustGetUserIdentityFromWebSession(t, webSessions[0])
+
+			if tc.hasConnectorMappedRoles {
+				require.Contains(t, userIdentity.Groups, connectorMappedRole)
+			} else {
+				require.NotContains(t, userIdentity.Groups, connectorMappedRole)
+			}
+
+			if tc.hasAccessListRoles {
+				require.Contains(t, userIdentity.Groups, accessListRole)
+			} else {
+				require.NotContains(t, userIdentity.Groups, accessListRole)
+			}
+
+			require.NotEmpty(t, callbackResp.Headers().Get("Set-Cookie"))
+			require.Contains(t, string(callbackResp.Bytes()), tc.expectedRedirectURL)
+		})
+	}
+}
+
 func mustCreateOktaPermanentUser(t *testing.T, ctx context.Context, s *webSuite, traits map[string][]string, userName string) {
 	newUser, err := types.NewUser(userName)
 	require.NoError(t, err)
@@ -274,7 +425,7 @@ func mustGetUserIdentityFromWebSession(t *testing.T, webSess types.WebSession) *
 	return userIdentity
 }
 
-func prepareSSOConnectorSetup(t *testing.T, input string, ctx context.Context, s *webSuite) types.SAMLConnector {
+func prepareSAMLSSOConnectorSetup(t *testing.T, input string, ctx context.Context, s *webSuite) types.SAMLConnector {
 	connector := mustUnmarshalSAMLConnector(t, input)
 	attributesToRoles := connector.GetAttributesToRoles()
 
@@ -375,17 +526,16 @@ func mustExtractSAMLRequestIDFromURL(t *testing.T, redirectURL, expectedHostPath
 	return id.Value
 }
 
-func initSSOLogin(t *testing.T, clt *client.WebClient, connector types.SAMLConnector, csrfCookie *http.Cookie) *roundtrip.Response {
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
-	require.NoError(t, err)
-	req, err := http.NewRequest("GET", baseURL.String(), nil)
+// mustSendRequest uses the client to send a request to the baseURL with the csrfCookie, and returns the response.
+func mustSendRequest(t *testing.T, clt *client.WebClient, csrfCookie *http.Cookie, baseURL string) *roundtrip.Response {
+	req, err := http.NewRequest("GET", baseURL, nil)
 	require.NoError(t, err)
 	req.AddCookie(csrfCookie)
-	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+	resp, err := clt.Client.RoundTrip(func() (*http.Response, error) {
 		return clt.Client.HTTPClient().Do(req)
 	})
 	require.NoError(t, err)
-	return re
+	return resp
 }
 
 func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {
@@ -402,8 +552,6 @@ func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector 
 // mustSetupAccessList an Access List that grants the role and adds the username as an Access List Member.
 func mustSetupAccessList(t *testing.T, ctx context.Context, s *webSuite, username, role string) {
 	clock := s.testAuthServer.Auth().GetClock()
-
-	mustCreateRole(t, ctx, s, role)
 
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{Name: "accesslist"},
@@ -444,6 +592,21 @@ func mustCreateBackendConnector(t *testing.T, ctx context.Context, connector typ
 	samlConnectorBackendKey := backend.NewKey("web", "connectors", "saml", "connectors", connector.GetName())
 	_, err = s.testAuthServer.AuthServer.Backend.Put(ctx, backend.Item{
 		Key:   samlConnectorBackendKey,
+		Value: value,
+	})
+	require.NoError(t, err)
+}
+
+// mustCreateBackendOIDCConnector creates a OIDC connector directly in the backend.
+// This avoids going through the write path validations and is needed to create
+// a connector without role-mapping fields, which is valid for read paths and SSO.
+func mustCreateBackendOIDCConnector(t *testing.T, ctx context.Context, connector types.OIDCConnector, s *webSuite) {
+	value, err := utils.FastMarshal(connector)
+	require.NoError(t, err)
+
+	oidcConnectorBackendKey := backend.NewKey("web", "connectors", "oidc", "connectors", connector.GetName())
+	_, err = s.testAuthServer.AuthServer.Backend.Put(ctx, backend.Item{
+		Key:   oidcConnectorBackendKey,
 		Value: value,
 	})
 	require.NoError(t, err)

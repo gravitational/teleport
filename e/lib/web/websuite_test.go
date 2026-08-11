@@ -39,6 +39,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	beamservicev1 "github.com/gravitational/teleport/e/api/beamservice/v1"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/auth/oidctest"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -137,7 +138,14 @@ type webSuiteOptions struct {
 	enableAuthCache             bool
 	beamsComputeClient          beamservicev1.BeamsOrchestratorServiceClient
 	clusterEntitlements         map[string]*proto.EntitlementInfo
+	idpServer                   *oidctest.IdPServer
 	handlerOpts                 []web.HandlerOption
+}
+
+func withIdPServer(s *oidctest.IdPServer) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.idpServer = s
+	}
 }
 
 func withBeamsComputeClient(c beamservicev1.BeamsOrchestratorServiceClient) webSuiteOption {
@@ -307,6 +315,16 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		},
 	})
 	require.NoError(t, err)
+
+	if options.idpServer != nil {
+		svc, err := eauth.NewOIDCAuthService(&eauth.OIDCAuthServiceConfig{
+			Auth:           s.testAuthServer.Auth(),
+			Client:         options.idpServer.Client(),
+			LicenseChecker: eauth.ValidLicense{},
+		})
+		require.NoError(t, err)
+		s.testAuthServer.Auth().SetOIDCService(svc)
+	}
 
 	err = s.testAuthServer.Auth().UpsertAuthServer(ctx, &types.ServerV2{
 		Kind:    types.KindAuthServer,

@@ -6,14 +6,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -31,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zitadel/oidc/v3/example/server/storage"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
-	"github.com/zitadel/oidc/v3/pkg/op"
 	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -44,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/auth/oidctest"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -65,199 +62,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-// user wraps a [storage.User] with additional claims.
-type user struct {
-	*storage.User
-	Claims map[string]any
-}
-
-type userStore struct {
-	users map[string]user
-}
-
-// ExampleClientID is only used in the example server
-func (u userStore) ExampleClientID() string {
-	return "service"
-}
-
-func (u userStore) GetUserByID(id string) *storage.User {
-	return u.users[id].User
-}
-
-func (u userStore) GetUserByUsername(username string) *storage.User {
-	for _, user := range u.users {
-		if user.Username == username {
-			return user.User
-		}
-	}
-	return nil
-}
-
-func newUserStore(users []user) userStore {
-	store := userStore{users: make(map[string]user)}
-	for _, u := range users {
-		store.users[u.ID] = u
-	}
-
-	return store
-}
-
-// store wraps [storage.Storage] for the sole purpose of injecting
-// additional claims that it does not support into the user info
-// and auth requests.
-type store struct {
-	*storage.Storage
-	userStore      userStore
-	tokenToRequest map[string]op.TokenRequest
-}
-
-// Override 'CreateAccessToken' so that we can snoop token requests.
-func (s store) CreateAccessToken(ctx context.Context, request op.TokenRequest) (string, time.Time, error) {
-	tokenID, time, err := s.Storage.CreateAccessToken(ctx, request)
-	if err == nil {
-		s.tokenToRequest[tokenID] = request
-	}
-	return tokenID, time, err
-}
-
-// SetUserinfoFromRequest is used to override id_token claims.
-func (s store) SetUserinfoFromRequest(ctx context.Context, userinfo *oidc.UserInfo, token op.IDTokenRequest, scopes []string) error {
-	if err := s.Storage.SetUserinfoFromRequest(ctx, userinfo, token, scopes); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if u, ok := s.userStore.users[userinfo.Subject]; ok {
-		userinfo.Email = u.Email
-		userinfo.EmailVerified = oidc.Bool(u.EmailVerified)
-	}
-
-	// Special case for testing id_token with claims.
-	if userinfo.Subject == "user-with-custom-claim" ||
-		userinfo.Subject == "user-with-empty-group-claim" {
-		return s.setClaims(userinfo)
-	}
-
-	return nil
-}
-
-func (s store) SetUserinfoFromToken(ctx context.Context, userinfo *oidc.UserInfo, tokenID, subject, origin string) error {
-	if err := s.Storage.SetUserinfoFromToken(ctx, userinfo, tokenID, subject, origin); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Special case. The client "mfa-no-roles" should skip
-	// custom claims enrichment.
-	if request, ok := s.tokenToRequest[tokenID]; ok {
-		if slices.Contains(request.GetAudience(), "mfa-no-roles") {
-			return nil
-		}
-	}
-
-	// Inject any custom claims that may have
-	// been specified for the user.
-	return s.setClaims(userinfo)
-}
-
-// setClaims configured in user storage.
-func (s store) setClaims(userinfo *oidc.UserInfo) error {
-	if userinfo.Claims == nil {
-		userinfo.Claims = make(map[string]any)
-	}
-	u, ok := s.userStore.users[userinfo.Subject]
-	if !ok || len(u.Claims) == 0 {
-		return nil
-	}
-
-	if userinfo.Claims == nil {
-		userinfo.Claims = map[string]any{}
-	}
-
-	for k, v := range u.Claims {
-		if _, ok := userinfo.Claims[k]; !ok {
-			userinfo.Claims[k] = v
-		}
-	}
-
-	return nil
-}
-
-type authRequest struct {
-	authTime time.Time
-	acr      string
-	op.AuthRequest
-}
-
-func (a authRequest) GetACR() string {
-	return a.acr
-}
-
-func (a authRequest) GetAuthTime() time.Time {
-	return a.authTime
-}
-
-func (s store) augmentAuthRequest(req op.AuthRequest) op.AuthRequest {
-	storageReq, ok := req.(*storage.AuthRequest)
-	if !ok {
-		return req
-	}
-
-	// Inject any custom claims that may have
-	// been specified for the user.
-	u, ok := s.userStore.users[storageReq.UserID]
-	if !ok || len(u.Claims) == 0 {
-		return req
-	}
-
-	augmentedReq := authRequest{
-		AuthRequest: req,
-	}
-
-	if acr, ok := u.Claims["acr"]; ok {
-		switch v := acr.(type) {
-		case string:
-			augmentedReq.acr = v
-		}
-	}
-
-	if authTime, ok := u.Claims["auth_time"]; ok {
-		augmentedReq.authTime = time.Unix(int64(authTime.(float64)), 0)
-	}
-
-	return augmentedReq
-}
-
-func (s store) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthRequest, userID string) (op.AuthRequest, error) {
-	req, err := s.Storage.CreateAuthRequest(ctx, authReq, userID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return s.augmentAuthRequest(req), nil
-}
-
-func (s store) AuthRequestByCode(ctx context.Context, code string) (op.AuthRequest, error) {
-	req, err := s.Storage.AuthRequestByCode(ctx, code)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return s.augmentAuthRequest(req), nil
-}
-
-func (s store) AuthRequestByID(ctx context.Context, id string) (op.AuthRequest, error) {
-	req, err := s.Storage.AuthRequestByID(ctx, id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return s.augmentAuthRequest(req), nil
-}
-
 type oidcSuiteOpts struct {
-	users             []user
-	insecure          bool
 	clock             clocki.FakeClock
-	proxy             func(http.Handler) http.Handler
 	pkceMode          string
 	requestObjectMode constants.OIDCRequestObjectMode
 	signerFactory     eauth.JWTSignerFactory
@@ -270,27 +76,9 @@ func overridePKCEMode(mode string) func(*oidcSuiteOpts) {
 	}
 }
 
-func insecureOIDCSuite() func(*oidcSuiteOpts) {
-	return func(opts *oidcSuiteOpts) {
-		opts.insecure = true
-	}
-}
-
-func overrideUsers(users []user) func(*oidcSuiteOpts) {
-	return func(opts *oidcSuiteOpts) {
-		opts.users = users
-	}
-}
-
 func overrideClock(clock clocki.FakeClock) func(*oidcSuiteOpts) {
 	return func(opts *oidcSuiteOpts) {
 		opts.clock = clock
-	}
-}
-
-func proxyOP(p func(http.Handler) http.Handler) func(*oidcSuiteOpts) {
-	return func(opts *oidcSuiteOpts) {
-		opts.proxy = p
 	}
 }
 
@@ -316,9 +104,8 @@ type OIDCSuite struct {
 	clock            clocki.FakeClock
 	oidcService      *eauth.OIDCAuthService
 	emitter          *eventstest.MockRecorderEmitter
-	idpServer        *httptest.Server
+	idpServer        *oidctest.IdPServer
 	connector        *types.OIDCConnectorV3
-	store            *store
 	oidcIDPPublicKey crypto.PublicKey
 }
 
@@ -339,12 +126,11 @@ func newECDSAKey(clusterName string) (*jwt.Key, crypto.Signer, error) {
 	return jwtKey, ecdsaKey, err
 }
 
-func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
+func newOIDCSuite(t *testing.T, idpServer *oidctest.IdPServer, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	ctx := context.Background()
 
 	o := oidcSuiteOpts{
 		clock:             clockwork.NewFakeClock(),
-		proxy:             func(h http.Handler) http.Handler { return h },
 		pkceMode:          "disabled",
 		requestObjectMode: constants.OIDCRequestObjectModeUnknown,
 		licenseChecker:    alwaysValidLicense{},
@@ -383,163 +169,6 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 
 	emitter := &eventstest.MockRecorderEmitter{}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	s := &httptest.Server{
-		Listener: ln,
-		Config:   &http.Server{},
-	}
-	t.Cleanup(s.Close)
-
-	defaultUsers := []user{
-		{
-			User: &storage.User{
-				ID:            "id1",
-				Username:      "test-user",
-				Password:      "verysecure",
-				FirstName:     "Test",
-				LastName:      "User",
-				Email:         "test-user@example.com",
-				EmailVerified: true,
-				IsAdmin:       true,
-			},
-			Claims: map[string]any{
-				"groups": []string{"access"},
-			},
-		},
-		{
-			User: &storage.User{
-				ID:        "id2",
-				Username:  "test-user2",
-				Password:  "verysecure",
-				FirstName: "Test",
-				LastName:  "User2",
-				Email:     "test-user2@example.com",
-			},
-			Claims: map[string]any{
-				"groups":         []string{"access"},
-				"email_verified": false,
-			},
-		},
-		{
-			User: &storage.User{
-				ID:            "id3",
-				Username:      "test-user3",
-				Password:      "verysecure",
-				FirstName:     "Test",
-				LastName:      "User3",
-				Email:         "test-user3@example.com",
-				EmailVerified: true,
-			},
-			Claims: map[string]any{
-				"groups": []string{"access"},
-			},
-		},
-		{
-			User: &storage.User{
-				ID:            "no-groups",
-				Username:      "test-user4",
-				Password:      "verysecure",
-				FirstName:     "Test",
-				LastName:      "User4",
-				Email:         "test-user4@example.com",
-				EmailVerified: true,
-			},
-			Claims: map[string]any{
-				"animal": []string{"llama"},
-			},
-		},
-		{
-			User: &storage.User{
-				ID:            "user-with-custom-claim",
-				Username:      "user-with-custom-claim",
-				Password:      "verysecure",
-				FirstName:     "Test group",
-				LastName:      "User",
-				Email:         "user-with-custom-claim@example.com",
-				EmailVerified: true,
-				IsAdmin:       true,
-			},
-			Claims: map[string]any{
-				"groups": []string{"access"},
-				"email":  "user-with-custom-claim@example.com",
-			},
-		},
-		{
-			User: &storage.User{
-				ID:            "user-with-empty-group-claim",
-				Username:      "user-with-empty-group-claim",
-				Password:      "verysecure",
-				FirstName:     "Test empty",
-				LastName:      "User",
-				Email:         "user-with-empty-group-claim@example.com",
-				EmailVerified: true,
-				IsAdmin:       true,
-			},
-			Claims: map[string]any{
-				"groups": []string{},
-			},
-		},
-	}
-
-	if len(o.users) > 0 {
-		defaultUsers = o.users
-	}
-
-	defaultClients := map[string]*storage.Client{
-		"test":         storage.WebClient("test", "secret", "http://example.com"),
-		"mfa-no-roles": storage.WebClient("mfa-no-roles", "secret", "http://example.com"),
-	}
-
-	usersStore := newUserStore(defaultUsers)
-	opStore := &store{
-		userStore: usersStore,
-		Storage: storage.NewStorageWithClients(
-			usersStore,
-			defaultClients,
-		),
-		tokenToRequest: map[string]op.TokenRequest{},
-	}
-	oidcKeySet := &op.OpenIDKeySet{Storage: opStore}
-
-	provider, err := op.NewProvider(
-		&op.Config{
-			CryptoKey:                sha256.Sum256([]byte("test")),
-			DefaultLogoutRedirectURI: "/logged-out",
-			CodeMethodS256:           true,
-			AuthMethodPost:           true,
-			AuthMethodPrivateKeyJWT:  true,
-			GrantTypeRefreshToken:    true,
-			RequestObjectSupported:   true,
-			SupportedClaims:          op.DefaultSupportedClaims,
-			DeviceAuthorization: op.DeviceAuthorizationConfig{
-				Lifetime:     5 * time.Minute,
-				PollInterval: 5 * time.Second,
-				UserFormPath: "/device",
-				UserCode:     op.UserCodeBase20,
-			},
-		},
-		opStore,
-		func(insecure bool) (op.IssuerFromRequest, error) {
-			return func(r *http.Request) string {
-				return s.URL
-			}, nil
-		},
-		op.WithAllowInsecure(),
-		op.WithAccessTokenKeySet(oidcKeySet),
-		op.WithIDTokenHintKeySet(oidcKeySet),
-	)
-	require.NoError(t, err)
-
-	s.Config.Handler = o.proxy(op.RegisterLegacyServer(op.NewLegacyServer(provider, *op.DefaultEndpoints), op.AuthorizeCallbackHandler(provider)))
-
-	if o.insecure {
-		s.Start()
-	} else {
-		s.StartTLS()
-	}
-
 	connector := &types.OIDCConnectorV3{
 		Kind:    types.KindOIDCConnector,
 		Version: types.V3,
@@ -547,7 +176,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 			Name: "test-connector",
 		},
 		Spec: types.OIDCConnectorSpecV3{
-			IssuerURL:    s.URL,
+			IssuerURL:    idpServer.URL,
 			ClientID:     "test",
 			ClientSecret: "secret",
 			Provider:     "test",
@@ -562,7 +191,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 				},
 			},
 			RedirectURLs: wrappers.Strings{
-				s.URL + "/proxy/oidc/callback",
+				idpServer.URL + "/proxy/oidc/callback",
 			},
 			RequestObjectMode: string(o.requestObjectMode),
 		},
@@ -642,7 +271,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	oidcService, err := eauth.NewOIDCAuthService(&eauth.OIDCAuthServiceConfig{
 		Auth:           authServer,
 		Emitter:        emitter,
-		Client:         s.Client(),
+		Client:         idpServer.Client(),
 		SignerFactory:  o.signerFactory,
 		LicenseChecker: o.licenseChecker,
 	})
@@ -658,9 +287,8 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 		clock:            o.clock,
 		oidcService:      oidcService,
 		emitter:          emitter,
-		idpServer:        s,
+		idpServer:        idpServer,
 		connector:        c.(*types.OIDCConnectorV3),
-		store:            opStore,
 		oidcIDPPublicKey: oidcIDPPublicKey,
 	}
 }
@@ -672,7 +300,7 @@ func (s *OIDCSuite) authenticateUser(ctx context.Context, user string, req types
 	}
 
 	codeChallenge := oauth2.S256ChallengeFromVerifier(req.PkceVerifier)
-	request, err := s.store.CreateAuthRequest(
+	_, err = s.idpServer.Authorize(
 		ctx,
 		&oidc.AuthRequest{
 			Scopes:              []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
@@ -686,10 +314,6 @@ func (s *OIDCSuite) authenticateUser(ctx context.Context, user string, req types
 		user,
 	)
 	if err != nil {
-		return "", nil, err
-	}
-
-	if err := s.store.SaveAuthCode(ctx, request.GetID(), "test"); err != nil {
 		return "", nil, err
 	}
 
@@ -719,7 +343,8 @@ func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd
 	if err := connectorCopy.WithMFASettings(); err != nil {
 		return nil, err
 	}
-	request, err := s.store.CreateAuthRequest(
+
+	_, err = s.idpServer.Authorize(
 		ctx,
 		&oidc.AuthRequest{
 			Scopes:      []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
@@ -731,10 +356,6 @@ func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd
 		user,
 	)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := s.store.SaveAuthCode(ctx, request.GetID(), "test"); err != nil {
 		return nil, err
 	}
 
@@ -751,7 +372,11 @@ func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd
 
 func TestCreateOIDCAuthRequest(t *testing.T) {
 	t.Parallel()
-	suite := newOIDCSuite(t)
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 
 	tests := []struct {
 		name      string
@@ -815,7 +440,12 @@ func TestCreateOIDCAuthRequest(t *testing.T) {
 
 func TestValidateOIDCAuthCallback(t *testing.T) {
 	t.Parallel()
-	suite := newOIDCSuite(t, overridePKCEMode("enabled"))
+
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp, overridePKCEMode("enabled"))
 
 	ctx := t.Context()
 
@@ -1015,10 +645,15 @@ func TestValidateOIDCAuthCallback(t *testing.T) {
 
 func TestOIDCUserCreation(t *testing.T) {
 	t.Parallel()
-	suite := newOIDCSuite(t)
+
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	ctx := context.Background()
 
-	_, _, err := suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
 		ConnectorID: suite.connector.GetName(),
 		CheckUser:   true,
 		CertTTL:     time.Minute,
@@ -1051,7 +686,12 @@ func TestOIDCUserCreation(t *testing.T) {
 // only Access List roles has expiry constrained by Access List expiry.
 func TestAccessListOnlyRolesConstrainsExpiry(t *testing.T) {
 	t.Parallel()
-	suite := newOIDCSuite(t)
+
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	ctx := context.Background()
 
 	acl, err := accesslist.NewAccessList(
@@ -1133,11 +773,15 @@ func TestAccessListOnlyRolesConstrainsExpiry(t *testing.T) {
 func TestOIDCBlockHTTPUserInfo(t *testing.T) {
 	t.Parallel()
 
-	suite := newOIDCSuite(t, insecureOIDCSuite())
+	idp, err := oidctest.NewIdPServer(oidctest.WithAllowInsecure())
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 
 	ctx := context.Background()
 
-	_, _, err := suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
 		ConnectorID: suite.connector.GetName(),
 		CheckUser:   true,
 		CertTTL:     time.Minute,
@@ -1209,20 +853,26 @@ func TestUserInfoBadStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			suite := newOIDCSuite(t, proxyOP(func(h http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if strings.Contains(r.URL.Path, "userinfo") {
-						w.WriteHeader(test.statusCode)
-						return
-					}
+			idp, err := oidctest.NewIdPServer(oidctest.WithProxyOP(
+				func(h http.Handler) http.Handler {
+					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if strings.Contains(r.URL.Path, "userinfo") {
+							w.WriteHeader(test.statusCode)
+							return
+						}
 
-					h.ServeHTTP(w, r)
-				})
-			}))
+						h.ServeHTTP(w, r)
+					})
+				},
+			))
+			require.NoError(t, err)
+			t.Cleanup(idp.Close)
+
+			suite := newOIDCSuite(t, idp)
 
 			ctx := context.Background()
 			suite.connector.Spec.AllowUnverifiedEmail = true
-			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+			_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 			require.NoError(t, err)
 
 			_, _, err = suite.authenticateUser(ctx, test.userId, types.OIDCAuthRequest{
@@ -1330,7 +980,7 @@ func TestMergeUserInfoClaims(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			uinfoHandler := proxyOP(func(h http.Handler) http.Handler {
+			uinfoHandler := oidctest.WithProxyOP(func(h http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if strings.Contains(r.URL.Path, "userinfo") {
 						w.WriteHeader(test.userInfo.status)
@@ -1343,9 +993,14 @@ func TestMergeUserInfoClaims(t *testing.T) {
 					h.ServeHTTP(w, r)
 				})
 			})
-			suite := newOIDCSuite(t, uinfoHandler)
 
-			_, _, err := suite.authenticateUser(t.Context(), test.userInfo.resp.Subject, types.OIDCAuthRequest{
+			idp, err := oidctest.NewIdPServer(uinfoHandler)
+			require.NoError(t, err)
+			t.Cleanup(idp.Close)
+
+			suite := newOIDCSuite(t, idp)
+
+			_, _, err = suite.authenticateUser(t.Context(), test.userInfo.resp.Subject, types.OIDCAuthRequest{
 				ConnectorID: suite.connector.GetName(),
 				CheckUser:   true,
 			})
@@ -1373,7 +1028,7 @@ func TestSSODiagnostic(t *testing.T) {
 	tests := []struct {
 		name            string
 		claimsToRoles   []types.ClaimMapping
-		user            user
+		user            oidctest.User
 		traitsMap       map[string][]string
 		expectRoles     []string
 		expectGroups    []string
@@ -1390,7 +1045,7 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			user: user{
+			user: oidctest.User{
 				User: &storage.User{
 					ID:            "00001234abcd",
 					Username:      "test-user",
@@ -1433,7 +1088,7 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			user: user{
+			user: oidctest.User{
 				User: &storage.User{
 					ID:            "00001234abcd",
 					Username:      "test-user",
@@ -1461,7 +1116,7 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			user: user{
+			user: oidctest.User{
 				User: &storage.User{
 					ID:            "00001234abcd",
 					Username:      "test-user",
@@ -1496,11 +1151,13 @@ func TestSSODiagnostic(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			suite := newOIDCSuite(t, overrideUsers([]user{
-				tc.user,
-			}))
+			idp, err := oidctest.NewIdPServer(oidctest.WithUsers([]oidctest.User{tc.user}))
+			require.NoError(t, err)
+			t.Cleanup(idp.Close)
+
+			suite := newOIDCSuite(t, idp)
 			suite.connector.Spec.ClaimsToRoles = tc.claimsToRoles
-			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+			_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 			require.NoError(t, err)
 
 			loginHookCounter.Store(0)
@@ -1667,7 +1324,7 @@ func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backe
 func TestEmailVerifiedClaim(t *testing.T) {
 	t.Parallel()
 
-	users := []user{
+	users := []oidctest.User{
 		{
 			User: &storage.User{
 				ID:            "id1",
@@ -1754,7 +1411,11 @@ func TestEmailVerifiedClaim(t *testing.T) {
 		},
 	}
 
-	suite := newOIDCSuite(t, overrideUsers(users))
+	idp, err := oidctest.NewIdPServer(oidctest.WithUsers(users))
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	ctx := context.Background()
 
 	unverifiedErrorAssertion := func(t require.TestingT, err error, i ...any) {
@@ -1815,7 +1476,7 @@ func TestUsernameClaim(t *testing.T) {
 
 	const usernameClaim = "the_username_claim"
 
-	users := []user{
+	users := []oidctest.User{
 		{
 			User: &storage.User{
 				ID:            "id1",
@@ -1847,11 +1508,15 @@ func TestUsernameClaim(t *testing.T) {
 		},
 	}
 
-	suite := newOIDCSuite(t, overrideUsers(users))
+	idp, err := oidctest.NewIdPServer(oidctest.WithUsers(users))
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	ctx := context.Background()
 
 	suite.connector.Spec.UsernameClaim = usernameClaim
-	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+	_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1898,7 +1563,11 @@ func TestUsernameClaim(t *testing.T) {
 func TestReqMaxAge(t *testing.T) {
 	t.Parallel()
 
-	suite := newOIDCSuite(t)
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -2003,29 +1672,35 @@ func TestValidateACRValues(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			suite := newOIDCSuite(t, overrideUsers([]user{
-				{
-					User: &storage.User{
-						ID:            "user1",
-						Username:      "test-user",
-						Password:      "verysecure",
-						FirstName:     "Test",
-						LastName:      "User",
-						Email:         "test-user@example.com",
-						EmailVerified: true,
-					},
-					Claims: map[string]any{
-						"acr":    test.acrClaim,
-						"groups": []string{"access"},
+			idp, err := oidctest.NewIdPServer(oidctest.WithUsers(
+				[]oidctest.User{
+					{
+						User: &storage.User{
+							ID:            "user1",
+							Username:      "test-user",
+							Password:      "verysecure",
+							FirstName:     "Test",
+							LastName:      "User",
+							Email:         "test-user@example.com",
+							EmailVerified: true,
+						},
+						Claims: map[string]any{
+							"acr":    test.acrClaim,
+							"groups": []string{"access"},
+						},
 					},
 				},
-			}))
+			))
+			require.NoError(t, err)
+			t.Cleanup(idp.Close)
+
+			suite := newOIDCSuite(t, idp)
 
 			suite.connector.Spec.Provider = test.provider
 			suite.connector.Spec.ACR = test.acrValue
 
 			ctx := context.Background()
-			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+			_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 			require.NoError(t, err)
 
 			_, _, err = suite.authenticateUser(ctx, "user1", types.OIDCAuthRequest{
@@ -2062,10 +1737,15 @@ func TestOIDCLicense(t *testing.T) {
 			if tt.disabled {
 				suiteOpts = append(suiteOpts, withLicenseChecker(&disabledLicenseChecker{}))
 			}
-			suite := newOIDCSuite(t, suiteOpts...)
+
+			idp, err := oidctest.NewIdPServer()
+			require.NoError(t, err)
+			t.Cleanup(idp.Close)
+
+			suite := newOIDCSuite(t, idp, suiteOpts...)
 
 			req := types.OIDCAuthRequest{ConnectorID: suite.connector.GetName(), Type: constants.OIDC}
-			_, err := suite.oidcService.CreateOIDCAuthRequest(ctx, req)
+			_, err = suite.oidcService.CreateOIDCAuthRequest(ctx, req)
 			if tt.expectError {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -2090,12 +1770,16 @@ func TestOIDCLicenseUpdateEnterpriseModules(t *testing.T) {
 		License: validLicenseFile,
 	})
 
-	suite := newOIDCSuite(t, withLicenseChecker(mod))
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp, withLicenseChecker(mod))
 	req := types.OIDCAuthRequest{ConnectorID: suite.connector.GetName(), Type: constants.OIDC}
 	ctx := context.Background()
 
 	// Initially valid — license has a future expiry.
-	_, err := suite.oidcService.CreateOIDCAuthRequest(ctx, req)
+	_, err = suite.oidcService.CreateOIDCAuthRequest(ctx, req)
 	require.NoError(t, err)
 
 	// Expire the license well past the 30-day grace period.
@@ -2114,26 +1798,28 @@ func TestOIDCLicenseUpdateEnterpriseModules(t *testing.T) {
 func TestValidateOIDCResponseMFA(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	suite := newOIDCSuite(t,
-		overrideClock(clock),
-		overrideUsers([]user{
-			{
-				User: &storage.User{
-					ID:            "id1",
-					Username:      "test-user",
-					Password:      "verysecure",
-					FirstName:     "Test",
-					LastName:      "User",
-					Email:         "test-user@example.com",
-					EmailVerified: true,
-					IsAdmin:       true,
-				},
-				Claims: map[string]any{
-					"groups":    []string{"access"},
-					"auth_time": float64(clock.Now().Unix()),
-				},
+	idp, err := oidctest.NewIdPServer(oidctest.WithUsers([]oidctest.User{
+		{
+			User: &storage.User{
+				ID:            "id1",
+				Username:      "test-user",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User",
+				Email:         "test-user@example.com",
+				EmailVerified: true,
+				IsAdmin:       true,
 			},
-		}))
+			Claims: map[string]any{
+				"groups":    []string{"access"},
+				"auth_time": float64(clock.Now().Unix()),
+			},
+		},
+	}))
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp, overrideClock(clock))
 
 	suite.connector.Spec.MFASettings = &types.OIDCConnectorMFASettings{
 		Enabled:      true,
@@ -2142,7 +1828,7 @@ func TestValidateOIDCResponseMFA(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+	_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 	require.NoError(t, err)
 	// Login first to ensure user is created
 	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
@@ -2320,11 +2006,15 @@ func TestLargePayload(t *testing.T) {
 	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(srv.Close)
 
-	suite := newOIDCSuite(t)
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	suite.connector.Spec.IssuerURL = srv.URL
 
 	ctx := context.Background()
-	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+	_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 	require.NoError(t, err)
 
 	_, err = suite.oidcService.CreateOIDCAuthRequest(
@@ -2339,7 +2029,11 @@ func TestLargePayload(t *testing.T) {
 func TestDiscoveryURL(t *testing.T) {
 	t.Parallel()
 
-	suite := newOIDCSuite(t)
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 
 	mux := http.NewServeMux()
 	srv := httptest.NewTLSServer(mux)
@@ -2393,7 +2087,12 @@ func TestDiscoveryURL(t *testing.T) {
 func TestAuthorizationRequestObject(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	defaultSuite := newOIDCSuite(t)
+
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	defaultSuite := newOIDCSuite(t, idp)
 
 	clusterName, err := defaultSuite.authServer.GetClusterName(ctx)
 	require.NoError(t, err)
@@ -2543,7 +2242,12 @@ func TestAuthorizationRequestObject(t *testing.T) {
 
 func TestOIDCSSOUpdateSCIMUser(t *testing.T) {
 	t.Parallel()
-	suite := newOIDCSuite(t)
+
+	idp, err := oidctest.NewIdPServer()
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	suite := newOIDCSuite(t, idp)
 	ctx := context.Background()
 
 	testUser, err := types.NewUser("test-user@example.com")
