@@ -22,7 +22,9 @@ import "flag"
 
 var (
 	SSHNode = register("ssh-node")
-	Connect = register("connect")
+	// SSHNodeBPF runs a second node, docker-node-bpf, with Enhanced Session Recording enabled.
+	SSHNodeBPF = register("ssh-node-bpf")
+	Connect    = register("connect")
 )
 
 type Fixture struct {
