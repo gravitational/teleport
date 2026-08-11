@@ -22,8 +22,10 @@ import (
 
 	convert "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportDiscoveryConfigType is the data source metadata type
-type dataSourceTeleportDiscoveryConfigType struct{}
+var _ datasource.DataSource = &dataSourceTeleportDiscoveryConfig{}
 
 // dataSourceTeleportDiscoveryConfig is the resource
 type dataSourceTeleportDiscoveryConfig struct {
 	p Provider
 }
 
+// NewDataSourceDiscoveryConfig creates the empty data source
+func NewDataSourceDiscoveryConfig(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportDiscoveryConfig{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportDiscoveryConfig) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_discovery_config"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportDiscoveryConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportDiscoveryConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaDiscoveryConfig(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportDiscoveryConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportDiscoveryConfig{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport DiscoveryConfig
-func (r dataSourceTeleportDiscoveryConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportDiscoveryConfig) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

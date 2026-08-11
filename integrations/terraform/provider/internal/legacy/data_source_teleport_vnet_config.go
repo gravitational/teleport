@@ -22,7 +22,9 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -30,28 +32,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportVnetConfigType is the data source metadata type
-type dataSourceTeleportVnetConfigType struct{}
+var _ datasource.DataSource = &dataSourceTeleportVnetConfig{}
 
 // dataSourceTeleportVnetConfig is the resource
 type dataSourceTeleportVnetConfig struct {
 	p Provider
 }
 
+// NewDataSourceVnetConfig creates the empty data source
+func NewDataSourceVnetConfig(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportVnetConfig{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportVnetConfig) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_vnet_config"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportVnetConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaVnetConfig(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportVnetConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportVnetConfig{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport VnetConfig
-func (r dataSourceTeleportVnetConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportVnetConfig) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	vnetConfigI, err := r.p.Client().VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))

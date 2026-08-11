@@ -22,8 +22,10 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportProvisionTokenType is the data source metadata type
-type dataSourceTeleportProvisionTokenType struct{}
+var _ datasource.DataSource = &dataSourceTeleportProvisionToken{}
 
 // dataSourceTeleportProvisionToken is the resource
 type dataSourceTeleportProvisionToken struct {
 	p Provider
 }
 
+// NewDataSourceProvisionToken creates the empty data source
+func NewDataSourceProvisionToken(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportProvisionToken{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportProvisionToken) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_provision_token"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportProvisionTokenType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportProvisionToken) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return token.GenSchemaProvisionTokenV2(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportProvisionTokenType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportProvisionToken{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport ProvisionToken
-func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

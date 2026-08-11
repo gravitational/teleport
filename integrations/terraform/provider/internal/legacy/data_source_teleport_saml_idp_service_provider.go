@@ -22,8 +22,10 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportSAMLIdPServiceProviderType is the data source metadata type
-type dataSourceTeleportSAMLIdPServiceProviderType struct{}
+var _ datasource.DataSource = &dataSourceTeleportSAMLIdPServiceProvider{}
 
 // dataSourceTeleportSAMLIdPServiceProvider is the resource
 type dataSourceTeleportSAMLIdPServiceProvider struct {
 	p Provider
 }
 
+// NewDataSourceSAMLIdPServiceProvider creates the empty data source
+func NewDataSourceSAMLIdPServiceProvider(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportSAMLIdPServiceProvider{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_saml_idp_service_provider"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportSAMLIdPServiceProviderType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfschema.GenSchemaSAMLIdPServiceProviderV1(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportSAMLIdPServiceProviderType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportSAMLIdPServiceProvider{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport SAMLIdPServiceProvider
-func (r dataSourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

@@ -26,6 +26,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -33,28 +35,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportRetrievalModelType is the resource metadata type
-type resourceTeleportRetrievalModelType struct{}
+var _ resource.Resource = &resourceTeleportRetrievalModel{}
 
 // resourceTeleportRetrievalModel is the resource
 type resourceTeleportRetrievalModel struct {
 	p Provider
 }
 
+// NewResourceRetrievalModel creates the empty resource
+func NewResourceRetrievalModel(p provider.Provider) resource.Resource {
+	return resourceTeleportRetrievalModel{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportRetrievalModel) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_retrieval_model"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportRetrievalModelType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportRetrievalModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaRetrievalModel(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportRetrievalModelType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportRetrievalModel{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the RetrievalModel
-func (r resourceTeleportRetrievalModel) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportRetrievalModel) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -170,7 +176,7 @@ func (r resourceTeleportRetrievalModel) Create(ctx context.Context, req tfsdk.Cr
 }
 
 // Read reads teleport RetrievalModel
-func (r resourceTeleportRetrievalModel) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportRetrievalModel) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -203,7 +209,7 @@ func (r resourceTeleportRetrievalModel) Read(ctx context.Context, req tfsdk.Read
 }
 
 // Update updates teleport RetrievalModel
-func (r resourceTeleportRetrievalModel) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportRetrievalModel) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -290,7 +296,7 @@ func (r resourceTeleportRetrievalModel) Update(ctx context.Context, req tfsdk.Up
 }
 
 // Delete deletes Teleport RetrievalModel
-func (r resourceTeleportRetrievalModel) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportRetrievalModel) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	err := r.p.Client().SummarizerClient().DeleteRetrievalModel(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting RetrievalModel", trace.Wrap(err), "retrieval_model"))
@@ -301,7 +307,7 @@ func (r resourceTeleportRetrievalModel) Delete(ctx context.Context, req tfsdk.De
 }
 
 // ImportState imports RetrievalModel state
-func (r resourceTeleportRetrievalModel) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportRetrievalModel) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	retrievalModelI, err := r.p.Client().SummarizerClient().GetRetrievalModel(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error updating RetrievalModel", trace.Wrap(err), "retrieval_model"))
@@ -334,7 +340,7 @@ func (r resourceTeleportRetrievalModel) ImportState(ctx context.Context, req tfs
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportRetrievalModel) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportRetrievalModel) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

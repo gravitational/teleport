@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -33,28 +35,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportSAMLIdPServiceProviderType is the resource metadata type
-type resourceTeleportSAMLIdPServiceProviderType struct{}
+var _ resource.Resource = &resourceTeleportSAMLIdPServiceProvider{}
 
 // resourceTeleportSAMLIdPServiceProvider is the resource
 type resourceTeleportSAMLIdPServiceProvider struct {
 	p Provider
 }
 
+// NewResourceSAMLIdPServiceProvider creates the empty resource
+func NewResourceSAMLIdPServiceProvider(p provider.Provider) resource.Resource {
+	return resourceTeleportSAMLIdPServiceProvider{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_saml_idp_service_provider"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportSAMLIdPServiceProviderType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfschema.GenSchemaSAMLIdPServiceProviderV1(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportSAMLIdPServiceProviderType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportSAMLIdPServiceProvider{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the SAMLIdPServiceProvider
-func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -169,7 +175,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 }
 
 // Read reads teleport SAMLIdPServiceProvider
-func (r resourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -210,7 +216,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req tf
 }
 
 // Update updates teleport SAMLIdPServiceProvider
-func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -317,7 +323,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 }
 
 // Delete deletes Teleport SAMLIdPServiceProvider
-func (r resourceTeleportSAMLIdPServiceProvider) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -335,7 +341,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Delete(ctx context.Context, req 
 }
 
 // ImportState imports SAMLIdPServiceProvider state
-func (r resourceTeleportSAMLIdPServiceProvider) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	samlIdPServiceProvider, err := r.p.Client().GetSAMLIdPServiceProvider(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(err), "saml_idp_service_provider"))

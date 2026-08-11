@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -34,28 +36,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportDiscoveryConfigType is the resource metadata type
-type resourceTeleportDiscoveryConfigType struct{}
+var _ resource.Resource = &resourceTeleportDiscoveryConfig{}
 
 // resourceTeleportDiscoveryConfig is the resource
 type resourceTeleportDiscoveryConfig struct {
 	p Provider
 }
 
+// NewResourceDiscoveryConfig creates the empty resource
+func NewResourceDiscoveryConfig(p provider.Provider) resource.Resource {
+	return resourceTeleportDiscoveryConfig{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportDiscoveryConfig) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_discovery_config"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportDiscoveryConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportDiscoveryConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaDiscoveryConfig(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportDiscoveryConfigType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportDiscoveryConfig{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the DiscoveryConfig
-func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -157,7 +163,7 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req tfsdk.C
 }
 
 // Read reads teleport DiscoveryConfig
-func (r resourceTeleportDiscoveryConfig) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportDiscoveryConfig) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -197,7 +203,7 @@ func (r resourceTeleportDiscoveryConfig) Read(ctx context.Context, req tfsdk.Rea
 }
 
 // Update updates teleport DiscoveryConfig
-func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -286,7 +292,7 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 }
 
 // Delete deletes Teleport DiscoveryConfig
-func (r resourceTeleportDiscoveryConfig) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportDiscoveryConfig) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -304,7 +310,7 @@ func (r resourceTeleportDiscoveryConfig) Delete(ctx context.Context, req tfsdk.D
 }
 
 // ImportState imports DiscoveryConfig state
-func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	discoveryConfig, err := r.p.Client().DiscoveryConfigClient().GetDiscoveryConfig(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(err), "discovery_config"))
@@ -339,7 +345,7 @@ func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req tf
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

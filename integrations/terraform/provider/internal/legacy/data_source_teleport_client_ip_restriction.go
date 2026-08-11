@@ -22,7 +22,9 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -30,28 +32,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportClientIPRestrictionType is the data source metadata type
-type dataSourceTeleportClientIPRestrictionType struct{}
+var _ datasource.DataSource = &dataSourceTeleportClientIPRestriction{}
 
 // dataSourceTeleportClientIPRestriction is the resource
 type dataSourceTeleportClientIPRestriction struct {
 	p Provider
 }
 
+// NewDataSourceClientIPRestriction creates the empty data source
+func NewDataSourceClientIPRestriction(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportClientIPRestriction{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportClientIPRestriction) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_client_ip_restriction"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportClientIPRestrictionType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportClientIPRestriction) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaClientIPRestriction(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportClientIPRestrictionType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportClientIPRestriction{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport ClientIPRestriction
-func (r dataSourceTeleportClientIPRestriction) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportClientIPRestriction) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	clientIPRestrictionI, err := r.p.Client().GetClientIPRestriction(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))

@@ -43,10 +43,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 {{- if .StatePoll }}
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	sdkresource "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 {{- end }}
 {{- if .Namespaced }}
 	"github.com/gravitational/teleport/api/defaults"
@@ -56,28 +58,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleport{{.Name}}Type is the resource metadata type
-type resourceTeleport{{.Name}}Type struct{}
+var _ resource.Resource = &resourceTeleport{{.Name}}{}
 
 // resourceTeleport{{.Name}} is the resource
 type resourceTeleport{{.Name}} struct {
 	p Provider
 }
 
+// NewResource{{.Name}} creates the empty resource
+func NewResource{{.Name}}(p provider.Provider) resource.Resource {
+	return resourceTeleport{{.Name}}{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleport{{.Name}}) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "{{.TerraformResourceType}}"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleport{{.Name}}) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return {{.SchemaPackage}}.GenSchema{{.TypeName}}(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleport{{.Name}}Type) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleport{{.Name}}{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the {{.Name}}
-func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -299,7 +305,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 {{- if .StatePoll }}
 
-	stateConf := resource.StateChangeConf{
+	stateConf := sdkresource.StateChangeConf{
 		Pending: []string{
 		{{- range $state := .StatePoll.PendingStates }}
 			"{{ $state }}",
@@ -369,7 +375,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 }
 
 // Read reads teleport {{.Name}}
-func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -462,7 +468,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 }
 
 // Update updates teleport {{.Name}}
-func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -668,7 +674,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 {{- if .StatePoll }}
 
-	stateConf := resource.StateChangeConf{
+	stateConf := sdkresource.StateChangeConf{
 		Pending: []string{
 		{{- range $state := .StatePoll.PendingStates }}
 			"{{ $state }}",
@@ -738,7 +744,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 }
 
 // Delete deletes Teleport {{.Name}}
-func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	{{ if .IDPrefix -}}
 	{{ $idPrefixPath := slice (split (toSnake .IDPrefix) ".") 1 -}}
 	{{ $root := index $idPrefixPath 0 -}}
@@ -794,7 +800,7 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 
 {{if not .WithoutImportState -}}
 // ImportState imports {{.Name}} state
-func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 {{- if .DefaultSubKind}}
 	subKind := {{.DefaultSubKind}}
 	name := req.ID
@@ -882,7 +888,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 {{- if not .WithoutModifyPlan }}
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

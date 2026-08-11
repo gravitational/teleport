@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -33,28 +35,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportIntegrationType is the resource metadata type
-type resourceTeleportIntegrationType struct{}
+var _ resource.Resource = &resourceTeleportIntegration{}
 
 // resourceTeleportIntegration is the resource
 type resourceTeleportIntegration struct {
 	p Provider
 }
 
+// NewResourceIntegration creates the empty resource
+func NewResourceIntegration(p provider.Provider) resource.Resource {
+	return resourceTeleportIntegration{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportIntegration) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_integration"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportIntegrationType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportIntegration) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfschema.GenSchemaIntegrationV1(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportIntegrationType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportIntegration{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the Integration
-func (r resourceTeleportIntegration) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportIntegration) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -161,7 +167,7 @@ func (r resourceTeleportIntegration) Create(ctx context.Context, req tfsdk.Creat
 }
 
 // Read reads teleport Integration
-func (r resourceTeleportIntegration) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportIntegration) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -202,7 +208,7 @@ func (r resourceTeleportIntegration) Read(ctx context.Context, req tfsdk.ReadRes
 }
 
 // Update updates teleport Integration
-func (r resourceTeleportIntegration) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportIntegration) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -295,7 +301,7 @@ func (r resourceTeleportIntegration) Update(ctx context.Context, req tfsdk.Updat
 }
 
 // Delete deletes Teleport Integration
-func (r resourceTeleportIntegration) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportIntegration) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -313,7 +319,7 @@ func (r resourceTeleportIntegration) Delete(ctx context.Context, req tfsdk.Delet
 }
 
 // ImportState imports Integration state
-func (r resourceTeleportIntegration) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportIntegration) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	integration, err := r.p.Client().GetIntegration(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Integration", trace.Wrap(err), "integration"))
@@ -348,7 +354,7 @@ func (r resourceTeleportIntegration) ImportState(ctx context.Context, req tfsdk.
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

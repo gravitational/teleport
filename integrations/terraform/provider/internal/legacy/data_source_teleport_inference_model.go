@@ -22,8 +22,10 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportInferenceModelType is the data source metadata type
-type dataSourceTeleportInferenceModelType struct{}
+var _ datasource.DataSource = &dataSourceTeleportInferenceModel{}
 
 // dataSourceTeleportInferenceModel is the resource
 type dataSourceTeleportInferenceModel struct {
 	p Provider
 }
 
+// NewDataSourceInferenceModel creates the empty data source
+func NewDataSourceInferenceModel(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportInferenceModel{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportInferenceModel) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_inference_model"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportInferenceModelType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportInferenceModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaInferenceModel(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportInferenceModelType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportInferenceModel{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport InferenceModel
-func (r dataSourceTeleportInferenceModel) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportInferenceModel) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

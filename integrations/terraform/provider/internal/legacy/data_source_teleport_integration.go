@@ -22,8 +22,10 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportIntegrationType is the data source metadata type
-type dataSourceTeleportIntegrationType struct{}
+var _ datasource.DataSource = &dataSourceTeleportIntegration{}
 
 // dataSourceTeleportIntegration is the resource
 type dataSourceTeleportIntegration struct {
 	p Provider
 }
 
+// NewDataSourceIntegration creates the empty data source
+func NewDataSourceIntegration(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportIntegration{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportIntegration) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_integration"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportIntegrationType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportIntegration) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfschema.GenSchemaIntegrationV1(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportIntegrationType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportIntegration{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport Integration
-func (r dataSourceTeleportIntegration) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportIntegration) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

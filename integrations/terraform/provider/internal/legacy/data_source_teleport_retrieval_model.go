@@ -22,7 +22,9 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -30,28 +32,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportRetrievalModelType is the data source metadata type
-type dataSourceTeleportRetrievalModelType struct{}
+var _ datasource.DataSource = &dataSourceTeleportRetrievalModel{}
 
 // dataSourceTeleportRetrievalModel is the resource
 type dataSourceTeleportRetrievalModel struct {
 	p Provider
 }
 
+// NewDataSourceRetrievalModel creates the empty data source
+func NewDataSourceRetrievalModel(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportRetrievalModel{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportRetrievalModel) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_retrieval_model"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportRetrievalModelType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportRetrievalModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaRetrievalModel(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportRetrievalModelType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportRetrievalModel{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport RetrievalModel
-func (r dataSourceTeleportRetrievalModel) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportRetrievalModel) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	retrievalModelI, err := r.p.Client().SummarizerClient().GetRetrievalModel(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading RetrievalModel", trace.Wrap(err), "retrieval_model"))

@@ -26,6 +26,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -33,28 +35,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportVnetConfigType is the resource metadata type
-type resourceTeleportVnetConfigType struct{}
+var _ resource.Resource = &resourceTeleportVnetConfig{}
 
 // resourceTeleportVnetConfig is the resource
 type resourceTeleportVnetConfig struct {
 	p Provider
 }
 
+// NewResourceVnetConfig creates the empty resource
+func NewResourceVnetConfig(p provider.Provider) resource.Resource {
+	return resourceTeleportVnetConfig{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportVnetConfig) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_vnet_config"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportVnetConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaVnetConfig(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportVnetConfigType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportVnetConfig{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the VnetConfig
-func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportVnetConfig) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -170,7 +176,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 }
 
 // Read reads teleport VnetConfig
-func (r resourceTeleportVnetConfig) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportVnetConfig) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -203,7 +209,7 @@ func (r resourceTeleportVnetConfig) Read(ctx context.Context, req tfsdk.ReadReso
 }
 
 // Update updates teleport VnetConfig
-func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportVnetConfig) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -290,7 +296,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 }
 
 // Delete deletes Teleport VnetConfig
-func (r resourceTeleportVnetConfig) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportVnetConfig) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	err := r.p.Client().VnetConfigClient().ResetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting VnetConfig", trace.Wrap(err), "vnet_config"))
@@ -301,7 +307,7 @@ func (r resourceTeleportVnetConfig) Delete(ctx context.Context, req tfsdk.Delete
 }
 
 // ImportState imports VnetConfig state
-func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	vnetConfigI, err := r.p.Client().VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error updating VnetConfig", trace.Wrap(err), "vnet_config"))
@@ -334,7 +340,7 @@ func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req tfsdk.I
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

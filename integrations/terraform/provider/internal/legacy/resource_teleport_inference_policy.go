@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -34,28 +36,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportInferencePolicyType is the resource metadata type
-type resourceTeleportInferencePolicyType struct{}
+var _ resource.Resource = &resourceTeleportInferencePolicy{}
 
 // resourceTeleportInferencePolicy is the resource
 type resourceTeleportInferencePolicy struct {
 	p Provider
 }
 
+// NewResourceInferencePolicy creates the empty resource
+func NewResourceInferencePolicy(p provider.Provider) resource.Resource {
+	return resourceTeleportInferencePolicy{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportInferencePolicy) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_inference_policy"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportInferencePolicyType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportInferencePolicy) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaInferencePolicy(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportInferencePolicyType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportInferencePolicy{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the InferencePolicy
-func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -153,7 +159,7 @@ func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req tfsdk.C
 }
 
 // Read reads teleport InferencePolicy
-func (r resourceTeleportInferencePolicy) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportInferencePolicy) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -193,7 +199,7 @@ func (r resourceTeleportInferencePolicy) Read(ctx context.Context, req tfsdk.Rea
 }
 
 // Update updates teleport InferencePolicy
-func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -279,7 +285,7 @@ func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req tfsdk.U
 }
 
 // Delete deletes Teleport InferencePolicy
-func (r resourceTeleportInferencePolicy) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportInferencePolicy) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -297,7 +303,7 @@ func (r resourceTeleportInferencePolicy) Delete(ctx context.Context, req tfsdk.D
 }
 
 // ImportState imports InferencePolicy state
-func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	inferencePolicy, err := r.p.Client().SummarizerClient().GetInferencePolicy(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading InferencePolicy", trace.Wrap(err), "inference_policy"))
@@ -332,7 +338,7 @@ func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req tf
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportInferencePolicy) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportInferencePolicy) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

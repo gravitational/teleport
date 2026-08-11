@@ -22,8 +22,10 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportWorkloadClusterType is the data source metadata type
-type dataSourceTeleportWorkloadClusterType struct{}
+var _ datasource.DataSource = &dataSourceTeleportWorkloadCluster{}
 
 // dataSourceTeleportWorkloadCluster is the resource
 type dataSourceTeleportWorkloadCluster struct {
 	p Provider
 }
 
+// NewDataSourceWorkloadCluster creates the empty data source
+func NewDataSourceWorkloadCluster(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportWorkloadCluster{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportWorkloadCluster) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_workload_cluster"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportWorkloadClusterType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportWorkloadCluster) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return schemav1.GenSchemaWorkloadCluster(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportWorkloadClusterType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportWorkloadCluster{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport WorkloadCluster
-func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -35,28 +37,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// resourceTeleportProvisionTokenType is the resource metadata type
-type resourceTeleportProvisionTokenType struct{}
+var _ resource.Resource = &resourceTeleportProvisionToken{}
 
 // resourceTeleportProvisionToken is the resource
 type resourceTeleportProvisionToken struct {
 	p Provider
 }
 
+// NewResourceProvisionToken creates the empty resource
+func NewResourceProvisionToken(p provider.Provider) resource.Resource {
+	return resourceTeleportProvisionToken{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportProvisionToken) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_provision_token"
+}
+
 // GetSchema returns the resource schema
-func (r resourceTeleportProvisionTokenType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r resourceTeleportProvisionToken) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return token.GenSchemaProvisionTokenV2(ctx)
 }
 
-// NewResource creates the empty resource
-func (r resourceTeleportProvisionTokenType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
-	return resourceTeleportProvisionToken{
-		p: p.(Provider),
-	}, nil
-}
-
 // Create creates the ProvisionToken
-func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportProvisionToken) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -172,7 +178,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 }
 
 // Read reads teleport ProvisionToken
-func (r resourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportProvisionToken) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -213,7 +219,7 @@ func (r resourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Read
 }
 
 // Update updates teleport ProvisionToken
-func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportProvisionToken) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -306,7 +312,7 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 }
 
 // Delete deletes Teleport ProvisionToken
-func (r resourceTeleportProvisionToken) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportProvisionToken) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -324,7 +330,7 @@ func (r resourceTeleportProvisionToken) Delete(ctx context.Context, req tfsdk.De
 }
 
 // ImportState imports ProvisionToken state
-func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	provisionToken, err := r.p.Client().GetToken(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(err), "token"))
@@ -359,7 +365,7 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req tfs
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

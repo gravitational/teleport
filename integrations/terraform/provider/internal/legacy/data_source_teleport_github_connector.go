@@ -22,8 +22,10 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -31,28 +33,32 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-// dataSourceTeleportGithubConnectorType is the data source metadata type
-type dataSourceTeleportGithubConnectorType struct{}
+var _ datasource.DataSource = &dataSourceTeleportGithubConnector{}
 
 // dataSourceTeleportGithubConnector is the resource
 type dataSourceTeleportGithubConnector struct {
 	p Provider
 }
 
+// NewDataSourceGithubConnector creates the empty data source
+func NewDataSourceGithubConnector(p provider.Provider) datasource.DataSource {
+	return dataSourceTeleportGithubConnector{
+		p: p.(Provider),
+	}
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSourceTeleportGithubConnector) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_github_connector"
+}
+
 // GetSchema returns the data source schema
-func (r dataSourceTeleportGithubConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (r dataSourceTeleportGithubConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	return tfschema.GenSchemaGithubConnectorV3(ctx)
 }
 
-// NewDataSource creates the empty data source
-func (r dataSourceTeleportGithubConnectorType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportGithubConnector{
-		p: p.(Provider),
-	}, nil
-}
-
 // Read reads teleport GithubConnector
-func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

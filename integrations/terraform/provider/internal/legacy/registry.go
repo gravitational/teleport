@@ -16,20 +16,24 @@
 
 package legacy
 
-import "github.com/hashicorp/terraform-plugin-framework/tfsdk"
+import (
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+)
 
-// DataSourceTypes returns all legacy Teleport data source types.
-func DataSourceTypes() map[string]tfsdk.DataSourceType {
-	return map[string]tfsdk.DataSourceType{
-		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
-		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
-		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
-		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
-		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
-		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
-		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
-		"teleport_integration":                dataSourceTeleportIntegrationType{},
+// DataSources returns all legacy Teleport data sources.
+func DataSources(p provider.Provider) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		func() datasource.DataSource { return NewDataSourceClusterMaintenanceConfig(p) },
+		func() datasource.DataSource { return NewDataSourceDiscoveryConfig(p) },
+		func() datasource.DataSource { return NewDataSourceGithubConnector(p) },
+		func() datasource.DataSource { return NewDataSourceProvisionToken(p) },
+		func() datasource.DataSource { return NewDataSourceOIDCConnector(p) },
+		func() datasource.DataSource { return NewDataSourceSAMLIdPServiceProvider(p) },
+		func() datasource.DataSource { return NewDataSourceAutoUpdateConfig(p) },
+		func() datasource.DataSource { return NewDataSourceVnetConfig(p) },
+		func() datasource.DataSource { return NewDataSourceIntegration(p) },
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -37,29 +41,29 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 		// - Data sources use the same schema as resources, which means that fields
 		//   required on a resource also need to be set on the data source
 		//   definition.
-		"teleport_workload_cluster":      dataSourceTeleportWorkloadClusterType{},
-		"teleport_client_ip_restriction": dataSourceTeleportClientIPRestrictionType{},
+		func() datasource.DataSource { return NewDataSourceWorkloadCluster(p) },
+		func() datasource.DataSource { return NewDataSourceClientIPRestriction(p) },
 	}
 }
 
-// ResourceTypes returns all legacy Teleport resource types.
-func ResourceTypes() map[string]tfsdk.ResourceType {
-	return map[string]tfsdk.ResourceType{
-		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
-		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
-		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
-		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
-		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
-		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_bot":                        resourceTeleportBotType{},
-		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
-		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
-		"teleport_integration":                resourceTeleportIntegrationType{},
-		"teleport_inference_model":            resourceTeleportInferenceModelType{},
-		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
-		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
-		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
+// Resources returns all legacy Teleport resource types.
+func Resources(p provider.Provider) []func() resource.Resource {
+	return []func() resource.Resource{
+		func() resource.Resource { return NewResourceClusterMaintenanceConfig(p) },
+		func() resource.Resource { return NewResourceDiscoveryConfig(p) },
+		func() resource.Resource { return NewResourceGithubConnector(p) },
+		func() resource.Resource { return NewResourceProvisionToken(p) },
+		func() resource.Resource { return NewResourceOIDCConnector(p) },
+		func() resource.Resource { return NewResourceSAMLIdPServiceProvider(p) },
+		func() resource.Resource { return NewResourceBot(p) },
+		func() resource.Resource { return NewResourceAutoUpdateConfig(p) },
+		func() resource.Resource { return NewResourceVnetConfig(p) },
+		func() resource.Resource { return NewResourceIntegration(p) },
+		func() resource.Resource { return NewResourceInferenceModel(p) },
+		func() resource.Resource { return NewResourceInferenceSecret(p) },
+		func() resource.Resource { return NewResourceInferencePolicy(p) },
+		func() resource.Resource { return NewResourceRetrievalModel(p) },
+		func() resource.Resource { return NewResourceWorkloadCluster(p) },
+		func() resource.Resource { return NewResourceClientIPRestriction(p) },
 	}
 }

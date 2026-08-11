@@ -25,6 +25,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -59,28 +61,28 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 		Attributes: map[string]tfsdk.Attribute{
 			"id": {
 				Computed:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.UseStateForUnknown()},
+				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 			},
 			"kind": {
 				Computed:      true,
 				Description:   "The kind of resource represented.",
 				Optional:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.UseStateForUnknown()},
+				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 			},
 			"sub_kind": {
 				Computed:      true,
 				Description:   "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
 				Optional:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.UseStateForUnknown()},
+				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 			},
 			"version": {
 				Computed:      true,
 				Description:   "The version of the resource being represented.",
 				Optional:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.UseStateForUnknown()},
+				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 				Validators:    []tfsdk.AttributeValidator{tfschema.UseVersionBetween(1, 1)},
 			},
@@ -105,7 +107,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 					},
 					"name": {
 						Description:   "Name is an object name",
-						PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.RequiresReplace()},
+						PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
 						Required:      true,
 						Type:          types.StringType,
 					},
@@ -113,7 +115,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Computed:      true,
 						Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 						Optional:      true,
-						PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.UseStateForUnknown()},
+						PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 						Type:          types.StringType,
 					},
 					"revision": {
@@ -169,7 +171,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 			},
 			"scope": {
 				Description:   "Scope is the scope of the bot resource. Leave empty for unscoped bots.",
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.RequiresReplace()},
+				PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
 				Optional:      true,
 				Type:          types.StringType,
 			},
@@ -183,7 +185,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},
-				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.RequiresReplace()},
+				PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
 			},
 			"user_name": {
 				Type:               types.StringType,
@@ -232,21 +234,11 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	}, nil
 }
 
-// resourceTeleportBotType is the resource metadata type
-type resourceTeleportBotType struct{}
-
-// GetSchema returns the resource schema
-func (r resourceTeleportBotType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	// It's unusual for this provider, but we'll hand-write the schema here as
-	// bots do not have any server-side resources of their own.
-	return GenSchemaBot(ctx)
-}
-
-// NewResource creates the empty resource
-func (r resourceTeleportBotType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+// NewResourceBot creates the empty resource
+func NewResourceBot(p provider.Provider) resource.Resource {
 	return resourceTeleportBot{
 		p: p.(Provider),
-	}, nil
+	}
 }
 
 // resourceTeleportBot is the resource
@@ -254,7 +246,18 @@ type resourceTeleportBot struct {
 	p Provider
 }
 
-func (r resourceTeleportBot) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportBot) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_bot"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportBot) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	// It's unusual for this provider, but we'll hand-write the schema here as
+	// bots do not have any server-side resources of their own.
+	return GenSchemaBot(ctx)
+}
+
+func (r resourceTeleportBot) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -280,7 +283,7 @@ func (r resourceTeleportBot) Create(ctx context.Context, req tfsdk.CreateResourc
 	}
 }
 
-func (r resourceTeleportBot) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportBot) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state Bot
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -316,7 +319,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	attrTypes := func(key string) map[string]attr.Type {
 		result := make(map[string]attr.Type)
 		for k, v := range schema.Attributes[key].Attributes.GetAttributes() {
-			result[k] = v.Type
+			result[k] = v.GetType()
 		}
 		return result
 	}
@@ -494,7 +497,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	return result
 }
 
-func (r resourceTeleportBot) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportBot) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -520,7 +523,7 @@ func (r resourceTeleportBot) Update(ctx context.Context, req tfsdk.UpdateResourc
 	}
 }
 
-func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportBot) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state Bot
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -540,7 +543,7 @@ func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourc
 	resp.State.RemoveResource(ctx)
 }
 
-func (r resourceTeleportBot) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, rsp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportBot) ImportState(ctx context.Context, req resource.ImportStateRequest, rsp *resource.ImportStateResponse) {
 	sqn, err := tfdriver.NewPossiblyUnscopedScopeQualifiedNameIdentifier(req.ID)
 	if err != nil {
 		rsp.Diagnostics.AddError("Error parsing bot ID", err.Error())
