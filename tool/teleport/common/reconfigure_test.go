@@ -72,8 +72,8 @@ func TestRunReconfigure(t *testing.T) {
 	t.Run("writes valid YAML to stdout when output omitted", func(t *testing.T) {
 		var stdout bytes.Buffer
 		err := runReconfigure(reconfigureFlags{
-			input: writeReconfigureInput(t),
-			proxy: "new.example.com:443",
+			input:       writeReconfigureInput(t),
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.NoError(t, err)
 		fc, err := config.ReadConfig(strings.NewReader(stdout.String()))
@@ -84,8 +84,8 @@ func TestRunReconfigure(t *testing.T) {
 	t.Run("collision with the input agent is a hard error", func(t *testing.T) {
 		var stdout bytes.Buffer
 		err := runReconfigure(reconfigureFlags{
-			input: writeReconfigureInputFile(t, reconfigureCollisionTestInput),
-			proxy: "new.example.com:443",
+			input:       writeReconfigureInputFile(t, reconfigureCollisionTestInput),
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.ErrorContains(t, err, `pid_file "/var/run/teleport.pid" (--pid-file)`)
 		require.Empty(t, stdout.String())
@@ -96,9 +96,9 @@ func TestRunReconfigure(t *testing.T) {
 		input := writeReconfigureInputFile(t, reconfigureCollisionTestInput)
 		output := filepath.Join(filepath.Dir(input), "teleport_new.yaml")
 		err := runReconfigure(reconfigureFlags{
-			input:  input,
-			output: output,
-			proxy:  "new.example.com:443",
+			input:       input,
+			output:      output,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.Error(t, err)
 		require.NoFileExists(t, output)
@@ -107,9 +107,9 @@ func TestRunReconfigure(t *testing.T) {
 	t.Run("passing --pid-file resolves the collision", func(t *testing.T) {
 		var stdout bytes.Buffer
 		err := runReconfigure(reconfigureFlags{
-			input:   writeReconfigureInputFile(t, reconfigureCollisionTestInput),
-			proxy:   "new.example.com:443",
-			pidFile: "/run/teleport_new.pid",
+			input:       writeReconfigureInputFile(t, reconfigureCollisionTestInput),
+			proxyServer: "new.example.com:443",
+			pidFile:     "/run/teleport_new.pid",
 		}, &stdout)
 		require.NoError(t, err)
 	})
@@ -119,9 +119,9 @@ func TestRunReconfigure(t *testing.T) {
 		input := writeReconfigureInput(t)
 		output := filepath.Join(filepath.Dir(input), "teleport_new.yaml")
 		err := runReconfigure(reconfigureFlags{
-			input:  input,
-			output: output,
-			proxy:  "new.example.com:443",
+			input:       input,
+			output:      output,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.NoError(t, err)
 		info, err := os.Stat(output)
@@ -138,9 +138,9 @@ func TestRunReconfigure(t *testing.T) {
 		output := filepath.Join(filepath.Dir(input), "teleport_new.yaml")
 		require.NoError(t, os.WriteFile(output, []byte("old"), 0o600))
 		err := runReconfigure(reconfigureFlags{
-			input:  input,
-			output: output,
-			proxy:  "new.example.com:443",
+			input:       input,
+			output:      output,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.ErrorContains(t, err, "already exists; use --overwrite to replace it")
 	})
@@ -151,10 +151,10 @@ func TestRunReconfigure(t *testing.T) {
 		output := filepath.Join(filepath.Dir(input), "teleport_new.yaml")
 		require.NoError(t, os.WriteFile(output, []byte("old"), 0o600))
 		err := runReconfigure(reconfigureFlags{
-			input:     input,
-			output:    output,
-			overwrite: true,
-			proxy:     "new.example.com:443",
+			input:       input,
+			output:      output,
+			overwrite:   true,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.NoError(t, err)
 		fc, err := config.ReadFromFile(output)
@@ -168,10 +168,10 @@ func TestRunReconfigure(t *testing.T) {
 		output := filepath.Join(filepath.Dir(input), "teleport_new.yaml")
 		require.NoError(t, os.WriteFile(output, []byte("old"), 0o644))
 		err := runReconfigure(reconfigureFlags{
-			input:     input,
-			output:    output,
-			overwrite: true,
-			proxy:     "new.example.com:443",
+			input:       input,
+			output:      output,
+			overwrite:   true,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.NoError(t, err)
 		info, err := os.Stat(output)
@@ -185,10 +185,10 @@ func TestRunReconfigure(t *testing.T) {
 		link := filepath.Join(filepath.Dir(input), "link.yaml")
 		require.NoError(t, os.Symlink(input, link))
 		err := runReconfigure(reconfigureFlags{
-			input:     input,
-			output:    link,
-			overwrite: true,
-			proxy:     "new.example.com:443",
+			input:       input,
+			output:      link,
+			overwrite:   true,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.ErrorContains(t, err, "refusing to write over the input config")
 	})
@@ -197,10 +197,10 @@ func TestRunReconfigure(t *testing.T) {
 		var stdout bytes.Buffer
 		input := writeReconfigureInput(t)
 		err := runReconfigure(reconfigureFlags{
-			input:     input,
-			output:    input,
-			overwrite: true,
-			proxy:     "new.example.com:443",
+			input:       input,
+			output:      input,
+			overwrite:   true,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.ErrorContains(t, err, "refusing to write over the input config")
 	})
@@ -216,8 +216,8 @@ func TestRunReconfigure(t *testing.T) {
 
 	t.Run("stdout write failure returns an error", func(t *testing.T) {
 		err := runReconfigure(reconfigureFlags{
-			input: writeReconfigureInput(t),
-			proxy: "new.example.com:443",
+			input:       writeReconfigureInput(t),
+			proxyServer: "new.example.com:443",
 		}, errWriter{})
 		require.ErrorContains(t, err, "pipe closed")
 	})
@@ -241,9 +241,9 @@ func TestRunReconfigure(t *testing.T) {
 	t.Run("output directory must exist", func(t *testing.T) {
 		var stdout bytes.Buffer
 		err := runReconfigure(reconfigureFlags{
-			input:  writeReconfigureInput(t),
-			output: filepath.Join(t.TempDir(), "missing-dir", "out.yaml"),
-			proxy:  "new.example.com:443",
+			input:       writeReconfigureInput(t),
+			output:      filepath.Join(t.TempDir(), "missing-dir", "out.yaml"),
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.Error(t, err)
 	})
@@ -254,9 +254,9 @@ func TestRunReconfigure(t *testing.T) {
 		output := filepath.Join(filepath.Dir(input), "teleport_new.yaml")
 		require.NoError(t, os.Symlink(filepath.Join(filepath.Dir(input), "nope"), output))
 		err := runReconfigure(reconfigureFlags{
-			input:  input,
-			output: output,
-			proxy:  "new.example.com:443",
+			input:       input,
+			output:      output,
+			proxyServer: "new.example.com:443",
 		}, &stdout)
 		require.ErrorContains(t, err, "already exists; use --overwrite to replace it")
 	})
@@ -264,9 +264,9 @@ func TestRunReconfigure(t *testing.T) {
 	t.Run("registration-secret-path lands in the output config", func(t *testing.T) {
 		var stdout bytes.Buffer
 		err := runReconfigure(reconfigureFlags{
-			input:                  writeReconfigureInput(t),
-			joinMethod:             "bound_keypair",
-			registrationSecretPath: "/etc/teleport-secret",
+			input:                              writeReconfigureInput(t),
+			joinMethod:                         "bound_keypair",
+			boundKeypairRegistrationSecretPath: "/etc/teleport-secret",
 		}, &stdout)
 		require.NoError(t, err)
 		fc, err := config.ReadConfig(strings.NewReader(stdout.String()))
@@ -278,8 +278,8 @@ func TestRunReconfigure(t *testing.T) {
 	t.Run("registration-secret-path without a bound_keypair method errors", func(t *testing.T) {
 		var stdout bytes.Buffer
 		err := runReconfigure(reconfigureFlags{
-			input:                  writeReconfigureInput(t),
-			registrationSecretPath: "/etc/teleport-secret",
+			input:                              writeReconfigureInput(t),
+			boundKeypairRegistrationSecretPath: "/etc/teleport-secret",
 		}, &stdout)
 		require.ErrorContains(t, err, "--join-method bound_keypair")
 	})
@@ -298,7 +298,7 @@ func TestTeleportReconfigure(t *testing.T) {
 		Args: []string{"reconfigure",
 			"--input", input,
 			"--output", output,
-			"--proxy", "new.example.com:443",
+			"--proxy-server", "new.example.com:443",
 			"--ca-pin", "sha256:bbb", "--ca-pin", "sha256:ccc",
 			"--token", "new-token",
 			"--join-method", "bound_keypair",

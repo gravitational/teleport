@@ -33,23 +33,23 @@ import (
 
 // reconfigureFlags holds the command line flags for `teleport reconfigure`.
 type reconfigureFlags struct {
-	input                  string
-	output                 string
-	overwrite              bool
-	proxy                  string
-	authServer             string
-	caPins                 []string
-	token                  string
-	joinMethod             string
-	registrationSecret     string
-	registrationSecretPath string
-	nodeLabels             string
-	dataDir                string
-	pidFile                string
-	diagAddr               string
-	sshListenAddr          string
-	kubeListenAddr         string
-	metricsListenAddr      string
+	input                              string
+	output                             string
+	overwrite                          bool
+	proxyServer                        string
+	authServer                         string
+	caPins                             []string
+	tokenName                          string
+	joinMethod                         string
+	boundKeypairRegistrationSecret     string
+	boundKeypairRegistrationSecretPath string
+	nodeLabels                         string
+	dataDir                            string
+	pidFile                            string
+	diagAddr                           string
+	sshListenAddr                      string
+	kubeListenAddr                     string
+	metricsListenAddr                  string
 }
 
 // onReconfigure is the handler for the "reconfigure" CLI command.
@@ -66,20 +66,20 @@ func runReconfigure(flags reconfigureFlags, stdout io.Writer) error {
 		return trace.Wrap(err)
 	}
 	if err := config.Reconfigure(fc, config.ReconfigureRequest{
-		Proxy:                  flags.proxy,
-		AuthServer:             flags.authServer,
-		CAPins:                 flags.caPins,
-		Token:                  flags.token,
-		JoinMethod:             flags.joinMethod,
-		RegistrationSecret:     flags.registrationSecret,
-		RegistrationSecretPath: flags.registrationSecretPath,
-		NodeLabels:             flags.nodeLabels,
-		DataDir:                flags.dataDir,
-		PIDFile:                flags.pidFile,
-		DiagAddr:               flags.diagAddr,
-		SSHListenAddr:          flags.sshListenAddr,
-		KubeListenAddr:         flags.kubeListenAddr,
-		MetricsListenAddr:      flags.metricsListenAddr,
+		ProxyServer:                        flags.proxyServer,
+		AuthServer:                         flags.authServer,
+		CAPins:                             flags.caPins,
+		TokenName:                          flags.tokenName,
+		JoinMethod:                         flags.joinMethod,
+		BoundKeypairRegistrationSecret:     flags.boundKeypairRegistrationSecret,
+		BoundKeypairRegistrationSecretPath: flags.boundKeypairRegistrationSecretPath,
+		NodeLabels:                         flags.nodeLabels,
+		DataDir:                            flags.dataDir,
+		PIDFile:                            flags.pidFile,
+		DiagAddr:                           flags.diagAddr,
+		SSHListenAddr:                      flags.sshListenAddr,
+		KubeListenAddr:                     flags.kubeListenAddr,
+		MetricsListenAddr:                  flags.metricsListenAddr,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

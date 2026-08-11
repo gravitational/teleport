@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 // Fixtures shared across the test functions below. Single-use fixtures sit
@@ -101,17 +102,17 @@ teleport:
   proxy_server: old.example.com:443
 `
 
-// proxyEnabledGuardMessage is the error for --proxy on a config whose proxy
+// proxyEnabledGuardMessage is the error for --proxy-server on a config whose proxy
 // service is enabled, explicitly or by default.
-const proxyEnabledGuardMessage = "--proxy requires a config with proxy_service disabled; the agent rejects proxy_server when the proxy service is enabled"
+const proxyEnabledGuardMessage = "--proxy-server cannot be specified if the proxy_service is enabled"
 
 func TestReconfigureRetargeting(t *testing.T) {
 	// Retargeting a pinned config requires new pins; see TestReconfigureCAPinGuard.
 	t.Run("proxy retargets v3 and clears stale fields", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Proxy:  "new.example.com:443",
-			CAPins: []string{"sha256:bbb"},
+			ProxyServer: "new.example.com:443",
+			CAPins:      []string{"sha256:bbb"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, "new.example.com:443", fc.ProxyServer)
@@ -123,8 +124,8 @@ func TestReconfigureRetargeting(t *testing.T) {
 	t.Run("proxy with ca-pin sets the new pins", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Proxy:  "new.example.com:443",
-			CAPins: []string{"sha256:bbb", "sha256:ccc"},
+			ProxyServer: "new.example.com:443",
+			CAPins:      []string{"sha256:bbb", "sha256:ccc"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:bbb", "sha256:ccc"}, fc.CAPin)
@@ -174,35 +175,35 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("proxy on v2 errors and points at auth-server", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV2)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
-		require.ErrorContains(t, err, "--proxy requires a v3 config; use --auth-server for v1/v2 configs")
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
+		require.ErrorContains(t, err, "--proxy-server requires a v3 config; use --auth-server for v1/v2 configs")
 	})
 
-	t.Run("config without a version rejects --proxy", func(t *testing.T) {
+	t.Run("config without a version rejects --proxy-server", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoVersion)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
-		require.ErrorContains(t, err, "--proxy requires a v3 config; use --auth-server for v1/v2 configs")
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
+		require.ErrorContains(t, err, "--proxy-server requires a v3 config; use --auth-server for v1/v2 configs")
 	})
 
 	t.Run("proxy on a config with proxy_service enabled errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureProxyServiceEnabled)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
 		require.ErrorContains(t, err, proxyEnabledGuardMessage)
 	})
 
 	t.Run("proxy on a config with no proxy_service section errors (default enabled)", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoProxyServiceSection)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
 		require.ErrorContains(t, err, proxyEnabledGuardMessage)
 	})
 
 	t.Run("proxy and auth-server are mutually exclusive", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Proxy:      "new.example.com:443",
-			AuthServer: "new.example.com:3025",
+			ProxyServer: "new.example.com:443",
+			AuthServer:  "new.example.com:3025",
 		})
-		require.ErrorContains(t, err, "--proxy and --auth-server are mutually exclusive")
+		require.ErrorContains(t, err, "--proxy-server and --auth-server are mutually exclusive")
 	})
 }
 
@@ -218,7 +219,7 @@ func TestReconfigureCAPinGuard(t *testing.T) {
 
 	t.Run("proxy retarget without ca-pin errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
 		require.ErrorContains(t, err, "--ca-pin")
 	})
 
@@ -246,8 +247,8 @@ func TestReconfigureCAPinGuard(t *testing.T) {
 	t.Run("retarget with ca-pin replaces the input pins", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Proxy:  "new.example.com:443",
-			CAPins: []string{"sha256:bbb"},
+			ProxyServer: "new.example.com:443",
+			CAPins:      []string{"sha256:bbb"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:bbb"}, fc.CAPin)
@@ -258,7 +259,7 @@ func TestReconfigureCAPinGuard(t *testing.T) {
 	// not demand pins the operator already has in the file.
 	t.Run("token change alone preserves the input pins", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		err := Reconfigure(fc, ReconfigureRequest{TokenName: "new-token"})
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:aaa"}, fc.CAPin)
 		requireRoundTrips(t, fc)
@@ -307,7 +308,7 @@ teleport:
 func TestReconfigureJoinParams(t *testing.T) {
 	t.Run("token with join-method replaces legacy auth_token", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureLegacyToken)
-		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token", JoinMethod: "token"})
+		err := Reconfigure(fc, ReconfigureRequest{TokenName: "new-token", JoinMethod: "token"})
 		require.NoError(t, err)
 		require.Equal(t, "new-token", fc.JoinParams.TokenName)
 		require.Empty(t, fc.AuthToken)
@@ -317,13 +318,13 @@ func TestReconfigureJoinParams(t *testing.T) {
 
 	t.Run("token without a method to keep or set errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureLegacyToken)
-		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		err := Reconfigure(fc, ReconfigureRequest{TokenName: "new-token"})
 		require.ErrorContains(t, err, "--join-method")
 	})
 
 	t.Run("join-method omitted keeps the existing method", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureEC2Method)
-		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		err := Reconfigure(fc, ReconfigureRequest{TokenName: "new-token"})
 		require.NoError(t, err)
 		require.Equal(t, types.JoinMethodEC2, fc.JoinParams.Method)
 		require.Equal(t, "new-token", fc.JoinParams.TokenName)
@@ -332,7 +333,7 @@ func TestReconfigureJoinParams(t *testing.T) {
 
 	t.Run("join-method replaces the existing method", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureEC2Method)
-		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token", JoinMethod: "token"})
+		err := Reconfigure(fc, ReconfigureRequest{TokenName: "new-token", JoinMethod: "token"})
 		require.NoError(t, err)
 		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
 		requireRoundTrips(t, fc)
@@ -374,7 +375,7 @@ func TestReconfigureJoinParams(t *testing.T) {
 
 	t.Run("registration-secret sets value and clears path", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBoundKeypairPath)
-		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecret: "s3cret"})
+		err := Reconfigure(fc, ReconfigureRequest{BoundKeypairRegistrationSecret: "s3cret"})
 		require.NoError(t, err)
 		require.Equal(t, "s3cret", fc.JoinParams.BoundKeypair.RegistrationSecretValue)
 		require.Empty(t, fc.JoinParams.BoundKeypair.RegistrationSecretPath)
@@ -384,7 +385,7 @@ func TestReconfigureJoinParams(t *testing.T) {
 
 	t.Run("registration-secret-path sets path and clears value", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBoundKeypairValue)
-		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecretPath: "/etc/teleport-secret"})
+		err := Reconfigure(fc, ReconfigureRequest{BoundKeypairRegistrationSecretPath: "/etc/teleport-secret"})
 		require.NoError(t, err)
 		require.Equal(t, "/etc/teleport-secret", fc.JoinParams.BoundKeypair.RegistrationSecretPath)
 		require.Empty(t, fc.JoinParams.BoundKeypair.RegistrationSecretValue)
@@ -393,22 +394,22 @@ func TestReconfigureJoinParams(t *testing.T) {
 
 	t.Run("registration-secret on a token-method config errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecret: "s3cret"})
+		err := Reconfigure(fc, ReconfigureRequest{BoundKeypairRegistrationSecret: "s3cret"})
 		require.ErrorContains(t, err, "--join-method bound_keypair")
 	})
 
 	t.Run("registration-secret-path on a method-less config errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoMethod)
-		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecretPath: "/etc/teleport-secret"})
+		err := Reconfigure(fc, ReconfigureRequest{BoundKeypairRegistrationSecretPath: "/etc/teleport-secret"})
 		require.ErrorContains(t, err, "--join-method bound_keypair")
 	})
 
 	t.Run("registration-secret with join-method bound_keypair retargets a token config", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Token:              "bk-token",
-			RegistrationSecret: "s3cret",
-			JoinMethod:         "bound_keypair",
+			TokenName:                      "bk-token",
+			BoundKeypairRegistrationSecret: "s3cret",
+			JoinMethod:                     "bound_keypair",
 		})
 		require.NoError(t, err)
 		require.Equal(t, types.JoinMethodBoundKeypair, fc.JoinParams.Method)
@@ -428,8 +429,8 @@ func TestReconfigureJoinParams(t *testing.T) {
 	t.Run("registration-secret and registration-secret-path are mutually exclusive", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			RegistrationSecret:     "s3cret",
-			RegistrationSecretPath: "/etc/teleport-secret",
+			BoundKeypairRegistrationSecret:     "s3cret",
+			BoundKeypairRegistrationSecretPath: "/etc/teleport-secret",
 		})
 		require.ErrorContains(t, err, "--registration-secret and --registration-secret-path are mutually exclusive")
 	})
@@ -487,8 +488,8 @@ func TestReconfigureLabelsAndFields(t *testing.T) {
 	t.Run("untouched fields carry through unchanged", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Proxy:  "new.example.com:443",
-			CAPins: []string{"sha256:bbb"},
+			ProxyServer: "new.example.com:443",
+			CAPins:      []string{"sha256:bbb"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, "node-04", fc.NodeName)
@@ -514,12 +515,12 @@ func TestReconfigureNoOpAndIdempotency(t *testing.T) {
 	// request to an already-reconfigured config must change nothing.
 	t.Run("reconfigure is idempotent", func(t *testing.T) {
 		req := ReconfigureRequest{
-			Proxy:      "new.example.com:443",
-			CAPins:     []string{"sha256:bbb"},
-			Token:      "new-token",
-			NodeLabels: "team=a",
-			DataDir:    "/var/lib/teleport_new",
-			PIDFile:    "/run/teleport_new.pid",
+			ProxyServer: "new.example.com:443",
+			CAPins:      []string{"sha256:bbb"},
+			TokenName:   "new-token",
+			NodeLabels:  "team=a",
+			DataDir:     "/var/lib/teleport_new",
+			PIDFile:     "/run/teleport_new.pid",
 		}
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		require.NoError(t, Reconfigure(fc, req))
@@ -582,7 +583,7 @@ kubernetes_service:
 func TestReconfigureCollisionErrors(t *testing.T) {
 	t.Run("colliding fields kept from the input error, all listed", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureCollisions)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
 		require.ErrorContains(t, err, "two agents on one host would collide")
 		for _, want := range []string{
 			`pid_file "/var/run/teleport.pid" (--pid-file)`,
@@ -623,21 +624,21 @@ func TestReconfigureCollisionErrors(t *testing.T) {
 
 	t.Run("explicitly disabled service does not collide on listen_addr", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureDisabledSSHListen)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
 		require.NoError(t, err)
 	})
 
 	t.Run("default-disabled service does not collide on listen_addr", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureDefaultDisabledKubeListen)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{ProxyServer: "new.example.com:443"})
 		require.NoError(t, err)
 	})
 
 	t.Run("config with no colliding fields does not error", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
 		err := Reconfigure(fc, ReconfigureRequest{
-			Proxy:  "new.example.com:443",
-			CAPins: []string{"sha256:bbb"},
+			ProxyServer: "new.example.com:443",
+			CAPins:      []string{"sha256:bbb"},
 		})
 		require.NoError(t, err)
 	})
@@ -660,8 +661,8 @@ func TestReconfigureAddressValidation(t *testing.T) {
 	}{
 		{
 			name:    "proxy",
-			req:     ReconfigureRequest{Proxy: "http://bad::addr::443"},
-			wantErr: "parsing --proxy",
+			req:     ReconfigureRequest{ProxyServer: "http://bad::addr::443"},
+			wantErr: "parsing --proxy-server",
 		},
 		{
 			name:    "auth-server",
@@ -708,4 +709,52 @@ func TestReconfigureAddressValidation(t *testing.T) {
 		require.Equal(t, "127.0.0.1", fc.DiagAddr)
 		requireRoundTrips(t, fc)
 	})
+}
+
+func TestReconfigureGoldenOutput(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input string
+		req   ReconfigureRequest
+	}{
+		{
+			name:  "v3 proxy retarget",
+			input: reconfigureBaseV3,
+			req: ReconfigureRequest{
+				ProxyServer: "new.example.com:443",
+				CAPins:      []string{"sha256:bbb"},
+				TokenName:   "new-token",
+				NodeLabels:  "env=dev,team=a",
+				DataDir:     "/var/lib/teleport_new",
+			},
+		},
+		{
+			name:  "v2 auth server retarget",
+			input: reconfigureBaseV2,
+			req: ReconfigureRequest{
+				AuthServer: "new.example.com:3025",
+				CAPins:     []string{"sha256:bbb"},
+				TokenName:  "new-token",
+				JoinMethod: "token",
+			},
+		},
+		{
+			// The output must carry no trace of the old bound_keypair block,
+			// registration secret included.
+			name:  "join method away from bound_keypair",
+			input: reconfigureBoundKeypairValue,
+			req:   ReconfigureRequest{JoinMethod: "token"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := parseTestConfig(t, tc.input)
+			require.NoError(t, Reconfigure(fc, tc.req))
+			out, err := fc.YAMLString()
+			require.NoError(t, err)
+			if golden.ShouldSet() {
+				golden.Set(t, []byte(out))
+			}
+			require.Equal(t, string(golden.Get(t)), out)
+		})
+	}
 }

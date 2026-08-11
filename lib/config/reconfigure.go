@@ -36,28 +36,28 @@ import (
 // FileConfig. A zero-valued field leaves the corresponding setting untouched;
 // none of the fields has a meaningful empty value.
 type ReconfigureRequest struct {
-	// Proxy sets proxy_server. Valid only for v3 configs.
-	Proxy string
+	// ProxyServer sets proxy_server. Valid only for v3 configs.
+	ProxyServer string
 	// AuthServer sets auth_server (v3) or replaces auth_servers with the
-	// single given address (v1/v2). Mutually exclusive with Proxy.
+	// single given address (v1/v2). Mutually exclusive with ProxyServer.
 	AuthServer string
 	// CAPins replaces ca_pin with the target cluster's pins. Required when
-	// Proxy or AuthServer retargets a config that already pins a CA.
+	// ProxyServer or AuthServer retargets a config that already pins a CA.
 	CAPins []string
-	// Token sets join_params.token_name and clears the legacy auth_token.
-	Token string
+	// TokenName sets join_params.token_name and clears the legacy auth_token.
+	TokenName string
 	// JoinMethod sets join_params.method. It is never inferred from the
 	// other join fields.
 	JoinMethod string
-	// RegistrationSecret sets the bound_keypair registration secret value
-	// and clears the incompatible registration_secret_path.
-	RegistrationSecret string
-	// RegistrationSecretPath sets the bound_keypair registration secret path
-	// and clears the incompatible registration_secret_value. Mutually
-	// exclusive with RegistrationSecret.
-	RegistrationSecretPath string
+	// BoundKeypairRegistrationSecret sets the bound_keypair registration secret
+	// value and clears the incompatible registration_secret_path.
+	BoundKeypairRegistrationSecret string
+	// BoundKeypairRegistrationSecretPath sets the bound_keypair registration
+	// secret path and clears the incompatible registration_secret_value.
+	// Mutually exclusive with BoundKeypairRegistrationSecret.
+	BoundKeypairRegistrationSecretPath string
 	// NodeLabels is a comma-separated k=v list merged additively into
-	// ssh_service labels; on a key conflict the new value wins.
+	// ssh_service labels; on a key conflict the last value wins.
 	NodeLabels string
 	// DataDir sets teleport.data_dir.
 	DataDir string
@@ -77,23 +77,23 @@ type ReconfigureRequest struct {
 // request field untouched. It rejects cases where an unspecified request
 // field would cause a collision with a second agent on the same host.
 func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
-	if req.Proxy != "" && req.AuthServer != "" {
-		return trace.BadParameter("--proxy and --auth-server are mutually exclusive")
+	if req.ProxyServer != "" && req.AuthServer != "" {
+		return trace.BadParameter("--proxy-server and --auth-server are mutually exclusive")
 	}
-	if req.RegistrationSecret != "" && req.RegistrationSecretPath != "" {
+	if req.BoundKeypairRegistrationSecret != "" && req.BoundKeypairRegistrationSecretPath != "" {
 		return trace.BadParameter("--registration-secret and --registration-secret-path are mutually exclusive")
 	}
-	if req.Proxy != "" && fc.Version != defaults.TeleportConfigVersionV3 {
-		return trace.BadParameter("--proxy requires a v3 config; use --auth-server for v1/v2 configs")
+	if req.ProxyServer != "" && fc.Version != defaults.TeleportConfigVersionV3 {
+		return trace.BadParameter("--proxy-server requires a v3 config; use --auth-server for v1/v2 configs")
 	}
-	if req.Proxy != "" && fc.Proxy.Enabled() {
-		return trace.BadParameter("--proxy requires a config with proxy_service disabled; the agent rejects proxy_server when the proxy service is enabled")
+	if req.ProxyServer != "" && fc.Proxy.Enabled() {
+		return trace.BadParameter("--proxy-server cannot be specified if the proxy_service is enabled")
 	}
 	// Mirror the parsers the agent runs at start (applyConfig and the
 	// per-service apply functions), or the tool writes a config the agent rejects.
-	if req.Proxy != "" {
-		if _, err := utils.ParseHostPortAddr(req.Proxy, defaults.HTTPListenPort); err != nil {
-			return trace.Wrap(err, "parsing --proxy")
+	if req.ProxyServer != "" {
+		if _, err := utils.ParseHostPortAddr(req.ProxyServer, defaults.HTTPListenPort); err != nil {
+			return trace.Wrap(err, "parsing --proxy-server")
 		}
 	}
 	if req.AuthServer != "" {
@@ -142,15 +142,15 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 	if req.JoinMethod != "" {
 		joinMethod = types.JoinMethod(req.JoinMethod)
 	}
-	if (req.RegistrationSecret != "" || req.RegistrationSecretPath != "") && joinMethod != types.JoinMethodBoundKeypair {
+	if (req.BoundKeypairRegistrationSecret != "" || req.BoundKeypairRegistrationSecretPath != "") && joinMethod != types.JoinMethodBoundKeypair {
 		flag := "--registration-secret"
-		if req.RegistrationSecretPath != "" {
+		if req.BoundKeypairRegistrationSecretPath != "" {
 			flag = "--registration-secret-path"
 		}
 		return trace.BadParameter("%s requires the %s join method; pass --join-method %s", flag, types.JoinMethodBoundKeypair, types.JoinMethodBoundKeypair)
 	}
 	joinParamsInUse := !fc.JoinParams.IsEqual(&JoinParams{}) ||
-		req.Token != "" || req.RegistrationSecret != "" || req.RegistrationSecretPath != ""
+		req.TokenName != "" || req.BoundKeypairRegistrationSecret != "" || req.BoundKeypairRegistrationSecretPath != ""
 	if joinParamsInUse && joinMethod == "" {
 		return trace.BadParameter("the output config would set join_params without a join method, which the agent rejects at startup; pass --join-method")
 	}
@@ -160,12 +160,12 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 	// ca_pin validates the CA of the cluster the agent joins, so pins carried
 	// over from the old cluster cannot be reused after a retarget. Requiring
 	// new ones keeps a pinned config from silently becoming an unpinned one.
-	if (req.Proxy != "" || req.AuthServer != "") && len(fc.CAPin) > 0 && len(req.CAPins) == 0 {
+	if (req.ProxyServer != "" || req.AuthServer != "") && len(fc.CAPin) > 0 && len(req.CAPins) == 0 {
 		return trace.BadParameter("the input config sets ca_pin, and retargeting would leave the next join unpinned; pass --ca-pin with the target cluster's pins, which `tctl status` prints")
 	}
 
-	if req.Proxy != "" {
-		fc.ProxyServer = req.Proxy
+	if req.ProxyServer != "" {
+		fc.ProxyServer = req.ProxyServer
 		fc.AuthServer = ""
 		fc.AuthServers = nil
 	}
@@ -182,16 +182,16 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 		fc.CAPin = apiutils.Strings(slices.Clone(req.CAPins))
 	}
 
-	if req.Token != "" {
-		fc.JoinParams.TokenName = req.Token
+	if req.TokenName != "" {
+		fc.JoinParams.TokenName = req.TokenName
 		fc.AuthToken = ""
 	}
-	if req.RegistrationSecret != "" {
-		fc.JoinParams.BoundKeypair.RegistrationSecretValue = req.RegistrationSecret
+	if req.BoundKeypairRegistrationSecret != "" {
+		fc.JoinParams.BoundKeypair.RegistrationSecretValue = req.BoundKeypairRegistrationSecret
 		fc.JoinParams.BoundKeypair.RegistrationSecretPath = ""
 	}
-	if req.RegistrationSecretPath != "" {
-		fc.JoinParams.BoundKeypair.RegistrationSecretPath = req.RegistrationSecretPath
+	if req.BoundKeypairRegistrationSecretPath != "" {
+		fc.JoinParams.BoundKeypair.RegistrationSecretPath = req.BoundKeypairRegistrationSecretPath
 		fc.JoinParams.BoundKeypair.RegistrationSecretValue = ""
 	}
 	if req.JoinMethod != "" {
