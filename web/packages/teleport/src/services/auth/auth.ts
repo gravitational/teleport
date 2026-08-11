@@ -250,8 +250,6 @@ const auth = {
       const request = {
         action: 'accept',
         mfaResponse: res,
-        // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
-        webauthnAssertionResponse: res.webauthn_response,
       };
 
       return api.put(cfg.getHeadlessSsoPath(transactionId), request);
@@ -359,10 +357,6 @@ const auth = {
   createPrivilegeToken(existingMfaResponse?: MfaChallengeResponse) {
     return api.post(cfg.api.createPrivilegeTokenPath, {
       existingMfaResponse,
-      // TODO(Joerger): DELETE IN v19.0.0
-      // Also provide totp/webauthn response in backwards compatible format.
-      secondFactorToken: existingMfaResponse?.totp_code,
-      webauthnAssertionResponse: existingMfaResponse?.webauthn_response,
     });
   },
 

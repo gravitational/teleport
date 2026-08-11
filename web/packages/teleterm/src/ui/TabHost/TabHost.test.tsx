@@ -20,6 +20,7 @@ import { createRef } from 'react';
 
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
+import type { Shell } from 'teleterm/mainProcess/shell';
 import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
 import {
   makeRootCluster,
@@ -29,7 +30,11 @@ import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesC
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { Document } from 'teleterm/ui/services/workspacesService';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import {
+  makeDocumentCluster,
+  makeDocumentGatewayKube,
+  makeDocumentPtySession,
+} from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
 import { routing } from 'teleterm/ui/uri';
 
@@ -64,6 +69,7 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
   jest.spyOn(docsService, 'closeOthers');
   jest.spyOn(docsService, 'closeToRight');
   jest.spyOn(docsService, 'duplicatePtyAndActivate');
+  jest.spyOn(docsService, 'reopenPtyInShell');
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -120,15 +126,15 @@ test('open context menu', async () => {
     docsService;
   const documents = docsService.getDocuments();
   const document = documents[0];
+  const spy = jest.spyOn(mainProcessClient, 'openTabContextMenu');
 
   const $tabTitle = screen.getByTitle(documents[0].title);
 
   fireEvent.contextMenu($tabTitle);
   expect(openTabContextMenu).toHaveBeenCalled();
 
-  // @ts-expect-error `openTabContextMenu` doesn't know about jest
-  const options: TabContextMenuOptions = openTabContextMenu.mock.calls[0][0];
-  expect(options.document).toEqual(document);
+  const options: TabContextMenuOptions = spy.mock.calls[0][0];
+  expect(options.capabilities).toEqual({ canDuplicatePty: false });
 
   act(() => {
     options.onClose();
@@ -149,6 +155,51 @@ test('open context menu', async () => {
     options.onDuplicatePty();
   });
   expect(duplicatePtyAndActivate).toHaveBeenCalledWith(document.uri);
+});
+
+test('open context menu for shell document', async () => {
+  const document = makeDocumentPtySession({ shellId: 'shell-id' });
+  const { docsService, mainProcessClient } = await getTestSetup({
+    documents: [document],
+  });
+  const spy = jest.spyOn(mainProcessClient, 'openTabContextMenu');
+
+  fireEvent.contextMenu(screen.getByTitle(document.title));
+
+  const options: TabContextMenuOptions = spy.mock.calls[0][0];
+  expect(options.capabilities).toEqual({
+    canDuplicatePty: true,
+    shellSelector: {
+      activeShellId: 'shell-id',
+    },
+  });
+
+  const shell: Shell = {
+    id: 'other-shell-id',
+    binPath: '/bin/other-shell',
+    binName: 'other-shell',
+    friendlyName: 'Other Shell',
+  };
+  act(() => {
+    options.onReopenPtyInShell(shell);
+  });
+  expect(docsService.reopenPtyInShell).toHaveBeenCalledWith(document, shell);
+});
+
+test('open context menu for Kubernetes gateway document', async () => {
+  const document = makeDocumentGatewayKube({ shellId: 'shell-id' });
+  const { mainProcessClient } = await getTestSetup({ documents: [document] });
+  const spy = jest.spyOn(mainProcessClient, 'openTabContextMenu');
+
+  fireEvent.contextMenu(screen.getByTitle(document.title));
+
+  const options: TabContextMenuOptions = spy.mock.calls[0][0];
+  expect(options.capabilities).toEqual({
+    canDuplicatePty: false,
+    shellSelector: {
+      activeShellId: 'shell-id',
+    },
+  });
 });
 
 test('open new tab', async () => {

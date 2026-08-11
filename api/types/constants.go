@@ -1257,6 +1257,10 @@ const (
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
+	//
+	// Deprecated: the generation counter is now stored on the BotInstance
+	// resource. The label is only written for v18 downgrade compatibility and
+	// will be removed in v20.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
 
 	// BotScopeLabel is a label used to identify the scope in which a Bot
@@ -1927,6 +1931,10 @@ const (
 	// DefaultInstallerScriptNameAgentless is the name of the by default populated, EC2
 	// installer script when agentless mode is enabled for a matcher
 	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
+
+	// DefaultInstallerScriptNameWindowsAuthPackage is the name of the default populated
+	// installer script for Windows nodes
+	DefaultInstallerScriptNameWindowsAuthPackage = "default-installer-windows-auth-package"
 )
 
 const (

@@ -382,22 +382,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	trustedCluster = payload{
-		Name:                   "TrustedCluster",
-		TypeName:               "TrustedClusterV2",
-		VarName:                "trustedCluster",
-		GetMethod:              "GetTrustedCluster",
-		CreateMethod:           "UpsertTrustedCluster",
-		UpdateMethod:           "UpsertTrustedCluster",
-		DeleteMethod:           "DeleteTrustedCluster",
-		UpsertMethodArity:      2,
-		ID:                     "trustedCluster.Metadata.Name",
-		Kind:                   "trusted_cluster",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_trusted_cluster",
-		HasCheckAndSetDefaults: true,
-	}
-
 	uiConfig = payload{
 		Name:                   "UIConfig",
 		TypeName:               "UIConfigV1",
@@ -413,30 +397,6 @@ var (
 		TerraformResourceType:  "teleport_ui_config",
 		HasCheckAndSetDefaults: true,
 		GetCanReturnNil:        true,
-	}
-
-	loginRule = payload{
-		Name:                  "LoginRule",
-		TypeName:              "LoginRule",
-		VarName:               "loginRule",
-		GetMethod:             "GetLoginRule",
-		CreateMethod:          "UpsertLoginRule",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertLoginRule",
-		DeleteMethod:          "DeleteLoginRule",
-		ID:                    "loginRule.Metadata.Name",
-		Kind:                  "login_rule",
-		HasStaticID:           true,
-		ProtoPackage:          "loginrulev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1",
-		IsPlainStruct:         true,
-		TerraformResourceType: "teleport_login_rule",
-		// The default implementation of ModifyPlan expects that the `spec` field
-		// is present within the resource. `login_rule` does not contain a `spec`
-		// field and results in a panic.
-		WithoutModifyPlan: true,
 	}
 
 	deviceTrust = payload{
@@ -458,23 +418,6 @@ var (
 		TerraformResourceType: "teleport_trusted_device",
 	}
 
-	oktaImportRule = payload{
-		Name:                   "OktaImportRule",
-		TypeName:               "OktaImportRuleV1",
-		VarName:                "oktaImportRule",
-		IfaceName:              "OktaImportRule",
-		GetMethod:              "OktaClient().GetOktaImportRule",
-		CreateMethod:           "OktaClient().CreateOktaImportRule",
-		UpdateMethod:           "OktaClient().UpdateOktaImportRule",
-		DeleteMethod:           "OktaClient().DeleteOktaImportRule",
-		UpsertMethodArity:      2,
-		ID:                     "oktaImportRule.Metadata.Name",
-		Kind:                   "okta_import_rule",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_okta_import_rule",
-		HasCheckAndSetDefaults: true,
-	}
-
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -491,31 +434,6 @@ var (
 		HasCheckAndSetDefaults: true,
 		Namespaced:             true,
 		ForceSetKind:           "apitypes.KindNode",
-	}
-
-	workloadIdentity = payload{
-		Name:                  "WorkloadIdentity",
-		TypeName:              "WorkloadIdentity",
-		VarName:               "workloadIdentity",
-		GetMethod:             "GetWorkloadIdentity",
-		CreateMethod:          "CreateWorkloadIdentity",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertWorkloadIdentity",
-		DeleteMethod:          "DeleteWorkloadIdentity",
-		ID:                    "workloadIdentity.Metadata.Name",
-		Kind:                  "workload_identity",
-		HasStaticID:           false,
-		ProtoPackage:          "workloadidentityv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadidentity/v1",
-		TerraformResourceType: "teleport_workload_identity",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ForceSetKind: `"workload_identity"`,
 	}
 
 	autoUpdateVersion = payload{
@@ -835,36 +753,6 @@ var (
 			StateTimeoutSeconds:      15 * 60,
 		},
 	}
-	databaseObjectImportRule = payload{
-		Name:                  "DatabaseObjectImportRule",
-		TypeName:              "DatabaseObjectImportRule",
-		VarName:               "importRule",
-		GetMethod:             "DatabaseObjectImportRuleClient().GetDatabaseObjectImportRule",
-		CreateMethod:          "DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule",
-		DeleteMethod:          "DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule",
-		ID:                    "importRule.GetMetadata().GetName()",
-		Kind:                  "db_object_import_rule",
-		HasStaticID:           false,
-		ProtoPackage:          "dbobjectimportrulev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/dbobjectimportrule/v1",
-		TerraformResourceType: "teleport_db_object_import_rule",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind:          "apitypes.KindDatabaseObjectImportRule",
-		RequestWrapper: &RequestWrapper{
-			RequestResourceField:     "Rule",
-			ReturnsUnwrappedResource: true,
-			GetRequest:               "GetDatabaseObjectImportRuleRequest",
-			CreateRequest:            "CreateDatabaseObjectImportRuleRequest",
-			UpdateRequest:            "UpsertDatabaseObjectImportRuleRequest",
-			DeleteRequest:            "DeleteDatabaseObjectImportRuleRequest",
-		},
-	}
-
 	clientIPRestriction = payload{
 		Name:     "ClientIPRestriction",
 		TypeName: "ClientIPRestriction",
@@ -944,22 +832,14 @@ func genTFSchema() {
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
-	generateResource(trustedCluster, pluralResource)
-	generateDataSource(trustedCluster, pluralDataSource)
 	generateResource(sessionRecording, singularResource)
 	generateDataSource(sessionRecording, singularDataSource)
 	generateResource(uiConfig, singularResource)
 	generateDataSource(uiConfig, singularDataSource)
-	generateResource(loginRule, pluralResource)
-	generateDataSource(loginRule, pluralDataSource)
 	generateResource(deviceTrust, pluralResource)
 	generateDataSource(deviceTrust, pluralDataSource)
-	generateResource(oktaImportRule, pluralResource)
-	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
-	generateResource(workloadIdentity, pluralResource)
-	generateDataSource(workloadIdentity, pluralDataSource)
 	generateResource(autoUpdateVersion, singularResource)
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
@@ -984,8 +864,6 @@ func genTFSchema() {
 	generateDataSource(retrievalModel, singularDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
-	generateResource(databaseObjectImportRule, pluralResource)
-	generateDataSource(databaseObjectImportRule, pluralDataSource)
 	generateResource(clientIPRestriction, singularResource)
 	generateDataSource(clientIPRestriction, singularDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.

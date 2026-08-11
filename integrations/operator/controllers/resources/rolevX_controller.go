@@ -34,8 +34,8 @@ import (
 
 // roleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile roles
 // Currently the same client is used by all role versions. If we need to treat
-// them differently at some point, for example by adding a Mutate function
-// functions, we can always split the client into separate clients.
+// them differently at some point, for example by adding a Mutate function,
+// we can always split the client into separate clients.
 type roleClient struct {
 	teleportClient *client.Client
 }
@@ -64,7 +64,7 @@ func (r roleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) err
 }
 
 // NewRoleReconciler instantiates a new Kubernetes controller reconciling legacy role v5 resources
-func NewRoleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
@@ -79,7 +79,7 @@ func NewRoleReconciler(client kclient.Client, tClient *client.Client) (controlle
 }
 
 // NewRoleV6Reconciler instantiates a new Kubernetes controller reconciling role v6 resources
-func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
@@ -94,7 +94,7 @@ func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (control
 }
 
 // NewRoleV7Reconciler instantiates a new Kubernetes controller reconciling role v7 resources
-func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
@@ -109,12 +109,27 @@ func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (control
 }
 
 // NewRoleV8Reconciler instantiates a new Kubernetes controller reconciling role v8 resources
-func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV8](
+		client,
+		roleClient,
+		reconcilers.Config{},
+	)
+
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
+}
+
+// NewRoleV9Reconciler instantiates a new Kubernetes controller reconciling role v9 resources
+func NewRoleV9Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
+	roleClient := &roleClient{
+		teleportClient: tClient,
+	}
+
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV9](
 		client,
 		roleClient,
 		reconcilers.Config{},

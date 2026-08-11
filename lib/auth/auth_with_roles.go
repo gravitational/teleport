@@ -1088,6 +1088,33 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 	return a.authServer.ClearAlertAcks(ctx, req)
 }
 
+// GetNodes returns all registered SSH servers
+// that the calling identity has permissions to view.
+func (a *ScopedServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	servers, err := a.authServer.GetNodes(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+
+	var filtered []types.Server
+	for _, server := range servers {
+		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Read, scopedaccess.List); err != nil {
+				return trace.Wrap(err)
+			}
+			return checker.SSH().CanAccessSSHServer(server)
+		})
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered, nil
+}
+
 func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	// Note: UpsertNode doesn't allow any namespaces but "default".
@@ -1636,6 +1663,48 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 	}
 }
 
+// getLogins returns the principals allowed on a resource. `all` is the full set
+// from the lister's checker; `granted`, only computed when withGranted is set,
+// is the subset allowed by the user's current roles. When no search_as_roles
+// widen the listing, granted is a copy of all.
+func (l *unifiedResourceLister) getLogins(withGranted bool, resource services.AccessCheckable) (all, granted []string, err error) {
+	all, err = l.getAllowedLogins(resource)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if !withGranted {
+		return all, nil, nil
+	}
+	if l.requestableAccessChecker == nil {
+		return all, slices.Clone(all), nil
+	}
+	granted, err = l.accessChecker.GetAllowedLoginsForResource(resource)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return all, granted, nil
+}
+
+// makeResourcePrincipalSet builds a principal set for one dimension of a
+// resource, splitting the full list into granted and requestable subsets.
+func makeResourcePrincipalSet(principalType string, all, granted []string) *proto.ResourcePrincipalSet {
+	grantedSet := make(map[string]struct{}, len(granted))
+	for _, v := range granted {
+		grantedSet[v] = struct{}{}
+	}
+	var requestable []string
+	for _, v := range all {
+		if _, ok := grantedSet[v]; !ok {
+			requestable = append(requestable, v)
+		}
+	}
+	return &proto.ResourcePrincipalSet{
+		PrincipalType: principalType,
+		Granted:       granted,
+		Requestable:   requestable,
+	}
+}
+
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
 	switch resourceKind {
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
@@ -1816,61 +1885,55 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.IncludeLogins {
+		// Splitting granted from requestable requires the caller to have specified
+		// IncludeRequestable, or no search_as_roles to have widened listing, otherwise
+		// every value would be reported as granted.
+		populatePrincipals := req.IncludeRequestable || resourceLister.requestableAccessChecker == nil
 		for _, r := range paginatedResources {
-			if n := r.GetNode(); n != nil {
-				logins, err := resourceLister.getAllowedLogins(n)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for node",
-						"error", err,
-						"resource", n.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetWindowsDesktop(); d != nil {
-				logins, err := resourceLister.getAllowedLogins(d)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
-						"error", err,
-						"resource", d.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetLinuxDesktop(); d != nil {
-				desktop := proto.UnpackLinuxDesktop(d)
-				logins, err := resourceLister.getAllowedLogins(desktop)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for Linux desktop",
-						"error", err,
-						"resource", desktop.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetAppServer(); d != nil {
+			var checkable services.AccessCheckable
+			var principalType string
+			switch {
+			case r.GetNode() != nil:
+				checkable = r.GetNode()
+				principalType = types.PrincipalTypeLogins
+			case r.GetWindowsDesktop() != nil:
+				checkable = r.GetWindowsDesktop()
+			case r.GetLinuxDesktop() != nil:
+				checkable = proto.UnpackLinuxDesktop(r.GetLinuxDesktop())
+			case r.GetAppServer() != nil:
+				app := r.GetAppServer().GetApp()
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent
 				// view of the account we check access for each Permission Set, filter out those that have
 				// no access and treat the whole app as requiring an access request if _any_ of the contained
 				// permission sets require one.
-				if err := a.filterICPermissionSets(r, d.GetApp(), resourceLister); err != nil {
+				if err := a.filterICPermissionSets(r, app, resourceLister); err != nil {
 					a.authServer.logger.WarnContext(ctx, "Unable to filter",
 						"error", err,
-						"resource", d.GetApp().GetName(),
+						"resource", app.GetName(),
 					)
 					continue
 				}
+				checkable = app
+				principalType = types.PrincipalTypeRoleARNs
+			default:
+				continue
+			}
 
-				logins, err := resourceLister.getAllowedLogins(d.GetApp())
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for app",
-						"error", err,
-						"resource", d.GetApp().GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
+			all, granted, err := resourceLister.getLogins(populatePrincipals && principalType != "", checkable)
+			if err != nil {
+				a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
+					"error", err,
+					"resource", checkable.GetName(),
+				)
+				continue
+			}
+			r.Logins = all
+			// Resources with no allowed principals carry no dimensions, except
+			// for kinds whose dimensions' empty states are meaningful, e.g.,
+			// databases with auto-user provisioning.
+			if principalType != "" && populatePrincipals && len(all) > 0 {
+				r.Principals = []*proto.ResourcePrincipalSet{makeResourcePrincipalSet(principalType, all, granted)}
 			}
 		}
 	}
@@ -2296,7 +2359,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	}
 
 	switch req.ResourceType {
-	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer:
+	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer, types.KindNode:
 	default:
 		return nil, trace.AccessDenied("resource kind %q not supported for scoped identities", req.ResourceType)
 	}
@@ -2346,6 +2409,10 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		case types.KubeServer:
 			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.Kube().CanAccessCluster(res.GetCluster())
+			})
+		case types.Server:
+			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.SSH().CanAccessSSHServer(res)
 			})
 		case types.KubeCluster:
 			// kube clusters should always land in the fake pagination path, but we defensively ignore
@@ -2887,6 +2954,17 @@ func (a *ScopedServerWithRoles) listResourcesWithSort(ctx context.Context, req p
 			return nil, trace.Wrap(err)
 		}
 		resources = sortedServers.AsResources()
+	case types.KindNode:
+		nodes, err := a.GetNodes(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sorted := types.Servers(nodes)
+		if err := sorted.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sorted.AsResources()
 	default:
 		// We explicitly disallow other kinds to avoid any potential for calling
 		// FakePaginate with a kind that does not properly support scoped access.
@@ -4415,10 +4493,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 
 			BotName:  getBotName(user),
 			BotScope: getBotScope(user),
-			// Always pass through a bot instance ID if available. Legacy bots
-			// joining without an instance ID may have one generated when
-			// `updateBotInstance()` is called below, and this (empty) value will be
-			// overridden.
+			// Pass through the bot instance ID from the current identity.
 			BotInstanceID: a.scopedContext.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
@@ -4491,10 +4566,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		BotName:                getBotName(user),
 		BotScope:               getBotScope(user),
 
-		// Always pass through a bot instance ID if available. Legacy bots
-		// joining without an instance ID may have one generated when
-		// `updateBotInstance()` is called below, and this (empty) value will be
-		// overridden.
+		// Pass through the bot instance ID from the current identity.
 		BotInstanceID: a.scopedContext.Identity.GetIdentity().BotInstanceID,
 		JoinToken:     a.scopedContext.Identity.GetIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
@@ -4585,17 +4657,9 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			certReq.IncludeHostCA = true
 		}
 
-		// Update the bot instance based on this authentication. This may create
-		// a new bot instance record if the identity is missing an instance ID.
-		//
-		// botScope is always empty - this code path is only invoked for `token`
-		// joining bots, and we do not support `token` join method for scoped
-		// bots.
-		botScope := ""
+		// Update the bot instance based on this authentication.
 		if err := a.authServer.updateBotInstance(
-			ctx, &certReq, user.GetName(), certReq.BotName,
-			certReq.BotInstanceID, nil, int32(currentIdentityGeneration),
-			botScope,
+			ctx, &certReq, nil, int32(currentIdentityGeneration),
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}

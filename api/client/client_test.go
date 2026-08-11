@@ -749,6 +749,17 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
 					Logins:   []string{"alice", "bob"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{
+							PrincipalType: types.PrincipalTypeLogins,
+							Granted:       []string{"alice"},
+							Requestable:   []string{"bob"},
+							ByRole: []*proto.RolePrincipalValues{
+								{Role: "access", Values: []string{"alice"}},
+								{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+							},
+						},
+					},
 				},
 				{
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
@@ -757,6 +768,9 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
 					Logins:   []string{"llama"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{PrincipalType: types.PrincipalTypeRoleARNs, Granted: []string{"llama"}},
+					},
 				},
 			},
 		},
@@ -776,13 +790,57 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 	for _, enriched := range resources {
 		switch enriched.ResourceWithLabels.(type) {
 		case *types.ServerV2:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+			assert.Equal(t, clt.resp.Resources[0].Logins, enriched.Logins)
+			assert.Equal(t, []types.ResourcePrincipalSet{{
+				PrincipalType: types.PrincipalTypeLogins,
+				Granted:       []string{"alice"},
+				Requestable:   []string{"bob"},
+				ByRole: []types.RolePrincipalValues{
+					{Role: "access", Values: []string{"alice"}},
+					{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+				},
+			}}, enriched.Principals)
 		case *types.WindowsDesktopV3:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+			assert.Equal(t, clt.resp.Resources[1].Logins, enriched.Logins)
+			assert.Empty(t, enriched.Principals)
 		case *types.AppServerV3:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
+			assert.Equal(t, clt.resp.Resources[2].Logins, enriched.Logins)
+			assert.Equal(t, []types.ResourcePrincipalSet{{
+				PrincipalType: types.PrincipalTypeRoleARNs,
+				Granted:       []string{"llama"},
+			}}, enriched.Principals)
 		}
 	}
+}
+
+// TestConvertResourcePrincipalSets validates the conversion of proto principal
+// sets to their api/types form, including per-role attribution and nil entries.
+func TestConvertResourcePrincipalSets(t *testing.T) {
+	require.Nil(t, convertResourcePrincipalSets(nil))
+	require.Nil(t, convertResourcePrincipalSets([]*proto.ResourcePrincipalSet{}))
+
+	converted := convertResourcePrincipalSets([]*proto.ResourcePrincipalSet{
+		nil,
+		{
+			PrincipalType: types.PrincipalTypeLogins,
+			Granted:       []string{"alice"},
+			Requestable:   []string{"bob"},
+			ByRole: []*proto.RolePrincipalValues{
+				nil,
+				{Role: "access", Values: []string{"alice"}},
+				{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+			},
+		},
+	})
+	require.Equal(t, []types.ResourcePrincipalSet{{
+		PrincipalType: types.PrincipalTypeLogins,
+		Granted:       []string{"alice"},
+		Requestable:   []string{"bob"},
+		ByRole: []types.RolePrincipalValues{
+			{Role: "access", Values: []string{"alice"}},
+			{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+		},
+	}}, converted)
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
