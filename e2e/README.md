@@ -29,7 +29,7 @@ click through to screenshots and anything else from Playwright's test results.
 By default, the runner runs in test mode. Use one of the following flags to change the mode (mutually exclusive):
 
 | Flag               | Description                                                                     |
-| ------------------ | ------------------------------------------------------------------------------- |
+|--------------------|---------------------------------------------------------------------------------|
 | `--ui`             | Open Playwright UI mode                                                         |
 | `--debug`          | Run tests with Playwright inspector (`PWDEBUG=1`)                               |
 | `--codegen`        | Open Playwright codegen against running Teleport. Available only for web tests. |
@@ -39,7 +39,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 ### Flags
 
 | Flag                   | Default          | Description                                                                             |
-| ---------------------- | ---------------- | --------------------------------------------------------------------------------------- |
+|------------------------|------------------|-----------------------------------------------------------------------------------------|
 | `-v`                   | `false`          | Enable debug logging                                                                    |
 | `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
 | `--no-resource-setup`  | `false`          | Skip pre-test resource setup                                                            |
@@ -60,11 +60,11 @@ automatically starts the required infrastructure.
 
 Available fixtures:
 
-| Fixture        | Description                                                                |
-| -------------- | -------------------------------------------------------------------------- |
-| `ssh-node`     | Start and connect a Teleport SSH node (runs in Docker)                     |
-| `ssh-node-bpf` | A second node, `docker-node-bpf`, with Enhanced Session Recording enabled. |
-| `connect`      | Build Teleport Connect. Auto-detected from Connect test helpers.           |
+| Fixture        | Description                                                                        |
+|----------------|------------------------------------------------------------------------------------|
+| `ssh-node`     | Start and connect a Teleport SSH node (runs in Docker)                             |
+| `ssh-node-bpf` | A second node, `docker-node-bpf`, with Enhanced Session Recording enabled.         |
+| `connect`      | Build Teleport Connect. Auto-detected from Connect test helpers.                   |
 
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
@@ -106,12 +106,9 @@ node and exports `E2E_SKIP_ENHANCED_RECORDING=1`, so running the whole suite loc
 opts into that skip:
 
 ```ts
-import { skipEnhancedRecording } from "@gravitational/e2e/helpers/env";
+import { skipEnhancedRecording } from '@gravitational/e2e/helpers/env';
 
-test.skip(
-  skipEnhancedRecording,
-  "docker daemon's kernel cannot run enhanced session recording",
-);
+test.skip(skipEnhancedRecording, "docker daemon's kernel cannot run enhanced session recording");
 ```
 
 In CI the unsupported kernel is a hard error instead, so the coverage cannot quietly disappear. If the node fails for
@@ -127,7 +124,7 @@ roles or traits can declare them via `test.use()`. Usernames are auto-generated 
 
 ```ts
 test.use({
-  user: { roles: ["access", "editor"] },
+  user: { roles: ['access', 'editor'] },
 });
 ```
 
@@ -139,10 +136,11 @@ For tests that need more than one user (e.g. RBAC tests), use the `users` array.
 have `loginAs: true` to indicate which user the test authenticates as:
 
 ```ts
+
 test.use({
   users: [
-    { roles: ["access", "editor"], loginAs: true },
-    { roles: [{ file: "@gravitational/e2e/roles/viewer.yaml" }] },
+    { roles: ['access', 'editor'], loginAs: true },
+    { roles: [{ file: '@gravitational/e2e/roles/viewer.yaml' }] },
   ],
 });
 ```
@@ -155,8 +153,8 @@ are typed in the `UserTraits` interface, and custom keys are also supported:
 ```ts
 test.use({
   user: {
-    roles: ["access"],
-    traits: { logins: ["root", "alice"], kubernetes_groups: ["dev"] },
+    roles: ['access'],
+    traits: { logins: ['root', 'alice'], kubernetes_groups: ['dev'] },
   },
 });
 ```
@@ -170,7 +168,7 @@ For roles that don't exist as built-in Teleport roles, reference a YAML file in 
 ```ts
 test.use({
   user: {
-    roles: [{ file: "@gravitational/e2e/roles/rbac-read-access.yaml" }],
+    roles: [{ file: '@gravitational/e2e/roles/rbac-read-access.yaml' }],
   },
 });
 ```
@@ -188,10 +186,13 @@ without running the UI login flow, so the switch is near-instant.
 
 ```ts
 test.use({
-  users: [{ roles: ["access"], loginAs: true }, { roles: ["editor"] }],
+  users: [
+    { roles: ['access'], loginAs: true },
+    { roles: ['editor'] },
+  ],
 });
 
-test("switch users", async ({ page, loginAs }) => {
+test('switch users', async ({ page, loginAs }) => {
   // signed in as users[0] at test start
   // ...
   const { name: editorName, recordingIds } = await loginAs(1);
@@ -205,7 +206,6 @@ to limit it to that group, or at the top level of a file to apply to all tests i
 
 **Account isolation:** the runner gives each spec its own bootstrapped account, even when two specs declare
 the same `user`/`users`. Concretely:
-
 - Tests with no `test.use({ user/users })` in a project that needs auth (web `:authenticated` projects and
   the `connect` project) fall through to a single shared `access`/`editor` default user.
 - An explicit `test.use({ user: { roles: [...] } })` always gets a fresh account, distinct from the default
@@ -226,12 +226,12 @@ with `test.use({ teleport: { config: {...} } })` inside a `test.describe()` bloc
 Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
 
 ```ts
-test.describe("custom license", () => {
+test.describe('custom license', () => {
   test.use({
     teleport: {
       config: {
         auth_service: {
-          license_file: "${E2E_DIR}/testdata/licenses/custom-license.pem",
+          license_file: '${E2E_DIR}/testdata/licenses/custom-license.pem',
         },
       },
     },
@@ -247,16 +247,16 @@ A declared config can also set process environment variables scoped to just that
 which avoids a variable meant for one config leaking into unrelated tests:
 
 ```ts
-test.describe("cloud license", () => {
+test.describe('cloud license', () => {
   test.use({
     teleport: {
       config: {
         auth_service: {
-          license_file: "${E2E_DIR}/testdata/licenses/cloud-license.pem",
+          license_file: '${E2E_DIR}/testdata/licenses/cloud-license.pem',
         },
       },
       env: {
-        TELEPORT_CLOUD_HOSTPORT: "api.cloud.gravitational.io",
+        TELEPORT_CLOUD_HOSTPORT: 'api.cloud.gravitational.io',
       },
     },
   });
@@ -268,7 +268,7 @@ test.describe("cloud license", () => {
 Web specs run against every browser by default. A test whose subject is not the browser can opt out:
 
 ```ts
-test.use({ browsers: ["chromium"] });
+test.use({ browsers: ['chromium'] });
 ```
 
 This is worth doing for a test that also declares a Teleport config, since the runner otherwise repeats that config's
@@ -312,11 +312,11 @@ filename) to the seeded session ID for the currently-active user:
 
 ```ts
 test.use({
-  user: { roles: ["access"], recordings: ["ssh-session-1"] },
+  user: { roles: ['access'], recordings: ['ssh-session-1'] },
 });
 
-test("open recording", async ({ page, recordingIds }) => {
-  await page.goto(`/web/recordings/${recordingIds["ssh-session-1"]}`);
+test('open recording', async ({ page, recordingIds }) => {
+  await page.goto(`/web/recordings/${recordingIds['ssh-session-1']}`);
 });
 ```
 
