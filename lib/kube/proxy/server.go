@@ -158,7 +158,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.ConnectedProxyGetter == nil {
 		return trace.BadParameter("missing parameter ConnectedProxyGetter")
 	}
-	if c.HealthCheckManager == nil {
+
+	requiresHealthCheck := c.KubeServiceType != KubeService || c.GetScope() == ""
+	if c.HealthCheckManager == nil && requiresHealthCheck {
 		return trace.BadParameter("missing parameter HealthCheckManager")
 	}
 
@@ -582,6 +584,9 @@ func (t *TLSServer) GetServerInfo(sqn scopes.QualifiedName) (*types.KubernetesSe
 
 // startHealthCheck starts checking the health of a Kubernetes cluster.
 func (t *TLSServer) startHealthCheck(cluster types.KubeCluster) error {
+	if t.GetScope() != "" {
+		return nil
+	}
 	kubeDetails, err := t.fwd.findKubeDetailsByClusterName(scopes.QualifiedName{
 		Name:  cluster.GetName(),
 		Scope: cluster.GetScope(),
@@ -598,6 +603,9 @@ func (t *TLSServer) startHealthCheck(cluster types.KubeCluster) error {
 
 // stopHealthCheck stops checking the health of a Kubernetes cluster.
 func (t *TLSServer) stopHealthCheck(cluster types.KubeCluster) error {
+	if t.GetScope() != "" {
+		return nil
+	}
 	if err := t.HealthCheckManager.RemoveTarget(cluster); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -635,6 +643,13 @@ func (t *TLSServer) stopHeartbeatAndHealthCheck(cluster types.KubeCluster) error
 
 // getTargetHealth returns the health of a Kubernetes cluster.
 func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeCluster) *types.TargetHealth {
+	if t.GetScope() != "" {
+		return &types.TargetHealth{
+			Status:           string(types.TargetHealthStatusUnknown),
+			TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
+			Message:          "Health checks are disabled for scoped Kubernetes services",
+		}
+	}
 	health, err := t.HealthCheckManager.GetTargetHealth(cluster)
 	if err == nil {
 		return health

@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var (
@@ -93,97 +92,26 @@ func wildcardLabel() []*labelv1.Label {
 	}
 }
 
-func testExecKubeService(t *testing.T, testCtx *TestContext, scope string) {
-	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	userWithSingleKubeUser, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		username,
-		RoleSpec{
-			Name:       roleName,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-		})
-
-	clusterSQN := scopes.QualifiedName{
-		Name:  kubeCluster,
-		Scope: testCtx.Scope,
-	}
+func testExecKubeService(t *testing.T, testCtx *TestContext) {
+	scope := testCtx.Scope
+	clusterSQN := scopes.QualifiedName{Name: kubeCluster, Scope: scope}
 	// generate a kube client with user certs for auth
 	_, configWithSingleKubeUser := testCtx.GenTestKubeClientTLSCert(
 		t,
-		userWithSingleKubeUser.GetName(),
+		username,
 		clusterSQN,
+		makeScopedOpts(t, testCtx, username, scope)...,
 	)
 	require.NotNil(t, configWithSingleKubeUser)
-
-	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	userMultiKubeUsers, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		usernameMultiUsers,
-		RoleSpec{
-			Name:       roleNameMultiUsers,
-			KubeUsers:  append(slices.Clone(roleKubeUsers), "admin"),
-			KubeGroups: roleKubeGroups,
-		})
 
 	// generate a kube client with user certs for auth
 	_, configMultiKubeUsers := testCtx.GenTestKubeClientTLSCert(
 		t,
-		userMultiKubeUsers.GetName(),
+		usernameMultiUsers,
 		clusterSQN,
+		makeScopedOpts(t, testCtx, usernameMultiUsers, scope)...,
 	)
 	require.NotNil(t, configMultiKubeUsers)
-
-	if testCtx.Scope != "" {
-		scopedWithSingleKubeUser, scopedSingleKubeUserRole := testCtx.CreateUserAndScopedRole(
-			t,
-			"scoped-"+username,
-			scopedTestScope,
-			accessv1.ScopedRoleSpec_builder{
-				AssignableScopes: []string{scopedTestScope},
-				Kube: accessv1.ScopedRoleKube_builder{
-					Users:     roleKubeUsers,
-					Groups:    roleKubeGroups,
-					Resources: wildcardResource(),
-					Labels:    wildcardLabel(),
-				}.Build(),
-			}.Build())
-
-		scopedMultiKubeUsers, scopedMultiKubeUserRole := testCtx.CreateUserAndScopedRole(
-			t,
-			"scoped-"+usernameMultiUsers,
-			scopedTestScope,
-			accessv1.ScopedRoleSpec_builder{
-				AssignableScopes: []string{scopedTestScope},
-				Kube: accessv1.ScopedRoleKube_builder{
-					Users:     append(slices.Clone(roleKubeUsers), "admin"),
-					Groups:    roleKubeGroups,
-					Resources: wildcardResource(),
-					Labels:    wildcardLabel(),
-				}.Build(),
-			}.Build(),
-		)
-		waitForSRACache(t, testCtx.TLSServer, scopedSingleKubeUserRole, scopedMultiKubeUserRole)
-
-		_, configWithSingleKubeUser = testCtx.GenTestKubeClientTLSCert(
-			t,
-			scopedWithSingleKubeUser.GetName(),
-			clusterSQN,
-			func(i *tlsca.Identity) {
-				i.ScopePin = testCtx.GetScopePinForUser(t, scopedWithSingleKubeUser.GetName(), scopedTestScope)
-			},
-		)
-		_, configMultiKubeUsers = testCtx.GenTestKubeClientTLSCert(
-			t,
-			scopedMultiKubeUsers.GetName(),
-			clusterSQN,
-			func(i *tlsca.Identity) {
-				i.ScopePin = testCtx.GetScopePinForUser(t, scopedMultiKubeUsers.GetName(), scopedTestScope)
-			},
-		)
-	}
 
 	type args struct {
 		executorBuilder func(*rest.Config, string, *url.URL) (remotecommand.Executor, error)
@@ -320,30 +248,79 @@ func testExecKubeService(t *testing.T, testCtx *TestContext, scope string) {
 		})
 	}
 }
-
 func TestExecKubeService(t *testing.T) {
 	t.Parallel()
 	kubeMock, err := testingkubemock.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
-	for _, scope := range []string{"", scopedTestScope} {
+	unscopedTestCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	scopedTestCtx := CloneTestContext(t, unscopedTestCtx, scopedTestScope)
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	_, _ = unscopedTestCtx.CreateUserAndRole(
+		t.Context(),
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+		})
+
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	_, _ = unscopedTestCtx.CreateUserAndRole(
+		t.Context(),
+		t,
+		usernameMultiUsers,
+		RoleSpec{
+			Name:       roleNameMultiUsers,
+			KubeUsers:  append(slices.Clone(roleKubeUsers), "admin"),
+			KubeGroups: roleKubeGroups,
+		})
+
+	scopedSingleKubeUserAssn := scopedTestCtx.CreateAndAssignScopedRole(
+		t,
+		username,
+		scopedTestScope,
+		accessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scopedTestScope},
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:     roleKubeUsers,
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
+			}.Build(),
+		}.Build())
+
+	scopedMultiKubeUserAssn := scopedTestCtx.CreateAndAssignScopedRole(
+		t,
+		usernameMultiUsers,
+		scopedTestScope,
+		accessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scopedTestScope},
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:     append(slices.Clone(roleKubeUsers), "admin"),
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
+			}.Build(),
+		}.Build(),
+	)
+	waitForSRACache(t, scopedTestCtx.TLSServer, scopedSingleKubeUserAssn, scopedMultiKubeUserAssn)
+
+	for _, testCtx := range []*TestContext{unscopedTestCtx, scopedTestCtx} {
 		name := "unscoped"
-		if scope != "" {
+		if testCtx.Scope != "" {
 			name = "scoped"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			// creates a Kubernetes service with a configured cluster pointing to mock api server
-			testCtx := SetupTestContext(t.Context(), t, TestConfig{
-				Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-				Scope:    scope,
-				ScopesFeatures: scopes.Features{
-					Enabled:         true,
-					AgentPinEnabled: true,
-				},
-			})
-			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-			testExecKubeService(t, testCtx, scope)
+			testExecKubeService(t, testCtx)
 		})
 	}
 }
@@ -455,13 +432,33 @@ func TestExecKubeServiceWithFaultyPrimary(t *testing.T) {
 			failingAccessPoint.ClientI = client
 			return failingAccessPoint
 		},
-		Scope: scopedTestScope,
 		ScopesFeatures: scopes.Features{
 			Enabled:         true,
 			AgentPinEnabled: true,
 		},
 	})
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	_, _ = testCtx.CreateUserAndRole(
+		t.Context(),
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+		})
+
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	_, _ = testCtx.CreateUserAndRole(
+		t.Context(),
+		t,
+		usernameMultiUsers,
+		RoleSpec{
+			Name:       roleNameMultiUsers,
+			KubeUsers:  append(slices.Clone(roleKubeUsers), "admin"),
+			KubeGroups: roleKubeGroups,
+		})
 
 	triggerFailure(errors.New("injected failure"))
 
@@ -470,7 +467,7 @@ func TestExecKubeServiceWithFaultyPrimary(t *testing.T) {
 		require.Greater(c, failingAccessPoint.newWatcherFails.Load(), int32(1))
 	}, time.Minute, time.Second)
 
-	testExecKubeService(t, testCtx, scopedTestScope)
+	testExecKubeService(t, testCtx)
 }
 
 type generateExecRequestConfig struct {
@@ -573,58 +570,56 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		for _, scope := range []string{"", scopedTestScope} {
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				const errorCode = http.StatusForbidden
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			const errorCode = http.StatusForbidden
 
-				kubeMock, err := testingkubemock.NewKubeAPIMock(
-					testingkubemock.WithExecError(
-						metav1.Status{
-							Status:  metav1.StatusFailure,
-							Message: tt.errorMessage,
-							Reason:  metav1.StatusReasonForbidden,
-							Code:    errorCode,
-						},
-					),
-				)
-				require.NoError(t, err)
-				t.Cleanup(func() { kubeMock.Close() })
-				var (
-					execEvent  *apievents.Exec
-					eventsLock sync.Mutex
-				)
-
-				// creates a Kubernetes service with a configured cluster pointing to mock api server
-				testCtx := SetupTestContext(
-					t.Context(),
-					t,
-					TestConfig{
-						Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-						OnEvent: func(evt apievents.AuditEvent) {
-							eventsLock.Lock()
-							defer eventsLock.Unlock()
-							if exec, ok := evt.(*apievents.Exec); ok {
-								execEvent = exec
-							}
-						},
-						Scope: scope,
-						ScopesFeatures: scopes.Features{
-							Enabled:         true,
-							AgentPinEnabled: true,
-						},
+			kubeMock, err := testingkubemock.NewKubeAPIMock(
+				testingkubemock.WithExecError(
+					metav1.Status{
+						Status:  metav1.StatusFailure,
+						Message: tt.errorMessage,
+						Reason:  metav1.StatusReasonForbidden,
+						Code:    errorCode,
 					},
-				)
-				t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+				),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { kubeMock.Close() })
+			var (
+				execEvent  *apievents.Exec
+				eventsLock sync.Mutex
+			)
+
+			unscopedTestCtx := SetupTestContext(t.Context(), t, TestConfig{
+				Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+				OnEvent: func(evt apievents.AuditEvent) {
+					eventsLock.Lock()
+					defer eventsLock.Unlock()
+					if exec, ok := evt.(*apievents.Exec); ok {
+						execEvent = exec
+					}
+				},
+				ScopesFeatures: scopes.Features{Enabled: true, AgentPinEnabled: true},
+			})
+			scopedTestCtx := CloneTestContext(t, unscopedTestCtx, scopedTestScope)
+
+			for _, testCtx := range []*TestContext{unscopedTestCtx, scopedTestCtx} {
+				scope := testCtx.Scope
+				namePrefix := "unscoped"
+				if scope != "" {
+					namePrefix = "scoped"
+				}
 
 				clusterSQN := scopes.QualifiedName{Name: kubeCluster, Scope: scope}
 				// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
 				user, _ := testCtx.CreateUserAndRole(
 					testCtx.Context,
 					t,
-					username,
+					namePrefix+"-"+username,
 					RoleSpec{
-						Name:       roleName,
+						Name:       namePrefix + "-" + roleName,
 						KubeUsers:  roleKubeUsers,
 						KubeGroups: roleKubeGroups,
 					})
@@ -632,7 +627,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 				if scope != "" {
 					scopedAssignment := testCtx.CreateAndAssignScopedRole(
 						t,
-						username,
+						user.GetName(),
 						scope,
 						accessv1.ScopedRoleSpec_builder{
 							AssignableScopes: []string{scope},
@@ -700,8 +695,8 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 				require.Equal(t, "403", execEvent.ExitCode)
 				require.NotEmpty(t, execEvent.Error)
 				eventsLock.Unlock()
-			})
-		}
+			}
+		})
 	}
 }
 
@@ -754,65 +749,56 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 		eventsLock sync.Mutex
 	)
 
-	for _, scope := range []string{"", scopedTestScope} {
-		// for _, scope := range []string{scopedTestScope} {
-		// creates a Kubernetes service with a configured cluster pointing to mock api server
-		testCtx := SetupTestContext(
-			t.Context(),
-			t,
-			TestConfig{
-				Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-				OnEvent: func(evt apievents.AuditEvent) {
-					eventsLock.Lock()
-					defer eventsLock.Unlock()
-					if exec, ok := evt.(*apievents.Exec); ok {
-						execEvent = exec
-					}
-				},
-				Scope: scope,
-				ScopesFeatures: scopes.Features{
-					Enabled:         true,
-					AgentPinEnabled: true,
-				},
-			},
-		)
+	unscopedTestCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		OnEvent: func(evt apievents.AuditEvent) {
+			eventsLock.Lock()
+			defer eventsLock.Unlock()
+			if exec, ok := evt.(*apievents.Exec); ok {
+				execEvent = exec
+			}
+		},
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	scopedTestCtx := CloneTestContext(t, unscopedTestCtx, scopedTestScope)
 
-		t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+	// Create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified).
+	// The scoped cases will reuse the same user, so we can generate it once outside of the test loop
+	user, _ := unscopedTestCtx.CreateUserAndRole(
+		t.Context(),
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+		})
 
-		// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-		user, _ := testCtx.CreateUserAndRole(
-			testCtx.Context,
-			t,
-			username,
-			RoleSpec{
-				Name:       roleName,
-				KubeUsers:  roleKubeUsers,
-				KubeGroups: roleKubeGroups,
-			})
+	scopedAssignment := scopedTestCtx.CreateAndAssignScopedRole(
+		t,
+		username,
+		scopedTestCtx.Scope,
+		accessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scopedTestCtx.Scope},
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:     roleKubeUsers,
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
+			}.Build(),
+		}.Build())
+	waitForSRACache(t, scopedTestCtx.TLSServer, scopedAssignment)
 
-		if scope != "" {
-			scopedAssignment := testCtx.CreateAndAssignScopedRole(
-				t,
-				username,
-				scope,
-				accessv1.ScopedRoleSpec_builder{
-					AssignableScopes: []string{scope},
-					Kube: accessv1.ScopedRoleKube_builder{
-						Users:     roleKubeUsers,
-						Groups:    roleKubeGroups,
-						Resources: wildcardResource(),
-						Labels:    wildcardLabel(),
-					}.Build(),
-				}.Build())
-			waitForSRACache(t, testCtx.TLSServer, scopedAssignment)
-		}
-
+	for _, testCtx := range []*TestContext{unscopedTestCtx, scopedTestCtx} {
 		// generate a kube client with user certs for auth
 		_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
 			t,
 			user.GetName(),
 			scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope},
-			makeScopedOpts(t, testCtx, username, scope)...,
+			makeScopedOpts(t, testCtx, user.GetName(), testCtx.Scope)...,
 		)
 
 		tests := []struct {

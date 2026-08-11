@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -101,6 +102,18 @@ type TestContext struct {
 	heartbeatCtx       context.Context
 	heartbeatCancel    context.CancelFunc
 	lockWatcher        *services.LockWatcher
+	// The following fields are owned by the original context and are reused by
+	// scoped clones. They are intentionally private: callers should use the
+	// clone helper rather than sharing individual test components.
+	proxyAuthClient    *authclient.Client
+	kubeconfigPath     string
+	keyGen             *keygen.Keygen
+	clusterFeatures    func() proto.Features
+	healthCheckManager healthcheck.Manager
+	config             TestConfig
+	isClone            bool
+	closeOnce          sync.Once
+	closeErr           error
 }
 
 // KubeClusterConfig defines the cluster to be created
@@ -139,10 +152,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		heartbeatCtx:    heartbeatCtx,
 		heartbeatCancel: heartbeatCancel,
 		UploadHandler:   eventstest.NewMemoryUploader(),
+		config:          cfg,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
 	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
+	testCtx.kubeconfigPath = kubeConfigLocation
 
 	streamer, err := events.NewProtoStreamer(
 		events.ProtoStreamerConfig{
@@ -208,6 +223,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Client:    proxyAuthClient,
 		},
 	})
+	testCtx.proxyAuthClient = proxyAuthClient
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
@@ -243,6 +259,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	}()
 	keyGen, err := keygen.New(keygen.Config{BuildType: modules.BuildOSS})
 	require.NoError(t, err)
+	testCtx.keyGen = keyGen
 
 	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
@@ -256,6 +273,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	if cfg.ClusterFeatures != nil {
 		features = cfg.ClusterFeatures
 	}
+	testCtx.clusterFeatures = features
 
 	testCtx.kubeServerListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -289,6 +307,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
 	}
+	testCtx.healthCheckManager = healthCheckManager
 
 	var authClient authclient.ClientI = client
 	if cfg.WrapAuthClient != nil {
@@ -473,6 +492,232 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	return testCtx
 }
 
+// CloneTestContext creates a scoped kube service and proxy that share the
+// expensive auth and proxy-side test infrastructure of an unscoped context.
+// The clone owns its listeners, scoped client, inventory stream, watcher, and
+// TLS servers; closing it does not close parent or its shared backend.
+func CloneTestContext(t *testing.T, parent *TestContext, scope string) *TestContext {
+	t.Helper()
+	require.NotNil(t, parent)
+	require.Empty(t, parent.Scope, "only unscoped TestContexts can be cloned")
+	require.NotEmpty(t, scope)
+
+	ctx, cancel := context.WithCancel(parent.Context)
+	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
+	clone := &TestContext{
+		ClusterName:     parent.ClusterName,
+		HostID:          uuid.NewString(),
+		Scope:           scope,
+		TLSServer:       parent.TLSServer,
+		AuthServer:      parent.AuthServer,
+		ScopedAuthz:     parent.ScopedAuthz,
+		Emitter:         parent.Emitter,
+		UploadHandler:   parent.UploadHandler,
+		Context:         ctx,
+		cancel:          cancel,
+		heartbeatCtx:    heartbeatCtx,
+		heartbeatCancel: heartbeatCancel,
+		lockWatcher:     parent.lockWatcher,
+		proxyAuthClient: parent.proxyAuthClient,
+		kubeconfigPath:  parent.kubeconfigPath,
+		keyGen:          parent.keyGen,
+		clusterFeatures: parent.clusterFeatures,
+		config:          parent.config,
+		isClone:         true,
+	}
+	clone.config.Scope = scope
+	t.Cleanup(func() { require.NoError(t, clone.Close()) })
+
+	var err error
+	clone.AuthClient, err = clone.TLSServer.NewClient(authtest.TestScopedServerID(types.RoleKube, clone.HostID, scope))
+	require.NoError(t, err)
+
+	client := newAuthClientWithStreamer(clone, clone.config.CreateAuditStreamErr)
+	var authClient authclient.ClientI = client
+	if clone.config.WrapAuthClient != nil {
+		authClient = clone.config.WrapAuthClient(client)
+	}
+	var accessPoint authclient.ClientI = client
+	if clone.config.WrapAuthClient != nil {
+		accessPoint = clone.config.WrapAuthClient(client)
+	}
+	proxyAccessPoint := authclient.ClientI(clone.proxyAuthClient)
+	if clone.config.WrapProxyAccessPoint != nil {
+		proxyAccessPoint = clone.config.WrapProxyAccessPoint(proxyAccessPoint)
+	}
+
+	clone.kubeServerListener, err = net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	clone.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(context.Context) (*proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello_builder{
+				ServerID: clone.HostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+				Hostname: "test",
+				Scope:    scope,
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+
+	kubeIdentity, err := authtest.NewScopedServerIdentity(clone.AuthServer, clone.HostID, scope, types.RoleKube)
+	require.NoError(t, err)
+	kubeTLS, err := kubeIdentity.TLSConfig(nil)
+	require.NoError(t, err)
+
+	clone.KubeServer, err = NewTLSServer(TLSServerConfig{
+		ForwarderConfig: ForwarderConfig{
+			Namespace:         apidefaults.Namespace,
+			Keygen:            clone.keyGen,
+			ClusterName:       clone.ClusterName,
+			ScopedAuthz:       clone.ScopedAuthz,
+			AuthClient:        authClient,
+			Emitter:           clone.Emitter,
+			DataDir:           t.TempDir(),
+			CachingAuthClient: accessPoint,
+			HostID:            clone.HostID,
+			Context:           clone.Context,
+			KubeconfigPath:    clone.kubeconfigPath,
+			KubeServiceType:   KubeService,
+			Component:         teleport.ComponentKube,
+			LockWatcher:       clone.lockWatcher,
+			CheckImpersonationPermissions: func(context.Context, string, authztypes.SelfSubjectAccessReviewInterface) error {
+				return nil
+			},
+			Clock:           clockwork.NewRealClock(),
+			ClusterFeatures: clone.clusterFeatures,
+			Scope:           scope,
+		},
+		TLS:                  kubeTLS.Clone(),
+		AccessPoint:          accessPoint,
+		LimiterConfig:        limiter.Config{MaxConnections: 1000},
+		OnHeartbeat:          func(error) {},
+		GetRotation:          func(types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:     clone.config.ResourceMatchers,
+		OnReconcile:          clone.config.OnReconcile,
+		Log:                  logtest.NewLogger(),
+		InventoryHandle:      inventoryHandle,
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		// Scoped kube services do not run health checks. The proxy still needs
+		// a manager to satisfy its server configuration, but it never registers
+		// this scoped service as a health-check target.
+		HealthCheckManager: nil,
+	})
+	require.NoError(t, err)
+
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(clone.Context, kubewatcher.ProxyKubeServerWatcherConfig{
+		Logger:           logtest.NewLogger(),
+		AccessPoint:      proxyAccessPoint,
+		FallbackGetter:   clone.proxyAuthClient,
+		PrimaryTimeout:   time.Second,
+		FallbackInterval: time.Second,
+		MaxRetryPeriod:   time.Second,
+	})
+	require.NoError(t, err)
+
+	proxyIdentity, err := authtest.NewServerIdentity(clone.AuthServer, clone.HostID, types.RoleProxy)
+	require.NoError(t, err)
+	proxyTLS, err := proxyIdentity.TLSConfig(nil)
+	require.NoError(t, err)
+
+	clone.KubeProxy, err = NewTLSServer(TLSServerConfig{
+		ForwarderConfig: ForwarderConfig{
+			ReverseTunnelSrv: &reversetunnelclient.FakeServer{FakeClusters: []reversetunnelclient.Cluster{&fakeCluster{
+				FakeCluster: reversetunnelclient.NewFakeCluster(clone.ClusterName, client),
+				idToAddr:    map[string]string{clone.HostID: clone.kubeServerListener.Addr().String()},
+			}}},
+			Namespace:             apidefaults.Namespace,
+			Keygen:                clone.keyGen,
+			ClusterName:           clone.ClusterName,
+			ScopedAuthz:           clone.ScopedAuthz,
+			AuthClient:            authClient,
+			Emitter:               clone.Emitter,
+			DataDir:               t.TempDir(),
+			CachingAuthClient:     client,
+			HostID:                clone.HostID,
+			Context:               clone.Context,
+			KubeServiceType:       ProxyService,
+			Component:             teleport.ComponentKube,
+			LockWatcher:           clone.lockWatcher,
+			Clock:                 clockwork.NewRealClock(),
+			ClusterFeatures:       clone.clusterFeatures,
+			GetConnTLSCertificate: func() (*tls.Certificate, error) { return &proxyTLS.Certificates[0], nil },
+			GetConnTLSRoots:       func() (*x509.CertPool, error) { return proxyTLS.RootCAs, nil },
+			PROXYSigner:           &multiplexer.PROXYSigner{},
+		},
+		TLS:                      proxyTLS.Clone(),
+		AccessPoint:              proxyAccessPoint,
+		KubernetesServersWatcher: kubeServersWatcher,
+		LimiterConfig:            limiter.Config{MaxConnections: 1000},
+		Log:                      logtest.NewLogger(),
+		InventoryHandle:          inventoryHandle,
+		GetRotation:              func(types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
+		HealthCheckManager:       parent.healthCheckManager,
+	})
+	require.NoError(t, err)
+
+	clone.startKubeServices(t)
+	for _, cluster := range clone.config.Clusters {
+		select {
+		case sender := <-inventoryHandle.Sender():
+			server, err := clone.KubeServer.GetServerInfo(scopes.QualifiedName{Name: cluster.Name, Scope: scope})
+			require.NoError(t, err)
+			require.NoError(t, sender.Send(clone.Context, proto.InventoryHeartbeat_builder{KubernetesServer: server}.Build()))
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for inventory handle sender")
+		}
+	}
+	require.NoError(t, kubeServersWatcher.WaitInitialization())
+	require.Eventually(t, func() bool { return kubeServersWatcher.ResourceCount() >= len(clone.config.Clusters) }, 3*time.Second, 100*time.Millisecond)
+
+	return clone
+}
+
+func TestCloneTestContext(t *testing.T) {
+	ctx := t.Context()
+	parent := SetupTestContext(ctx, t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: "kube", APIEndpoint: "https://127.0.0.1:1"}},
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	clone := CloneTestContext(t, parent, "/staging")
+
+	require.Same(t, parent.TLSServer, clone.TLSServer)
+	require.Same(t, parent.AuthServer, clone.AuthServer)
+	require.Same(t, parent.ScopedAuthz, clone.ScopedAuthz)
+	require.Same(t, parent.Emitter, clone.Emitter)
+	require.Same(t, parent.UploadHandler, clone.UploadHandler)
+	require.Same(t, parent.lockWatcher, clone.lockWatcher)
+	require.Equal(t, parent.kubeconfigPath, clone.kubeconfigPath)
+	require.NotEqual(t, parent.HostID, clone.HostID)
+	require.NotSame(t, parent.AuthClient, clone.AuthClient)
+	require.NotEqual(t, parent.KubeProxyAddress(), clone.KubeProxyAddress())
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := parent.AuthServer.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		found := make(map[string]bool)
+		for _, server := range servers {
+			if server.GetCluster().GetName() == "kube" {
+				found[server.GetCluster().GetScope()] = true
+			}
+		}
+		require.True(t, found[""], "missing unscoped kube server")
+		require.True(t, found["/staging"], "missing scoped kube server")
+	}, 5*time.Second, 100*time.Millisecond)
+
+	require.NoError(t, clone.Close())
+	_, err := parent.AuthServer.GetClusterName(ctx)
+	require.NoError(t, err, "closing a clone must not close the shared auth server")
+}
+
 // startKubeServices starts kube service and kube proxy to handle connections.
 func (c *TestContext) startKubeServices(t *testing.T) {
 	go func() {
@@ -496,16 +741,36 @@ func (c *TestContext) startKubeServices(t *testing.T) {
 
 // Close closes resources associated with the test context.
 func (c *TestContext) Close() error {
-	// cancel the heartbeat context to stop validating the heartbeat not found
-	// errors when deprovisioning.
-	c.heartbeatCancel()
-	// kubeServer closes the listener
-	errKubeServer := c.KubeServer.Close()
-	errKubeProxy := c.KubeProxy.Close()
-	authCErr := c.AuthClient.Close()
-	authSErr := c.AuthServer.Close()
-	c.cancel()
-	return trace.NewAggregate(errKubeServer, errKubeProxy, authCErr, authSErr)
+	c.closeOnce.Do(func() {
+		// Cancel the heartbeat context to stop validating heartbeat-not-found
+		// errors while the service unregisters itself.
+		if c.heartbeatCancel != nil {
+			c.heartbeatCancel()
+		}
+		var errs []error
+		if c.KubeServer != nil {
+			errs = append(errs, c.KubeServer.Close())
+		}
+		if c.KubeProxy != nil {
+			errs = append(errs, c.KubeProxy.Close())
+		}
+		if c.AuthClient != nil {
+			errs = append(errs, c.AuthClient.Close())
+		}
+		c.cancel()
+
+		// A clone borrows the auth server and proxy-side infrastructure from its
+		// parent. It must only release the resources it created itself.
+		if c.isClone {
+			c.closeErr = trace.NewAggregate(errs...)
+			return
+		}
+		if c.AuthServer != nil {
+			errs = append(errs, c.AuthServer.Close())
+		}
+		c.closeErr = trace.NewAggregate(errs...)
+	})
+	return c.closeErr
 }
 
 // KubeProxyAddress returns the address of the kube proxy.

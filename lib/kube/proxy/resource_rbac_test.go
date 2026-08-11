@@ -2563,7 +2563,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 				idx:         idx,
 			})
 			opts := makeScopedOpts(t, testCtx, user.GetName(), scope)
-			t.Run(tt.name, func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 				t.Parallel()
 
 				// Generate a kube dynClient with user certs for auth.
@@ -2580,6 +2580,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		}
 	}
 }
+
 func TestV7JailedNamespaceListRBAC(t *testing.T) {
 	t.Parallel()
 
@@ -3169,7 +3170,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 	t.Parallel()
 
 	_, unscopedTestCtx := newTestKubeCRDMock(t, "", tkm.WithTeleportRoleCRD)
-	_, scopedTestCtx := newTestKubeCRDMock(t, scopedTestScope, tkm.WithTeleportRoleCRD)
+	scopedTestCtx := CloneTestContext(t, unscopedTestCtx, scopedTestScope)
 
 	commonResources := []types.KubernetesResource{
 		{
@@ -4470,23 +4471,16 @@ func TestProxySubresourceRBAC(t *testing.T) {
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-		},
-	)
-
-	scopedTestCtx := SetupTestContext(
-		context.Background(),
-		t,
-		TestConfig{
-			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-			Scope:    scopedTestScope,
 			ScopesFeatures: scopes.Features{
 				Enabled: true,
 			},
 		},
 	)
+
+	scopedTestCtx := CloneTestContext(t, unscopedTestCtx, scopedTestScope)
 	t.Cleanup(func() {
-		require.NoError(t, unscopedTestCtx.Close())
 		require.NoError(t, scopedTestCtx.Close())
+		require.NoError(t, unscopedTestCtx.Close())
 	})
 
 	allowPodGet := []types.KubernetesResource{{
