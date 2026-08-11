@@ -34,7 +34,7 @@ import (
 func TestExportIntegrationCertAuthorities(t *testing.T) {
 	t.Parallel()
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")
-	ctx, localClient, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1")
+	ctx, localClient, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "proxy.example.com:443")
 
 	githubIntegration, err := newGitHubIntegration("github-my-org", "id", "secret")
 	require.NoError(t, err)

@@ -9447,17 +9447,26 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 // underlying auth.Client used by the Proxy.
 type wrappedAuthClient struct {
 	*authclient.Client
-	devicesClient devicepb.DeviceTrustServiceClient
+	devicesClient                devicepb.DeviceTrustServiceClient
+	validateGithubAuthCallbackFn func(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return w.devicesClient
 }
 
+func (w *wrappedAuthClient) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
+	if w.validateGithubAuthCallbackFn != nil {
+		return w.validateGithubAuthCallbackFn(ctx, q)
+	}
+	return w.Client.ValidateGithubAuthCallback(ctx, q)
+}
+
 type proxyConfig struct {
-	minimalHandler        bool
-	devicesClientOverride devicepb.DeviceTrustServiceClient
-	kubeProxy             bool
+	minimalHandler                     bool
+	devicesClientOverride              devicepb.DeviceTrustServiceClient
+	kubeProxy                          bool
+	validateGithubAuthCallbackOverride func(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 type proxyOption func(cfg *proxyConfig)
@@ -9465,6 +9474,12 @@ type proxyOption func(cfg *proxyConfig)
 func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption {
 	return func(cfg *proxyConfig) {
 		cfg.devicesClientOverride = c
+	}
+}
+
+func withValidateGithubAuthCallback(fn func(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error)) proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.validateGithubAuthCallbackOverride = fn
 	}
 }
 
@@ -9492,12 +9507,13 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
-	// Replace underlying devicesClient, if the option was supplied.
+	// Replace underlying client methods, if options were supplied.
 	var client authclient.ClientI
-	if cfg.devicesClientOverride != nil {
+	if cfg.devicesClientOverride != nil || cfg.validateGithubAuthCallbackOverride != nil {
 		client = &wrappedAuthClient{
-			Client:        authClient,
-			devicesClient: cfg.devicesClientOverride,
+			Client:                       authClient,
+			devicesClient:                cfg.devicesClientOverride,
+			validateGithubAuthCallbackFn: cfg.validateGithubAuthCallbackOverride,
 		}
 	} else {
 		client = authClient
@@ -9722,30 +9738,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		}
 	}()
 
-	proxyServer, err := regular.New(
-		ctx,
-		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
-		authServer.ClusterName(),
-		sshutils.StaticHostSigners(hostSigners...),
-		client,
-		t.TempDir(),
-		"",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
-		client,
-		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client, router),
-		regular.SetEmitter(client),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetClock(clock),
-		regular.SetLockWatcher(proxyLockWatcher),
-		regular.SetSessionController(sessionController),
-		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
-
 	authID := state.IdentityID{
 		Role:     types.RoleProxy,
 		HostUUID: proxyID,
@@ -9796,6 +9788,31 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	webServer := httptest.NewTLSServer(handler)
 	t.Cleanup(webServer.Close)
+
+	proxyServer, err := regular.New(
+		ctx,
+		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
+		authServer.ClusterName(),
+		sshutils.StaticHostSigners(hostSigners...),
+		client,
+		t.TempDir(),
+		"",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
+		client,
+		regular.SetUUID(proxyID),
+		regular.SetProxyMode("", revTunServer, client, router),
+		regular.SetEmitter(client),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(clock),
+		regular.SetLockWatcher(proxyLockWatcher),
+		regular.SetSessionController(sessionController),
+		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: webServer.Listener.Addr().String()}}),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
+
 	go func() {
 		if err := proxyServer.Serve(mux.SSH()); err != nil && !utils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.Background(), "SSH proxy server terminated unexpectedly", "error", err)

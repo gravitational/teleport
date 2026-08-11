@@ -56,7 +56,7 @@ func TestCreateGitHubAuthRequest(t *testing.T) {
 		ConnectorSpec: &types.GithubConnectorSpecV3{
 			ClientID:       fakeClientID,
 			ClientSecret:   fakeClientSecret,
-			RedirectURL:    fmt.Sprintf("https://%s/v1/webapi/github/callback", fakeProxyAddr),
+			RedirectURL:    fmt.Sprintf("https://%s/web/github/integration/callback", fakeProxyAddr),
 			EndpointURL:    "https://github.com",
 			APIEndpointURL: "https://api.github.com",
 		},

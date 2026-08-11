@@ -42,7 +42,8 @@ func TestMakeIntegration(t *testing.T) {
 			Name: "github-my-org",
 		},
 		&types.GitHubIntegrationSpecV1{
-			Organization: "my-org",
+			Organization:     "my-org",
+			OAuthCallbackURL: "https://proxy.example.com" + types.IntegrationGitHubOAuthCallbackPath,
 		},
 	)
 	require.NoError(t, err)
@@ -112,7 +113,8 @@ func TestMakeIntegration(t *testing.T) {
 				Name:    "github-my-org",
 				SubKind: types.IntegrationSubKindGitHub,
 				GitHub: &IntegrationGitHub{
-					Organization: "my-org",
+					Organization:     "my-org",
+					OAuthCallbackURL: "https://proxy.example.com" + types.IntegrationGitHubOAuthCallbackPath,
 				},
 			},
 		},
