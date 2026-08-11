@@ -47,6 +47,7 @@ const (
 	chalName      = "test-challenge"
 	sourceCluster = "test-cluster"
 	targetCluster = "test-cluster"
+	deviceID      = "test-device-id"
 )
 
 var payload = mfav2.SessionIdentifyingPayload_builder{
@@ -165,6 +166,7 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
 			Username:      user.GetName(),
+			DeviceId:      device.MFA.Id,
 		}.Build(),
 	}.Build()
 
@@ -190,6 +192,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: "sso-device",
 				},
+				Id: deviceID,
 				Device: &types.MFADevice_Sso{
 					Sso: &types.SSOMFADevice{
 						DisplayName:   "test-display-name",
@@ -274,6 +277,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
 			Username:      user.GetName(),
+			DeviceId:      deviceID,
 		}.Build(),
 	}.Build()
 
@@ -696,6 +700,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
+				DeviceId:      deviceID,
 			}.Build(),
 		}.Build(),
 		mfav2.ValidatedMFAChallenge_builder{
@@ -709,6 +714,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
+				DeviceId:      deviceID,
 			}.Build(),
 		}.Build(),
 		mfav2.ValidatedMFAChallenge_builder{
@@ -722,6 +728,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
+				DeviceId:      deviceID,
 			}.Build(),
 		}.Build(),
 	}
@@ -832,6 +839,7 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
+				DeviceId:      deviceID,
 			}.Build(),
 		}.Build(),
 	}
@@ -882,6 +890,7 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 		SourceCluster: sourceCluster,
 		TargetCluster: targetCluster,
 		Username:      user.GetName(),
+		DeviceId:      deviceID,
 	}.Build())
 	require.NoError(t, err)
 
@@ -897,6 +906,7 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
+				DeviceId:      deviceID,
 			}.Build(),
 		}.Build(),
 	}.Build()
@@ -1016,6 +1026,7 @@ func TestReplicateValidatedMFAChallenge_TargetClusterMismatch(t *testing.T) {
 		SourceCluster: sourceCluster,
 		TargetCluster: "different-cluster",
 		Username:      "test-user",
+		DeviceId:      deviceID,
 	}.Build())
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter(`target cluster "different-cluster" does not match current cluster "test-cluster"`))
@@ -1042,6 +1053,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      "test-user",
+				DeviceId:      deviceID,
 			}.Build(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name"),
 		},
@@ -1053,6 +1065,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      "test-user",
+				DeviceId:      deviceID,
 			}.Build(),
 			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
 		},
@@ -1064,6 +1077,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				SourceCluster: "",
 				TargetCluster: targetCluster,
 				Username:      "test-user",
+				DeviceId:      deviceID,
 			}.Build(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster"),
 		},
@@ -1075,6 +1089,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: "",
 				Username:      "test-user",
+				DeviceId:      deviceID,
 			}.Build(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster"),
 		},
@@ -1086,8 +1101,21 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      "",
+				DeviceId:      deviceID,
 			}.Build(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username"),
+		},
+		{
+			name: "missing DeviceId",
+			req: mfav2.ReplicateValidatedMFAChallengeRequest_builder{
+				Name:          chalName,
+				Payload:       payload,
+				SourceCluster: sourceCluster,
+				TargetCluster: targetCluster,
+				Username:      "test-user",
+				DeviceId:      "",
+			}.Build(),
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest device_id"),
 		},
 		{
 			name: "empty SshSessionId in Payload",
@@ -1099,6 +1127,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      "test-user",
+				DeviceId:      deviceID,
 			}.Build(),
 			expectedError: trace.BadParameter("ssh_session_id must not be empty"),
 		},
@@ -1157,6 +1186,7 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 						SourceCluster: sourceCluster,
 						TargetCluster: targetCluster,
 						Username:      user.GetName(),
+						DeviceId:      deviceID,
 					}.Build(),
 				}.Build()
 
@@ -1185,6 +1215,10 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 
 				if resp == nil {
 					return trace.BadParameter("expected non-nil response")
+				}
+
+				if resp.GetDeviceId() != deviceID {
+					return trace.BadParameter("device ID mismatch: got %q, expected %q", resp.GetDeviceId(), deviceID)
 				}
 
 				return nil
@@ -1234,6 +1268,7 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 					SourceCluster: sourceCluster,
 					TargetCluster: targetCluster,
 					Username:      user.GetName(),
+					DeviceId:      deviceID,
 				}.Build(),
 			}.Build()
 
@@ -1273,6 +1308,7 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
 			Username:      user.GetName(),
+			DeviceId:      deviceID,
 		}.Build(),
 	}.Build()
 	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)

@@ -194,7 +194,11 @@ type ValidatedMFAChallengeSpec struct {
 	TargetCluster string `protobuf:"bytes,3,opt,name=target_cluster,json=targetCluster,proto3" json:"target_cluster,omitempty"`
 	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
 	// login name) and must correspond to a user in the cluster specified to source_cluster.
-	Username      string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	Username string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	// ID of the MFA device that satisfied the challenge, matching the ID of a device registered to username. For SSO MFA
+	// devices this is the auth connector ID rather than a generated UUID. Used as the mfa_device lock target when
+	// authorizing the session.
+	DeviceId      string `protobuf:"bytes,5,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -252,6 +256,13 @@ func (x *ValidatedMFAChallengeSpec) GetUsername() string {
 	return ""
 }
 
+func (x *ValidatedMFAChallengeSpec) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
 func (x *ValidatedMFAChallengeSpec) SetPayload(v *SessionIdentifyingPayload) {
 	x.Payload = v
 }
@@ -266,6 +277,10 @@ func (x *ValidatedMFAChallengeSpec) SetTargetCluster(v string) {
 
 func (x *ValidatedMFAChallengeSpec) SetUsername(v string) {
 	x.Username = v
+}
+
+func (x *ValidatedMFAChallengeSpec) SetDeviceId(v string) {
+	x.DeviceId = v
 }
 
 func (x *ValidatedMFAChallengeSpec) HasPayload() bool {
@@ -291,6 +306,10 @@ type ValidatedMFAChallengeSpec_builder struct {
 	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
 	// login name) and must correspond to a user in the cluster specified to source_cluster.
 	Username string
+	// ID of the MFA device that satisfied the challenge, matching the ID of a device registered to username. For SSO MFA
+	// devices this is the auth connector ID rather than a generated UUID. Used as the mfa_device lock target when
+	// authorizing the session.
+	DeviceId string
 }
 
 func (b0 ValidatedMFAChallengeSpec_builder) Build() *ValidatedMFAChallengeSpec {
@@ -301,6 +320,7 @@ func (b0 ValidatedMFAChallengeSpec_builder) Build() *ValidatedMFAChallengeSpec {
 	x.SourceCluster = b.SourceCluster
 	x.TargetCluster = b.TargetCluster
 	x.Username = b.Username
+	x.DeviceId = b.DeviceId
 	return m0
 }
 
@@ -504,12 +524,13 @@ const file_teleport_mfa_v2_validated_challenge_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
-	"\x04spec\x18\x05 \x01(\v2*.teleport.mfa.v2.ValidatedMFAChallengeSpecR\x04spec\"\xcb\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.mfa.v2.ValidatedMFAChallengeSpecR\x04spec\"\xe8\x01\n" +
 	"\x19ValidatedMFAChallengeSpec\x12D\n" +
 	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
 	"\x0esource_cluster\x18\x02 \x01(\tR\rsourceCluster\x12%\n" +
 	"\x0etarget_cluster\x18\x03 \x01(\tR\rtargetCluster\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\"v\n" +
+	"\busername\x18\x04 \x01(\tR\busername\x12\x1b\n" +
+	"\tdevice_id\x18\x05 \x01(\tR\bdeviceId\"v\n" +
 	"\x19SessionIdentifyingPayload\x12&\n" +
 	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionId\x12&\n" +
 	"\x0etls_session_id\x18\x02 \x01(\fH\x00R\ftlsSessionIdB\t\n" +

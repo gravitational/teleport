@@ -45,6 +45,10 @@ message ValidatedMFAChallengeSpec {
   // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
   // login name) and must correspond to a user in the cluster specified to source_cluster.
   string username = 4;
+  // ID of the MFA device that satisfied the challenge, matching the ID of a device registered to username. For SSO MFA
+  // devices this is the auth connector ID rather than a generated UUID. Used as the mfa_device lock target when
+  // authorizing the session.
+  string device_id = 5;
 }
 
 // SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the

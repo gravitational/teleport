@@ -472,6 +472,7 @@ func TestWatchers(t *testing.T) {
 							SourceCluster: "root.example.com",
 							TargetCluster: "leaf.example.com",
 							Username:      "alice",
+							DeviceId:      "device-id",
 						}.Build(),
 					}.Build(),
 				)
@@ -507,6 +508,7 @@ func TestWatchers(t *testing.T) {
 						SourceCluster: "root.example.com",
 						TargetCluster: "leaf.example.com",
 						Username:      "alice",
+						DeviceId:      "device-id",
 					}.Build(),
 				}.Build())
 				require.NoError(subtestT, err)

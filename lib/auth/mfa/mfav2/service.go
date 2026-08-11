@@ -404,6 +404,7 @@ func (s *Service) ValidateSessionChallenge(
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
 				Username:      username,
+				DeviceId:      details.Device.Id,
 			}.Build(),
 		}.Build(),
 	)
@@ -503,6 +504,7 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 			SourceCluster: req.GetSourceCluster(),
 			TargetCluster: req.GetTargetCluster(),
 			Username:      req.GetUsername(),
+			DeviceId:      req.GetDeviceId(),
 		}.Build(),
 	}.Build()
 
@@ -566,7 +568,9 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		DeviceId: chal.GetSpec().GetDeviceId(),
+	}.Build(), nil
 }
 
 func validateCreateSessionChallengeRequest(req *mfav2.CreateSessionChallengeRequest) error {
@@ -787,6 +791,9 @@ func checkReplicateValidatedMFAChallengeRequest(req *mfav2.ReplicateValidatedMFA
 
 	case req.GetUsername() == "":
 		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username")
+
+	case req.GetDeviceId() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest device_id")
 	}
 
 	if err := checkPayload(req.GetPayload()); err != nil {
