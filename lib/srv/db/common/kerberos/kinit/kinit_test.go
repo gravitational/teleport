@@ -19,19 +19,28 @@
 package kinit
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
+	"encoding/pem"
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/fixtures"
+	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -137,7 +146,143 @@ func TestUseOrCreateCredentials(t *testing.T) {
 			}
 		})
 	}
+}
 
+// TestKinitProvider_CreateClient_multipleUserCAs tests a bug where having
+// multiple caCerts would generate an invalid userca.pem file.
+func TestKinitProvider_CreateClient_multipleUserCAs(t *testing.T) {
+	t.Parallel()
+
+	const chainLength = 3
+	caChain, err := subcaenv.MakeCAChain(chainLength, nil)
+	require.NoError(t, err)
+
+	wantCADERs := make([][]byte, 0, chainLength) // intermediates + ldapCert
+	caCerts := make([][]byte, 0, chainLength-1)
+	for _, ca := range caChain[1:] {
+		caCerts = append(caCerts, bytes.TrimSpace(ca.CertPEM))
+		wantCADERs = append(wantCADERs, ca.Cert.Raw)
+	}
+
+	ldapCertPEM := fixtures.TLSCACertPEM
+	ldapCert, err := tlsutils.ParseCertificatePEM([]byte(ldapCertPEM))
+	require.NoError(t, err)
+	wantCADERs = append(wantCADERs, ldapCert.Raw)
+
+	auth := struct{ winpki.AuthInterface }{}
+	provider, err := newKinitProvider(
+		logtest.NewLogger(),
+		auth, // Auth is skipped by the faked certGetter.
+		types.AD{
+			// LDAPCert must be present (and valid) for the test to work.
+			// Other values just need to satisfy newKinitProvider.
+			Domain:                 "example.com",
+			KDCHostName:            "host.example.com",
+			LDAPCert:               ldapCertPEM,
+			LDAPServiceAccountName: "DOMAIN\\test-user",
+			LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
+		})
+	require.NoError(t, err)
+	provider.certGetter = &fakeCertGetter{
+		result: &getCertificateResult{
+			certPEM: []byte(`insert cert pem here`),
+			keyPEM:  []byte(`insert key pem here`),
+			caCert:  bytes.Join(caCerts, []byte("\n")),
+		},
+	}
+	runner := &parseUserCAsRunner{}
+	provider.runner = runner
+
+	const username = "alice"
+	_, err = provider.CreateClient(context.Background(), username)
+	require.NoError(t, err)
+
+	// Verify anchors.
+	if diff := cmp.Diff(wantCADERs, runner.anchorsDER); diff != "" {
+		t.Errorf("Method mismatch (-want +got)\n%s", diff)
+	}
+}
+
+type fakeCertGetter struct {
+	result *getCertificateResult
+	err    error
+}
+
+func (f *fakeCertGetter) getCertificate(ctx context.Context, username string) (*getCertificateResult, error) {
+	return f.result, f.err
+}
+
+type stringsValue []string
+
+func (s *stringsValue) Set(val string) error {
+	*s = append(*s, val)
+	return nil
+}
+
+func (s *stringsValue) String() string {
+	return strings.Join(*s, " ")
+}
+
+type parseUserCAsRunner struct {
+	anchorsDER [][]byte
+}
+
+func (r *parseUserCAsRunner) runCommand(
+	ctx context.Context,
+	env map[string]string,
+	command string,
+	args ...string,
+) (string, error) {
+	var xFlag stringsValue
+	fs := flag.NewFlagSet("", flag.ContinueOnError)
+	cachePath := fs.String("c", "", "")
+	fs.Var(&xFlag, "X", "")
+
+	if err := fs.Parse(args); err != nil {
+		return "", fmt.Errorf("parse args: %w", err)
+	}
+
+	const anchorsPrefix = "X509_anchors=FILE:"
+	var anchorsFile string
+	for _, x := range xFlag {
+		if strings.HasPrefix(x, anchorsPrefix) {
+			anchorsFile = x[len(anchorsPrefix):]
+			break
+		}
+	}
+	if anchorsFile == "" {
+		return "", fmt.Errorf("anchors not informed (-X %spath", anchorsPrefix)
+	}
+	anchorsPEM, err := os.ReadFile(anchorsFile)
+	if err != nil {
+		return "", fmt.Errorf("read anchors: %w", err)
+	}
+
+	// Do an explicit check for the improper concatenation.
+	const badLine = "-----END CERTIFICATE----------BEGIN CERTIFICATE-----\n"
+	for line := range bytes.Lines(anchorsPEM) {
+		if string(line) == badLine {
+			return "", fmt.Errorf("found poorly concatenated PEMs in anchors file, data=[%s]", anchorsPEM)
+		}
+	}
+	// Parse anchors PEMs.
+	for pems := anchorsPEM; true; {
+		block, rest := pem.Decode(pems)
+		if block == nil {
+			return "", fmt.Errorf("failed to decode PEM, data=[%s]", rest)
+		}
+		r.anchorsDER = append(r.anchorsDER, block.Bytes)
+		pems = rest
+		if len(pems) == 0 {
+			break
+		}
+	}
+
+	if err := os.WriteFile(*cachePath, validCacheData, 0600); err != nil {
+		return "", fmt.Errorf("write cache data: %w", err)
+	}
+
+	return "", nil
 }
 
 const (
