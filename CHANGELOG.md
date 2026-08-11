@@ -1,6 +1,12 @@
 # Changelog
 
-## 18.10.3 (7/31/26)
+## 18.10.4 (08/11/26)
+
+This is a follow up to the 18.10.1 private security release. The changelog will be publicly announced in a later version.
+
+More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
+
+## 18.10.3 (07/31/26)
 
 This is a follow up to the 18.10.1 private security release.
 
