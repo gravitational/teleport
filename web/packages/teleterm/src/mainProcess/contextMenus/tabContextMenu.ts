@@ -26,19 +26,16 @@ import {
 
 import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { ConfigService } from 'teleterm/services/config';
-import {
-  canDocChangeShell,
-  Document,
-} from 'teleterm/ui/services/workspacesService';
 
 import {
   TabContextMenuEventChannel,
   TabContextMenuEventType,
+  TabContextMenuCapabilities,
   TabContextMenuOptions,
 } from '../types';
 
 type MainTabContextMenuOptions = {
-  document: Document;
+  capabilities: TabContextMenuCapabilities;
 };
 
 type TabContextMenuEvent =
@@ -84,10 +81,7 @@ export function subscribeToTabContextMenuEvent(
         }
 
         function getPtyTemplate(): MenuItemConstructorOptions[] {
-          if (
-            options.document.kind === 'doc.terminal_shell' ||
-            options.document.kind === 'doc.terminal_tsh_node'
-          ) {
+          if (options.capabilities.canDuplicatePty) {
             return [
               {
                 label: 'Duplicate Tab',
@@ -99,11 +93,11 @@ export function subscribeToTabContextMenuEvent(
         }
 
         function getShellTemplate(): MenuItemConstructorOptions[] {
-          const doc = options.document;
-          if (!canDocChangeShell(doc)) {
+          const shellSelector = options.capabilities.shellSelector;
+          if (!shellSelector) {
             return;
           }
-          const activeShellId = doc.shellId;
+          const activeShellId = shellSelector.activeShellId;
           const defaultShellId = configService.get('terminal.shell').value;
           const customShellPath = configService.get(
             'terminal.customShell'
@@ -199,7 +193,7 @@ export async function openTabContextMenu(
   options: TabContextMenuOptions
 ): Promise<void> {
   const mainOptions: MainTabContextMenuOptions = {
-    document: options.document,
+    capabilities: options.capabilities,
   };
   const response = (await ipcRenderer.invoke(
     TabContextMenuEventChannel,
