@@ -26,6 +26,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
@@ -564,7 +566,7 @@ func TestScanRecordings(t *testing.T) {
 		},
 		{
 			name:           "no recordings",
-			content:         `test.use({ user: { roles: ['access'] } });`,
+			content:        `test.use({ user: { roles: ['access'] } });`,
 			wantUsers:      1,
 			wantRecordings: nil,
 			wantLoginAs:    true,
@@ -1214,4 +1216,313 @@ func fixtureNames(ff []*fixtures.Fixture) []string {
 		names[i] = f.Name
 	}
 	return names
+}
+
+func TestExtractTeleportConfigs(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []scopedTeleportConfig
+		wantErr bool
+	}{
+		{
+			name:    "no declaration",
+			content: `test.use({ user: { roles: ['access'] } });`,
+			want:    nil,
+		},
+		{
+			name: "describe-scoped config carries its line",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+  test('x', () => {});
+});`,
+			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 1}},
+		},
+		{
+			name: "two describes with different configs",
+			content: `test.describe('one', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+});
+test.describe('two', () => {
+  test.use({ teleport: { config: { a: 2 } } });
+});`,
+			want: []scopedTeleportConfig{
+				{raw: `{ a: 1 }`, line: 1},
+				{raw: `{ a: 2 }`, line: 4},
+			},
+		},
+		{
+			name:    "file-level config errors",
+			content: `test.use({ teleport: { config: { a: 1 } } });`,
+			wantErr: true,
+		},
+		{
+			name: "conflicting configs in one describe errors",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+  test.use({ teleport: { config: { a: 2 } } });
+});`,
+			wantErr: true,
+		},
+		{
+			name:    "teleport without config errors",
+			content: `test.use({ teleport: { foo: 1 } });`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			blocks := parseBlocks(strings.Split(tt.content, "\n"))
+			got, err := extractTeleportConfigs(tt.content, blocks, "test.spec.ts")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, got, len(tt.want))
+			for i := range tt.want {
+				require.Equal(t, tt.want[i].raw, got[i].raw)
+				require.Equal(t, tt.want[i].line, got[i].line)
+			}
+		})
+	}
+}
+
+func TestDefaultSelectors(t *testing.T) {
+	content := `test.describe('configured', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+  test('in scope', () => {});
+});
+test('bare', () => {});
+test.describe('other', () => {
+  test('nested', () => {});
+});`
+
+	configs, err := extractTeleportConfigs(content, parseBlocks(strings.Split(content, "\n")), "x.spec.ts")
+	require.NoError(t, err)
+
+	got := defaultSelectors("tests/x.spec.ts", content, configs, 0)
+	require.Equal(t, []string{"tests/x.spec.ts:5", "tests/x.spec.ts:7"}, got)
+
+	// A file with no config just runs as a whole
+	require.Equal(t, []string{"tests/x.spec.ts"}, defaultSelectors("tests/x.spec.ts", content, nil, 0))
+}
+
+func TestNormalizeConfigText(t *testing.T) {
+	// Differently-formatted but identical configs normalize the same (so they can be deduped).
+	a := normalizeConfigText("{ auth_service: { license_file: 'x.pem' } }")
+	b := normalizeConfigText("{\n  auth_service: {\n    license_file: 'x.pem'\n  }\n}")
+	require.Equal(t, a, b)
+
+	c := normalizeConfigText("{ auth_service: { license_file: 'y.pem' } }")
+	require.NotEqual(t, a, c)
+}
+
+func TestScanTeleportConfigsRejectsHelperConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "helper.ts", `
+test.use({
+  teleport: {
+    config: { proxy_service: { ssh_public_addr: ['example.com:3023'] } },
+  },
+});
+`)
+
+	_, _, err := scanTeleportConfigs([]scanTarget{{path: filepath.Join(dir, "helper.ts")}})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "helper modules cannot declare teleport:")
+}
+
+func TestScanTeleportConfigsAllowsHelperWithoutConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "helper.ts", `test.use({ fixtures: ['connect'] });`)
+
+	_, _, err := scanTeleportConfigs([]scanTarget{{path: filepath.Join(dir, "helper.ts")}})
+	require.NoError(t, err)
+}
+
+func TestExtractTeleportConfigsRejectsNonInlineOption(t *testing.T) {
+	content := `test.describe('d', () => {
+  test.use({ teleport: customTeleport });
+  test('t', async () => {});
+});`
+	_, err := extractTeleportConfigs(content, parseBlocks(strings.Split(content, "\n")), "spec.ts")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "must be an inline object")
+}
+
+func TestScanBrowserRestrictions(t *testing.T) {
+	dir := t.TempDir()
+
+	writeFile(t, dir, "pinned.spec.ts", `import { test } from '@gravitational/e2e/helpers/test';
+test.describe('d', () => {
+  test.use({ fixtures: ['ssh-node'], browsers: ['chromium'] });
+  test('t', async () => {});
+});`)
+
+	writeFile(t, dir, "multi.spec.ts", `import { test } from '@gravitational/e2e/helpers/test';
+test.use({ browsers: ["chromium", 'firefox'] });
+test('t', async () => {});`)
+
+	writeFile(t, dir, "unpinned.spec.ts", `import { test } from '@gravitational/e2e/helpers/test';
+test.use({ fixtures: ['ssh-node'] });
+test('t', async () => {});`)
+
+	got, err := scanBrowserRestrictions([]scanTarget{
+		{path: filepath.Join(dir, "pinned.spec.ts"), sourceFile: "pinned.spec.ts"},
+		{path: filepath.Join(dir, "multi.spec.ts"), sourceFile: "multi.spec.ts"},
+		{path: filepath.Join(dir, "unpinned.spec.ts"), sourceFile: "unpinned.spec.ts"},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, map[string][]string{
+		"pinned.spec.ts": {"chromium"},
+		"multi.spec.ts":  {"chromium", "firefox"},
+	}, got)
+}
+
+func TestScanBrowserRestrictionsIgnoresHelpers(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "helper.ts", `test.use({ browsers: ['chromium'] });`)
+
+	// A helper has no spec to attach the restriction to, so it must not silently pin anything.
+	got, err := scanBrowserRestrictions([]scanTarget{{path: filepath.Join(dir, "helper.ts")}})
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+func TestScanBrowserRestrictionsRejectsUnknownBrowser(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "typo.spec.ts", `import { test } from '@gravitational/e2e/helpers/test';
+test.use({ browsers: ['chrome'] });
+test('t', async () => {});`)
+
+	_, err := scanBrowserRestrictions([]scanTarget{
+		{path: filepath.Join(dir, "typo.spec.ts"), sourceFile: "typo.spec.ts"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `invalid browser "chrome"`)
+}
+
+func TestScanBrowserRestrictionsRejectsConnectSpec(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "shell.spec.ts", `import { test } from '@gravitational/e2e/helpers/test';
+test.use({ browsers: ['chromium'] });
+test('t', async () => {});`)
+
+	// A Connect spec is routed to the Electron instance, so any browser pin leaves it running nowhere.
+	_, err := scanBrowserRestrictions([]scanTarget{
+		{path: filepath.Join(dir, "shell.spec.ts"), sourceFile: "tests/connect/shell.spec.ts"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot restrict browsers")
+}
+
+func TestExpandedTestFiles(t *testing.T) {
+	got := expandedTestFiles([]scanTarget{
+		{path: "/repo/e2e/tests/web/authenticated/ssh.spec.ts", sourceFile: "tests/web/authenticated/ssh.spec.ts"},
+		{path: "/repo/e2e/tests/web/authenticated/rbac.spec.ts", sourceFile: "tests/web/authenticated/rbac.spec.ts", line: 24},
+		// Helper modules are not selectors.
+		{path: "/repo/e2e/helpers/test.ts"},
+	})
+
+	require.Equal(t, []string{
+		"tests/web/authenticated/ssh.spec.ts",
+		"tests/web/authenticated/rbac.spec.ts:24",
+	}, got)
+}
+
+func TestExpandedTestFilesFromResolvedArgs(t *testing.T) {
+	e2eDir := t.TempDir()
+	specDir := filepath.Join(e2eDir, "tests", "web")
+	require.NoError(t, os.MkdirAll(specDir, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(e2eDir, "tests", "empty"), 0o755))
+
+	for _, name := range []string{"ssh.spec.ts", "rbac.spec.ts"} {
+		writeFile(t, specDir, name, `import { test } from '@gravitational/e2e/helpers/test';
+test('t', async () => {});`)
+	}
+
+	tests := []struct {
+		name    string
+		args    []string
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "file",
+			args: []string{"tests/web/ssh.spec.ts"},
+			want: []string{"tests/web/ssh.spec.ts"},
+		},
+		{
+			name: "file with line",
+			args: []string{"tests/web/ssh.spec.ts:42"},
+			want: []string{"tests/web/ssh.spec.ts:42"},
+		},
+		{
+			name: "directory expands to its specs",
+			args: []string{"tests/web"},
+			want: []string{"tests/web/rbac.spec.ts", "tests/web/ssh.spec.ts"},
+		},
+		{
+			name: "substring filter expands to matches",
+			args: []string{"ssh"},
+			want: []string{"tests/web/ssh.spec.ts"},
+		},
+		// A directory holding no specs resolves to nothing, and the caller must not treat that as
+		// "run everything".
+		{
+			name: "directory with no specs",
+			args: []string{"tests/empty"},
+			want: nil,
+		},
+		{
+			name:    "substring matching nothing",
+			args:    []string{"nosuchspec"},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			targets, err := resolveTargetsWithHelpers(e2eDir, test.args)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Equal(t, test.want, expandedTestFiles(targets))
+		})
+	}
+}
+
+func TestFilesForProjectHonoursBrowserRestrictions(t *testing.T) {
+	p := &playwrightRunner{config: &e2eConfig{
+		browserRestrictions: map[string][]string{
+			"tests/web/authenticated/pinned.spec.ts": {"chromium"},
+		},
+	}}
+
+	files := []string{
+		"tests/web/authenticated/pinned.spec.ts:24",
+		"tests/web/authenticated/other.spec.ts",
+		"tests/connect/shell.spec.ts",
+	}
+
+	require.Equal(t, []string{
+		"tests/web/authenticated/pinned.spec.ts:24",
+		"tests/web/authenticated/other.spec.ts",
+	}, p.filesForProject(&testInstance{browser: "chromium"}, files))
+
+	// The pinned spec drops out for other browsers, so its config never triggers a re-init there.
+	require.Equal(t, []string{
+		"tests/web/authenticated/other.spec.ts",
+	}, p.filesForProject(&testInstance{browser: "firefox"}, files))
+
+	// Connect specs are still routed by project, not by the restriction map.
+	require.Equal(t, []string{
+		"tests/connect/shell.spec.ts",
+	}, p.filesForProject(&testInstance{browser: "connect"}, files))
 }

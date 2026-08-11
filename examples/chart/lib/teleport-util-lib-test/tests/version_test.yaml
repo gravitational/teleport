@@ -1,6 +1,10 @@
 suite: version
 templates:
   - templates/version.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: falls back to the chart version when no override is set
     asserts:

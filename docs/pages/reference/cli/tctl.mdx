@@ -792,7 +792,7 @@ Flags:
 |---|---|---|
 |`--[no-]disabled`|`false`|If true creates a disabled override|
 |`--[no-]force`|`false`|If true attempts to force creation, ignoring select state validation|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 Arguments:
 
@@ -815,10 +815,11 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--[no-]local-only`|`false`|If true only private keys local to the replying Auth server are used.|
 |`--out`|*no default*|If set writes CSRs to files using --out as the path prefix|
 |`--public-key`|*no default*|Public key hash of CA certificate to be targeted|
 |`--subject`|*no default*|Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 ## tctl auth crl
 
@@ -854,7 +855,7 @@ Flags:
 |---|---|---|
 |`--[no-]force`|`false`|If true attempts to force deletion. May be used to delete live overrides.|
 |`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 ## tctl auth export
 
@@ -985,7 +986,7 @@ Flags:
 |`--set-cert`|*no default*|CA override certificate file in PEM form|
 |`--set-chain`|*no default*|CA override trust chain files in PEM form|
 |`--set-disabled`|*no default* (one of: `true`, `false`)|If true disables the override, if false enables it|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 ## tctl autoupdate agents mark-done
 
@@ -1235,7 +1236,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (optional)|The name of the bot from which to list instances. If unset, lists instances from all bots.|
+|name|*no default* (optional)|The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\]. If unset, lists instances from all bots.|
 
 ## tctl bots instances show
 
@@ -1251,7 +1252,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]|
+|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]. For an instance of a scoped bot, prefix the ID with the bot's scope: \[scope\]::\[bot name\]/\[uuid\].|
 
 ## tctl bots ls
 
@@ -1283,7 +1284,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (required)|Name of an existing bot to remove.|
+|name|*no default* (required)|Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\].|
 
 ## tctl bots update
 
@@ -1468,7 +1469,7 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]current-device`|`false`|Registers the current device. Overrides --os and --asset-tag.|
 |`--[no-]enroll`|`false`|If set, creates a device enrollment token|
-|`--os`|*no default* (one of: `linux`, `macos`, `windows`)|Operating system|
+|`--os`|*no default* (one of: `ios`, `ipados`, `linux`, `macos`, `windows`)|Operating system|
 
 ## tctl devices enroll
 
@@ -2388,6 +2389,29 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |query|*no default* (optional)|Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").|
+
+## tctl recordings summary
+
+View an AI-generated session summary.
+
+Usage:
+
+```code
+$ tctl recordings summary [<flags>] <session-id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Defines the output format for the summary.|
+|`-o`, `--output`|*no default*|Optional file path to write the summary to instead of stdout.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|session-id|*no default* (required)|ID of the session to retrieve the summary for.|
 
 ## tctl requests approve
 

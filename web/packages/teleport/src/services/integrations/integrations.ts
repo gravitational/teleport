@@ -680,6 +680,7 @@ function makeIntegration(json: any): Integration {
         issuerS3Bucket: awsoidc?.issuerS3Bucket,
         issuerS3Prefix: awsoidc?.issuerS3Prefix,
         audience: awsoidc?.audience,
+        organization: awsoidc?.organization,
       },
     };
   }

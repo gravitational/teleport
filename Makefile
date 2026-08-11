@@ -308,6 +308,8 @@ export TEST_KUBE
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
 
+EXTLDFLAGS ?=
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","arm64")
@@ -326,16 +328,17 @@ CC=arm-linux-gnueabihf-gcc
 endif
 endif
 
+# Add "-Wl,--long-plt" to avoid ld assertion failure on large binaries.
+EXTLDFLAGS += -Wl,--long-plt
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-# Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
-GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
+GO_LDFLAGS += -debugtramp=2
 endif
 endif # OS == linux
 
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 # Temporary link flags due to changes in Apple's linker
 # https://github.com/golang/go/issues/67854
-GO_LDFLAGS += -extldflags=-ld_classic
+EXTLDFLAGS += -ld_classic
 endif
 
 # Windows requires extra parameters to cross-compile with CGO.
@@ -392,6 +395,12 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_DEV_BUILD ?=
+TELEPORT_UPDATE_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community -X main.artifactSignaturePublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64) -X main.artifactSignatureBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64) -X main.artifactSignatureAdditionalPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64) -X main.artifactSignatureAdditionalBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64)'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -426,6 +435,18 @@ ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	gzip -9 -n < '$(BUILDDIR)/sessionhelper' > 'session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz'
 endif
 
+ifneq ($(strip $(EXTLDFLAGS)),)
+GO_LDFLAGS += -extldflags "$(EXTLDFLAGS)"
+endif
+
+# Strip unreachable native code from tsh.
+ifeq ("$(OS)","darwin")
+TSH_DEADSTRIP := -Wl,-dead_strip
+else
+TSH_DEADSTRIP := -Wl,--gc-sections
+endif
+$(BUILDDIR)/tsh: GO_LDFLAGS += -extldflags "$(EXTLDFLAGS) $(TSH_DEADSTRIP)"
+
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
@@ -444,7 +465,11 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
+	@if [[ (-z "$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64)" || -z "$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64)") && "$(TELEPORT_UPDATE_DEV_BUILD)" != "1" ]]; then \
+		echo "TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 and TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 must be set when building teleport-update (or set TELEPORT_UPDATE_DEV_BUILD=1 for unsigned dev builds)" >&2; \
+		exit 1; \
+	fi
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TELEPORT_UPDATE_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -980,16 +1005,17 @@ helmunit/installed:
 	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
 	if [ -z "$$actual" ]; then \
 		printf '%s\n' \
-			'Helm unittest plugin is required to test Helm charts. Run:'; \
+			'Helm unittest plugin is required to test Helm charts.'; \
 	elif [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
 		printf '%s\n' \
 			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
-			'Run:'; \
+			''; \
 	else \
 		exit 0; \
 	fi; \
 	printf '%s\n' \
 		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
+		'Run:' \
 		'  plugin_dir="$$(helm env HELM_PLUGINS)/helm-unittest"' \
 		'  rm -rf "$$plugin_dir"' \
 		'  mkdir -p "$$plugin_dir"' \
@@ -1316,7 +1342,7 @@ e2e-binaries:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
+lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions lint-e2e-runner
 
 #
 # Runs linters without dedicated GitHub Actions.
@@ -1397,6 +1423,12 @@ lint-api:
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
 lint-kube-agent-updater:
 	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
+
+# e2e/runner is its own module, so the root golangci-lint run doesn't reach it.
+.PHONY: lint-e2e-runner
+lint-e2e-runner: GO_LINT_FLAGS ?=
+lint-e2e-runner:
+	cd e2e/runner && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -1481,7 +1513,7 @@ fix-license:
 # Used prior to a release by bumping VERSION in this Makefile and then
 # running "make update-version".
 .PHONY: update-version
-update-version: version test-helm-update-snapshots
+update-version: version
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
@@ -1543,6 +1575,7 @@ IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS
 .PHONY: tag-build
 tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
 tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/build,stage/build)
+tag-build: MANAGED_UPDATES_SIGNING_KEY ?= primary
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
@@ -1551,7 +1584,8 @@ tag-build:
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
-		-f "environment=$(ENVIRONMENT)"
+		-f "environment=$(ENVIRONMENT)" \
+		-f "managed-updates-signing-key=$(MANAGED_UPDATES_SIGNING_KEY)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
@@ -1956,23 +1990,43 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
-.PHONY: ensure-llvm-macos
-ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+.PHONY: ensure-llvm
+ifeq ("$(OS)","darwin")
 BREW_DIR = $(shell brew --prefix)
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
-CC = $(LLVM_DIR)/bin/clang
-AR = $(LLVM_DIR)/bin/llvm-ar
-ensure-llvm-macos:
-	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
+# Prevent these from being exported and expanded for every recipe.
+unexport BREW_DIR LLVM_PREFIX LLVM_DIR
+
+# The ironrdp WASM build needs clang/llvm-ar.
+# These are applied as target-specific variables so
+# brew is only invoked when necessary and so that
+# CC and AR are only overwritten for WASM compilation.
+build-ironrdp-wasm: CC = $(LLVM_DIR)/bin/clang
+build-ironrdp-wasm: AR = $(LLVM_DIR)/bin/llvm-ar
+
+ensure-llvm:
+	@if [[ "$(BREW_DIR)" = "$(LLVM_DIR)" ]]; then \
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
 	fi
 
+else ifeq ("$(OS)","windows")
+LLVM_DIR=$(shell vswhere.exe -latest -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath)
+unexport LLVM_DIR
+build-ironrdp-wasm: CC = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/clang
+build-ironrdp-wasm: AR = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/llvm-ar
+
+ensure-llvm:
+	@if [[ "x" = "x$(LLVM_DIR)" ]]; then \
+		echo "llvm is required, please install Visual Studio with LLVM component"; \
+		exit 1; \
+	fi
+
 else
-ensure-llvm-macos:
+ensure-llvm:
 endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
@@ -2064,7 +2118,7 @@ export rust_shadowed_warning
 # on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
 # silently bypasses the toolchain file even though the checks below pass.
 .PHONY: rustup-toolchain-warning
-rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) --no-print-directory print-rust-toolchain-version)
 rustup-toolchain-warning:
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
 		echo -en "\033[31m";\

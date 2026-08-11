@@ -78,6 +78,21 @@ func TestMakeIntegration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	terraformManagedAwsOrgIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{
+			Name: "terraform-managed-aws-org",
+			Labels: map[string]string{
+				types.CreatedByIaCLabel:                  IaCTerraformLabel,
+				types.AWSOrganizationalUnitsIncludeLabel: "ou-1,ou-2",
+				types.AWSOrganizationalUnitsExcludeLabel: "ou-3",
+			},
+		},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/example",
+		},
+	)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		integration types.Integration
 		want        Integration
@@ -126,6 +141,21 @@ func TestMakeIntegration(t *testing.T) {
 						Region:            "eastus",
 						ResourceGroup:     "my-azure-resource-group",
 						ManagementGroupID: "my-management-group",
+					},
+				},
+				IsManagedByTerraform: true,
+			},
+		},
+		{
+			integration: terraformManagedAwsOrgIntegration,
+			want: Integration{
+				Name:    "terraform-managed-aws-org",
+				SubKind: types.IntegrationSubKindAWSOIDC,
+				AWSOIDC: &IntegrationAWSOIDCSpec{
+					RoleARN: "arn:aws:iam::123456789012:role/example",
+					Organization: &IntegrationAWSOrganizationSpec{
+						IncludeUnits: []string{"ou-1", "ou-2"},
+						ExcludeUnits: []string{"ou-3"},
 					},
 				},
 				IsManagedByTerraform: true,

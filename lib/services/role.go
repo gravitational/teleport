@@ -29,6 +29,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -132,6 +133,29 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
+	return newImplicitRole(types.CopyRulesSlice(DefaultImplicitRules))
+}
+
+// newScopedImplicitRole is the default implicit role as it applies to scoped identities. It confers
+// the same privileges as [NewImplicitRole], except that secret-inclusive read is replaced with
+// secret-exclusive read.
+func newScopedImplicitRole() types.Role {
+	rules := types.CopyRulesSlice(DefaultImplicitRules)
+	for i, rule := range rules {
+		// CopyRulesSlice is a shallow copy, so build a replacement slice rather than assigning into it.
+		verbs := make([]string, len(rule.Verbs))
+		for j, verb := range rule.Verbs {
+			if verb == types.VerbRead {
+				verb = types.VerbReadNoSecrets
+			}
+			verbs[j] = verb
+		}
+		rules[i].Verbs = verbs
+	}
+	return newImplicitRole(rules)
+}
+
+func newImplicitRole(rules []types.Rule) types.Role {
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
@@ -148,7 +172,7 @@ func NewImplicitRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+				Rules:      rules,
 			},
 		},
 	}
@@ -266,7 +290,33 @@ func ValidateRole(r types.Role) error {
 	if err := validateSessionPolicies(r); err != nil {
 		errs = append(errs, err)
 	}
+	if err := validateAppResources(r); err != nil {
+		errs = append(errs, err)
+	}
 	return trace.NewAggregate(errs...)
+}
+
+// validateAppResources rejects an app_resources rule set that this version
+// cannot enforce, for example a rule with an unknown field. It runs on create
+// and update only, not on read.
+func validateAppResources(r types.Role) error {
+	if len(r.GetAppResources(types.Deny)) > 0 {
+		return trace.BadParameter("app_resources is not allowed under deny")
+	}
+	allow := r.GetAppResources(types.Allow)
+	for i, rule := range allow {
+		// The backend JSON marshal drops unknown fields. Storing such a
+		// rule would silently widen it to unrestricted access.
+		if !rule.IsAllowAllOnly() {
+			return trace.BadParameter("app_resources[%d]: a rule must set allow_all and nothing else; paths, methods, and where rules are not yet supported", i)
+		}
+	}
+	// Every rule sets allow_all at this point, so more than one rule can
+	// only mean allow_all next to another rule.
+	if len(allow) > 1 {
+		return trace.BadParameter("app_resources: a rule setting allow_all must be the only rule")
+	}
+	return nil
 }
 
 // validateRoleExpressions validates all expression and predicate syntax in a role.
@@ -770,6 +820,7 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 			types.KindDatabase,
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindUserGroup,
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
@@ -1599,9 +1650,7 @@ func (set RoleSet) MaxSessions() int64 {
 	return ms
 }
 
-// MaxConnections returns the maximum number of concurrent Kubernetes connections
-// allowed.  If MaxConnections is zero then no maximum was defined
-// and the number of concurrent connections is unconstrained.
+// MaxKubernetesConnections implements [AccessChecker].
 func (set RoleSet) MaxKubernetesConnections() int64 {
 	var mcs int64
 	for _, role := range set {
@@ -2959,6 +3008,14 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
+// RoleGrantsResource reports whether role alone grants access to r, checking
+// the namespace and label conditions only. It skips the MFA, device trust and
+// lock checks, which apply to a whole role set rather than one role.
+func RoleGrantsResource(role types.Role, r AccessCheckable, username string, traits wrappers.Traits) bool {
+	_, err := NewRoleSet(role).checkAccess(r, username, traits, AccessState{MFAVerified: true})
+	return err == nil
+}
+
 // checkAccess determines whether access should be granted to a resource based on the provided roles, resource
 // attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
 // is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
@@ -2990,7 +3047,7 @@ func (set RoleSet) checkAccess(
 	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	if state.MFARequired == MFARequiredAlways && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" || !state.MFAVerified) {
+	if state.MFARequired == MFARequiredAlways && (os.Getenv(teleport.EnvVarUnstableForceInBandMFA) == "yes" || !state.MFAVerified) {
 		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
 		if !state.ReturnPreconditions {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
@@ -3072,7 +3129,7 @@ func (set RoleSet) checkAccess(
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
 	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
-		(state.MFAVerified && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" || !state.ReturnPreconditions))
+		(state.MFAVerified && (os.Getenv(teleport.EnvVarUnstableForceInBandMFA) != "yes" || !state.ReturnPreconditions))
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
@@ -4094,6 +4151,37 @@ const (
 // Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
 const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 
+// knownAppResourceFields lists the JSON field names this version understands
+// on an app_resources rule, derived from the AppResource message so a new
+// proto field extends it automatically.
+var knownAppResourceFields = func() map[string]struct{} {
+	fields := make(map[string]struct{})
+	for f := range reflect.TypeFor[types.AppResource]().Fields() {
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name != "" && name != "-" {
+			fields[name] = struct{}{}
+		}
+	}
+	return fields
+}()
+
+// denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
+// stored JSON carried a field this version does not recognize, so the rule
+// grants no access. Worst case is over-deny.
+func denyAppAccessForUnknownFields(role *types.RoleV6, raw []byte) {
+	if role.Version != types.V9 {
+		return
+	}
+	for i := range role.Spec.Allow.AppResources {
+		for _, key := range jsoniter.Get(raw, "spec", "allow", "app_resources", i).Keys() {
+			if _, known := knownAppResourceFields[key]; !known {
+				role.Spec.Allow.AppResources[i] = types.AppResource{}
+				break
+			}
+		}
+	}
+}
+
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	return UnmarshalRoleV6(bytes, opts...)
@@ -4109,7 +4197,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8, types.V9:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
@@ -4131,6 +4219,8 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	if err := CheckAndSetDefaults(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	denyAppAccessForUnknownFields(&role, bytes)
 
 	if cfg.Revision != "" {
 		role.SetRevision(cfg.Revision)

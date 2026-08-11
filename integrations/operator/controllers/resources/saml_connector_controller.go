@@ -63,7 +63,7 @@ func (r samlConnectorClient) Delete(ctx context.Context, key reconcilers.Resourc
 }
 
 // NewSAMLConnectorReconciler instantiates a new Kubernetes controller reconciling saml_connector resources
-func NewSAMLConnectorReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewSAMLConnectorReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	samlClient := &samlConnectorClient{
 		teleportClient: tClient,
 	}

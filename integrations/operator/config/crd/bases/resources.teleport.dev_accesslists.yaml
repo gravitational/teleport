@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    resources.teleport.dev/scoped: "false"
+    resources.teleport.dev/scoped: "true"
   name: teleportaccesslists.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -16,7 +16,16 @@ spec:
     singular: teleportaccesslist
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: AccessList is the Schema for the accesslists API
@@ -33,6 +42,13 @@ spec:
             type: string
           metadata:
             type: object
+          scope:
+            description: scope is the scope of the Access List.
+            type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: AccessList resource definition v1 from Teleport
             properties:
@@ -293,6 +309,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

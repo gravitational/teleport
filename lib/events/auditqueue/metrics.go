@@ -97,6 +97,30 @@ var eventsDelivered = prometheus.NewCounter(
 	},
 )
 
+var corruptEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_events_total",
+		Help:      "Total number of audit events quarantined after failing to deserialize.",
+	},
+)
+
+var corruptRecovered = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_events_recovered_total",
+		Help:      "Total number of quarantined audit events that later deserialized and were re-queued for delivery.",
+	},
+)
+
+var corruptExpired = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_events_expired_total",
+		Help:      "Total number of corrupt audit events permanently dropped after exceeding the retention TTL.",
+	},
+)
+
 var prometheusCollectors = []prometheus.Collector{
 	batchSize,
 	orphansAdopted,
@@ -107,4 +131,7 @@ var prometheusCollectors = []prometheus.Collector{
 	deadLetterExpired,
 	eventsEnqueued,
 	eventsDelivered,
+	corruptEvents,
+	corruptRecovered,
+	corruptExpired,
 }

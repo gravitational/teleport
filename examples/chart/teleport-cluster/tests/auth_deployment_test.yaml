@@ -2,6 +2,10 @@ suite: Auth Deployment
 templates:
   - auth/deployment.yaml
   - auth/config.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: sets Deployment annotations when specified
     template: auth/deployment.yaml

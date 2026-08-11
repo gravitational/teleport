@@ -63,11 +63,14 @@ const (
 	staleTmpThreshold = time.Hour
 )
 
-func getDSN(dbPath string, maxBytes int64) string {
+func getDSN(dbPath string, maxBytes int64, synchronous SynchronousMode) string {
+	if synchronous == "" {
+		synchronous = SynchronousNormal
+	}
 	params := url.Values{}
 	params.Add("_pragma", "auto_vacuum(INCREMENTAL)")
 	params.Add("_pragma", "journal_mode(WAL)")
-	params.Add("_pragma", "synchronous(NORMAL)")
+	params.Add("_pragma", fmt.Sprintf("synchronous(%s)", synchronous))
 	params.Add("_pragma", fmt.Sprintf("journal_size_limit(%d)", walJournalSizeLimit))
 	addSharedParams(params, maxBytes)
 	u := url.URL{
@@ -89,7 +92,7 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := initializeDb(cfg.Path, cfg.MaxBytes)
+	db, err := initializeDb(cfg.Path, cfg.MaxBytes, cfg.Synchronous)
 	if err != nil {
 		_ = unlock()
 		_ = os.RemoveAll(cfg.Path)
@@ -147,13 +150,13 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 	return q, nil
 }
 
-func initializeDb(path string, maxBytes int64) (*sql.DB, error) {
+func initializeDb(path string, maxBytes int64, synchronous SynchronousMode) (*sql.DB, error) {
 	if maxBytes <= 0 {
 		maxBytes = defaultMaxBytes
 	}
 
 	dbPath := filepath.Join(path, queueDBFile)
-	db, err := sql.Open("sqlite", getDSN(dbPath, maxBytes))
+	db, err := sql.Open("sqlite", getDSN(dbPath, maxBytes, synchronous))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,7 +307,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context) {
 	ticker := time.NewTicker(q.orphanScanInterval)
 	defer ticker.Stop()
-	for {
+	for !q.isDraining() {
 		q.sweepStaleTmp()
 		q.adoptOrphans(ctx)
 
@@ -313,8 +316,19 @@ func (q *sqliteQueue) orphanScanLoop(ctx context.Context) {
 			return
 		case <-q.ctx.Done():
 			return
+		case <-q.drainCh:
+			return
 		case <-ticker.C:
 		}
+	}
+}
+
+func (q *sqliteQueue) isDraining() bool {
+	select {
+	case <-q.drainCh:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -474,7 +488,7 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string) {
 	}()
 
 	dbFilePath := filepath.Join(path, queueDBFile)
-	db, err := sql.Open("sqlite", getDSN(dbFilePath, defaultMaxBytes))
+	db, err := sql.Open("sqlite", getDSN(dbFilePath, defaultMaxBytes, q.synchronous))
 	if err != nil {
 		orphanScanErrors.Inc()
 		slog.ErrorContext(q.ctx, "Failed to open orphan SQLite database.", "path", path, "error", err)
@@ -537,7 +551,10 @@ func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name stri
 	if err := q.migrateOrphanQueue(ctx, db, name); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(q.migrateOrphanDeadLetter(ctx, db, name))
+	if err := q.migrateOrphanDeadLetter(ctx, db, name); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(q.migrateOrphanCorruptEvents(ctx, db, name))
 }
 
 func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
@@ -611,9 +628,10 @@ func (q *sqliteQueue) readOrphanWatermark(ctx context.Context, key string) (int6
 
 func (q *sqliteQueue) clearOrphanWatermarks(ctx context.Context, name string) {
 	if _, err := q.db.ExecContext(ctx,
-		"DELETE FROM teleport_info WHERE key IN (?, ?)",
+		"DELETE FROM teleport_info WHERE key IN (?, ?, ?)",
 		orphanWatermarkKey(name, auditQueueTable),
 		orphanWatermarkKey(name, auditDeadLetterTable),
+		orphanWatermarkKey(name, corruptEventsTable),
 	); err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to clear orphan migration watermarks.",
@@ -679,6 +697,13 @@ func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string,
 	return trace.Wrap(tx.Commit())
 }
 
+func (q *sqliteQueue) migrateOrphanCorruptEvents(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, corruptEventsTable,
+		"SELECT id, payload, error, source, failed_at FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, ?, ?, ?)",
+	)
+}
+
 func (q *sqliteQueue) Close() error {
 	var errs []error
 	q.closeOnce.Do(func() {
@@ -724,11 +749,13 @@ func (q *sqliteQueue) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
+const isEmptyQuery = `SELECT EXISTS(SELECT 1 FROM audit_queue)
+	OR EXISTS(SELECT 1 FROM audit_dead_letter)
+	OR EXISTS(SELECT 1 FROM corrupt_events)`
+
 func isQueueEmpty(db *sql.DB) (bool, error) {
 	var hasRows int
-	err := db.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM audit_queue) OR EXISTS(SELECT 1 FROM audit_dead_letter)",
-	).Scan(&hasRows)
+	err := db.QueryRow(isEmptyQuery).Scan(&hasRows)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

@@ -42,6 +42,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 |------------------------|------------------|-----------------------------------------------------------------------------------------|
 | `-v`                   | `false`          | Enable debug logging                                                                    |
 | `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
+| `--no-resource-setup`  | `false`          | Skip pre-test resource setup                                                            |
 | `--quiet`              | `false`          | Redirect Teleport logs to file instead of stdout                                        |
 | `--replace-certs`      | `false`          | Generate new self-signed certificates                                                   |
 | `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
@@ -59,13 +60,59 @@ automatically starts the required infrastructure.
 
 Available fixtures:
 
-| Fixture      | Description                                                                          |
-|--------------|--------------------------------------------------------------------------------------|
-| `ssh-node`   | Start and connect a Teleport SSH node (runs in Docker)                               |
-| `connect`    | Build Teleport Connect. Auto-detected from Connect test helpers.                     |
+| Fixture        | Description                                                                        |
+|----------------|------------------------------------------------------------------------------------|
+| `ssh-node`     | Start and connect a Teleport SSH node (runs in Docker)                             |
+| `ssh-node-bpf` | A second node, `docker-node-bpf`, with Enhanced Session Recording enabled.         |
+| `connect`      | Build Teleport Connect. Auto-detected from Connect test helpers.                   |
 
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
+
+#### `ssh-node-bpf` needs a Linux docker host
+
+**This fixture almost certainly will not work against Docker on macOS.** A container does not have its own kernel, and
+BPF programs are loaded into the docker host's. On macOS that host is a minimal VM kernel, and both OrbStack and
+Docker Desktop build theirs without `CONFIG_AUDIT`, so `task_struct` has no `sessionid` field for the command hooks to
+read. It is absent from the kernel's BTF, the CO-RE relocation cannot be resolved, and the programs fail to load. No
+container setting can add a struct field to a kernel that was not built with it.
+
+Point `DOCKER_HOST` at a Linux machine running docker instead. The kernel needs BTF and `CONFIG_AUDIT`; a stock Ubuntu
+or Debian kernel has both. The runner's own probe checks for both, in a privileged container, and you can run the same
+check by hand:
+
+```bash
+docker run --rm --privileged debian:bookworm-slim \
+  sh -c 'test -e /sys/kernel/btf/vmlinux && test -e /proc/self/sessionid'
+```
+
+`ssh://` works, including a `Host` alias from `~/.ssh/config`, so the browsers can keep running locally:
+
+```bash
+DOCKER_HOST=ssh://user@linux-box ./e2e/run.sh --with-ssh-node-bpf e2e/tests/web/authenticated/ssh.spec.ts
+```
+
+The node is built for the daemon's architecture rather than pinned to amd64, because the `bpf()` syscall is not proxied
+through architecture emulation. On macOS that means a cross-compiler matching the daemon, which the runner picks for the
+architecture it detected (`x86_64-unknown-linux-gnu-gcc` for an amd64 host, `aarch64-unknown-linux-gnu-gcc` for arm64).
+`CC` overrides it.
+
+Only the nodes a run actually asked for are started. A selection that declares just `ssh-node` gets
+`docker-node`, just `ssh-node-bpf` gets `docker-node-bpf`, and a selection containing both gets both
+containers, so a spec can compare a node with Enhanced Session Recording against one without.
+
+The runner probes the daemon's kernel before starting the node. Outside CI an unsupported kernel downgrades to a plain
+node and exports `E2E_SKIP_ENHANCED_RECORDING=1`, so running the whole suite locally stays green. A spec that needs BPF
+opts into that skip:
+
+```ts
+import { skipEnhancedRecording } from '@gravitational/e2e/helpers/env';
+
+test.skip(skipEnhancedRecording, "docker daemon's kernel cannot run enhanced session recording");
+```
+
+In CI the unsupported kernel is a hard error instead, so the coverage cannot quietly disappear. If the node fails for
+some other reason it exits rather than degrading, so check `e2e/docker-node-<browser>.log`.
 
 ### Users and Roles
 
@@ -172,6 +219,41 @@ the same `user`/`users`. Concretely:
 `e2e/.auth/<browser>-<username>.json`. Tests pick up that state via Playwright's `storageState`, so they
 start already authenticated without running the UI login flow.
 
+### Teleport config
+
+If a test requires a Teleport config different from the base config that e2e tests use by default, it can declare one
+with `test.use({ teleport: { config: {...} } })` inside a `test.describe()` block.
+Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
+
+```ts
+test.describe('custom license', () => {
+  test.use({
+    teleport: {
+      config: {
+        auth_service: {
+          license_file: '${E2E_DIR}/testdata/licenses/custom-license.pem',
+        },
+      },
+    },
+  });
+});
+```
+
+Note that the e2e runner will only restart Teleport with the different config and not re-initialize it from fresh, so the data directory
+will remains the same for all tests which means the cluster's identity like cluster name, CA, bootstrapped users, and roles will carry over unchanged.
+
+### Restricting a spec to certain browsers
+
+Web specs run against every browser by default. A test whose subject is not the browser can opt out:
+
+```ts
+test.use({ browsers: ['chromium'] });
+```
+
+This is worth doing for a test that also declares a Teleport config, since the runner otherwise repeats that config's
+Teleport restart once per browser. The restriction applies to the whole file rather than to an enclosing describe, and
+the runner enforces it when choosing which specs each browser runs.
+
 ### Session Recordings
 
 The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
@@ -231,6 +313,9 @@ Connect is built automatically when running `tests/connect` paths or when using 
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
 ./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Skip applying pre-test resources
+./e2e/run.sh --no-build --no-resource-setup e2e/tests/web/authenticated/roles.spec.ts
 
 # Run only Connect tests, skip rebuilding of both Teleport and Connect
 ./e2e/run.sh --no-build e2e/tests/connect

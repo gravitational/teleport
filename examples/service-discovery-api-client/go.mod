@@ -7,7 +7,7 @@ require (
 	github.com/gravitational/trace v1.5.1
 	github.com/moby/moby/api v1.54.1
 	github.com/moby/moby/client v0.4.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.1
 )
 
 require (

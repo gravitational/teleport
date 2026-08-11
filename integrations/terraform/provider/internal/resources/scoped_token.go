@@ -22,6 +22,7 @@ import (
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -29,13 +30,17 @@ import (
 )
 
 // NewScopedTokenDataSourceType returns the scoped token data source type.
-func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
-	return tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
+func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
+	return tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier]{
+		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
-		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
-		Kind:       apitypes.KindScopedToken,
+		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			}),
+		Kind: apitypes.KindScopedToken,
 		Codec: tfdriver.DataSourceCodecFuncs[joiningv1.ScopedToken]{
 			SchemaFunc:  schemav1.GenSchemaScopedToken,
 			ToStateFunc: schemav1.CopyScopedTokenToTerraform,
@@ -44,9 +49,9 @@ func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToke
 }
 
 // NewScopedTokenResourceType returns the scoped token resource type.
-func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
-	return tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[joiningv1.ScopedToken, tfdriver.NameIdentifier] {
+func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
+	return tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier]{
+		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindScopedToken,
@@ -56,9 +61,18 @@ func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, t
 			FromPlanFunc: schemav1.CopyScopedTokenFromTerraform,
 		},
 		Normalizer: tfdriver.ForceKind[joiningv1.ScopedToken](apitypes.KindScopedToken),
-		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(st *joiningv1.ScopedToken) string {
-			return st.GetMetadata().GetName()
-		}),
+		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+			func(st *joiningv1.ScopedToken) scopes.QualifiedName {
+				return scopes.QualifiedName{
+					Name:  st.GetMetadata().GetName(),
+					Scope: st.GetScope(),
+				}
+			},
+		),
 		ResourceRevision: func(st *joiningv1.ScopedToken) string {
 			return st.GetMetadata().GetRevision()
 		},

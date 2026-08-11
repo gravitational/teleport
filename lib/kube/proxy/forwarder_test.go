@@ -2004,6 +2004,13 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 						Username: user.GetName(),
 						Groups:   []string{testCase.role.GetName()},
 					}),
+					Checker: services.NewAccessCheckerWithRoleSet(
+						&services.AccessInfo{
+							Roles: []string{testCase.role.GetName()},
+						},
+						"clustername",
+						services.NewRoleSet(testCase.role),
+					),
 				}),
 			}
 

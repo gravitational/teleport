@@ -68,6 +68,10 @@ func (s *Server) handleBoundKeypairJoin(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Validate the requested SystemRole with the payload the client sent.
+	if err := boundKeypairInit.ClientParams.CheckForRole(types.SystemRole(clientInit.SystemRole)); err != nil {
+		return nil, trace.Wrap(err, "validating client parameters")
+	}
 	setDiagnosticClientParams(stream.Diagnostic(), &boundKeypairInit.ClientParams)
 
 	issueChallenge := func(challenge *messages.BoundKeypairChallenge) (*messages.BoundKeypairChallengeSolution, error) {
@@ -215,8 +219,8 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		// TODO(strideynet): When bots become scope namespaced, ensure this
-		// call site reflects scopedness.
+		// The legacy join service does not support scoped tokens, so the bot
+		// scope here is always empty.
 		i.BotName, _ = provisionToken.GetBot()
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {

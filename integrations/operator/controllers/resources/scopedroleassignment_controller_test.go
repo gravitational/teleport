@@ -43,8 +43,8 @@ var scopedRoleAssignmentSpec = accessv1.ScopedRoleAssignmentSpec_builder{
 	User: "test-user",
 	Assignments: []*accessv1.Assignment{
 		accessv1.Assignment_builder{
-			Role:  "test-role",
-			Scope: "/staging",
+			Role:  scopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
+			Scope: testNestedScope,
 		}.Build(),
 	},
 }.Build()
@@ -70,10 +70,11 @@ func (g *scopedRoleAssignmentTestingPrimitives) CreateTeleportResource(ctx conte
 		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
-				types.OriginLabel: types.OriginKubernetes,
+				types.OriginLabel:           types.OriginKubernetes,
+				reconcilers.OperatorIDLabel: g.setup.OperatorMetadata().ID,
 			},
 		}.Build(),
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  scopedRoleAssignmentSpec,
 	}.Build()
 	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, accessv1.CreateScopedRoleAssignmentRequest_builder{
@@ -85,6 +86,7 @@ func (g *scopedRoleAssignmentTestingPrimitives) CreateTeleportResource(ctx conte
 func (g *scopedRoleAssignmentTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*accessv1.ScopedRoleAssignment, error) {
 	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    name,
+		Scope:   g.setup.OperatorMetadata().Scope,
 		SubKind: access.SubKindDynamic,
 	}.Build())
 	if err != nil {
@@ -96,6 +98,7 @@ func (g *scopedRoleAssignmentTestingPrimitives) GetTeleportResource(ctx context.
 func (g *scopedRoleAssignmentTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, accessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    name,
+		Scope:   g.setup.OperatorMetadata().Scope,
 		SubKind: access.SubKindDynamic,
 	}.Build())
 	return trace.Wrap(err)
@@ -107,7 +110,7 @@ func (g *scopedRoleAssignmentTestingPrimitives) CreateKubernetesResource(ctx con
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  (*resourcesv1.TeleportScopedRoleAssignmentV1Spec)(scopedRoleAssignmentSpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, assignment))
@@ -140,8 +143,8 @@ func (g *scopedRoleAssignmentTestingPrimitives) ModifyKubernetesResource(ctx con
 	}
 	assignment.Spec.Assignments = []*accessv1.Assignment{
 		accessv1.Assignment_builder{
-			Role:  "test-role",
-			Scope: "/staging/aa",
+			Role:  scopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
+			Scope: testScope, // change from testNestedScope to testScope
 		}.Build(),
 	}
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, assignment))
@@ -158,22 +161,39 @@ func (g *scopedRoleAssignmentTestingPrimitives) CompareTeleportAndKubernetesReso
 }
 
 func TestScopedRoleAssignmentCreation(t *testing.T) {
-	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceCreationSynchronousTest[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
+		t,
+		resources.NewScopedRoleAssignmentV1Reconciler,
+		test,
+		testlib.WithResourceName(uuid.New().String()),
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }
 
 func TestScopedRoleAssignmentDeletionDrift(t *testing.T) {
-	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceDeletionDriftSynchronousTest[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](t,
+		resources.NewScopedRoleAssignmentV1Reconciler,
+		test,
+		testlib.WithResourceName(uuid.New().String()),
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }
 
 func TestScopedRoleAssignmentUpdate(t *testing.T) {
-	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceUpdateTestSynchronous[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
+		t,
+		resources.NewScopedRoleAssignmentV1Reconciler,
+		test,
+		testlib.WithResourceName(uuid.New().String()),
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }

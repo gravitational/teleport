@@ -73,58 +73,56 @@ arn:aws:iam::123456789012:role/baz`}
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('test'), () => {
-        return HttpResponse.json({});
-      }),
-      http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('zero'), () => {
-        return HttpResponse.json({});
-      }),
-      http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('error'), () => {
-        return HttpResponse.json({});
-      }),
-      http.post(
-        cfg.getValidateAWSRolesAnywhereIntegrationUrl('duplicate'),
-        () => {
-          return HttpResponse.json(
-            {
-              message: 'Integration name already exists',
-            },
-            { status: 400 }
-          );
-        }
-      ),
-      http.post(cfg.getAwsRolesAnywherePingUrl('test'), () => {
-        return HttpResponse.json({
-          profileCount: 3,
-          accountID: 'fc2ef183-2ac0-4836-9d7d-ff873c99e733',
-          arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-          userId: 'edd13a04-9956-4ef2-9ef5-7b0169e1cd5b',
-        });
-      }),
-      http.post(cfg.getAwsRolesAnywherePingUrl('zero'), () => {
-        return HttpResponse.json({
-          profileCount: 0,
-          accountID: 'fc2ef183-2ac0-4836-9d7d-ff873c99e733',
-          arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-          userId: 'edd13a04-9956-4ef2-9ef5-7b0169e1cd5b',
-        });
-      }),
-      http.post(cfg.getAwsRolesAnywherePingUrl('error'), () => {
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('test'), () => {
+      return HttpResponse.json({});
+    }),
+    http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('zero'), () => {
+      return HttpResponse.json({});
+    }),
+    http.post(cfg.getValidateAWSRolesAnywhereIntegrationUrl('error'), () => {
+      return HttpResponse.json({});
+    }),
+    http.post(
+      cfg.getValidateAWSRolesAnywhereIntegrationUrl('duplicate'),
+      () => {
         return HttpResponse.json(
           {
-            message: 'some error message',
+            message: 'Integration name already exists',
           },
-          { status: 500 }
+          { status: 400 }
         );
-      }),
-      http.post(cfg.getIntegrationsUrl(), () => {
-        return HttpResponse.json({ status: 200 });
-      }),
-    ],
-  },
+      }
+    ),
+    http.post(cfg.getAwsRolesAnywherePingUrl('test'), () => {
+      return HttpResponse.json({
+        profileCount: 3,
+        accountID: 'fc2ef183-2ac0-4836-9d7d-ff873c99e733',
+        arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+        userId: 'edd13a04-9956-4ef2-9ef5-7b0169e1cd5b',
+      });
+    }),
+    http.post(cfg.getAwsRolesAnywherePingUrl('zero'), () => {
+      return HttpResponse.json({
+        profileCount: 0,
+        accountID: 'fc2ef183-2ac0-4836-9d7d-ff873c99e733',
+        arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+        userId: 'edd13a04-9956-4ef2-9ef5-7b0169e1cd5b',
+      });
+    }),
+    http.post(cfg.getAwsRolesAnywherePingUrl('error'), () => {
+      return HttpResponse.json(
+        {
+          message: 'some error message',
+        },
+        { status: 500 }
+      );
+    }),
+    http.post(cfg.getIntegrationsUrl(), () => {
+      return HttpResponse.json({ status: 200 });
+    })
+  );
 };
 
 export const WithoutAccess = () => {

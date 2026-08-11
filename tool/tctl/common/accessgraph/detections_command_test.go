@@ -564,6 +564,56 @@ func TestDisplayDetectionTextAffectedEntity(t *testing.T) {
 	}
 }
 
+func TestDetectionTextEscapesControlSequences(t *testing.T) {
+	// OSC 52 clipboard-write + screen clear
+	inject := "evil\x1b]52;c;AAAA\a\x1b[2Jspoofed"
+
+	assertEscaped := func(t *testing.T, out string) {
+		require.NotContains(t, out, "\x1b", "raw escape byte leaked to terminal")
+		require.NotContains(t, out, "\a", "raw BEL byte leaked to terminal")
+		require.Contains(t, out, `\x1b`, "control sequence should be rendered as a visible escape")
+	}
+
+	// Payload in every field detectionRow / displayDetectionText escapes.
+	alert := accessgraph.SecurityAlert{
+		Id:        fixtureAlertID,
+		Title:     inject,
+		Type:      inject,
+		Severity:  accessgraph.SecurityAlertSeverity(inject),
+		Status:    accessgraph.AlertStatus(inject),
+		Source:    logmodels.EventSource(inject),
+		StartTime: fixtureStart,
+		EndTime:   fixtureEnd,
+		CreatedAt: fixtureCreated,
+		AffectedEntity: &struct {
+			Name *string `json:"name,omitempty"`
+			Type *string `json:"type,omitempty"`
+		}{Name: &inject},
+		Tags:            &[]string{inject},
+		Description:     &inject,
+		ReportedBy:      &inject,
+		MitigationSteps: &[]string{inject},
+		StatusChangeLogs: []accessgraph.AlertStatusChangeLog{{
+			CreatedAt: fixtureCreated,
+			Status:    accessgraph.AlertStatus(inject),
+			User:      inject,
+			Reason:    &inject,
+		}},
+	}
+
+	t.Run("row detailed", func(t *testing.T) {
+		out := strings.Join(detectionRow(alert, true), "\n")
+		assertEscaped(t, out)
+	})
+
+	t.Run("detail view", func(t *testing.T) {
+		var buf bytes.Buffer
+		// Non-nil eventsErr covers the escaped-error branch.
+		require.NoError(t, displayDetectionText(&buf, alert, nil, trace.BadParameter("%s", inject)))
+		assertEscaped(t, buf.String())
+	})
+}
+
 // TestInitDetectionsFlags exercises the kingpin wiring (defaults, enum
 // validation, --from/--to via timeValue) without going through TryRun or
 // touching the network.

@@ -1,0 +1,686 @@
+---
+title: Managing Scoped Resources using IaC
+sidebar_label: Scoped Resources
+description: Use infrastructure-as-code tools in scoped mode to manage scoped resources.
+tags:
+ - infrastructure-as-code
+ - how-to
+ - zero-trust
+ - privileged-access
+page_type: how-to
+---
+
+In this guide, you will run Infrastructure-As-Code (IaC) tools in scoped mode and use
+them to reconcile scoped resources.
+
+See [the Scoped RBAC page](../../zero-trust-access/rbac-get-started/scopes.mdx) for more details about scopes.
+
+<Admonition type="warning" title="Active development">
+
+Scopes are an actively developed feature of Teleport. Not every Teleport
+feature is supported within a scope yet, and breaking changes may still be
+introduced. Scoped resources and credentials created with one Teleport
+version may not work with another.
+
+When operating in a scoped session, commands and APIs that have not yet been
+updated to understand scopes will commonly fail with a `scoped identities
+not supported` error. This is expected for features outside the currently
+supported set listed below.
+
+</Admonition>
+
+## How it works
+
+**Scopes** are a hierarchical organization system for Teleport resources and
+permissions. A scope is a path-like attribute (for example `/staging/west` or
+`/prod`) attached to resources and permission grants. Permissions assigned at
+a scope apply to resources within that scope and all of its descendant
+scopes, but cannot reach across to orthogonal scopes or up to ancestor
+scopes.
+
+In this guide, you will grant access to the `/test` scope to the IaC tools.
+The tool will be able to manage the content of the `/test` scope, but will
+not be allowed to create resources in other scopes such as `/example`.
+
+<Admonition type="note" title="Operator scope restriction">
+The Teleport Kubernetes operator is currently restricted to its own scope.
+It cannot write resources in nested scopes of its own.
+
+For example: An operator in the `/test` scope cannot manage resources in the `/test/sub` scope.
+
+It can still grant roles in nested scopes by specifying nested scopes as `scoped_role_assignment` targets.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- All Teleport instances (Auth Service, Proxy Service, and Agents) must be
+  running the same Teleport version, and must have the
+  `TELEPORT_UNSTABLE_SCOPES=yes` environment variable set.
+- The Auth Service must also have the
+  `TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes` environment variable set before
+  you use scoped tokens to join Agent roles other than SSH Services (`node`)
+  and Bots. This includes scoped Kubernetes Services and Application Services.
+<Tabs>
+<TabItem label="tctl">
+
+No additional prerequisites.
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+- a Kubernetes cluster. You must be able to create/read Namespace, ServiceAccount,
+  Deployment, Secret, Role, RoleBinding and CustomResourceDefinition resources.
+- [Helm](https://helm.sh/docs/intro/quickstart/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+</TabItem>
+<TabItem label="Terraform">
+
+- [terraform](https://developer.hashicorp.com/terraform/install) installed locally
+
+</TabItem>
+</Tabs>
+
+## Step 1/4. Grant scoped access to IaC tool
+
+In this step, you will create the required Scoped RBAC and other Teleport resources so that the IaC tool can connect
+to Teleport and managed scoped resources in the `/test` scope.
+
+<Tabs>
+<TabItem label="tctl">
+
+The user already has access to the `/` scope as per the prerequisites.
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Retrieve the Kubernetes cluster OIDC URL:
+
+```code
+$ kubectl get --raw /.well-known/openid-configuration | jq -r ".issuer"
+
+<Var name="https://oidc.example.com/"/>
+```
+
+Write the `scoped-operator.yaml` manifests:
+
+```yaml
+# Create the operator role (for the whole cluster)
+version: v1
+kind: scoped_role
+metadata:
+  name: operator
+scope: "/"
+spec:
+  assignable_scopes: ["/**"]
+  rules:
+    - resources: ["scoped_role", "scoped_role_assignment", "bot", "access_list"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete
+    - resources: ["scoped_token"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete
+        - secrets
+---
+# Create the operator bot (for the `/test` scope).
+version: v1
+kind: bot
+metadata:
+  name: operator
+scope: "/test"
+spec: {}
+---
+# Allow the `/test::operator` bot to manage the `/test` scope
+kind: scoped_role_assignment
+metadata:
+  name: operator
+scope: /test
+spec:
+  assignments:
+  - role: /::operator
+    scope: /test
+  bot: /test::operator
+sub_kind: dynamic
+version: v1
+---
+# Allow the operator pod in Kubernetes to join as the `/test::operator` bot.
+version: v1
+kind: scoped_token
+metadata:
+  name: operator
+scope: /test
+spec:
+  bot: /test::operator
+  join_method: kubernetes
+  kubernetes:
+    allow:
+    - service_account_name: teleport-operator
+      service_account_namespace: teleport-iac
+    oidc:
+      # To get the issuer, run `kubectl get --raw /.well-known/openid-configuration | jq .issuer`
+      issuer: "<Var name="https://oidc.example.com/"/>"
+    type: oidc
+  roles:
+  - Bot
+  usage_mode: bot
+version: v1
+```
+
+Apply the manifests:
+
+```code
+$ tctl create -f scoped-operator.yaml
+
+scoped_role "/::operator" has been upserted
+Bot "operator" has been created
+scoped_role_assignment "/test::operator" has been upserted
+scoped_token "operator" has been updated
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Create the `terraform-provider.yaml` manifest to create the role used by the Terraform provider:
+
+```yaml
+version: v1
+kind: scoped_role
+metadata:
+  name: terraform-provider
+scope: "/"
+spec:
+  assignable_scopes: ["/**"]
+  rules:
+    - resources: ["scoped_role", "scoped_role_assignment", "bot", "access_list"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete
+    - resources: ["scoped_token"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete
+        - secrets
+```
+
+Apply the manifest:
+
+```code
+$ tctl create -f terraform-provider.yaml
+
+scoped_role "/::terraform-provider" has been upserted
+```
+
+</TabItem>
+</Tabs>
+
+## Step 2/4. Deploy the IaC tool
+
+In this step, you will configure and deploy the IaC tool if applicable.
+
+<Tabs>
+<TabItem label="tctl">
+
+Validate that `tctl` works by running:
+
+```code
+$ tctl status
+```
+
+Then, validate that you have permissions to list scoped resources:
+
+```code
+$ tctl get scoped_role --format=text
+
+$ tctl get scoped_role_assignment --format=text
+```
+
+The commands should not return permission errors.
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Recover the cluster name and Proxy Service address:
+
+```code
+$ tsh status --format=json | jq '{"url": .active.profile_url, "name": .active.cluster}'
+
+{
+  "url": "https://<Var name="teleport.example.com:443"/>",
+  "name": "<Var name="teleport.example.com"/>"
+}
+```
+
+Configure the operator by writing the following `values.yaml`:
+
+```yaml
+teleportAddress: <Var name="teleport.example.com:443"/>
+teleportClusterName: <Var name="teleport.example.com"/>
+token: /test::operator
+scope: /test
+serviceAccount:
+  name: teleport-operator
+ownerEmail: your-name@example.com
+```
+
+Deploy the operator:
+
+```code
+$ helm repo add teleport "https://charts.releases.teleport.dev"
+
+$ helm repo update
+
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "teleport" chart repository
+Update Complete. ⎈Happy Helming!⎈
+
+$ helm upgrade --install \
+    teleport-operator teleport/teleport-operator \
+    --namespace teleport-iac --create-namespace \
+    -f values.yaml \
+    --version (=teleport.version=)
+
+Release "teleport-operator" does not exist. Installing it now.
+NAME: teleport-operator
+LAST DEPLOYED: Mon Aug  3 18:00:35 2026
+NAMESPACE: teleport-iac
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+```
+
+Validate that the operator is healthy:
+
+```code
+$ kubectl get pods -n teleport-iac
+
+NAME                                READY   STATUS    RESTARTS   AGE
+teleport-operator-75855944c-s1kk5   1/1     Running   0          22s
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Run the following command to be able to use Terraform locally for an hour:
+
+```code
+$ eval $(tctl terraform env --scope /test)
+
+🔑 Detecting if MFA is required
+⚙️ Creating temporary bot "/test::tctl-terraform-env-3ba9a76f" and its token
+🤖 Using the temporary bot to obtain certificates
+🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
+```
+
+Recover the cluster name and Proxy Service address:
+
+```code
+$ tsh status --format=json | jq '{"url": .active.profile_url}'
+
+{
+  "url": "https://<Var name="teleport.example.com:443"/>",
+}
+```
+
+Write the following `teleport.tf` file configuring the Teleport provider and connection to the cluster:
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "(=teleport.plugin.version=)"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "<Var name="teleport.example.com:443"/>"
+}
+```
+
+Finally, initialize the Terraform plugins:
+
+```code
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Finding terraform.releases.teleport.dev/gravitational/teleport versions matching "(=teleport.plugin.version=)"...
+- Installing terraform.releases.teleport.dev/gravitational/teleport v(=teleport.plugin.version=)...
+- Installed terraform.releases.teleport.dev/gravitational/teleport v(=teleport.plugin.version=) (self-signed, key ID C87ED53A6282C411)
+
+Terraform has been successfully initialized!
+```
+
+</TabItem>
+</Tabs>
+
+## Step 3/4. Create the scoped resource using IaC
+
+In this step, you will create scoped resources in the `/test` scope, allowing a `/test::server-enroller` fictive service
+to create scoped tokens in `/test/team-a` and `/test/team-b` scopes.
+
+You will configure 4 resources using IaC:
+- a `scoped_role` `/test::token-creator` that allows token creation and can be granted in `/test/**` nested scopes
+- a `bot` `/test::server-enroller` that will be used by the fictive service to create tokens and enroll servers
+- a `scoped_role_assignment` `/test::server-enroller` that grants the scoped role `/test::token-creator`to the bot inside the `/test/team-a` and `/test/team-b`
+- a `scoped_token` `/test::server-enroller` that allows the bot to join from a Kubernetes cluster
+
+<Tabs>
+<TabItem label="tctl">
+
+Create the following `scoped-resources.yaml` manifest:
+
+```yaml
+kind: scoped_role
+version: v1
+metadata:
+  name: "token-creator"
+scope: "/test"
+spec:
+  assignable_scopes: ["/test/**"]
+  rules:
+    - resources: ["scoped_token"]
+      verbs    : ["read", "list", "create", "update", "delete"]
+---
+kind: bot
+version: v1
+metadata:
+  name: "server-enroller"
+scope: "/test"
+spec: {}
+---
+kind: scoped_role_assignment
+sub_kind: dynamic
+version: v1
+metadata:
+  name: "server-enroller"
+scope: "/test"
+spec:
+  assignments:
+  - role: "/test::token-creator"
+    scope: "/test/team-a"
+  - role: "/test::token-creator"
+    scope: "/test/team-b"
+  bot: "/test::server-enroller"
+---
+kind: scoped_token
+version: v1
+metadata:
+  name: "server-enroller"
+scope: "/test"
+spec:
+  bot: "/test::server-enroller"
+  join_method: "kubernetes"
+  kubernetes:
+    allow:
+      - service_account_name: "pod-sa"
+        service_account_namespace: "default"
+    oidc:
+      # fake OIDC issuer, where the bot would run
+      issuer: "https://kubernetes.example.com/cluster-a"
+    type: "oidc"
+  roles: ["Bot"]
+  usage_mode: "bot"
+```
+
+Apply the manifests using `tctl`:
+
+```code
+$ tctl create -f scoped-resources.yaml
+
+scoped_role "/test::token-creator" has been upserted
+Bot "server-enroller" has been created
+scoped_role_assignment "/test::server-enroller" has been upserted
+scoped_token "server-enroller" has been updated
+```
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Create the following `scoped-custom-resources.yaml` manifests:
+
+```yaml
+kind: TeleportScopedRoleV1
+apiVersion: "resources.teleport.dev/v1"
+metadata:
+  name: "token-creator"
+scope: "/test"
+spec:
+  assignable_scopes: ["/test/**"]
+  rules:
+    - resources: ["scoped_token"]
+      verbs    : ["read", "list", "create", "update", "delete"]
+---
+kind: TeleportBotV1
+apiVersion: "resources.teleport.dev/v1"
+metadata:
+  name: "server-enroller"
+scope: "/test"
+spec: {}
+---
+kind: TeleportScopedRoleAssignmentV1
+apiVersion: "resources.teleport.dev/v1"
+metadata:
+  name: "server-enroller"
+scope: "/test"
+spec:
+  assignments:
+  - role: "/test::token-creator"
+    scope: "/test/team-a"
+  - role: "/test::token-creator"
+    scope: "/test/team-b"
+  bot: "/test::server-enroller"
+---
+kind: TeleportScopedTokenV1
+apiVersion: "resources.teleport.dev/v1"
+metadata:
+  name: "server-enroller"
+scope: "/test"
+spec:
+  bot: "/test::server-enroller"
+  join_method: "kubernetes"
+  kubernetes:
+    allow:
+      - service_account_name: "pod-sa"
+        service_account_namespace: "default"
+    oidc:
+      # fake OIDC issuer, where the bot would run
+      issuer: "https://kubernetes.example.com/cluster-a"
+    type: "oidc"
+  roles: ["Bot"]
+  usage_mode: "bot"
+```
+
+Apply the manifests using `kubectl` in the operator namespace:
+
+```code
+$ kubectl create -f scoped-custom-resources.yaml -n teleport-iac
+
+teleportscopedrolev1.resources.teleport.dev/token-creator created
+teleportbotv1.resources.teleport.dev/server-enroller created
+teleportscopedroleassignmentv1.resources.teleport.dev/server-enroller created
+teleportscopedtokenv1.resources.teleport.dev/server-enroller created
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Create the following `scoped-resources.tf` file:
+
+```hcl
+locals {
+  scope = "/test"
+}
+
+resource "teleport_scoped_role" "token-creator" {
+  version = "v1"
+  metadata = {
+    name        = "token-creator"
+    description = "Role that can create tokens in select ${local.scope})/** scopes."
+  }
+
+  scope = local.scope
+
+  spec = {
+    assignable_scopes = ["${local.scope}/**"]
+    rules = [{
+      resources = ["scoped_token"]
+      verbs     = ["read", "list", "create", "update", "delete"]
+    }]
+  }
+}
+
+resource "teleport_bot" "server-enroller" {
+  version = "v1"
+  metadata = {
+    name = "server-enroller"
+  }
+  scope = local.scope
+  spec = {}
+}
+
+resource "teleport_scoped_role_assignment" "server-enroller" {
+  version = "v1"
+  metadata = {
+    name = "server-enroller"
+  }
+  sub_kind = "dynamic"
+  scope = local.scope
+  spec = {
+    assignments = [
+      {role = "${local.scope}::token-creator", scope = "${local.scope}/team-a"},
+      {role = "${local.scope}::token-creator", scope = "${local.scope}/team-b"},
+    ]
+    bot = "${local.scope}::server-enroller"
+  }
+}
+
+resource "teleport_scoped_token" "server-enroller" {
+  version = "v1"
+  metadata = {
+    name = "server-enroller"
+  }
+  scope = local.scope
+  spec = {
+    bot = "${local.scope}::server-enroller"
+    join_method = "kubernetes"
+    kubernetes = {
+      allow = [
+        {service_account_name = "pod-sa", service_account_namespace = "default"}
+      ]
+      oidc = {
+        // fake OIDC issuer, where the bot would run
+        issuer = "https://kubernetes.example.com/cluster-a"
+      }
+      type = "oidc"
+    }
+    roles = ["Bot"]
+    usage_mode = "bot"
+  }
+}
+```
+
+Plan the changes using Terraform:
+
+```code
+$ terraform plan
+
+Terraform will perform the following actions:
+
+  # teleport_bot.server-enroller will be created
+  + resource "teleport_bot" "server-enroller" {
+      ...
+    }
+
+  # teleport_scoped_role.token-creator will be created
+  + resource "teleport_scoped_role" "token-creator" {
+      ...
+    }
+
+  # teleport_scoped_role_assignment.server-enroller will be created
+  + resource "teleport_scoped_role_assignment" "server-enroller" {
+      ...
+    }
+
+  # teleport_scoped_token.server-enroller will be created
+  + resource "teleport_scoped_token" "server-enroller" {
+      ...
+    }
+
+Plan: 4 to add, 0 to change, 0 to destroy.
+```
+
+Finally, apply the changes:
+
+```code
+$ terraform apply -auto-approve
+
+Plan: 4 to add, 0 to change, 0 to destroy.
+teleport_scoped_role_assignment.server-enroller: Creating...
+teleport_bot.server-enroller: Creating...
+teleport_scoped_role.token-creator: Creating...
+teleport_scoped_token.server-enroller: Creating...
+teleport_bot.server-enroller: Creation complete after 0s [id=/test::server-enroller]
+teleport_scoped_token.server-enroller: Creation complete after 0s [id=/test::server-enroller]
+teleport_scoped_role.token-creator: Creation complete after 1s [id=/test::token-creator]
+teleport_scoped_role_assignment.server-enroller: Creation complete after 1s [id=/test::server-enroller]
+```
+
+</TabItem>
+</Tabs>
+
+## Step 4/4. Validate resources were created
+
+At this point, the scoped resources should have been created in Teleport.
+Validate that they were by running:
+
+```code
+$ tctl get scoped_role --format=text
+
+ID
+------------------------------------
+/::operator
+/::terraform-provider
+/test::token-creator
+
+$ tctl get scoped_role_assignment --format=text
+
+SubKind ID                       Assignee                      Assigns
+------- ------------------------ ----------------------------- --------------------------------------------------------------------------
+dynamic /test::operator          bot: /test::operator          /::operator -> /test
+dynamic /test::server-enroller   bot: /test::server-enroller   /test::token-creator -> /test/team-a, /test::token-creator -> /test/team-b
+
+$ tctl get scoped_token --format=text
+
+Token                  Type Assigns Scope  Labels                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     Expiry Time (UTC)
+---------------------- ---- -------------- ----------------------------------------------------------- ---------------------------------
+/test::operator        Bot                                                                             never
+/test::server-enroller Bot                 resources.teleport.dev/owner-email=your-name@example.com... never
+
+$ tctl get bot --format=text
+
+Name                     Roles
+------------------------ -----
+/test::operator
+/test::server-enroller
+```
+

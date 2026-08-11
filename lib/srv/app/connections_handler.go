@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
@@ -126,6 +127,9 @@ type ConnectionsHandlerConfig struct {
 
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
+
+	// TargetHostPolicy restricts application target dials by resolved IP.
+	TargetHostPolicy common.TargetHostPolicy
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -174,6 +178,9 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
 	}
+	if err := c.TargetHostPolicy.Check(); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -205,7 +212,7 @@ type ConnectionsHandler struct {
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
-	llmHandler   http.Handler
+	llmHandler   *appllm.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
@@ -215,6 +222,29 @@ type ConnectionsHandler struct {
 
 	// resolveApp returns a types.Application using the name and public address as matchers.
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
+
+	// v9Warned dedupes the v9 enforcement warnings (dropped v8 roles, denied
+	// CORS preflight, denied on version skew) to once per warning kind, user,
+	// and app. A v9 role governs every request to a shared app, so the
+	// warnings would otherwise fire on each request.
+	v9Warned *lru.Cache[v9WarnKey, struct{}]
+}
+
+// v9WarnedSize bounds the warning deduplication cache. Every user and app
+// combination the agent serves takes an entry, so the cache is bounded
+// rather than tracking them all. Evicting the least recently warned entry
+// repeats its warning, which is the behavior to prefer over unbounded
+// growth.
+const v9WarnedSize = 2048
+
+// v9WarnKey identifies one fired v9 enforcement warning in v9Warned.
+type v9WarnKey struct{ kind, user, app string }
+
+// v9WarnOnce reports whether the v9 enforcement warning of the given kind
+// has not fired yet for the user and app, and marks it fired.
+func (c *ConnectionsHandler) v9WarnOnce(kind, user, app string) bool {
+	warned, _ := c.v9Warned.ContainsOrAdd(v9WarnKey{kind, user, app}, struct{}{})
+	return !warned
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -261,6 +291,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	v9Warned, err := lru.New[v9WarnKey, struct{}](v9WarnedSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -271,6 +306,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		clusterName:  clusterName.GetClusterName(),
+		v9Warned:     v9Warned,
 		resolveApp: func(context.Context, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -316,6 +352,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
 		InsecureMode:     c.cfg.InsecureMode,
+		TargetHostPolicy: c.cfg.TargetHostPolicy,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -443,15 +480,16 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		clock:        c.cfg.Clock,
-		emitter:      c.cfg.Emitter,
-		hostID:       c.cfg.HostID,
-		log:          c.log,
-		accessPoint:  c.cfg.AccessPoint,
-		authClient:   c.cfg.AuthClient,
-		clusterName:  c.clusterName,
-		cipherSuites: c.cfg.CipherSuites,
-		insecureMode: c.cfg.InsecureMode,
+		clock:            c.cfg.Clock,
+		emitter:          c.cfg.Emitter,
+		hostID:           c.cfg.HostID,
+		log:              c.log,
+		accessPoint:      c.cfg.AccessPoint,
+		authClient:       c.cfg.AuthClient,
+		clusterName:      c.clusterName,
+		cipherSuites:     c.cfg.CipherSuites,
+		insecureMode:     c.cfg.InsecureMode,
+		targetHostPolicy: c.cfg.TargetHostPolicy,
 	}, nil
 }
 
@@ -509,6 +547,21 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
+		// The default case is a plain HTTP app. Minimal v9 default-deny is
+		// enforced only on the unscoped access path. A scoped identity was
+		// already authorized for this app by authorizeContext, and the
+		// scoped access model does not yet evaluate v9 app_resources, so v9
+		// enforcement is skipped for it rather than denying an authorized
+		// request. Making the scoped path v9-aware is follow-up work.
+		if unscopedAuthCtx, ok := sessionCtx.Context.UnscopedContext(); ok {
+			denied, err := c.enforceMinimalV9(w, r, unscopedAuthCtx, app)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if denied {
+				return nil
+			}
+		}
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
 	}
 }
@@ -590,6 +643,11 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedS
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+
+	if identity.RouteToApp.Scope != app.GetScope() {
+		return nil, nil, trace.AccessDenied("certificate app scope %q does not match application scope %q",
+			identity.RouteToApp.Scope, app.GetScope())
 	}
 
 	// When accessing AWS management console, check permissions to assume

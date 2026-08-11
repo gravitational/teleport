@@ -57,10 +57,37 @@ The `cert_authority_override` resource targets a CA with the following fields:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.9.0 or higher)"!)
 
+- A Teleport user with a role that has access to the `cert_authority_override`
+  resource. The preset `editor` role does not have this access. To grant it, add
+  the following rule to your role:
+
+  ```yaml
+  kind: role
+  version: v8
+  metadata:
+    name: <Var name="ca-override-admin" />
+  spec:
+    allow:
+      rules:
+        - resources:
+            - cert_authority_override
+          verbs:
+            - create
+            - delete
+            - list
+            - read
+            - update
+  ```
+
+  Assign the `<Var name="ca-override-admin" />` role to the user who will manage
+  CA overrides.
+
 - Only the following CAs are currently supported: `db_client` and `windows`.
+
 - All Auth Service instances and related services, such as Windows Desktop
   Service and Database Service instances, must be upgraded to the same CA
   override-aware Teleport version.
+
 - For safety, back up your cluster state before starting and retain downstream
   trust to the self-signed CA certificates until the upgrade is fully verified.
 
@@ -88,33 +115,12 @@ You may customize the certificate subject:
 $ tctl auth create-override-csr --type=windows --subject='OU=My Organization Unit,CN=My Windows CA'
 ```
 
-### Multi-Auth Service clusters with per-instance HSM keys
-
+<Admonition type="tip">
 In clusters with multiple Auth Service instances and a separate HSM key per
-instance, run `tctl` locally against each Auth Service instance. Each Auth
-Service instance generates CSRs for the keys it can access.
-
-For example:
-
-```code
-# Access the first Auth instance.
-# Modify the command below as appropriate.
-$ tsh ssh user@Auth1
-
-# Generate the CSRs.
-# Modify as desired.
-$ tctl auth create-override-csr --type=windows
-
-# Second Auth instance.
-$ tsh ssh user@Auth2
-$ tctl auth create-override-csr --type=windows
-
-# Repeat for each remaining Auth Service instance.
-```
-
-When writing the override resource, make sure the final
-`spec.certificate_overrides` contains one entry for each certificate issued from
-those CSRs. See Step 4.
+instance, make sure all Auth Service instances are online and healthy before
+issuing the `create-override-csr` command. Teleport will automatically collect
+CSRs from all online Auth Service instances.
+</Admonition>
 
 ## Step 2/5. Issue override certificates using your external CA
 

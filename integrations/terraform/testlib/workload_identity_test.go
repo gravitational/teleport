@@ -15,7 +15,6 @@
 package testlib
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -30,12 +29,8 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestWorkloadIdentity() {
-	t := s.T()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetWorkloadIdentity(ctx, "test")
+		_, err := s.client.GetWorkloadIdentity(s.T().Context(), "test")
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -44,7 +39,7 @@ func (s *TerraformSuiteOSS) TestWorkloadIdentity() {
 
 	name := "teleport_workload_identity.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		CheckDestroy:             checkDestroyed,
 		IsUnitTest:               true,
@@ -79,16 +74,66 @@ func (s *TerraformSuiteOSS) TestWorkloadIdentity() {
 	})
 }
 
-func (s *TerraformSuiteOSS) TestImportWorkloadIdentity() {
+func (s *TerraformSuiteOSSScopedResources) TestWorkloadIdentityWithScope() {
 	t := s.T()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+			Name:  "test-scoped",
+			Scope: "/staging",
+		})
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Errorf("expected not found, actual: %v", err)
+	}
+
+	name := "teleport_workload_identity.test_scoped"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("workload_identity_scoped_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "workload_identity"),
+					resource.TestCheckResourceAttr(name, "scope", "/staging"),
+					resource.TestCheckResourceAttr(name, "spec.spiffe.id", "/staging/_/test"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.attribute", "user.name"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.eq.value", "foo"),
+				),
+			},
+			{
+				Config:   s.getFixture("workload_identity_scoped_0_create.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("workload_identity_scoped_1_update.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "workload_identity"),
+					resource.TestCheckResourceAttr(name, "scope", "/staging"),
+					resource.TestCheckResourceAttr(name, "spec.spiffe.id", "/staging/_/test/updated"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.attribute", "user.name"),
+					resource.TestCheckResourceAttr(name, "spec.rules.allow.0.conditions.0.eq.value", "foo"),
+				),
+			},
+			{
+				Config:   s.getFixture("workload_identity_scoped_1_update.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestImportWorkloadIdentity() {
 	r := "teleport_workload_identity"
 	id := "test_import"
 	name := r + "." + id
 
-	shu := &workloadidentityv1pb.WorkloadIdentity{
+	identity := &workloadidentityv1pb.WorkloadIdentity{
 		Metadata: &v1.Metadata{
 			Name: id,
 		},
@@ -116,11 +161,81 @@ func (s *TerraformSuiteOSS) TestImportWorkloadIdentity() {
 			},
 		},
 	}
-	shu, err := s.client.CreateWorkloadIdentity(ctx, shu)
+	identity, err := s.client.CreateWorkloadIdentity(s.T().Context(), identity)
+	require.NoError(s.T(), err)
+
+	require.Eventually(s.T(), func() bool {
+		_, err := s.client.GetWorkloadIdentity(s.T().Context(), identity.GetMetadata().Name)
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
+				ResourceName:  name,
+				ImportState:   true,
+				ImportStateId: id,
+				ImportStateCheck: func(state []*terraform.InstanceState) error {
+					require.Equal(s.T(), types.KindWorkloadIdentity, state[0].Attributes["kind"])
+					require.Equal(s.T(), "/test", state[0].Attributes["spec.spiffe.id"])
+					require.Equal(s.T(), "user.name", state[0].Attributes["spec.rules.allow.0.conditions.0.attribute"])
+					require.Equal(s.T(), "foo", state[0].Attributes["spec.rules.allow.0.conditions.0.eq.value"])
+
+					return nil
+				},
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSSScopedResources) TestImportWorkloadIdentityWithScope() {
+	t := s.T()
+	ctx := t.Context()
+
+	r := "teleport_workload_identity"
+	id := "test_import_scoped"
+	name := r + "." + id
+
+	identity := &workloadidentityv1pb.WorkloadIdentity{
+		Metadata: &v1.Metadata{
+			Name: id,
+		},
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Scope:   "/staging",
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{
+						Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+							{
+								Attribute: "user.name",
+								Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+									Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+										Value: "foo",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/staging/_/test_import_scoped",
+			},
+		},
+	}
+	identity, err := s.client.CreateWorkloadIdentity(ctx, identity)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		_, err := s.client.GetWorkloadIdentity(ctx, shu.GetMetadata().Name)
+		_, err := s.client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+			Name:  identity.GetMetadata().GetName(),
+			Scope: identity.GetScope(),
+		})
 		return err == nil
 	}, 5*time.Second, time.Second)
 
@@ -132,10 +247,11 @@ func (s *TerraformSuiteOSS) TestImportWorkloadIdentity() {
 				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "/staging::" + id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(t, types.KindWorkloadIdentity, state[0].Attributes["kind"])
-					require.Equal(t, "/test", state[0].Attributes["spec.spiffe.id"])
+					require.Equal(t, "/staging", state[0].Attributes["scope"])
+					require.Equal(t, "/staging/_/test_import_scoped", state[0].Attributes["spec.spiffe.id"])
 					require.Equal(t, "user.name", state[0].Attributes["spec.rules.allow.0.conditions.0.attribute"])
 					require.Equal(t, "foo", state[0].Attributes["spec.rules.allow.0.conditions.0.eq.value"])
 

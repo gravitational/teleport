@@ -1,0 +1,13 @@
+apiVersion: resources.teleport.dev/v1
+kind: TeleportWorkloadIdentityV1
+metadata:
+  name: test-workload-identity
+  namespace: default
+spec:
+  spiffe:
+    id: /test/workload
+    jwt:
+      extra_claims:
+        team: platform
+        nested:
+          foo: bar

@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_workload_cluster Terraform resource
 sidebar_label: workload_cluster
-description: This page describes the supported values of the teleport_workload_cluster resource of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_workload_cluster resource of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_workload_c
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the teleport_workload_cluster resource of the Teleport Terraform provider.
+This page lists the supported values of the teleport_workload_cluster resource of the Teleport Terraform provider.
 
 
 
@@ -60,7 +61,6 @@ resource "teleport_workload_cluster" "example" {
 
 ### Optional
 
-- `status` (Attributes) (see [below for nested schema](#nested-schema-for-status))
 - `sub_kind` (String)
 
 ### Nested Schema for `metadata`
@@ -111,13 +111,3 @@ Optional:
 
 - `aws_account` (String)
 - `aws_arn` (String)
-
-
-
-
-### Nested Schema for `status`
-
-Optional:
-
-- `domain` (String) domain is the Teleport Proxy address of the child Teleport Cloud cluster
-- `state` (String) state is the status of the child cluster running in Teleport Cloud

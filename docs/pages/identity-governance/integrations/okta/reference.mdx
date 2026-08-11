@@ -4,13 +4,14 @@ sidebar_label: Reference
 description: Configuration and CLI reference documentation for Teleport Okta service.
 sidebar_position: 5
 tags:
- - reference
+ - conceptual
  - zero-trust
  - infrastructure-identity
 enterprise: Identity Governance
+page_type: conceptual
 ---
 
-This guide describes interfaces and options for configuring the Teleport Okta
+This page describes the interfaces and options for configuring the Teleport Okta
 Service, including Okta import rules, Okta assignments, and `tctl` commands. It
 also includes troubleshooting instructions.
 
@@ -114,3 +115,32 @@ If they are, double check the user permissions and ensure that the user has
 appropriate resource and label level access to the groups and applications. You
 may need to tweak the `app_labels` and `group_labels` sections of a role in order
 to see these resources.
+
+### Warnings about assignments for deactivated users
+
+A deactivated Okta user can be reactivated. Teleport keeps some Okta assignments 
+for deactivated users where Teleport is still responsible for revoking access in 
+Okta if the user is reactivated.
+
+Teleport will log a warning for each of a deactivated user's remaining 
+Okta assignments that need to be cleaned up.
+
+```text
+This assignment's user is deactivated. The okta_assignment will be automatically removed when the user is removed in Okta. 
+```
+
+To stop the warnings, either: 
+
+- Remove the user from Okta. This will result in any Okta assignments for that user in Teleport being removed.
+- Remove the Okta assignment from Teleport manually: 
+
+```code
+$ tctl rm okta_assignments/my-assignment
+```
+
+<Admonition type="warning">
+If you remove the Okta assignment manually and then reactivate the user in Okta, 
+this can result in previously authorized access through an Access Request 
+(JIT) to be reinstated as standing access.
+</Admonition>
+

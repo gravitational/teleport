@@ -181,4 +181,14 @@ describe('reportToText', () => {
     expect(actualText).toMatchSnapshot();
     expect(actualText.endsWith('\n')).toBe(true);
   });
+
+  it('shows IPv6 as disabled when the prefix is empty', () => {
+    const report = makeReport({ checks: [] });
+    report.networkStackAttempt.networkStack.ipv6Prefix = '';
+
+    const actualText = reportToText(report);
+
+    expect(actualText).toContain('IPv6: Disabled on this host');
+    expect(actualText).not.toContain('IPv6 prefix:');
+  });
 });

@@ -21,11 +21,13 @@
 package web
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -57,6 +59,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -115,6 +118,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -201,6 +205,10 @@ type Handler struct {
 	autoUpdateResolver *autoupdatelookup.Resolver
 
 	accessGraphHandler http.Handler
+
+	// webSessionRootClientDialOptions contains additional gRPC dial options for
+	// root clients created for web sessions. Used for testing.
+	webSessionRootClientDialOptions []grpc.DialOption
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -211,6 +219,15 @@ type HandlerOption func(h *Handler) error
 func SetClock(clock clockwork.Clock) HandlerOption {
 	return func(h *Handler) error {
 		h.clock = clock
+		return nil
+	}
+}
+
+// WithWebSessionRootClientDialOption adds a [grpc.DialOption] to root clients
+// created for web sessions. It is intended for tests.
+func WithWebSessionRootClientDialOption(opt grpc.DialOption) HandlerOption {
+	return func(h *Handler) error {
+		h.webSessionRootClientDialOptions = append(h.webSessionRootClientDialOptions, opt)
 		return nil
 	}
 }
@@ -613,6 +630,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
+		scopedRoleReader:          cfg.AccessPoint.ScopedRoleReader(),
 		servers:                   []utils.NetAddr{cfg.AuthServers},
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
@@ -620,6 +638,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		proxySigner:               cfg.PROXYSigner,
 		logger:                    h.logger,
 		buildType:                 cfg.Modules.BuildType(),
+		rootClientDialOptions:     h.webSessionRootClientDialOptions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -796,7 +815,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-			httplib.SetIndexContentSecurityPolicy(w.Header(), r.URL.Path)
+			features := h.GetClusterFeatures()
+			httplib.SetIndexContentSecurityPolicy(w.Header(), features.GetIsStripeManaged(), r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
@@ -855,7 +875,7 @@ func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
-	resp, err := newSessionResponse(ctx)
+	resp, err := newSessionResponse(r.Context(), ctx)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
@@ -1539,9 +1559,32 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		})
 
 		userContext.AvailableScopes = assignedScopes
+
+		userContext.Scope, err = scopeFromSessionContext(c)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return userContext, nil
+}
+
+func scopeFromSessionContext(c *SessionContext) (string, error) {
+	id, err := c.GetIdentity()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if id == nil {
+		return "", nil
+	}
+
+	pin := id.ScopePin
+	if pin == nil {
+		return "", nil
+	}
+
+	return pin.GetScope(), nil
 }
 
 // PublicProxyAddr returns the publicly advertised proxy address
@@ -2020,7 +2063,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 
 // getWebConfig returns configuration for the web application.
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	httplib.SetWebConfigHeaders(w.Header())
+	w.Header().Set("Content-Type", "application/javascript")
 
 	clusterFeatures := h.GetClusterFeatures()
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
@@ -2248,9 +2291,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsPolicyEnabled:                modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
 		// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
 		// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
-		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+		Entitlements: getWebCfgEntitlements(&clusterFeatures),
 		IdentitySecurity: webclient.IdentitySecurity{
-			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
+			IsClusterLicensed: modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessGraph).Enabled ||
+				modules.GetProtoEntitlement(&clusterFeatures, entitlements.ActivityCenter).Enabled ||
+				modules.GetProtoEntitlement(&clusterFeatures, entitlements.SessionSummaries).Enabled,
 			AccessGraphConfigSet:        accessGraphConfigSet,
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
@@ -2419,18 +2464,18 @@ func (h *Handler) getUserMatchedAuthConnectors(w http.ResponseWriter, r *http.Re
 	}, nil
 }
 
-// GetWebCfgEntitlements takes a cloud entitlement set and returns a modules Entitlement set
+// GetWebCfgEntitlements converts a proto entitlement map into the Web UI
+// representation, including the legacy Policy fallback.
 func GetWebCfgEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) map[string]webclient.EntitlementInfo {
+	return getWebCfgEntitlements(&proto.Features{Entitlements: protoEntitlements})
+}
+
+func getWebCfgEntitlements(features *proto.Features) map[string]webclient.EntitlementInfo {
 	all := entitlements.AllEntitlements
 	result := make(map[string]webclient.EntitlementInfo, len(all))
 
 	for _, e := range all {
-		al, ok := protoEntitlements[string(e)]
-		if !ok {
-			result[string(e)] = webclient.EntitlementInfo{}
-			continue
-		}
-
+		al := modules.GetProtoEntitlement(features, e)
 		result[string(e)] = webclient.EntitlementInfo{
 			Enabled: al.Enabled,
 			Limit:   al.Limit,
@@ -2487,7 +2532,6 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
 		return sso.LoginFailedRedirectURL
 	}
-
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
@@ -2495,6 +2539,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		ClientRedirectURL: req.ClientRedirectURL,
 		ClientLoginIP:     remoteAddr,
 		ClientUserAgent:   r.UserAgent(),
+		Scope:             req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
@@ -2571,7 +2616,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
-		if errors.Is(err, auth.ErrGithubNoTeams) {
+		if errors.Is(err, auth.ErrGithubNoRoles) {
 			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 
@@ -2675,7 +2720,30 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		targetVersion = teleport.SemVer()
 	}
 
-	instTmpl, err := texttemplate.New("").Parse(installer.GetScript())
+	getWindowsCA := func() (string, error) {
+		authorities, err := client.ExportAllAuthorities(
+			r.Context(),
+			h.GetProxyClient(),
+			client.ExportAuthoritiesRequest{
+				AuthType: "windows",
+			},
+		)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Combine all certificates into a single PEM-encoded string and then base64
+		// encode it.
+		var buf bytes.Buffer
+		for _, a := range authorities {
+			pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: a.Data})
+		}
+		return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	}
+
+	instTmpl, err := texttemplate.New("").
+		Funcs(texttemplate.FuncMap{"getWindowsCA": getWindowsCA}).
+		Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2700,16 +2768,36 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 	azureClientID := r.URL.Query().Get("azure-client-id")
 
+	// For windows auth package installer scripts, we need to know if the installer
+	// should restart the machine after installation. A restart is required before
+	// smartcard authentication can be used, but we give the user the option
+	// because they may not want to restart immediately.
+	restartAfterEnrollment := r.URL.Query().Get("restart-after-enrollment") == "true"
+
 	tmpl := installers.Template{
-		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
-		TeleportPackage:   teleportPackage,
-		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
-		AutomaticUpgrades: strconv.FormatBool(installUpdater),
-		AzureClientID:     shsprintf.EscapeDefaultContext(azureClientID),
+		PublicProxyAddr:                  h.PublicProxyAddr(),
+		MajorVersion:                     shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
+		TeleportPackage:                  teleportPackage,
+		RepoChannel:                      shsprintf.EscapeDefaultContext(repoChannel),
+		AutomaticUpgrades:                strconv.FormatBool(installUpdater),
+		AzureClientID:                    shsprintf.EscapeDefaultContext(azureClientID),
+		AuthPackageVersion:               strings.ReplaceAll(targetVersion.String(), "'", "''"),
+		RestartAfterEnrollment:           restartAfterEnrollment,
+		WindowsInstallerDownloadFailure:  int(installstatus.WindowsInstallerDownloadFailure),
+		WindowsInstallerExecutionFailure: int(installstatus.WindowsInstallerExecutionFailure),
+		WindowsInstallerStagingDirUnsafe: int(installstatus.WindowsInstallerStagingDirUnsafe),
+		WindowsInstallerChecksumMismatch: int(installstatus.WindowsInstallerChecksumMismatch),
 	}
-	err = instTmpl.Execute(w, tmpl)
-	return nil, trace.Wrap(err)
+
+	var buf bytes.Buffer
+	if err := instTmpl.Execute(&buf, tmpl); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if _, err := io.Copy(w, &buf); err != nil {
+		h.logger.DebugContext(r.Context(), "Failed writing installer script response", "error", err)
+	}
+	return nil, nil
+
 }
 
 // AuthParams are used to construct redirect URL containing auth
@@ -2820,6 +2908,9 @@ type CreateSessionReq struct {
 	Pass string `json:"pass"`
 	// SecondFactorToken is the OTP.
 	SecondFactorToken string `json:"second_factor_token"`
+	// Scope is the scope for which this session is created. Empty means
+	// unscoped.
+	Scope string `json:"scope"`
 }
 
 // String returns text description of this response
@@ -2855,14 +2946,26 @@ type CreateSessionResponse struct {
 	TrustedDeviceRequirement int32 `json:"trustedDeviceRequirement,omitempty"`
 }
 
-func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
+func newSessionResponse(ctx context.Context, sctx *SessionContext) (*CreateSessionResponse, error) {
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = accessChecker.CheckLoginDuration(0)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	if accessChecker.AccessInfo().ScopePin == nil {
+		_, err = accessChecker.CheckLoginDuration(0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		checkerContext, err := sctx.GetUserScopedAccessCheckerContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		_, err = checkerContext.CertParams().GetSSHLoginsForTTL(ctx, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	token, err := sctx.getToken()
@@ -2914,11 +3017,11 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	var webSession types.WebSession
 	switch {
 	case !cap.IsSecondFactorEnforced():
-		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, req.Scope, clientMeta)
 	case req.SecondFactorToken == "" && !cap.IsSecondFactorEnforced():
-		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, req.Scope, clientMeta)
 	case cap.IsSecondFactorTOTPAllowed():
-		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
+		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, req.Scope, clientMeta)
 	default:
 		return nil, trace.AccessDenied("direct login with password+otp not supported by this cluster")
 	}
@@ -2943,7 +3046,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	res, err := newSessionResponse(ctx)
+	res, err := newSessionResponse(r.Context(), ctx)
 	return res, trace.Wrap(err)
 }
 
@@ -3051,6 +3154,9 @@ type renewSessionRequest struct {
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	// TODO(bl-nero): Fix session renewal for scoped sessions. This endpoint
+	// doesn't work for scoped sessions, but currently, the web UI doesn't even
+	// call it in such scenario.
 	req := renewSessionRequest{}
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -3072,7 +3178,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := newSessionResponse(newContext)
+	res, err := newSessionResponse(r.Context(), newContext)
 	return res, trace.Wrap(err)
 }
 
@@ -3150,7 +3256,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Checks for at least one valid login.
-	if _, err := newSessionResponse(ctx); err != nil {
+	if _, err := newSessionResponse(r.Context(), ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3371,7 +3477,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	return newSessionResponse(r.Context(), ctx)
 }
 
 // getClusters returns a list of cluster and its data.
@@ -3458,7 +3564,7 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesRequest, error) {
+func makeUnifiedResourceRequest(r *http.Request, scopePin *scopesv1.Pin) (*proto.ListUnifiedResourcesRequest, error) {
 	values := r.URL.Query()
 
 	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -3482,16 +3588,23 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	// set default kinds to be requested if none exist in the request
+	scopedIdentity := scopePin.GetScope() != ""
 	if len(kinds) == 0 {
-		kinds = []string{
-			types.KindApp,
-			types.KindDatabase,
-			types.KindNode,
-			types.KindWindowsDesktop,
-			types.KindLinuxDesktop,
-			types.KindKubernetesCluster,
-			types.KindSAMLIdPServiceProvider,
-			types.KindGitServer,
+		if scopedIdentity {
+			// TODO(bl-nero): Support more resource kinds when they are supported for
+			// scoped sessions.
+			kinds = []string{types.KindNode}
+		} else {
+			kinds = []string{
+				types.KindApp,
+				types.KindDatabase,
+				types.KindNode,
+				types.KindWindowsDesktop,
+				types.KindLinuxDesktop,
+				types.KindKubernetesCluster,
+				types.KindSAMLIdPServiceProvider,
+				types.KindGitServer,
+			}
 		}
 	}
 
@@ -3508,7 +3621,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    useSearchAsRoles,
-		IncludeLogins:       true,
+		IncludeLogins:       !scopedIdentity,
 		IncludeRequestable:  includeRequestable,
 	}, nil
 }
@@ -3555,7 +3668,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := makeUnifiedResourceRequest(request)
+	req, err := makeUnifiedResourceRequest(request, identity.ScopePin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5796,6 +5909,8 @@ type SSORequestParams struct {
 	CSRFToken string
 	// LoginHint is the user's identifier (email) for identifier-first login.
 	LoginHint string
+	// Scope is the scope that this session will be pinned to.
+	Scope string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5837,11 +5952,14 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	scope := query.Get("scope")
+
 	return &SSORequestParams{
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
 		LoginHint:         loginHint,
+		Scope:             scope,
 	}, nil
 }
 

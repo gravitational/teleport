@@ -9,12 +9,25 @@ tags:
 page_type: conceptual
 ---
 
-**Scopes** are a hierarchical organization system for Teleport resources and
-permissions. A scope is a path-like attribute (for example `/staging/west` or
-`/prod`) attached to resources and permission grants. Permissions assigned at
-a scope apply to resources within that scope and all of its descendant
-scopes, but cannot reach across to orthogonal scopes or up to ancestor
-scopes.
+**Scopes** let you divide a Teleport cluster into a hierarchy of isolated
+administrative boundaries. Use scopes when you want to delegate management of
+one part of a cluster without granting access to unrelated resources.
+
+## How it works
+
+A scope is a path-like attribute (for example `/staging/west` or `/prod`) that
+Teleport attaches to supported resources, permission grants, and issued
+credentials. Permissions assigned at a scope apply to resources within that
+scope and its descendants, but not to parent or sibling scopes. Scopes are an
+*attribute*, not an object, so a scope path does not need to be created before
+resources or permissions are assigned to it.
+
+Cluster administrators create scoped roles, assign those roles to users at a
+specific scope, and create scoped join tokens for Agents. When a user logs in
+with a scope, Teleport issues credentials pinned to that scope. Scoped RBAC
+checks then authorize access only to resources in that scope or one of its
+descendants. Agents that join with a scoped token register their supported
+resources at the token's assigned scope.
 
 For example, a cluster administrator can assign a scoped admin role to Alice
 at `/staging/west`. Alice can then manage scoped roles, scoped tokens, and
@@ -22,8 +35,12 @@ SSH Services in `/staging/west` and descendant scopes such as
 `/staging/west/team-a`, but she cannot affect `/staging/east`, `/prod`, or
 unscoped cluster resources.
 
-This page describes the concepts behind scopes, and provides instructions for
-basic usage and specific scenarios.
+Scopes complement labels, but they solve a different problem. Labels describe
+individual resources and are used by roles to choose matching resources.
+Scopes define the administrative boundary and the scope of issued
+credentials. Label selectors can further restrict which resources a scoped
+role can access, but they cannot grant access outside the role assignment's
+scope.
 
 ## Use cases
 
@@ -40,16 +57,6 @@ Scopes are designed to enable:
 - **Mixed permissiveness.** Different access controls (such as session
   recording, port forwarding, or idle timeouts) can apply to the same user
   in different scopes.
-
-Scopes are an *attribute*, not an object. A scope path does not need to be
-created before resources or permissions are assigned to it.
-
-Scopes complement labels, but they solve a different problem. Labels describe
-individual resources and are used by roles to choose matching resources.
-Scopes define the administrative boundary and the scope of issued
-credentials. Label selectors can further restrict which resources a scoped
-role can access, but they cannot grant access outside the role assignment's
-scope.
 
 <Admonition type="warning" title="Active development">
 
@@ -73,6 +80,10 @@ supported set listed below.
 - All Teleport instances (Auth Service, Proxy Service, and Agents) must be
   running the same Teleport version, and must have the
   `TELEPORT_UNSTABLE_SCOPES=yes` environment variable set.
+- The Auth Service must also have the
+  `TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes` environment variable set before
+  you use scoped tokens to join Agent roles other than SSH Services (`node`)
+  and Bots. This includes scoped Kubernetes Services and Application Services.
 
 ## Currently supported features
 
@@ -89,10 +100,16 @@ be assumed unsupported in scoped mode.
 - Basic scoped SSH access, including joining SSH Services at a
   scope and assigning scoped SSH access to users.
 - Basic scoped Kubernetes access, including joining Kubernetes services
-  at a scope and assigning scoped Kubernetes access to users.
-- Granting scoped roles to users via Access Lists.
+  at a scope, registering dynamic clusters, and assigning scoped Kubernetes
+  access to users.
+- Basic scoped Application access, including joining Application Services
+  at a scope and assigning scoped application access to users.
+- Scoped Access Lists that can be managed by scoped administrators and used to
+  grant scoped roles to groups of users.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
   identity output and SSH access.
+- Scoped Workload Identity resources for issuing SPIFFE credentials to
+  workloads within a scope.
 
 ## Basic usage
 
@@ -103,11 +120,14 @@ are expected to work. The following commands are officially supported in
 scoped mode:
 
 - `tsh login --scope=<scope> ...`
-- `tsh logout` (required to exit a scoped session)
+- `tsh logout`
+- `tsh scopes ls` (lists the scopes at which the user has assigned privileges)
 - `tsh ls` (lists SSH instances available at the current scope)
 - `tsh ssh <login>@<host>` (for SSH instances available at the current scope)
 - `tsh kube ls` (lists Kubernetes clusters available at the current scope)
 - `tsh kube login <cluster>` (for Kubernetes clusters available at the current scope)
+- `tsh apps ls` (lists applications available at the current scope)
+- `tsh apps login <app>` (for applications available at the current scope)
 - `tctl get|create|edit|rm <resource>` (for scoped resources)
 - `tctl scoped tokens add|rm|ls ...` (for managing scoped tokens)
 - `tctl scopes status` (overview of scoped privilege usage in the cluster)
@@ -127,8 +147,9 @@ role includes the ability to create and assign scoped roles, so an unscoped
 administrator can bootstrap the first scoped admin.
 
 While logged in as a user with the `editor` role, create a scoped admin
-role that can manage scoped permissions, SSH into instances, and connect
-to Kubernetes clusters within `/examples` (replace `ubuntu` with your desired OS login):
+role that can manage scoped permissions, SSH into instances, connect
+to Kubernetes clusters, and access applications within `/examples` (replace
+`ubuntu` with your desired OS login):
 
 ```code
 $ tctl create <<EOF
@@ -140,10 +161,16 @@ spec:
   assignable_scopes:
     - /examples
   kube:
+    groups: [cluster-admin]
     labels:
       - name: '*'
         values: ['*']
-    groups: [cluster-admin]
+    resources:
+      - kind: '*'
+        namespace: '*'
+        api_group: '*'
+        name: '*'
+        verbs: ['*']
   ssh:
     logins: [ubuntu]
     labels:
@@ -157,17 +184,18 @@ spec:
         enabled: true
       remote:
         enabled: true
+  app:
+    labels:
+      - name: '*'
+        values: ['*']
   rules:
-    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance]
-      verbs: [create, list, readnosecrets, update, delete]
-    - resources: [scoped_token]
+    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list]
       verbs: [create, list, read, update, delete]
+    - resources: [scoped_token, kube_cluster]
+      verbs: [create, list, read, secrets, update, delete]
 version: v1
 EOF
 ```
-
-Note that the `kube` configuration block does not yet support configuring
-`kubernetes_resources`.
 
 Next, create a scoped role assignment to grant `example-admin` to the user
 who will become the scoped admin (replace `alice` with your user):
@@ -180,7 +208,7 @@ scope: /examples
 spec:
   user: alice
   assignments:
-    - role: example-admin
+    - role: /examples::example-admin
       scope: /examples/basic
 version: v1
 EOF
@@ -230,9 +258,9 @@ generated token. Once the instance has joined, the scoped admin can list it:
 
 ```code
 $ tsh ls
-Node Name    Address Labels
------------- ------- -----------
-example-node Tunnel  foo=bar
+Scope           Node Name    Address Labels
+--------------- ------------ ------- -----------
+/examples/basic example-node Tunnel  foo=bar
 ```
 
 Finally, SSH into the SSH Service instance using the scoped admin user:
@@ -243,9 +271,8 @@ $ tsh ssh ubuntu@example-node
 
 ## Joining a scoped Kubernetes Service
 
-Only static Kubernetes clusters support joining with scopes. Dynamic
-cluster registration, including those discovered by the Teleport Discovery
-Service, dot not yet support scopes.
+Kubernetes Clusters discovered by the Teleport Discovery Service are not
+supported by scopes at this time.
 
 Log the scoped admin into the desired scope:
 
@@ -300,6 +327,86 @@ credentials. You can either use `kubectl` directly by specifying the correct
 context or use the `tsh kubectl` sub-command to interact with the selected
 cluster.
 
+## Joining a scoped Application Service
+
+Only statically configured applications served by Application Services support
+joining with scopes. Dynamic application registration, including those discovered
+by the Teleport Discovery Service, does not yet support scopes.
+
+Log the scoped admin into the desired scope:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+```
+
+Create a scoped token that can be used to join an Application Service at
+the desired scope:
+
+```code
+$ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=app
+```
+
+Copy the printed invite token to `/tmp/scoped-app-token` on the Application
+Service host, then create the following `/etc/teleport.yaml`:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/scoped-app-token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+app_service:
+  enabled: true
+  apps:
+  - name: scoped-grafana
+    uri: "http://localhost:3000"
+    labels:
+      env: "staging"
+      tier: "mfa"
+```
+
+Start Teleport with this configuration:
+
+```code
+$ sudo teleport start --config=/etc/teleport.yaml
+```
+
+Once the instance has joined, the scoped admin can list it:
+
+```code
+$ tsh apps ls
+Application                     Description Type Public Address                        Labels
+------------------------------- ----------- ---- ------------------------------------- --------------------
+/examples/basic::scoped-grafana             HTTP lv7pgada3xgarg2rvk7gm4xgmx7nto6j.t... env=staging,tier=mfa
+```
+
+Note that the scope is prefixed, followed by `::`, and then the application name.
+Scoped applications require the user to refer to each application by their
+scope-qualified name when interacting with `tsh`.
+
+The public address is also always derived for a scoped application. Users will
+not be able to define their own public address in order to disallow cross-scope
+access.
+
+Log in to the application:
+
+```code
+$ tsh apps login /examples/basic::scoped-grafana
+Logged into app /examples/basic::scoped-grafana. Example curl command:
+
+curl \
+  --cert "/Users/teleport-user/.tsh/keys/teleport.example.com/teleport-app/teleport.example.com/@lv7pgada3xgarg2rvk7gm4xgmx7nto6j.crt" \
+  --key "/Users/teleport-user/.tsh/keys/teleport.example.com/teleport-app/teleport.example.com/@lv7pgada3xgarg2rvk7gm4xgmx7nto6j.key" \
+  https://lv7pgada3xgarg2rvk7gm4xgmx7nto6j.teleport.example.com
+```
+
 ### Adding immutable labels via a token
 
 A scoped token can carry a set of immutable labels that are automatically
@@ -309,25 +416,25 @@ overridden by the joining instance.
 ```code
 $ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node --ssh-labels=foo=bar,baz=qux
 
-The invite token: 019ce8f7-f0d5-784d-af3f-075aa79c19cb
+The invite token: /examples/basic::019fb4b9-969d-7f36-b910-84e3e6449756:ZGQ4ZjQ0MTVlNjQ3MmJjZDEzOThhMmU2MzYyNTFjNmY
 This token will expire in 480 minutes.
 
 Run this on the new node to join the cluster:
 
 > teleport start \
    --roles=node \
-   --token=019ce8f7-f0d5-784d-af3f-075aa79c19cb~YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY \
+   --token=/examples/basic::019fb4b9-969d-7f36-b910-84e3e6449756:ZGQ4ZjQ0MTVlNjQ3MmJjZDEzOThhMmU2MzYyNTFjNmY \
    --auth-server=proxy.example.com:443
 ```
 
 Inspect the token to confirm the immutable labels:
 
 ```code
-$ tctl get scoped_token/019ce8f7-f0d5-784d-af3f-075aa79c19cb
+$ tctl get scoped_token /examples/basic::019fb4b9-969d-7f36-b910-84e3e6449756
 kind: scoped_token
 metadata:
   expires: "2026-03-14T04:51:29.109545Z"
-  name: 019ce8f7-f0d5-784d-af3f-075aa79c19cb
+  name: 019fb4b9-969d-7f36-b910-84e3e6449756
 scope: /examples/basic
 spec:
   assigned_scope: /examples/basic
@@ -347,7 +454,7 @@ Once the SSH Service instance joins, the immutable labels are merged with
 any labels set on the instance itself and cannot be overridden:
 
 ```code
-$ tctl get node/example
+$ tctl get node /examples/basic::edff1d38-bbcb-4a21-b38d-ac43a2e20f85
 kind: node
 metadata:
   labels:
@@ -366,7 +473,7 @@ version: v2
 
 $ tsh ls
 Scope           Node Name Address Labels
--------------------------------------------------------------------------
+--------------- --------- ------- -----------
 /examples/basic example   Tunnel  baz=qux,foo=bar,fruit=pear,env=test
 ```
 
@@ -378,7 +485,7 @@ single instance. Set `--mode=single_use` when creating the token:
 ```code
 $ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node --mode=single_use
 
-The invite token: 019ce90a-3585-75b1-b992-263758a9b843
+The invite token: /examples/basic::019fb4c0-5b15-7c9a-bf91-66f14d8a2b2e:NjNmOTI0YjRmOWI2YTNlMDc1YTU4Y2M4M2Q0ZTgzZWM
 This token will expire in 480 minutes.
 ```
 
@@ -386,11 +493,11 @@ Use the token as normal to join an instance. After joining completes, the
 token's status reflects that it has been consumed:
 
 ```code
-$ tctl get scoped_token/019ce90a-3585-75b1-b992-263758a9b843
+$ tctl get scoped_token /examples/basic::019fb4c0-5b15-7c9a-bf91-66f14d8a2b2e
 kind: scoped_token
 metadata:
   expires: "2026-03-14T05:11:26.341373Z"
-  name: 019ce90a-3585-75b1-b992-263758a9b843
+  name: 019fb4c0-5b15-7c9a-bf91-66f14d8a2b2e
 scope: /examples/basic
 spec:
   assigned_scope: /examples/basic
@@ -462,7 +569,7 @@ scope: /examples/basic
 spec:
   user: bob
   assignments:
-    - role: example-user
+    - role: /examples/basic::example-user
       scope: /examples/basic
 version: v1
 EOF
@@ -474,9 +581,9 @@ it:
 ```code
 $ tsh login --user=bob --scope=/examples/basic --proxy=teleport.example.com
 $ tsh ls
-Node Name    Address Labels
------------- ------- -----------
-example-node Tunnel  foo=bar
+Scope           Node Name    Address Labels
+--------------- ------------ ------- -----------
+/examples/basic example-node Tunnel  foo=bar
 $ tsh ssh ubuntu@example-node
 ```
 
@@ -485,23 +592,23 @@ $ tsh ssh ubuntu@example-node
 Access Lists can grant scoped roles to groups of users without requiring an
 individual scoped role assignment per user.
 
-Access Lists are currently unscoped resources and must be managed by an
-unscoped cluster administrator. They may only grant scoped roles defined at
-the root scope `/`, but they can assign those roles at any scope listed in
-the role's `assignable_scopes`.
-
-While logged in with the unscoped `editor` role, create a scoped role at
-the root scope:
+Log the scoped admin into the desired scope:
 
 ```code
-$ tctl create <<EOF
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+````
+
+Create a scoped role that can grant SSH access in `/examples/basic`:
+
+```code
+$ tctl create -f <<EOF
 kind: scoped_role
 metadata:
   name: example-access
-scope: /
+scope: /examples/basic
 spec:
   assignable_scopes:
-    - /examples/**
+    - /examples/basic
   ssh:
     logins: [ubuntu]
     labels:
@@ -527,15 +634,16 @@ version: v1
 kind: access_list
 metadata:
   name: example-access-list
+scope: /examples/basic
 spec:
   title: "Example scoped Access List"
   description: "Grants scoped access to SSH Services in /examples/basic"
   owners:
-    - name: admin
+    - name: alice
       membership_kind: MEMBERSHIP_KIND_USER
   grants:
     scoped_roles:
-      - role: example-access
+      - role: /examples/basic::example-access
         scope: /examples/basic
 EOF
 ```
@@ -543,42 +651,89 @@ EOF
 Add members to the Access List:
 
 ```code
-$ tctl acl users add example-access-list alice
-$ tctl acl users add example-access-list bob
+$ tctl acl users add /examples/basic::example-access-list bob
+successfully added user bob to access list /examples/basic::example-access-list
+$ tctl acl users add /examples/basic::example-access-list charlie
+successfully added user charlie to access list /examples/basic::example-access-list
 ```
 
-Confirm the scoped role has been materialized for each member:
+Access Lists that grant scoped roles always result in a "materialized" scoped
+role assignment for each of their members and owners.
+A "materialized" scoped role assignment is one that is automatically created
+and kept up to date for each user that is granted a scoped role by an Access List.
+Each materialized scoped role assignment assigns all of the scoped roles granted
+by the Access List to the user.
+Confirm a scoped role assignment has been materialized for each member:
 
 ```code
 $ tctl get scoped_role_assignments --format text
-SubKind      Scope Name                                       User  Assigns
------------- ----- ------------------------------------------ ----- ---------------------------------
-materialized /     acl-lBPn7FNe97FTVpWdlHjKGrm54xE41RWEphlhLg bob   example-access => /examples/basic
-materialized /     acl-wkniExD3WxPtVW7NvlcNMigD-slBSP2fSW0J1Q alice example-access => /examples/basic
+SubKind      ID                                                          Assignee      Assigns
+------------ ----------------------------------------------------------- ------------- --------------------------------------------------
+materialized /examples/basic::acl-4ezohtYllrk-gbWjn0hj_npCNwhujMurruDLRg user: charlie /examples/basic::example-access -> /examples/basic
+materialized /examples/basic::acl-XMyMVGoNZopPQ9WxuZ5RH6GM5FPHVwLSTFUsBg user: bob     /examples/basic::example-access -> /examples/basic
 ```
 
 Access Lists and members can also be managed via the Web UI under
-**Identity Governance > Access Lists**. Granted scoped roles are visible
-in the UI but cannot yet be edited there.
+**Identity Governance > Access Lists**.
+Currently, only unscoped Access Lists can be created or managed in the web UI,
+but unscoped Access Lists can still grant scoped roles as long as the role is
+defined in the root scope `/`.
 
-Nested Access Lists are fully supported. Scoped roles can also be granted
-to Access List owners using the `owner_grants` field. See the
-[Access Lists reference](../../reference/access-controls/access-lists.mdx)
+Nested Access Lists are fully supported, meaning Access Lists can have members
+that are other Access Lists, and members of the child list receive all scoped
+role grants from the parent list.
+Scoped roles can also be granted to Access List owners using the `owner_grants`
+field.
+See the [Access Lists reference](../../reference/access-controls/access-lists.mdx)
 for details.
+
+### Scoped Access List rules
+
+To maintain hierarchical scoped privilege isolation, the following rules apply
+to scoped Access Lists:
+
+1. An Access List can only grant scoped roles defined in a scope that is equal
+   to or an ancestor of the list's scope.
+1. A scoped role grant can only grant the scoped role at a scope that is equal
+   to or a descendent of the list's scope.
+1. An Access List can only be added as a member of another Access List if the
+   member list's scope is equal to or an ancestor of the parent list's scope.
+1. An Access List can only be added as an owner of another Access List if the
+   owner list's scope is equal to or an ancestor of the owned list's scope.
+1. A scoped Access List (or an unscoped list that grants any scoped roles) may
+   not contain member requirements or owner requirements.
+
+Any attempt to create an Access List violating these rules will be rejected by
+the Auth Service with an error message.
+
+For an example Access List with scope `/examples/basic`:
+
+1. It can only grant scoped roles defined in `/examples/basic` or `/examples` or `/`.
+1. It can only grant scoped roles at `/examples/basic` or `/examples/basic/**`.
+1. It can only have member Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
+1. It can only have owner Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
+1. It may not contain any member or owner requirements.
 
 ## Infrastructure as Code
 
-Scoped roles, scoped role assignments, and scoped tokens can be managed
-with Teleport's IaC tooling.
+Scoped Roles, Scoped Role Assignments, Scoped Tokens, Kubernetes clusters,
+Access Lists, Access List Members, Bots, and Workload Identities can be
+managed with Teleport's IaC tooling.
 
 The Teleport Terraform provider supports these resources:
 
+- [`teleport_access_list`](../../reference/infrastructure-as-code/terraform-provider/resources/access_list.mdx)
+- [`teleport_access_list_member`](../../reference/infrastructure-as-code/terraform-provider/resources/access_list_member.mdx)
+- [`teleport_bot`](../../reference/infrastructure-as-code/terraform-provider/resources/bot.mdx)
+- [`teleport_kube_cluster`](../../reference/infrastructure-as-code/terraform-provider/resources/kube_cluster.mdx)
 - [`teleport_scoped_role`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role.mdx)
 - [`teleport_scoped_role_assignment`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role_assignment.mdx)
 - [`teleport_scoped_token`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx)
+- [`teleport_workload_identity`](../../reference/infrastructure-as-code/terraform-provider/resources/workload_identity.mdx)
 
 The Kubernetes Operator supports these custom resources:
 
+- [`TeleportBotV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-botsv1.mdx)
 - [`TeleportScopedRoleV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedrolesv1.mdx)
 - [`TeleportScopedRoleAssignmentV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedroleassignmentsv1.mdx)
 - [`TeleportScopedTokenV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedtokensv1.mdx)
@@ -621,7 +776,7 @@ controlled by either the `scoped: true` configuration value or the
 
 The following example shows the scoped resources required to run a Bot in
 scoped mode. It assumes you already have an unscoped administrator who can
-bootstrap the first scoped admin, and a scoped role named `staging-ssh-access`
+bootstrap the first scoped admin, and a scoped role named `/staging::staging-ssh-access`
 that grants the Bot its intended SSH privileges.
 
 Grant a scope administrator the ability to manage scoped Bots and scoped
@@ -644,7 +799,7 @@ spec:
         - bot_instance
       verbs:
         - list
-        - readnosecrets
+        - read
         - create
         - update
         - delete
@@ -653,7 +808,7 @@ spec:
       verbs:
         - list
         - read
-        - readnosecrets
+        - secrets
         - create
         - update
         - delete
@@ -667,7 +822,7 @@ sub_kind: dynamic
 spec:
   user: my-scope-admin
   assignments:
-    - role: staging-scope-mwi-admin
+    - role: /staging::staging-scope-mwi-admin
       scope: /staging
 ```
 
@@ -696,7 +851,7 @@ sub_kind: dynamic
 spec:
   bot: /staging::my-scoped-bot
   assignments:
-    - role: staging-ssh-access
+    - role: /staging::staging-ssh-access
       scope: /staging
 ```
 
@@ -726,9 +881,9 @@ version: v2
 proxy_server: example.teleport.sh:443
 onboarding:
   join_method: bound_keypair
-  token: my-scoped-bot
+  token: /staging::my-scoped-bot
   bound_keypair:
-    registration_secret: <secret fetched from "tctl get scoped_token/my-scoped-bot --with-secrets">
+    registration_secret: <secret fetched from "tctl get scoped_token /staging::my-scoped-bot --with-secrets">
 scoped: true
 storage:
   type: directory
@@ -743,3 +898,661 @@ services:
 Once `tbot` is running, the credentials it produces can be used to access
 resources within the scope using `tsh` or `tctl` with the identity file,
 or with `ssh` using the OpenSSH configuration files generated by `tbot`.
+
+### Scoped SPIFFE
+
+The standard `workload_identity` resource supports the `scope` field. When
+set, the Workload Identity is considered scoped. Scoped Workload Identities
+can be created, read, updated, and deleted by scope admins through scoped
+roles and scoped role assignments, and can be used by scoped Bots to issue
+SPIFFE credentials to workloads. A scoped Workload Identity cannot be
+defined in the root scope `/`. See the
+[Workload Identity resource reference](../../reference/machine-workload-identity/workload-identity/workload-identity-resource.mdx)
+for the available fields.
+
+#### SPIFFE ID structure
+
+A scoped Workload Identity must specify a SPIFFE ID that encodes the scope
+in which it is defined. The path of the SPIFFE ID consists of three
+sections:
+
+- The scope section: segments that match the scope in which the Workload
+  Identity is defined.
+- The separator segment: `/_/`.
+- The administratively-defined section: one or more segments freely chosen
+  by the administrator.
+
+For example, a Workload Identity defined in `/staging` may specify the
+SPIFFE ID `/staging/_/payments/api`. Workloads are then issued SVIDs with
+the following SPIFFE ID:
+
+```text
+spiffe://example.teleport.sh/staging/_/payments/api
+```
+
+The following rules apply to the SPIFFE ID of a scoped Workload Identity:
+
+- The scope section must exactly match the scope in which the Workload
+  Identity is defined. It cannot be an ancestor or descendant of that
+  scope. This means the scope responsible for a SPIFFE ID can always be
+  determined from the ID alone, and admins of one scope cannot issue SPIFFE
+  IDs that appear to belong to another scope.
+- The scope section must be immediately followed by the separator segment.
+- The administratively-defined section must contain at least one segment,
+  and must not itself contain the separator segment, so that a scoped
+  SPIFFE ID contains exactly one separator.
+- Templating within the SPIFFE ID is supported. These rules are enforced
+  against the rendered SPIFFE ID at issuance time, so template attributes
+  cannot be used to escape the scope.
+
+#### Granting issuance to a scoped Bot
+
+Issuance is controlled by the `workload_identity` section of a scoped role,
+which selects the Workload Identities that the role permits issuance with
+by label. Issuance additionally requires the `read` verb (and,
+when issuing by label selector, `list`) for the `workload_identity`
+resource in the role's `rules`.
+
+#### Configuring `tbot` in scoped mode
+
+In scoped mode, `tbot` supports the `workload-identity-x509`,
+`workload-identity-jwt`, and `workload-identity-api` services. When
+selecting a scoped Workload Identity by name, use its scope-qualified name,
+for example `/staging::staging-payments-api`.
+
+### Scoped SPIFFE example
+
+The following example builds on the scoped MWI example above, granting the
+scoped Bot `/staging::my-scoped-bot` the ability to issue SPIFFE SVIDs. It assumes the
+scope administrator's role also grants write access to the `workload_identity` resource.
+
+As the scope administrator, create a scoped Workload Identity:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: staging-payments-api
+  labels:
+    app: payments
+scope: /staging
+spec:
+  spiffe:
+    id: /staging/_/payments/api
+```
+
+Create a scoped role permitting issuance with Workload Identities labeled
+`app: payments`, and assign it to the Bot:
+
+```yaml
+kind: scoped_role
+version: v1
+metadata:
+  name: staging-spiffe-issuer
+scope: /staging
+spec:
+  assignable_scopes:
+    - /staging
+  workload_identity:
+    labels:
+      - name: app
+        values: [payments]
+  rules:
+    - resources: [workload_identity]
+      verbs: [list, read]
+---
+kind: scoped_role_assignment
+version: v1
+metadata:
+  name: 9c41d3be-72af-4d9e-8e5a-1f3b6c0d47e1
+scope: /staging
+sub_kind: dynamic
+spec:
+  bot: /staging::my-scoped-bot
+  assignments:
+    - role: /staging::staging-spiffe-issuer
+      scope: /staging
+```
+
+Add a Workload Identity service to the `tbot` configuration from the
+previous example, selecting the Workload Identity by its scope-qualified
+name:
+
+```yaml
+services:
+  - type: workload-identity-api
+    listen: unix:///opt/machine-id/workload.sock
+    selector:
+      name: /staging::staging-payments-api
+```
+
+Workloads connecting to the SPIFFE Workload API socket are issued SVIDs
+with the following SPIFFE ID:
+
+```text
+spiffe://example.teleport.sh/staging/_/payments/api
+```
+
+## Kubernetes resource RBAC
+
+When defining scoped roles, the `resources` list provided in
+`scoped_role.spec.kube` must be defined in order for the role to grant access
+to a Kubernetes cluster. When the intent is to fully rely on Kubernetes'
+builtin RBAC rules, a wildcard entry must be defined:
+```yaml
+kind: scoped_role
+metadata:
+  name: kube-access
+scope: /examples
+spec:
+  assignable_scopes:
+    - /examples
+  kube:
+    groups: [cluster-admin]
+    labels:
+      - name: '*'
+        values: ['*']
+    resources:
+      - kind: '*'
+        namespace: '*'
+        api_group: '*'
+        name: '*'
+        verbs: ['*']
+version: v1
+```
+
+This is notably opposite to the behavior of unscoped Teleport roles which
+provide wildcard access by default when `kubernetes_resources` are left
+undefined. Scoped roles aim to be explicit and deny by default which is
+incompatible with the unscoped behavior.
+
+## Dynamic Kubernetes cluster registration
+
+With dynamic Kubernetes cluster registration, you can manage the Kubernetes
+clusters connected to your Teleport cluster without needing to modify the
+configuration file of an individual Kubernetes Service instance.
+
+Dynamic Kubernetes cluster registration is useful when you have deployed
+multiple Kubernetes Service instances or need to regularly reconfigure access to
+Kubernetes clusters in your infrastructure.
+
+In this guide, you will set up dynamic Kubernetes cluster registration, then
+create, list, update, and delete Kubernetes clusters via `tctl`.
+
+## How it works
+
+The Teleport Kubernetes Service proxies traffic from Teleport users to a
+Kubernetes API server so you can take advantage of passwordless authentication,
+role-based access controls, audit logging, and other Teleport features in order
+to manage access to Kubernetes.
+
+In this step, you will install the Teleport Kubernetes Service on a Linux host
+and configure it to access any Kubernetes cluster you register with your
+Teleport cluster.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Linux host where you will install the Teleport Kubernetes Service.
+
+  <Admonition type="tip">
+
+  Our `teleport-kube-agent` Helm chart does not support dynamic Kubernetes
+  cluster registration.
+
+  </Admonition>
+
+- A Kubernetes cluster to join to your Teleport cluster. You must have
+  permissions to create namespaces, secrets, service accounts, cluster roles,
+  and cluster role bindings in the cluster.
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Set up the Teleport Kubernetes Service
+
+This step shows you how to install the Teleport Kubernetes Service on a Linux
+server.
+
+### Get a join token
+
+Establish trust between your Teleport cluster and your new Kubernetes Service
+instance by creating a scoped join token:
+
+```code
+$ tctl scoped tokens add --type=kube --scope=/examples/kube --assign-scope=/examples/kube --ttl=1h --format=text
+/examples/kube::(=presets.tokens.first=)
+```
+
+Copy the token and keep it somewhere safe so you can use it when running the
+Teleport Kubernetes Service.
+
+### Install the Teleport Kubernetes Service
+
+Install the Teleport Kubernetes Service on your Linux host:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configure the Teleport Kubernetes Service
+
+On the host where you will run the Teleport Kubernetes Service, run the
+following command to create a base configuration for your Teleport instance,
+assigning <Var name="example.teleport.sh:443" /> to the host and port of your
+Teleport Proxy Service or Teleport Cloud tenant and <Var name="join-token" /> to
+the join token we created earlier:
+
+```code
+$ sudo teleport configure \
+--proxy=<Var name="example.teleport.sh:443" /> \
+--roles=kube \
+--token=<Var name="join-token" /> \
+-o file
+```
+
+Edit your configuration file at `/etc/teleport.yaml` to include the following:
+
+```yaml
+kubernetes_service:
+  enabled: true
+  resources:
+  - labels:
+      "*": "*"
+```
+
+This configuration enables your Kubernetes Service instance to connect to any
+Kubernetes clusters you register with your Teleport cluster within the same
+scope. This is because the `resources[0].labels` field includes the wildcard
+pattern (`"*": "*"`), which allows this Kubernetes Service instance to
+connect to Kubernetes cluster resources with any label key or value. The
+Kubernetes Service instance's certificate will encode the scope assigned by its
+join token and be used to ensure only same-scope Kubernetes clusters are
+visible and registered.
+
+
+<details>
+<summary>Selectively watching Kubernetes clusters</summary>
+
+You can configure a Kubernetes Service instance to watch for a subset of
+Kubernetes clusters by including specific label keys and values instead of
+wildcard characters:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+    "region": "us-east-2"
+- labels:
+    "env": "test"
+    "region": "us-west-1"
+```
+
+For the Kubernetes Service to register a cluster, *any* of the items in
+`resources` must match the cluster's labels. For an item in `resources` to
+match, *all* of the `labels` entries within that item must match the cluster's
+labels.
+
+For example, a cluster with the labels `env:prod` and `region:us-west-1` would
+not match the configuration above, since it only matches the `env:prod` label in
+the first `resources` item and the `region:us-west-1` label in the second
+`resources` item.
+
+However, a cluster with `env:test` and `region:us-west-1` would match, since it
+matches both labels given in the second `resources` item.
+
+When you create dynamic Kubernetes cluster resources later in this guide, you
+can assign them labels to ensure that only specific Kubernetes Service instances
+will watch for them.
+
+</details>
+
+### Run the Teleport Kubernetes Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Kubernetes Service"!)
+
+## Step 2/3. Authorize your user
+
+To enable dynamic Kubernetes cluster registration in Teleport, you will need to
+authorize your user to access the Kubernetes clusters you want to register with
+Teleport. We will configure this access in this step, both in Teleport and on
+your Kubernetes cluster.
+
+### Allow access to your Kubernetes cluster
+
+Ensure that you are in the correct Kubernetes context for the cluster you would
+like to enable access to.
+
+Retrieve all available contexts:
+
+```code
+$ kubectl config get-contexts
+```
+
+Switch to your context, replacing `CONTEXT_NAME` with the name of your chosen
+context:
+
+```code
+$ kubectl config use-context CONTEXT_NAME
+Switched to context CONTEXT_NAME
+```
+
+The scoped role you will create in the next section allows your Teleport user
+access to Kubernetes as the `viewers` group. Configure the `viewers` group in
+your Kubernetes cluster to have the built-in `view` ClusterRole. When your
+Teleport user accesses the cluster, the Teleport Kubernetes Service
+impersonates the `viewers` group and proxies the requests.
+
+Create a file called `viewers-bind.yaml` with the following contents:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: viewers-crb
+subjects:
+- kind: Group
+  # Bind the group "viewers", corresponding to the group we assign in the
+  # scoped role below.
+  name: viewers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  # "view" is a default ClusterRole that grants read-only access to resources.
+  # See: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+  name: view
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Apply the `ClusterRoleBinding` with `kubectl`:
+
+```code
+$ kubectl apply -f viewers-bind.yaml
+```
+
+### Authorize your user to manage Kubernetes clusters
+
+Teleport tracks scoped Kubernetes clusters in your infrastructure via dynamic
+`kube_cluster` resources. To manage access to Kubernetes clusters with
+Teleport, your user will need permissions to manage these resources.
+
+Create a scoped role definition called `kube-manager.yaml` with the following
+content:
+
+```yaml
+kind: scoped_role
+metadata:
+  name: kube-manager
+scope: /examples
+spec:
+  assignable_scopes:
+    - /examples/kube
+  kube:
+    groups: [viewers]
+    labels:
+      - name: '*'
+        values: ['*']
+    resources:
+      - kind: '*'
+        namespace: '*'
+        api_group: '*'
+        name: '*'
+        verbs: ['*']
+  rules:
+    - resources: [kube_cluster]
+      verbs:
+        - create
+        - list
+        - read
+        - secrets
+        - update
+        - delete
+version: v1
+```
+
+Create the scoped role:
+
+```code
+$ tctl create -f kube-manager.yaml
+```
+
+Assign the role to your <Var name="user" />:
+
+```code
+$ tctl create <<EOF
+kind: scoped_role_assignment
+sub_kind: dynamic
+scope: /examples
+spec:
+  user: <Var name="user" />
+  assignments:
+    - role: /examples::kube-manager
+      scope: /examples/kube
+version: v1
+EOF
+```
+
+Log in to the `/examples/kube` scope so the scoped role assignment is active
+for the following `tctl` commands:
+
+```code
+$ tsh login --user=<Var name="user" /> --scope=/examples/kube --proxy=<Var name="example.teleport.sh:443" />
+```
+
+## Step 3/3. Manage dynamic Kubernetes cluster resources
+
+Now that your Teleport user has permissions to manage scoped Kubernetes cluster
+resources, we will show you how to create, list, update, and delete them.
+
+### Create a kubeconfig
+
+In this section, you will create a Kubernetes `Config` resource, or kubeconfig,
+that your Teleport cluster will use to authenticate to your Kubernetes cluster.
+
+When you signed into Teleport earlier in this guide, `tsh` may have changed
+your Kubernetes context to one based on your Teleport cluster, so make sure you
+update your Kubernetes context to match the cluster you would like to connect
+to Teleport:
+
+```code
+$ kubectl config get-contexts
+# Assign CONTEXT_NAME to your chosen context
+$ kubectl config use-context CONTEXT_NAME
+```
+
+On your workstation, download Teleport's `get-kubeconfig.sh` script, which you
+will use to generate the kubeconfig:
+
+```code
+$ curl -OL \
+https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/examples/k8s-auth/get-kubeconfig.sh
+```
+
+The script creates a service account for the Teleport Kubernetes Service that
+can get Kubernetes pods as well as impersonate users, groups, and other service
+accounts. The Teleport Kubernetes Service uses this service account to manage
+access to resources in your Kubernetes cluster. The script also ensures that
+there is a Kubernetes `Secret` in your cluster to store service account
+credentials.
+
+`get-kubeconfig.sh` creates a namespace called `teleport` for the resources it
+deploys, though you can choose a different name by assigning the
+`TELEPORT_NAMESPACE` environment variable in the shell where you run the script.
+
+After creating resources, `get-kubeconfig.sh` writes a new kubeconfig to a file
+called `kubeconfig` in the directory where you run the script.
+
+Run the `get-kubeconfig.sh` script:
+
+```code
+$ bash get-kubeconfig.sh
+```
+
+The script is successful if you see this message:
+
+```text
+Done!
+```
+
+Ignore the script's instructions to copy the generated kubeconfig file to the
+Teleport Proxy Service. In the next section, we will show you how to use the
+kubeconfig file when creating a dynamic `kube_cluster` resource.
+
+### Create a Kubernetes cluster resource
+
+Define a scoped `kube_cluster` resource with the following content in a file
+called `kube_cluster.yaml`:
+
+```yaml
+kind: kube_cluster
+version: v3
+scope: /examples/kube
+metadata:
+  name: mycluster
+spec:
+  kubeconfig: |
+```
+
+The `spec.kubeconfig` field in the snippet above begins a multi-line string.
+Below, you will include the contents of the kubeconfig file as its value.
+
+Since `spec.kubeconfig` must be a base64-encoded string, convert the kubeconfig
+file to base64, then indent it and add it to the `kube_cluster.yaml` resource
+definition using the following command:
+
+```code
+$ printf "    %s\n" "$(cat kubeconfig | base64 | tr -d '\n')" >> kube_cluster.yaml
+```
+
+This command also removes any newlines added to the middle of the base64-encoded
+string before writing it to the `kube_cluster` resource definition.
+
+<details>
+<summary>Add labels to your kube_cluster</summary>
+
+You can add labels to the `kube_cluster` resource, allowing you to manage access
+to specific clusters from your Teleport roles or Kubernetes Service instances.
+
+Dynamic, scoped Kubernetes clusters only support static labels, which are
+key/value pairs. This example defines the `env=prod` and `team=dev` labels:
+
+```yaml
+kind: kube_cluster
+version: v3
+scope: /examples/kube
+metadata:
+  name: mycluster
+  labels:
+    env: prod
+    team: dev
+spec:
+  kubeconfig: KUBECONFIG
+```
+</details>
+
+To create the `kube_cluster` resource, run the following command:
+
+```code
+$ tctl create kube_cluster.yaml
+kubernetes cluster "/examples/kube::mycluster" has been created
+```
+
+### Access your new Kubernetes cluster
+
+Instances of the Teleport Kubernetes Service watch for newly created or updated
+`kube_cluster` resources within their assigned scope. When you create the
+`kube_cluster` resource, any Kubernetes Service instances you have configured
+in that scope to track that cluster's labels will register that cluster and
+enable access to it via Teleport.
+
+As a result, you should now see the cluster you registered above when you run
+`tsh kube ls`:
+
+```code
+$ tsh kube ls
+ Kube Cluster Name Labels                      Scope          Selected
+ ----------------- --------------------------- -------------- --------
+ mycluster         teleport.dev/origin=dynamic /examples/kube *
+```
+
+The `teleport.dev/origin=dynamic` label indicates that the cluster was
+registered dynamically.
+
+You can also log in to the cluster you just registered:
+
+```code
+$ tsh kube login mycluster
+Logged into kubernetes cluster "mycluster". Try 'kubectl version' to test the
+connection.
+```
+
+### List Kubernetes cluster resources
+
+You can list `kube_cluster` resources with the following command:
+
+```code
+$ tctl get kube_clusters
+```
+
+### Update a Kubernetes cluster resource
+
+To update the `kube_cluster` resource you created earlier, execute the following
+command to open the resource as it exists on the Auth Service's backend in your
+text editor:
+
+```code
+$ tctl edit kube_clusters /examples/kube::mycluster
+```
+
+Edit the resource to add a label to your `kube_cluster`:
+
+```diff
+  kind: kube_cluster
+  scope: /examples/kube
+  metadata:
+    id: 9999999999999999999
+    labels:
+      teleport.dev/origin: dynamic
++     env: test
+    name: mycluster
+  spec:
+    aws: {}
+    azure: {}
+    kubeconfig: KUBECONFIG
+  version: v3
+```
+
+Save and close the file in your editor to apply your changes.
+
+You should now see the updated labels:
+
+```code
+$ tsh kube ls
+ Kube Cluster Name Labels                               Scope          Selected
+ ----------------- ------------------------------------ -------------- --------
+ mycluster         env=test teleport.dev/origin=dynamic /examples/kube *
+```
+
+<Admonition type="warning">
+
+If the updated `kube_cluster` resource's labels no longer match the ones a
+Teleport Kubernetes Service instance is configured to watch, the instance will
+unregister and stop proxying the Kubernetes cluster.
+
+</Admonition>
+
+### Delete Kubernetes cluster resources
+
+To delete the `kube_cluster` resource you created earlier, run the following
+command:
+
+```code
+$ tctl rm kube_clusters /examples/kube::mycluster
+kubernetes cluster "/examples/kube::mycluster" has been deleted
+```
+
+This will unregister the Kubernetes cluster from Teleport:
+
+```code
+$ tsh kube ls
+Kube Cluster Name Labels Scope Selected
+----------------- ------ ----- --------
+```

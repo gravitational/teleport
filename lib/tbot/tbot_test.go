@@ -377,10 +377,6 @@ func TestBot(t *testing.T) {
 	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &identitysvc.OutputConfig{
-		Destination: &destination.Memory{},
-		Roles:       []string{mainRole},
-	}
 	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
@@ -422,7 +418,6 @@ func TestBot(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
-			identityOutputWithRoles,
 			appOutput,
 			dbOutput,
 			dbDiscoveredNameOutput,
@@ -460,13 +455,6 @@ func TestBot(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(
 			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
-		)
-	})
-
-	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(
-			t, tlsIdent, []string{mainRole}, botResource.GetStatus().GetUserName(), false,
 		)
 	})
 
@@ -1481,7 +1469,7 @@ func TestScopedBotSSH(t *testing.T) {
 	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret()))
+	nodeCfg.SetToken(scopes.QualifiedName{Scope: scopeName, Name: jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret())}.String())
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1919,7 +1907,7 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindWorkloadIdentity},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 					}.Build(),
 				},
 				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
@@ -1957,9 +1945,13 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 	// long-running service, so the bot runs in daemon mode rather than oneshot.
 	tmpDir := t.TempDir()
 	jwtDir := t.TempDir()
+	// t.TempDir paths can exceed the Unix socket path limit on macOS.
+	socketDir, err := os.MkdirTemp("", "tbot-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	listenURL := url.URL{
 		Scheme: "unix",
-		Path:   filepath.Join(t.TempDir(), "workload.sock"),
+		Path:   filepath.Join(socketDir, "workload.sock"),
 	}
 	selector := bot.WorkloadIdentitySelector{
 		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
@@ -2162,7 +2154,7 @@ func createScopedBot(
 	waitForSRACache(t, process.GetAuthServer(), sraResp)
 
 	return &onboarding.Config{
-		TokenValue: botTokenResp.GetToken().GetMetadata().GetName(),
+		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodBoundKeypair,
 		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 			StaticPrivateKeyPath: botKeyPath,

@@ -267,6 +267,9 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	switch req.GetIntegration().GetSubKind() {
 	case types.IntegrationSubKindGitHub:
@@ -344,6 +347,9 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -441,6 +447,9 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

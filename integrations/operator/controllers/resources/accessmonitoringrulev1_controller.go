@@ -67,7 +67,7 @@ func (l accessMonitoringRuleClient) Delete(ctx context.Context, key reconcilers.
 
 // NewAccessMonitoringRuleV1Reconciler instantiates a new Kubernetes controller reconciling accessMonitoringRule
 // resources
-func NewAccessMonitoringRuleV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewAccessMonitoringRuleV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	accessMonitoringRuleClient := &accessMonitoringRuleClient{
 		teleportClient: tClient,
 	}
