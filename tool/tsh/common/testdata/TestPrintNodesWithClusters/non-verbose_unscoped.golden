@@ -1,0 +1,4 @@
+Proxy               Cluster Hostname      Address    Labels         
+------------------- ------- ------------- ---------- -------------- 
+proxy.example.co... root    unscoped-host 1.2.3.4:22 env=production 
+
