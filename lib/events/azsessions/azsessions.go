@@ -336,6 +336,12 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return path, nil
 }
 
+// UploadReplayObject implements [events.UploadHandler]. Beam replay is not
+// supported by the Azure Blob Storage session backend.
+func (h *Handler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
+	return "", trace.NotImplemented("beam replay is not supported by the Azure Blob Storage session backend")
+}
+
 // UploadMetadata implements [events.UploadHandler] and uploads the session
 // metadata.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
@@ -413,6 +419,12 @@ func (h *Handler) blobStream(ctx context.Context, blobClient *blockblob.Client) 
 		return nil, trace.Wrap(err)
 	}
 	return resp.Body, nil
+}
+
+// StreamReplayObjectRange implements [events.UploadHandler]. Beam replay is
+// not supported by the Azure Blob Storage session backend.
+func (h *Handler) StreamReplayObjectRange(ctx context.Context, sessionID session.ID, name string, offset, length int64) (io.ReadCloser, error) {
+	return nil, trace.NotImplemented("beam replay is not supported by the Azure Blob Storage session backend")
 }
 
 // StreamSessionMetadata implements [events.UploadHandler] and downloads a session's metadata.

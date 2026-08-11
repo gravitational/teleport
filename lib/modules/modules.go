@@ -81,7 +81,7 @@ type Features struct {
 	// AccessGraph enables the usage of access graph.
 	// NOTE: this is a legacy flag that is currently used to signal
 	// that Access Graph integration is *enabled* on a cluster.
-	// *Access* to the feature is gated on the `Policy` flag.
+	// *Access* to the feature is gated on the `AccessGraph` entitlement.
 	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// AccessMonitoringConfigured contributes to the enablement of access monitoring.
@@ -147,19 +147,15 @@ func (f Features) ToProto() *proto.Features {
 	}
 }
 
-// EntitlementsToProto takes the features.Entitlements object and returns a proto version. If not present on Features, the
-// proto entitlement will default to false
+// EntitlementsToProto takes the features.Entitlements object and returns a
+// proto version. Missing split identity security entitlements fall back to the
+// legacy Policy entitlement.
 func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
 	all := entitlements.AllEntitlements
 	result := make(map[string]*proto.EntitlementInfo, len(all))
 
 	for _, e := range all {
-		al, ok := f.Entitlements[e]
-		if !ok {
-			result[string(e)] = &proto.EntitlementInfo{}
-			continue
-		}
-
+		al := f.GetEntitlement(e)
 		result[string(e)] = &proto.EntitlementInfo{
 			Enabled: al.Enabled,
 			Limit:   al.Limit,
@@ -169,31 +165,56 @@ func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
 	return result
 }
 
-// GetEntitlement takes an entitlement and returns either the Features entitlement, or if not present, a false entitlement
+// GetEntitlement returns the requested entitlement. For compatibility with
+// licenses that predate the identity security entitlement split, a missing
+// AccessGraph, ActivityCenter, or SessionSummaries entitlement falls back to an
+// enabled legacy Policy entitlement.
 func (f Features) GetEntitlement(e entitlements.EntitlementKind) EntitlementInfo {
 	al, ok := f.Entitlements[e]
-	if !ok {
-		return EntitlementInfo{}
+	if ok {
+		return EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
 	}
 
-	return EntitlementInfo{
-		Enabled: al.Enabled,
-		Limit:   al.Limit,
+	if isLegacyPolicyFallbackEntitlement(e) && f.Entitlements[entitlements.Policy].Enabled {
+		return EntitlementInfo{Enabled: true}
 	}
+
+	return EntitlementInfo{}
 }
 
-// GetProtoEntitlement takes a proto features set and an entitlement and returns either the proto features entitlement,
-// or if not present, a false entitlement
+// GetProtoEntitlement returns the requested proto entitlement. For
+// compatibility with clusters that predate the identity security entitlement
+// split, a missing AccessGraph, ActivityCenter, or SessionSummaries entitlement
+// falls back to an enabled legacy Policy entitlement or Policy proto field.
 func GetProtoEntitlement(f *proto.Features, e entitlements.EntitlementKind) *proto.EntitlementInfo {
 	fE := f.GetEntitlements()
 	al, ok := fE[string(e)]
-	if !ok {
-		return &proto.EntitlementInfo{}
+	if ok {
+		return &proto.EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
 	}
 
-	return &proto.EntitlementInfo{
-		Enabled: al.Enabled,
-		Limit:   al.Limit,
+	if isLegacyPolicyFallbackEntitlement(e) {
+		policy, hasPolicyEntitlement := fE[string(entitlements.Policy)]
+		if policy.GetEnabled() || !hasPolicyEntitlement && f.GetPolicy().GetEnabled() {
+			return &proto.EntitlementInfo{Enabled: true}
+		}
+	}
+
+	return &proto.EntitlementInfo{}
+}
+
+func isLegacyPolicyFallbackEntitlement(e entitlements.EntitlementKind) bool {
+	switch e {
+	case entitlements.AccessGraph, entitlements.ActivityCenter, entitlements.SessionSummaries:
+		return true
+	default:
+		return false
 	}
 }
 

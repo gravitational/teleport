@@ -132,7 +132,7 @@ export default class TtyTerminal implements TerminalSearcher {
       this._imageAddon = new ImageAddon();
       this.term.loadAddon(this._imageAddon);
     } catch (e) {
-      logger.error('Failed to load image addon:', e.message);
+      logger.error('Failed to load image addon', e);
     }
 
     try {

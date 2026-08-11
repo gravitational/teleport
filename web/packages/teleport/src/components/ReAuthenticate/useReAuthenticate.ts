@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { getErrorMessage } from 'shared/utils/error';
 
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
@@ -145,17 +146,18 @@ type challengeState = {
   deviceUsage: DeviceUsage;
 };
 
-function getReAuthenticationErrorMessage(err: Error): string {
-  if (err.message.includes('attempt was made to use an object that is not')) {
+function getReAuthenticationErrorMessage(err: unknown): string {
+  const message = getErrorMessage(err);
+  if (message.includes('attempt was made to use an object that is not')) {
     // Catch a webauthn frontend error that occurs on Firefox and replace it with a more helpful error message.
     return 'The two-factor device you used is not registered on this account. You must verify using a device that has already been registered.';
   }
 
-  if (err.message === 'invalid totp token') {
+  if (message === 'invalid totp token') {
     // This message relies on the status message produced by the auth server in
     // lib/auth/Server.checkOTP function. Please keep these in sync.
     return 'Invalid authenticator code';
   }
 
-  return err.message;
+  return message;
 }

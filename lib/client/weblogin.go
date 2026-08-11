@@ -229,6 +229,8 @@ type AuthenticateWebUserRequest struct {
 	User string `json:"user"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+	// Scope is a scope for with the user is authenticated. Empty means unscoped.
+	Scope string `json:"scope,omitempty"`
 }
 
 type HeadlessRequest struct {

@@ -42,6 +42,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 |------------------------|------------------|-----------------------------------------------------------------------------------------|
 | `-v`                   | `false`          | Enable debug logging                                                                    |
 | `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
+| `--no-resource-setup`  | `false`          | Skip pre-test resource setup                                                            |
 | `--quiet`              | `false`          | Redirect Teleport logs to file instead of stdout                                        |
 | `--replace-certs`      | `false`          | Generate new self-signed certificates                                                   |
 | `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
@@ -172,6 +173,29 @@ the same `user`/`users`. Concretely:
 `e2e/.auth/<browser>-<username>.json`. Tests pick up that state via Playwright's `storageState`, so they
 start already authenticated without running the UI login flow.
 
+### Teleport config
+
+If a test requires a Teleport config different from the base config that e2e tests use by default, it can declare one
+with `test.use({ teleport: { config: {...} } })` inside a `test.describe()` block.
+Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
+
+```ts
+test.describe('custom license', () => {
+  test.use({
+    teleport: {
+      config: {
+        auth_service: {
+          license_file: '${E2E_DIR}/testdata/licenses/custom-license.pem',
+        },
+      },
+    },
+  });
+});
+```
+
+Note that the e2e runner will only restart Teleport with the different config and not re-initialize it from fresh, so the data directory
+will remains the same for all tests which means the cluster's identity like cluster name, CA, bootstrapped users, and roles will carry over unchanged.
+
 ### Session Recordings
 
 The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
@@ -231,6 +255,9 @@ Connect is built automatically when running `tests/connect` paths or when using 
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
 ./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Skip applying pre-test resources
+./e2e/run.sh --no-build --no-resource-setup e2e/tests/web/authenticated/roles.spec.ts
 
 # Run only Connect tests, skip rebuilding of both Teleport and Connect
 ./e2e/run.sh --no-build e2e/tests/connect

@@ -48,17 +48,15 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        genWizardCiCdSuccess({ prettyFormat: true }),
-        fetchUnifiedResourcesSuccess({
-          delayMs: 1000,
-          mockSearch: true,
-        }),
-        userEventCaptureSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      genWizardCiCdSuccess({ prettyFormat: true }),
+      fetchUnifiedResourcesSuccess({
+        delayMs: 1000,
+        mockSearch: true,
+      }),
+      userEventCaptureSuccess()
+    );
   },
 };
 

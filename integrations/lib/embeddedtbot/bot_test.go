@@ -303,7 +303,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				// The role can read scoped roles. We will use this to validate its permissions later.
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedRole},
-					Verbs:     []string{types.VerbReadNoSecrets},
+					Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
 				}.Build(),
 			},
 		}.Build(),

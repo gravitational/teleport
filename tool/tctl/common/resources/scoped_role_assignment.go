@@ -55,7 +55,7 @@ func (c *ScopedRoleAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"SubKind", "ID", "User", "Assigns"}
+	headers := []string{"SubKind", "ID", "Assignee", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
 	for i, item := range c.roleAssignments {
@@ -66,7 +66,7 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 		rows[i] = []string{
 			item.GetSubKind(),
 			scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String(),
-			item.GetSpec().GetUser(),
+			scopedRoleAssignmentAssignee(item),
 			strings.Join(assigns, ", "),
 		}
 	}
@@ -75,6 +75,20 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+// scopedRoleAssignmentAssignee describes the identity that an assignment applies to,
+// kind-prefixed to disambiguate the two forms (e.g. "user: alice", "bot: /staging::mybot").
+// Assignments apply to either a user (by name) or a bot (by scope-qualified name), and the
+// two are mutually exclusive.
+func scopedRoleAssignmentAssignee(assignment *scopedaccessv1.ScopedRoleAssignment) string {
+	if bot := assignment.GetSpec().GetBot(); bot != "" {
+		return fmt.Sprintf("%s: %s", types.KindBot, bot)
+	}
+	if user := assignment.GetSpec().GetUser(); user != "" {
+		return fmt.Sprintf("%s: %s", types.KindUser, user)
+	}
+	return ""
 }
 
 func scopedRoleAssignmentScopedHandler() ScopedHandler {
@@ -106,7 +120,7 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		fmt.Printf(
 			"%v %q has been upserted\n",
 			scopedaccess.KindScopedRoleAssignment,
-			rsp.GetAssignment().GetMetadata().GetName(),
+			scopes.QualifiedName{Name: rsp.GetAssignment().GetMetadata().GetName(), Scope: rsp.GetAssignment().GetScope()}.String(),
 		)
 		return nil
 	}
@@ -142,7 +156,7 @@ func updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	fmt.Printf(
 		"%v %q has been updated\n",
 		scopedaccess.KindScopedRoleAssignment,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
@@ -182,10 +196,10 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, sub
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
 	if subKind == "" {
 		return trace.BadParameter(
-			"%s requires a sub-kind to delete a resource, try:\n  tctl rm %s/%s %s::%s",
+			"%s requires a sub-kind to delete a resource, try:\n  tctl rm %s/%s %s",
 			scopedaccess.KindScopedRoleAssignment,
 			scopedaccess.KindScopedRoleAssignment, scopedaccess.SubKindDynamic,
-			sqn.Scope, sqn.Name,
+			sqn.String(),
 		)
 	}
 	if subKind == scopedaccess.SubKindMaterialized {
@@ -202,7 +216,7 @@ func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		scopedaccess.KindScopedRoleAssignment,
-		sqn.Name,
+		sqn.String(),
 	)
 	return nil
 }

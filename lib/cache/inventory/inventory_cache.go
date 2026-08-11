@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cache"
@@ -590,7 +591,9 @@ func (ic *InventoryCache) setupWatcher(ctx context.Context) (types.Watcher, erro
 		Name: "inventory_cache",
 		Kinds: []types.WatchKind{
 			{Kind: types.KindInstance},
-			{Kind: types.KindBotInstance},
+			{Kind: types.KindBotInstance, ScopeFilter: types.ScopeFilterFromProto(
+				scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			)},
 		},
 	})
 	if err != nil {
@@ -667,7 +670,10 @@ func (ic *InventoryCache) populateBotInstances(ctx context.Context, limiter *rat
 			ctx,
 			defaults.DefaultChunkSize,
 			pageToken,
-			nil,
+			&services.ListBotInstancesRequestOptions{
+				// All scopes, matching this cache's watch filter.
+				ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			},
 		)
 		if err != nil {
 			return trace.Wrap(err)

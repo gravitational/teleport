@@ -3,6 +3,10 @@ templates:
   # Renamed from crds.yaml: helm-unittest v1.x excludes a template named exactly
   # crds.yaml from rendering. See templates/crd-resources.yaml for details.
   - crd-resources.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates no CRDs when installCRDs is "never"
     set:

@@ -326,6 +326,9 @@ func (i *InstanceV1) GetLastMeasurement() *SystemClockMeasurement {
 }
 
 func (i *InstanceV1) GetAuditQueueStatus() *AuditQueueStatus {
+	if i == nil {
+		return nil
+	}
 	return i.Spec.AuditQueueStatus
 }
 

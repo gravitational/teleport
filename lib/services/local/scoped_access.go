@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -120,8 +121,14 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped role reads")
 	}
 
+	// use scopedListRange to narrow the read range where permitted by the scope filter.
+	startKey, endKey, err := scopedListRange(scopedRolePrefix, req.GetScopeFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var out []*scopedaccessv1.ScopedRole
-	for role, err := range s.StreamScopedRoles(ctx) {
+	for role, err := range s.streamScopedRoles(ctx, startKey, endKey) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -141,11 +148,17 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 // StreamScopedRoles returns a stream of all scoped roles in the backend. Malformed roles are skipped. Returned roles
 // have had weak validation applied.
 func (s *ScopedAccessService) StreamScopedRoles(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedRole] {
+	startKey := scopedRoleWatchPrefix()
+	return s.streamScopedRoles(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// streamScopedRoles streams scoped roles from the given backend key range. Malformed roles are skipped. Returned
+// roles have had weak validation applied.
+func (s *ScopedAccessService) streamScopedRoles(ctx context.Context, startKey, endKey backend.Key) stream.Stream[*scopedaccessv1.ScopedRole] {
 	return func(yield func(*scopedaccessv1.ScopedRole, error) bool) {
-		startKey := scopedRoleWatchPrefix()
 		params := backend.ItemsParams{
 			StartKey: startKey,
-			EndKey:   backend.RangeEnd(startKey),
+			EndKey:   endKey,
 		}
 
 		for item, err := range s.bk.Items(ctx, params) {
@@ -362,8 +375,14 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped role assignment reads")
 	}
 
+	// use scopedListRange to narrow the read range where permitted by the scope filter.
+	startKey, endKey, err := scopedListRange(scopedRoleAssignmentPrefix, req.GetScopeFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var out []*scopedaccessv1.ScopedRoleAssignment
-	for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
+	for assignment, err := range s.streamScopedRoleAssignments(ctx, startKey, endKey) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -387,11 +406,17 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 // StreamScopedRoleAssignments returns a stream of all scoped role assignments in the backend. Malformed assignments are skipped.
 // Returned assignments have had weak validation applied.
 func (s *ScopedAccessService) StreamScopedRoleAssignments(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedRoleAssignment] {
+	startKey := scopedRoleAssignmentWatchPrefix()
+	return s.streamScopedRoleAssignments(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// streamScopedRoleAssignments streams scoped role assignments from the given backend key range. Malformed assignments
+// are skipped. Returned assignments have had weak validation applied.
+func (s *ScopedAccessService) streamScopedRoleAssignments(ctx context.Context, startKey, endKey backend.Key) stream.Stream[*scopedaccessv1.ScopedRoleAssignment] {
 	return func(yield func(*scopedaccessv1.ScopedRoleAssignment, error) bool) {
-		startKey := scopedRoleAssignmentWatchPrefix()
 		params := backend.ItemsParams{
 			StartKey: startKey,
-			EndKey:   backend.RangeEnd(startKey),
+			EndKey:   endKey,
 		}
 
 		for item, err := range s.bk.Items(ctx, params) {
@@ -640,6 +665,32 @@ func (k scopedRoleAssignmentKey) Key() (backend.Key, error) {
 
 func scopedRoleAssignmentWatchPrefix() backend.Key {
 	return backend.ExactKey(scopedPrefix, scopedRoleAssignmentPrefix)
+}
+
+// scopedListRange is a helper for optimistically narrowing the backend key range to be scanned when the
+// scope filter is one that is easily expressible as a backend range query.
+func scopedListRange(kindPrefix string, filter *scopesv1.Filter) (startKey, endKey backend.Key, err error) {
+	switch filter.GetMode() {
+	case scopesv1.Mode_MODE_EXACT:
+		encodedScope, err := scopes.EncodeForKey(filter.GetScope())
+		if err != nil {
+			return backend.Key{}, backend.Key{}, trace.Wrap(err)
+		}
+		// ExactKey appends a trailing separator, restricting the prefix to match only this exact scope segment.
+		start := backend.ExactKey(scopedPrefix, kindPrefix, encodedScope)
+		return start, backend.RangeEnd(start), nil
+	case scopesv1.Mode_MODE_DESCENDANTS:
+		encodedScope, err := scopes.EncodeForKey(filter.GetScope())
+		if err != nil {
+			return backend.Key{}, backend.Key{}, trace.Wrap(err)
+		}
+		// NewKey does not append a trailing separator, so the prefix also matches any descendant scopes.
+		start := backend.NewKey(scopedPrefix, kindPrefix, encodedScope)
+		return start, backend.RangeEnd(start), nil
+	default:
+		start := backend.ExactKey(scopedPrefix, kindPrefix)
+		return start, backend.RangeEnd(start), nil
+	}
 }
 
 // verifyKeyScope checks that a scoped resource's scope field agrees with the scope encoded in its

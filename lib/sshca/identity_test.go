@@ -20,6 +20,7 @@
 package sshca
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -322,4 +323,54 @@ func TestAllowedResources_SSHEncodeDecode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAllowedResources_SSHUnknownConstraintKindDecodes verifies that a cert
+// from a newer Auth with a constraint kind this build doesn't understand
+// still decodes, keeping the unknown content as an unenforceable entry.
+func TestAllowedResources_SSHUnknownConstraintKindDecodes(t *testing.T) {
+	plainNode := types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "prod-node"}
+	constrainedApp := types.ResourceAccessID{
+		Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws-console"},
+		Constraints: &types.ResourceConstraints{
+			Version: types.V1,
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{
+					RoleArns: []string{"arn:aws:iam::123456789012:role/DevOps"},
+				},
+			},
+		},
+	}
+
+	ident := &Identity{
+		ValidBefore:              uint64(time.Now().Add(time.Hour).Unix()),
+		CertType:                 ssh.UserCert,
+		Username:                 "test-user",
+		Roles:                    []string{"access"},
+		AllowedResourceAccessIDs: append(types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}), constrainedApp),
+	}
+
+	cert, err := ident.Encode(constants.CertificateFormatStandard)
+	require.NoError(t, err)
+
+	ext, ok := cert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs]
+	require.True(t, ok, "AllowedResourceAccessIDs extension not found")
+	require.Contains(t, ext, `"aws_console"`)
+	cert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs] = strings.Replace(ext, `"aws_console"`, `"some_future_kind"`, 1)
+
+	decoded, err := DecodeIdentity(cert)
+	require.NoError(t, err)
+
+	byName := map[string]types.ResourceAccessID{}
+	for _, r := range decoded.AllowedResourceAccessIDs {
+		byName[r.GetResourceID().Name] = r
+	}
+	require.Len(t, byName, 2)
+	require.Contains(t, byName, "prod-node")
+	require.Nil(t, byName["prod-node"].Constraints)
+
+	rc := byName["aws-console"].Constraints
+	require.NotNil(t, rc, "constraints must survive decoding")
+	require.Nil(t, rc.Details)
+	require.Equal(t, types.V1, rc.Version)
 }

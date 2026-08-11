@@ -94,25 +94,23 @@ const discoveryConfigHandler = http.post(cfg.api.discoveryConfigPath, () =>
 
 export const ClustersList = () => <Component />;
 
-ClustersList.parameters = {
-  msw: {
-    handlers: [
-      tokenHandler,
-      successEnrollmentHandler,
-      discoveryConfigHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
-        {
-          return HttpResponse.json({ clusters: eksClusters });
-        }
-      }),
-      http.get(
-        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        () => {
-          return HttpResponse.json({ items: kubeServers });
-        }
-      ),
-    ],
-  },
+ClustersList.beforeEach = ({ msw }) => {
+  msw.use(
+    tokenHandler,
+    successEnrollmentHandler,
+    discoveryConfigHandler,
+    http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+      {
+        return HttpResponse.json({ clusters: eksClusters });
+      }
+    }),
+    http.get(
+      cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+      () => {
+        return HttpResponse.json({ items: kubeServers });
+      }
+    )
+  );
 };
 
 export const ClustersListInCloud = () => {
@@ -122,121 +120,111 @@ export const ClustersListInCloud = () => {
   return <Component />;
 };
 
-ClustersListInCloud.parameters = {
-  msw: {
-    handlers: [
-      tokenHandler,
-      successEnrollmentHandler,
-      discoveryConfigHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
-        {
-          return HttpResponse.json({ clusters: eksClusters });
-        }
-      }),
-      http.get(
-        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        () => {
-          return HttpResponse.json({ items: kubeServers });
-        }
-      ),
-    ],
-  },
+ClustersListInCloud.beforeEach = ({ msw }) => {
+  msw.use(
+    tokenHandler,
+    successEnrollmentHandler,
+    discoveryConfigHandler,
+    http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+      {
+        return HttpResponse.json({ clusters: eksClusters });
+      }
+    }),
+    http.get(
+      cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+      () => {
+        return HttpResponse.json({ items: kubeServers });
+      }
+    )
+  );
 };
 
 export const WithAwsPermissionsError = () => <Component />;
 
-WithAwsPermissionsError.parameters = {
-  msw: {
-    handlers: [
-      tokenHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () =>
-        HttpResponse.json(
-          { message: 'StatusCode: 403, RequestID: operation error' },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+WithAwsPermissionsError.beforeEach = ({ msw }) => {
+  msw.use(
+    tokenHandler,
+    http.post(cfg.getListEKSClustersUrl(integrationName), () =>
+      HttpResponse.json(
+        { message: 'StatusCode: 403, RequestID: operation error' },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const WithEnrollmentError = () => <Component />;
-WithEnrollmentError.parameters = {
-  msw: {
-    handlers: [
-      tokenHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
-        {
-          return HttpResponse.json({ clusters: eksClusters });
-        }
-      }),
-      http.get(
-        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        () => {
-          return HttpResponse.json({ items: kubeServers });
-        }
-      ),
-      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
-        await delay(1000);
-        return HttpResponse.json({
-          results: [
-            { clusterName: 'EKS1', error: 'something bad happened' },
-            { clusterName: 'EKS3', error: 'something bad happened' },
-          ],
-        });
-      }),
-    ],
-  },
+WithEnrollmentError.beforeEach = ({ msw }) => {
+  msw.use(
+    tokenHandler,
+    http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+      {
+        return HttpResponse.json({ clusters: eksClusters });
+      }
+    }),
+    http.get(
+      cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+      () => {
+        return HttpResponse.json({ items: kubeServers });
+      }
+    ),
+    http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+      await delay(1000);
+      return HttpResponse.json({
+        results: [
+          { clusterName: 'EKS1', error: 'something bad happened' },
+          { clusterName: 'EKS3', error: 'something bad happened' },
+        ],
+      });
+    })
+  );
 };
 
 export const WithAlreadyExistsError = () => (
   <Component devInfoText="select any region, select EKS1 to see already exist error" />
 );
-WithAlreadyExistsError.parameters = {
-  msw: {
-    handlers: [
-      tokenHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
-        {
-          return HttpResponse.json({ clusters: eksClusters });
-        }
-      }),
-      http.get(
-        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        () => {
-          return HttpResponse.json({ items: kubeServers });
-        }
-      ),
-      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
-        await delay(1000);
-        return HttpResponse.json({
-          results: [
-            {
-              clusterName: 'EKS1',
-              error: 'teleport-kube-agent is already installed on the cluster',
-            },
-          ],
-        });
-      }),
-    ],
-  },
+WithAlreadyExistsError.beforeEach = ({ msw }) => {
+  msw.use(
+    tokenHandler,
+    http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+      {
+        return HttpResponse.json({ clusters: eksClusters });
+      }
+    }),
+    http.get(
+      cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+      () => {
+        return HttpResponse.json({ items: kubeServers });
+      }
+    ),
+    http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+      await delay(1000);
+      return HttpResponse.json({
+        results: [
+          {
+            clusterName: 'EKS1',
+            error: 'teleport-kube-agent is already installed on the cluster',
+          },
+        ],
+      });
+    })
+  );
 };
 
 export const WithOtherError = () => <Component />;
 
-WithOtherError.parameters = {
-  msw: {
-    handlers: [
-      tokenHandler,
-      http.post(cfg.getListEKSClustersUrl(integrationName), () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, something went wrong.' },
-          },
-          { status: 503 }
-        )
-      ),
-    ],
-  },
+WithOtherError.beforeEach = ({ msw }) => {
+  msw.use(
+    tokenHandler,
+    http.post(cfg.getListEKSClustersUrl(integrationName), () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, something went wrong.' },
+        },
+        { status: 503 }
+      )
+    )
+  );
 };
 
 const agentMeta: AgentMeta = {

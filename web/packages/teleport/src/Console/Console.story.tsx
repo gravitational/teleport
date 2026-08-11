@@ -40,23 +40,21 @@ export const ConsoleStory = () => {
     </TestLayout>
   );
 };
-ConsoleStory.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getUserContextUrl(), () => {
-        return HttpResponse.json({
-          cluster: {
-            name: 'aws',
-            lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
-            status: 'online',
-            publicURL: 'localhost',
-            authVersion: '4.4.0-dev',
-            proxyVersion: '4.4.0-dev',
-          },
-        });
-      }),
-    ],
-  },
+ConsoleStory.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getUserContextUrl(), () => {
+      return HttpResponse.json({
+        cluster: {
+          name: 'aws',
+          lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
+          status: 'online',
+          publicURL: 'localhost',
+          authVersion: '4.4.0-dev',
+          proxyVersion: '4.4.0-dev',
+        },
+      });
+    })
+  );
 };
 
 export function TestLayout(props: PropType) {

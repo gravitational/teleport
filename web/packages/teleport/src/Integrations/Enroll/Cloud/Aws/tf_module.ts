@@ -21,12 +21,13 @@ import { parse as parseVersion } from 'shared/utils/semVer';
 import cfg from 'teleport/config';
 
 import { hcl, TFObject } from '../terraform';
-import { AwsLabel, AwsMatcher } from './types';
+import { AwsLabel, AwsMatcher, AwsOrganizationalUnits } from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
   integrationName: string;
   matchers: AwsMatcher[];
   version: string;
+  orgUnits?: AwsOrganizationalUnits | null;
 };
 
 const TF_MODULE = '/teleport/discovery/aws';
@@ -74,10 +75,30 @@ const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
   return obj;
 };
 
+const buildOrgDiscovery = (
+  orgUnits?: AwsOrganizationalUnits | null
+): TFObject | null => {
+  if (!orgUnits) return null;
+
+  const include = orgUnits.include.filter(s => s.trim());
+  const exclude = orgUnits.exclude.filter(s => s.trim());
+
+  const organizationalUnits: TFObject = {
+    include,
+  };
+
+  if (exclude.length > 0) {
+    organizationalUnits.exclude = exclude;
+  }
+
+  return { organizational_units: organizationalUnits };
+};
+
 export const buildTerraformConfig = ({
   integrationName,
   matchers,
   version,
+  orgUnits,
 }: AwsDiscoverTerraformModuleConfig): string => {
   const tfRegistry = isStaging(version)
     ? cfg.terraform.stagingRegistry
@@ -88,6 +109,16 @@ export const buildTerraformConfig = ({
   const integrationNameOrNull = integrationName.trim() || null;
 
   const awsMatchers = matchers.length > 0 ? matchers.map(buildTfMatcher) : null;
+
+  const awsOrgDiscovery = buildOrgDiscovery(orgUnits);
+
+  const orgOutput = awsOrgDiscovery
+    ? hcl`
+output "aws_child_account_iam_role_template" {
+  value = module.aws_discovery.aws_child_account_iam_role_template
+}
+`
+    : '';
 
   const tfModule = hcl`# Terraform Module
 module "aws_discovery" {
@@ -100,9 +131,13 @@ module "aws_discovery" {
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_integration_name	    = ${integrationNameOrNull}
 
+  # Discover resources across all accounts in the AWS Organization,
+  # filtered by Organizational Units.
+  aws_organization_discovery = ${awsOrgDiscovery}
+
   aws_matchers = ${awsMatchers}
 }
 `;
 
-  return tfModule;
+  return tfModule + orgOutput;
 };

@@ -91,7 +91,7 @@ func createScopedRole(ctx context.Context, client *authclient.Client, raw servic
 		fmt.Printf(
 			"%v %q has been upserted\n",
 			scopedaccess.KindScopedRole,
-			rsp.GetRole().GetMetadata().GetName(),
+			scopes.QualifiedName{Name: rsp.GetRole().GetMetadata().GetName(), Scope: rsp.GetRole().GetScope()}.String(),
 		)
 		return nil
 	}
@@ -105,7 +105,7 @@ func createScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	fmt.Printf(
 		"%v %q has been created\n",
 		scopedaccess.KindScopedRole,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
@@ -126,7 +126,7 @@ func updateScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	fmt.Printf(
 		"%v %q has been updated\n",
 		scopedaccess.KindScopedRole,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
@@ -172,7 +172,7 @@ func deleteScopedRole(ctx context.Context, client *authclient.Client, subKind st
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		scopedaccess.KindScopedRole,
-		sqn.Name,
+		sqn.String(),
 	)
 	return nil
 }

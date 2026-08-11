@@ -2493,6 +2493,32 @@ func TestClusterNetworkingConfigScopedRead(t *testing.T) {
 	require.Empty(t, cmp.Diff(netConfig, nc))
 }
 
+func TestClusterAuditConfigScopedRead(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	auditConfig := types.DefaultClusterAuditConfig()
+	_, err = as.AuthServer.UpsertClusterAuditConfig(ctx, auditConfig)
+	require.NoError(t, err)
+
+	const hostID = "testhost"
+	const scope = "/aa/bb"
+	srv := newScopePinnedTestServerForHost(t, as, hostID, scope, types.RoleNode)
+	ac, err := srv.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(auditConfig, ac))
+}
+
 func TestSessionRecordingConfigRBAC(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -4812,7 +4838,7 @@ func TestKindClusterConfig(t *testing.T) {
 			srv.AuditLog,
 			*authContext,
 		)
-		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err1 := s.ScopedServerWithRoles().GetClusterAuditConfig(ctx)
 		_, err2 := s.ScopedServerWithRoles().GetClusterNetworkingConfig(ctx)
 		_, err3 := s.ScopedServerWithRoles().GetSessionRecordingConfig(ctx)
 		return []error{err1, err2, err3}
@@ -7801,11 +7827,13 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	// only allow user to see first node
 	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
 
-	// create a new role which can see second node
+	// create a new role which can see both nodes with a login ("admin")
+	// distinct from the base role's ("requester"). on node0 "admin" is
+	// requestable and "requester" granted, on node1 everything is requestable.
 	searchAsRole := services.RoleForUser(requester)
 	searchAsRole.SetName("test_search_role")
-	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
-	searchAsRole.SetLogins(types.Allow, []string{"requester"})
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName(), testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"admin"})
 	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
 	require.NoError(t, err)
 
@@ -7817,14 +7845,18 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	require.NoError(t, err)
 
 	type expected struct {
-		name        string
-		requestable bool
+		name              string
+		requestable       bool
+		allLogins         []string
+		grantedLogins     []string
+		requestableLogins []string
 	}
 
 	for _, tc := range []struct {
 		desc              string
 		clt               *authclient.Client
 		requestOpt        func(*proto.ListUnifiedResourcesRequest)
+		checkLogins       bool
 		expectedResources []expected
 	}{
 		{
@@ -7849,10 +7881,24 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
 				req.IncludeRequestable = true
 				req.UseSearchAsRoles = true
+				req.IncludeLogins = true
 			},
+			checkLogins: true,
 			expectedResources: []expected{
-				{name: testNodes[0].GetName(), requestable: false},
-				{name: testNodes[1].GetName(), requestable: true},
+				{
+					name:              testNodes[0].GetName(),
+					requestable:       false,
+					allLogins:         []string{"requester", "admin"},
+					grantedLogins:     []string{"requester"},
+					requestableLogins: []string{"admin"},
+				},
+				{
+					name:              testNodes[1].GetName(),
+					requestable:       true,
+					allLogins:         []string{"admin"},
+					grantedLogins:     nil,
+					requestableLogins: []string{"admin"},
+				},
 			},
 		},
 	} {
@@ -7867,13 +7913,141 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			resp, err := tc.clt.ListUnifiedResources(ctx, &req)
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, len(tc.expectedResources))
-			var resources []expected
+
+			byName := make(map[string]*proto.PaginatedResource)
+			var flags, wantFlags []expected
 			for _, resource := range resp.Resources {
-				resources = append(resources, expected{name: resource.GetNode().GetName(), requestable: resource.RequiresRequest})
+				name := resource.GetNode().GetName()
+				byName[name] = resource
+				flags = append(flags, expected{name: name, requestable: resource.RequiresRequest})
 			}
-			require.ElementsMatch(t, tc.expectedResources, resources)
+			for _, e := range tc.expectedResources {
+				wantFlags = append(wantFlags, expected{name: e.name, requestable: e.requestable})
+			}
+			require.ElementsMatch(t, wantFlags, flags)
+
+			if !tc.checkLogins {
+				return
+			}
+			for _, e := range tc.expectedResources {
+				r := byName[e.name]
+				require.NotNil(t, r, "resource %q missing from response", e.name)
+				require.ElementsMatch(t, e.allLogins, r.Logins, "Logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "Principals for %q", e.name)
+				require.Equal(t, types.PrincipalTypeLogins, r.Principals[0].PrincipalType, "principal kind for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "granted principals for %q", e.name)
+				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "requestable principals for %q", e.name)
+			}
+
+			// Fetch the same page through the typed client helper to cover the
+			// conversion into EnrichedResource end to end.
+			enriched, _, err := apiclient.GetUnifiedResourcePage(ctx, tc.clt, &req)
+			require.NoError(t, err)
+			require.Len(t, enriched, len(tc.expectedResources))
+			for _, e := range tc.expectedResources {
+				idx := slices.IndexFunc(enriched, func(r *types.EnrichedResource) bool {
+					return r.GetName() == e.name
+				})
+				require.GreaterOrEqual(t, idx, 0, "resource %q missing from enriched page", e.name)
+				r := enriched[idx]
+				require.ElementsMatch(t, e.allLogins, r.Logins, "enriched logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "enriched principals for %q", e.name)
+				require.Equal(t, types.PrincipalTypeLogins, r.Principals[0].PrincipalType, "enriched principal kind for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "enriched granted principals for %q", e.name)
+				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "enriched requestable principals for %q", e.name)
+			}
 		})
 	}
+}
+
+// TestListUnifiedResources_AppPrincipalSets verifies the role_arns principal
+// dimension for AWS console apps.
+func TestListUnifiedResources_AppPrincipalSets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const (
+		grantedARN     = "arn:aws:iam::123456789012:role/granted"
+		requestableARN = "arn:aws:iam::123456789012:role/requestable"
+	)
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-console"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "host", "host-id")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	requester, role, err := authtest.CreateUserAndRole(srv.Auth(), "app-requester", []string{"app-requester"}, nil)
+	require.NoError(t, err)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetAWSRoleARNs(types.Allow, []string{grantedARN})
+
+	searchAsRole := services.RoleForUser(requester)
+	searchAsRole.SetName("app_search_role")
+	searchAsRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	searchAsRole.SetAWSRoleARNs(types.Allow, []string{requestableARN})
+	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
+	require.NoError(t, err)
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(authtest.TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:              []string{types.KindApp},
+		SortBy:             types.SortBy{Field: "name"},
+		Limit:              5,
+		IncludeLogins:      true,
+		IncludeRequestable: true,
+		UseSearchAsRoles:   true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r := resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN, requestableARN}, r.Logins)
+	require.Len(t, r.Principals, 1)
+	require.Equal(t, types.PrincipalTypeRoleARNs, r.Principals[0].PrincipalType)
+	require.ElementsMatch(t, []string{grantedARN}, r.Principals[0].Granted)
+	require.ElementsMatch(t, []string{requestableARN}, r.Principals[0].Requestable)
+
+	// Without search flags, Logins comes from the base checker and Principals
+	// mirrors it with everything granted.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:         []string{types.KindApp},
+		SortBy:        types.SortBy{Field: "name"},
+		Limit:         5,
+		IncludeLogins: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r = resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN}, r.Logins)
+	require.Len(t, r.Principals, 1)
+	require.Equal(t, types.PrincipalTypeRoleARNs, r.Principals[0].PrincipalType)
+	require.ElementsMatch(t, []string{grantedARN}, r.Principals[0].Granted)
+	require.Empty(t, r.Principals[0].Requestable)
+
+	// UseSearchAsRoles alone keeps its legacy response: the flat union in
+	// Logins and no Principals.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindApp},
+		SortBy:           types.SortBy{Field: "name"},
+		Limit:            5,
+		IncludeLogins:    true,
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r = resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN, requestableARN}, r.Logins)
+	require.Empty(t, r.Principals)
 }
 
 func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
@@ -14001,9 +14175,9 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				entitlements.K8s:    {Enabled: true},
-				entitlements.App:    {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
+				entitlements.K8s:         {Enabled: true},
+				entitlements.App:         {Enabled: true},
 			},
 		},
 	}), withClock(clock))
@@ -14846,4 +15020,161 @@ func TestRoleWindowsDesktopLeastPrivilege(t *testing.T) {
 		err := desktop.DeleteWindowsDesktop(ctx, otherID, "desktop")
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
+}
+
+func TestGetAccessCapabilitiesRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	targetUser, err := types.NewUser("target")
+	require.NoError(t, err)
+	_, err = srv.AuthServer.CreateUser(ctx, targetUser)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		allowRules       []types.Rule
+		callerUser       string
+		queriedUser      string
+		wantAccessDenied bool
+	}{
+		{
+			name:        "querying for self doesn't require permissions is allowed",
+			callerUser:  "caller-self-default",
+			queriedUser: "",
+		},
+		{
+			name:        "querying for self doesn't require permissions is allowed (explicit user name)",
+			callerUser:  "caller-self-explicit",
+			queriedUser: "caller-self-explicit",
+		},
+		{
+			name:             "querying for other user without permissions is denied",
+			callerUser:       "caller-other-denied",
+			queriedUser:      "target",
+			wantAccessDenied: true,
+		},
+		{
+			name: "querying for other user with permissions is allowed",
+			allowRules: []types.Rule{
+				types.NewRule(types.KindUser, []string{types.VerbRead}),
+				types.NewRule(types.KindRole, []string{types.VerbList, types.VerbRead}),
+			},
+			callerUser:  "caller-other-allowed",
+			queriedUser: "target",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			callerRole, err := types.NewRole(tt.callerUser+"-role", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: tt.allowRules,
+				},
+			})
+			require.NoError(t, err)
+			callerUser, err := authtest.CreateUser(ctx, srv.AuthServer, tt.callerUser, callerRole)
+			require.NoError(t, err)
+
+			callerIdentity := authz.LocalUser{
+				Username: tt.callerUser,
+				Identity: tlsca.Identity{
+					Username: tt.callerUser,
+					Groups:   callerUser.GetRoles(),
+				},
+			}
+			authCtx, err := authz.ContextForLocalUser(
+				ctx, callerIdentity, srv.AuthServer.Services, srv.ClusterName, true, /* disableDeviceAuthz */
+			)
+			require.NoError(t, err)
+			authCtx.AdminActionAuthState = authz.AdminActionAuthMFAVerified
+
+			server := auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
+			_, err = server.GetAccessCapabilities(authz.ContextWithUser(ctx, callerIdentity), types.AccessCapabilitiesRequest{
+				User: tt.queriedUser,
+			})
+			if tt.wantAccessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %T: %v", err, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetAccessCapabilitiesScopedRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	targetUser, err := types.NewUser("target")
+	require.NoError(t, err)
+	_, err = srv.AuthServer.CreateUser(ctx, targetUser)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		callerUser       string
+		queriedUser      string
+		wantAccessDenied bool
+	}{
+		{
+			name:        "querying for self is allowed",
+			callerUser:  "scoped-caller-self",
+			queriedUser: "",
+		},
+		{
+			name:             "querying for other user is denied",
+			callerUser:       "scoped-caller-other",
+			queriedUser:      "target",
+			wantAccessDenied: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			callerUser, err := types.NewUser(tt.callerUser)
+			require.NoError(t, err)
+			callerUser, err = srv.AuthServer.CreateUser(t.Context(), callerUser)
+			require.NoError(t, err)
+
+			callerIdentity := authz.LocalUser{
+				Username: tt.callerUser,
+				Identity: tlsca.Identity{
+					Username: tt.callerUser,
+					ScopePin: scopesv1.Pin_builder{
+						Kind:  scopesv1.PinKind_PIN_KIND_USER,
+						Scope: "/test",
+					}.Build(),
+				},
+			}
+
+			server := auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, &authz.ScopedContext{
+				User:     callerUser,
+				Identity: callerIdentity,
+			})
+			t.Cleanup(func() { server.Close() })
+
+			_, err = server.GetAccessCapabilities(authz.ContextWithUser(t.Context(), callerIdentity), types.AccessCapabilitiesRequest{
+				User: tt.queriedUser,
+			})
+			if tt.wantAccessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %T: %v", err, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
