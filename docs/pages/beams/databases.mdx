@@ -28,12 +28,11 @@ Teleport roles.
 
 An instance of the `tbot` daemon on the beam receives the ID of the delegation
 session and queries the Auth Service to issue a fresh Teleport identity to
-services that run on the beam. Teleport RBAC checks ensure that only the user
-that created a beam can SSH into it. As a result, any agentic workloads running
+services that run on the beam. As a result, any agentic workloads running
 on the beam delegate the originating user's Teleport permissions.
 
 For Teleport-protected databases, this means that users who create a beam can
-run agents on the beam to access those databases, as long as the users have
+run AI agents on the beam to access those databases, as long as the users have
 permissions to access those databases as well. With Teleport RBAC, you can limit
 the permissions that agentic workloads have to access your databases.
 
@@ -206,6 +205,9 @@ reverse tunnel.
      --uri=postgres:5432 \
      --labels=service=local-postgres
    ```
+
+   Note that the Teleport Database Service reads the token from `/tmp/token`,
+   the path on the container where you'll mount the token you generated earlier.
 
 1. Start the Teleport Database Service in the same local Docker network as the
    PostgreSQL container you launched earlier:
