@@ -1151,9 +1151,11 @@ export interface FieldOptions {
      */
     deprecated?: boolean;
     /**
+     * DEPRECATED. DO NOT USE!
      * For Google-internal migration only. Do not use.
      *
-     * @generated from protobuf field: optional bool weak = 10;
+     * @deprecated
+     * @generated from protobuf field: optional bool weak = 10 [deprecated = true];
      */
     weak?: boolean;
     /**
@@ -2181,6 +2183,12 @@ export enum Edition {
      * @generated from protobuf enum value: EDITION_2024 = 1001;
      */
     EDITION_2024 = 1001,
+    /**
+     * A placeholder edition for developing and testing unscheduled features.
+     *
+     * @generated from protobuf enum value: EDITION_UNSTABLE = 9999;
+     */
+    EDITION_UNSTABLE = 9999,
     /**
      * Placeholder editions for testing feature resolution.  These should not be
      * used or relied on outside of tests.
@@ -3652,7 +3660,7 @@ class FieldOptions$Type extends MessageType<FieldOptions> {
                 case /* optional bool deprecated */ 3:
                     message.deprecated = reader.bool();
                     break;
-                case /* optional bool weak */ 10:
+                case /* optional bool weak = 10 [deprecated = true];*/ 10:
                     message.weak = reader.bool();
                     break;
                 case /* optional bool debug_redact */ 16:
@@ -3710,7 +3718,7 @@ class FieldOptions$Type extends MessageType<FieldOptions> {
         /* optional bool deprecated = 3; */
         if (message.deprecated !== undefined)
             writer.tag(3, WireType.Varint).bool(message.deprecated);
-        /* optional bool weak = 10; */
+        /* optional bool weak = 10 [deprecated = true]; */
         if (message.weak !== undefined)
             writer.tag(10, WireType.Varint).bool(message.weak);
         /* optional bool debug_redact = 16; */

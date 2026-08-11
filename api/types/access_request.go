@@ -154,6 +154,10 @@ type AccessRequest interface {
 	SetRequestedResourceAccessIDs([]ResourceAccessID)
 	// GetAllRequestedResourceIDs get all requested resources, in [ResourceAccessID]-form.
 	GetAllRequestedResourceIDs() []ResourceAccessID
+	// GetTiming returns the timing context.
+	GetTiming() *AccessRequestTiming
+	// SetTiming sets the timing context.
+	SetTiming(*AccessRequestTiming)
 	// IsEqual determines if two access requests are equivalent to one another.
 	IsEqual(AccessRequest) bool
 }
@@ -184,6 +188,36 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 	return &req, nil
 }
 
+// Equal instructs derive how to compare AccessRequestTiming correctly.
+func (t *AccessRequestTiming) Equal(other *AccessRequestTiming) bool {
+	return t.IsEqual(other)
+}
+
+// IsEqual checks if provided AccessRequestTiming equal to the current one.
+func (t *AccessRequestTiming) IsEqual(other *AccessRequestTiming) bool {
+	if t == nil || other == nil {
+		return t == other
+	}
+
+	switch timing := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		otherTiming, ok := other.Mode.(*AccessRequestTiming_Scheduled)
+		if !ok {
+			return false
+		}
+		if timing == nil || otherTiming == nil {
+			return timing == otherTiming
+		}
+		if timing.Scheduled == nil || otherTiming.Scheduled == nil {
+			return timing.Scheduled == otherTiming.Scheduled
+		}
+		return timing.Scheduled.Start.Equal(otherTiming.Scheduled.Start) &&
+			timing.Scheduled.Duration == otherTiming.Scheduled.Duration
+	default:
+		return t.Mode == nil && other.Mode == nil
+	}
+}
+
 // IsEqual determines if two access requests are equivalent to one another.
 // The Revision field is ignored during comparison.
 func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
@@ -196,11 +230,22 @@ func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
 		return false
 	}
 
-	if r == nil && otherv3 == nil {
-		return true
+	if r == nil || otherv3 == nil {
+		return r == nil && otherv3 == nil
 	}
 
-	if !deriveTeleportEqualAccessRequestV3(r, otherv3) {
+	if !r.Spec.Timing.IsEqual(otherv3.Spec.Timing) {
+		return false
+	}
+
+	// Timing contains a oneof that goderive cannot compare semantically. Compare
+	// it above, then mask it from generated equality without mutating the requests.
+	this := *r
+	that := *otherv3
+	this.Spec.Timing = nil
+	that.Spec.Timing = nil
+
+	if !deriveTeleportEqualAccessRequestV3(&this, &that) {
 		return false
 	}
 
@@ -778,6 +823,16 @@ func (r *AccessRequestV3) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (r *AccessRequestV3) SetOrigin(origin string) {
 	r.Metadata.SetOrigin(origin)
+}
+
+// GetTiming returns timing context from the access request spec. Can be nil.
+func (r *AccessRequestV3) GetTiming() *AccessRequestTiming {
+	return r.Spec.Timing
+}
+
+// SetTiming sets timing context in the access request spec.
+func (r *AccessRequestV3) SetTiming(timing *AccessRequestTiming) {
+	r.Spec.Timing = timing
 }
 
 // String returns a text representation of this AccessRequest

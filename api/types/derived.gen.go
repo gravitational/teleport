@@ -388,7 +388,8 @@ func deriveTeleportEqual(this, that *AccessRequestSpecV3) bool {
 			((this.ResourceExpiry == nil && that.ResourceExpiry == nil) || (this.ResourceExpiry != nil && that.ResourceExpiry != nil && (*(this.ResourceExpiry)).Equal(*(that.ResourceExpiry)))) &&
 			deriveTeleportEqual_39(this.DryRunEnrichment, that.DryRunEnrichment) &&
 			this.RequestKind == that.RequestKind &&
-			deriveTeleportEqual_40(this.LongTermGrouping, that.LongTermGrouping)
+			deriveTeleportEqual_40(this.LongTermGrouping, that.LongTermGrouping) &&
+			this.Timing.Equal(that.Timing)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.

@@ -204,6 +204,40 @@ func TestAccessRequestGetReferencedUsers(t *testing.T) {
 	})
 }
 
+func TestAccessRequestTimingIsEqual(t *testing.T) {
+	start := time.Now().UTC()
+	scheduled := func(start time.Time, duration time.Duration) *AccessRequestTiming {
+		return &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{
+			Scheduled: &AccessRequestScheduledTiming{Start: start, Duration: duration},
+		}}
+	}
+
+	tests := []struct {
+		name  string
+		a, b  *AccessRequestTiming
+		equal bool
+	}{
+		{name: "both nil", equal: true},
+		{name: "nil and scheduled", b: scheduled(start, time.Hour)},
+		{name: "empty timing", a: &AccessRequestTiming{}, b: &AccessRequestTiming{}, equal: true},
+		{name: "equal scheduled timing", a: scheduled(start, time.Hour), b: scheduled(start, time.Hour), equal: true},
+		{name: "different start", a: scheduled(start, time.Hour), b: scheduled(start.Add(time.Minute), time.Hour)},
+		{name: "different duration", a: scheduled(start, time.Hour), b: scheduled(start, 2*time.Hour)},
+		{
+			name:  "typed nil scheduled mode",
+			a:     &AccessRequestTiming{Mode: (*AccessRequestTiming_Scheduled)(nil)},
+			b:     &AccessRequestTiming{Mode: (*AccessRequestTiming_Scheduled)(nil)},
+			equal: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.equal, tt.a.IsEqual(tt.b))
+		})
+	}
+}
+
 func TestAccessRequestV3IsEqual(t *testing.T) {
 	newReq := func(t *testing.T) *AccessRequestV3 {
 		t.Helper()
@@ -211,6 +245,12 @@ func TestAccessRequestV3IsEqual(t *testing.T) {
 		require.NoError(t, err)
 		return req.(*AccessRequestV3)
 	}
+	scheduledTiming := func(start time.Time, duration time.Duration) *AccessRequestTiming {
+		return &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{
+			Scheduled: &AccessRequestScheduledTiming{Start: start, Duration: duration},
+		}}
+	}
+	timingStart := time.Now().UTC()
 
 	awsID := func(name string, arns ...string) ResourceAccessID {
 		return ResourceAccessID{
@@ -299,6 +339,44 @@ func TestAccessRequestV3IsEqual(t *testing.T) {
 			a:    func(t *testing.T) AccessRequest { return newReq(t) },
 			b:    func(t *testing.T) AccessRequest { return newReq(t) },
 			want: true,
+		},
+		{
+			name: "equal scheduled timing",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.SetTiming(scheduledTiming(timingStart, time.Hour))
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.SetTiming(scheduledTiming(timingStart, time.Hour))
+				return r
+			},
+			want: true,
+		},
+		{
+			name: "different scheduled timing",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.SetTiming(scheduledTiming(timingStart, time.Hour))
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.SetTiming(scheduledTiming(timingStart, 2*time.Hour))
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "scheduled and legacy timing",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.SetTiming(scheduledTiming(timingStart, time.Hour))
+				return r
+			},
+			b:    func(t *testing.T) AccessRequest { return newReq(t) },
+			want: false,
 		},
 		{
 			name: "non-v3 type returns false",

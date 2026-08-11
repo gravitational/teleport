@@ -3638,6 +3638,42 @@ message AccessRequestSpecV3 {
     (gogoproto.jsontag) = "resource_access_ids,omitempty",
     (gogoproto.nullable) = false
   ];
+
+  // Timing defines the requested timing semantics for this
+  // Access Request. If unset, the Access Request uses legacy timing semantics.
+  AccessRequestTiming Timing = 27 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "timing,omitempty"
+  ];
+}
+
+// AccessRequestTiming contains requester-controlled timing configuration. The
+// selected oneof field determines how the access window is calculated.
+message AccessRequestTiming {
+  oneof mode {
+    // Scheduled requests a fixed access window. Approval never moves the
+    // window.
+    AccessRequestScheduledTiming Scheduled = 1 [
+      (gogoproto.jsontag) = "scheduled,omitempty"
+    ];
+  }
+}
+
+// AccessRequestScheduledTiming requests a fixed access window.
+message AccessRequestScheduledTiming {
+  // Start is the fixed beginning of the access window.
+  google.protobuf.Timestamp Start = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "start"
+  ];
+
+  // Duration is the requested access-window duration.
+  google.protobuf.Duration Duration = 2 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "duration"
+  ];
 }
 
 // AccessRequestKind represents the kind of Access Request being made (short/long-term).
