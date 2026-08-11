@@ -3249,10 +3249,10 @@ func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer)
 
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"SSH Server ID", "Proxy", "Cluster", "Hostname", "Address", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "SSH Server ID", "Hostname", "Address", "Labels"}, rows...)
 	} else {
 		if withScope {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"SSH Server ID", "Proxy", "Cluster", "Hostname", "Address", "Labels"}, rows, "Labels")
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "SSH Server ID", "Hostname", "Address", "Labels"}, rows, "Labels")
 		} else {
 			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Hostname", "Address", "Labels"}, rows, "Labels")
 		}
