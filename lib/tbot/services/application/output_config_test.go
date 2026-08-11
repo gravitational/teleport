@@ -135,7 +135,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 					AppName:     "app",
 				}
 			},
-			wantErr: "app_name: needs to be a scope-qualified name when in scope mode",
+			wantErr: `app_name: scope-qualified name "app" missing "::" separator`,
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

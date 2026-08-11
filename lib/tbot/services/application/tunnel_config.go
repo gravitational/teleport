@@ -119,10 +119,13 @@ func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 		if t.DelegationSessionID != "" {
 			return trace.BadParameter("delegation_session_id: not supported with scopes")
 		}
-		if !scopes.MaybeSQN(t.AppName) {
-			return trace.BadParameter("app_name: needs to be a scope-qualified name when in scope mode")
+		// Perform strong validation to ensure it's a valid scope format.
+		if err := scopes.StrongValidateQualifiedName(t.AppName); err != nil {
+			return trace.BadParameter("app_name: %v", err)
 		}
 	} else if scopes.MaybeSQN(t.AppName) {
+		// If not scoped, we perform a soft validation instead of a strong one.
+		// This is to fail on the intention of the user giving a scope, not in the correctness of the format.
 		return trace.BadParameter("app_name: can not be a scope-qualified name when not in scope mode")
 	}
 

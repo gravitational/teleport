@@ -152,7 +152,7 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 					AppName: "my-app",
 				}
 			},
-			wantErr: "app_name: needs to be a scope-qualified name when in scope mode",
+			wantErr: `app_name: scope-qualified name "my-app" missing "::" separator`,
 		},
 	}
 	testCheckAndSetDefaults(t, tests)
