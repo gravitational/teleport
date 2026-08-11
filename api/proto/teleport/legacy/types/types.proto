@@ -3333,7 +3333,7 @@ message AccessRequestDryRunEnrichment {
 
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
-  // Author is the teleport username of the review author.
+  // Author is the Teleport username of the review author.
   string Author = 1 [(gogoproto.jsontag) = "author"];
   // Roles is a list used for role-subselection (not yet fully supported).
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -3372,6 +3372,15 @@ message AccessReview {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // SubmittedBy is the Teleport identity (eg. plugin) that submitted this review request
+  // to the Auth Service on behalf of the Author.
+  // Author remains the actual Teleport user that performed the review.
+  string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
+
+  // Determines if the review was submitted by a Teleport identity (eg. plugin) on behalf of
+  // the Author.
+  bool submitted_on_behalf_of_author = 12;
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -4593,6 +4602,12 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
+
+  // SubmitForUsers is used by Teleport plugins to indicate
+  // they can submit reviews on behalf of other users.
+  // Reviews submitted for a user are evaluated against that user's own RBAC permissions.
+  // Supports wildcard (*).
+  repeated string SubmitForUsers = 5 [(gogoproto.jsontag) = "submit_for_users,omitempty"];
 }
 
 // AccessRequestAllowedPromotion describes an allowed promotion to an Access List.
@@ -7816,13 +7831,18 @@ message PluginOktaSyncSettings {
   // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
   // bidirectional sync is enabled. The default value is 30m.
+  //
+  // It is not advised to change this setting without prior recommendation.
   string time_between_imports = 14;
 
-  // TimeBetweenAssignmentProcessLoops controls the time between periodic iterations of the Okta assignment
-  // processor loop. Teleport reacts asynchronously to Okta permission changes and responds to changes immediately.
-  // This also implements a periodic fallback sync that is triggered periodically to reconcile to the desired state.
-  // For most use cases the default value should NOT be changed.
-  // A blank string results in the default value of 5min.
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic synchronizations of the
+  // Okta assignments to Teleport and reconciliation of all existing assignments that are failed or
+  // out of sync. The default value is 5m.
+  //
+  // NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
+  // often the cached Okta client for assignments is being invalidated.
+  //
+  //It is not advised to change this setting without prior recommendation.
   string time_between_assignment_process_loops = 15;
 
   // TargetProcessingBackoffStep controls the step value for linear backoff when reprocessing Okta assignment targets.

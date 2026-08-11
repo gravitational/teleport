@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,9 +31,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -121,7 +124,173 @@ func TestWorkloadIdentity(t *testing.T) {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
 		cacheList: workloadIdentityPageFunc(p.cache.RangeWorkloadIdentities),
-		cacheGet:  p.cache.GetWorkloadIdentity,
+		cacheGet: func(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+			return p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: name}.Build())
+		},
+	})
+}
+
+// TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter verifies the seed
+// selects the same set as the event stream. The stream is filtered per-event by
+// services.WatchKindMatchesScope, so an unfiltered seed would leave permanently
+// stale out-of-scope entries in the store.
+func TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p, err := newPack(t, ForAuth)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	// Fixture names say which scope they live in.
+	_, err = p.workloadIdentity.CreateWorkloadIdentity(ctx, newWorkloadIdentity("unscoped"))
+	require.NoError(t, err)
+	for name, scope := range map[string]string{
+		"foo":     "/foo",
+		"foo-sub": "/foo/sub",
+		"bar":     "/bar",
+	} {
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+			Scope:    scope,
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: scope + "/_/" + name}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		scopeFilter *scopesv1.Filter
+		want        []string
+	}{
+		{
+			name:        "mode ALL matches every scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			want:        []string{"bar", "foo", "foo-sub", "unscoped"},
+		},
+		{
+			name:        "mode UNSCOPED matches only unscoped",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			want:        []string{"unscoped"},
+		},
+		{
+			name:        "mode EXACT matches one scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build(),
+			want:        []string{"foo"},
+		},
+		{
+			name:        "mode DESCENDANTS matches the scope and below",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+			want:        []string{"foo", "foo-sub"},
+		},
+		{
+			name:        "mode ANCESTORS matches the scope and above",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ANCESTORS, Scope: "/foo/sub"}.Build(),
+			want:        []string{"foo", "foo-sub"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			collection, err := newWorkloadIdentityCollection(p.workloadIdentity, types.WatchKind{
+				Kind:        types.KindWorkloadIdentity,
+				ScopeFilter: types.ScopeFilterFromProto(tc.scopeFilter),
+			})
+			require.NoError(t, err)
+
+			seeded, err := collection.fetcher(t.Context(), false)
+			require.NoError(t, err)
+
+			var names []string
+			for _, wi := range seeded {
+				names = append(names, wi.GetMetadata().GetName())
+			}
+			slices.Sort(names)
+			require.Equal(t, tc.want, names)
+		})
+	}
+
+	t.Run("malformed watch filter is rejected at construction", func(t *testing.T) {
+		_, err := newWorkloadIdentityCollection(p.workloadIdentity, types.WatchKind{
+			Kind: types.KindWorkloadIdentity,
+			ScopeFilter: types.ScopeFilterFromProto(
+				scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
+			),
+		})
+		require.ErrorContains(t, err, "requires a non-empty scope")
+	})
+
+	t.Run("unspecified watch filter is rejected at construction", func(t *testing.T) {
+		_, err := newWorkloadIdentityCollection(p.workloadIdentity, types.WatchKind{
+			Kind: types.KindWorkloadIdentity,
+		})
+		require.ErrorContains(t, err, "explicit scope filter mode")
+	})
+}
+
+// TestWorkloadIdentityCacheScoped verifies the cache serves scoped reads, keeps
+// scoped and unscoped identities of the same name distinct, and evicts a scoped
+// identity when it is deleted, exercising the scope-aware watch path.
+func TestWorkloadIdentityCacheScoped(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		const scope = "/staging"
+		scopedName := scopes.QualifiedName{Scope: scope, Name: "shared"}
+		unscopedName := scopes.QualifiedName{Name: "shared"}
+		getReq := func(n scopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
+			return workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+		}
+		delReq := func(n scopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
+			return workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+		}
+
+		// An unscoped and a scoped identity that share a name must not collide.
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, newWorkloadIdentity("shared"))
+		require.NoError(t, err)
+		scoped := workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "shared"}.Build(),
+			Scope:    scope,
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					Id: scope + "/_/svc",
+				}.Build(),
+			}.Build(),
+		}.Build()
+		_, err = p.workloadIdentity.CreateWorkloadIdentity(ctx, scoped)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		// Both are independently retrievable from the cache by their qualified name.
+		gotUnscoped, err := p.cache.GetWorkloadIdentity(ctx, getReq(unscopedName))
+		require.NoError(t, err)
+		require.Empty(t, gotUnscoped.GetScope())
+		require.Equal(t, "/example", gotUnscoped.GetSpec().GetSpiffe().GetId())
+
+		gotScoped, err := p.cache.GetWorkloadIdentity(ctx, getReq(scopedName))
+		require.NoError(t, err)
+		require.Equal(t, scope, gotScoped.GetScope())
+
+		// Deleting the scoped identity evicts it from the cache without disturbing
+		// the unscoped identity of the same name.
+		require.NoError(t, p.workloadIdentity.DeleteWorkloadIdentity(ctx, delReq(scopedName)))
+		synctest.Wait()
+
+		_, err = p.cache.GetWorkloadIdentity(ctx, getReq(scopedName))
+		require.True(t, trace.IsNotFound(err))
+
+		gotUnscoped, err = p.cache.GetWorkloadIdentity(ctx, getReq(unscopedName))
+		require.NoError(t, err)
+		require.Empty(t, gotUnscoped.GetScope())
 	})
 }
 
@@ -145,7 +314,7 @@ func TestWorkloadIdentityCacheRange(t *testing.T) {
 	})
 
 	collectRange := func(t *testing.T, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) []*workloadidentityv1pb.WorkloadIdentity {
-		return collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, start, end, sortField, sortDesc))
+		return collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(t.Context(), start, end, sortField, sortDesc))
 	}
 
 	names := func(in []*workloadidentityv1pb.WorkloadIdentity) []string {
@@ -269,7 +438,7 @@ func TestWorkloadIdentityCacheRangePagination(t *testing.T) {
 		require.NoError(t, err)
 		for {
 			page, next, err := generic.CollectPageAndCursor(
-				p.cache.RangeWorkloadIdentities(ctx, token, "", sortField, sortDesc),
+				p.cache.RangeWorkloadIdentities(t.Context(), token, "", sortField, sortDesc),
 				5,
 				keyFn,
 			)
@@ -319,44 +488,98 @@ func TestWorkloadIdentityCacheRangePagination(t *testing.T) {
 	}
 }
 
-// TestWorkloadIdentityCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
+// TestWorkloadIdentityCacheFallback compares reads served by the unhealthy-cache
+// fallback against the healthy cache: both apply the collection's scope filter
+// to ranges and gets, while sort support legitimately differs (the upstream
+// backend only supports name-ascending iteration).
 func TestWorkloadIdentityCacheFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	for _, tt := range []struct {
+		name    string
+		neverOK bool
+	}{
+		{name: "HealthyCache", neverOK: false},
+		{name: "Fallback", neverOK: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
 
-	p := newTestPack(t, func(cfg Config) Config {
-		cfg.neverOK = true // Force the cache into an unhealthy state
-		return ForAuth(cfg)
-	})
-	t.Cleanup(p.Close)
+				p := newTestPack(t, func(cfg Config) Config {
+					cfg = ForAuth(cfg)
+					cfg.neverOK = tt.neverOK
+					for i, w := range cfg.Watches {
+						if w.Kind == types.KindWorkloadIdentity {
+							cfg.Watches[i].ScopeFilter = types.ScopeFilterFromProto(
+								scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+							)
+						}
+					}
+					return cfg
+				})
+				t.Cleanup(p.Close)
 
-	createWorkloadIdentities(t, ctx, p, map[string]string{
-		"test-workload-identity-1": "/test/spiffe/1",
-	})
+				for name, scope := range map[string]string{
+					"unscoped": "",
+					"foo":      "/foo",
+					"foo-sub":  "/foo/sub",
+					"bar":      "/bar",
+				} {
+					_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+						Kind:     types.KindWorkloadIdentity,
+						Version:  types.V1,
+						Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+						Scope:    scope,
+						Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+							Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: scope + "/_/" + name}.Build(),
+						}.Build(),
+					}.Build())
+					require.NoError(t, err)
+				}
 
-	// The upstream backend only supports name-ascending iteration, so a range
-	// served from the unhealthy cache is constrained to that ordering.
-	t.Run("supported sort", func(t *testing.T) {
-		got := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", false))
-		require.Len(t, got, 1)
-	})
+				synctest.Wait()
 
-	t.Run("unsupported sort field", func(t *testing.T) {
-		var err error
-		for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", "spiffe_id", false) {
-			err = iterErr
-		}
-		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "spiffe_id"`)
-	})
+				// Ranges apply the collection's scope filter regardless of health.
+				got := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
+				var names []string
+				for _, wi := range got {
+					names = append(names, wi.GetMetadata().GetName())
+				}
+				slices.Sort(names)
+				require.Equal(t, []string{"foo", "foo-sub"}, names)
 
-	t.Run("unsupported sort dir", func(t *testing.T) {
-		var err error
-		for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true) {
-			err = iterErr
-		}
-		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
-	})
+				// So do gets: in-filter is retrievable, out-of-filter reads as absent.
+				gotFoo, err := p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: "/foo", Name: "foo",
+				}.Build())
+				require.NoError(t, err)
+				require.Equal(t, "/foo", gotFoo.GetScope())
+
+				_, err = p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: "/bar", Name: "bar",
+				}.Build())
+				require.True(t, trace.IsNotFound(err), "expected NotFound for out-of-filter identity, got %v", err)
+
+				// The healthy cache serves spiffe_id and descending sorts from its
+				// indexes; the fallback surfaces the backend's ordering limits.
+				rangeErr := func(sortField services.WorkloadIdentitySortField, desc bool) error {
+					var err error
+					for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", sortField, desc) {
+						err = iterErr
+					}
+					return err
+				}
+				if tt.neverOK {
+					require.ErrorContains(t, rangeErr("spiffe_id", false), `unsupported sort, only name field is supported, but got "spiffe_id"`)
+					require.ErrorContains(t, rangeErr("name", true), "unsupported sort, only ascending order is supported")
+				} else {
+					require.NoError(t, rangeErr("spiffe_id", false))
+					require.NoError(t, rangeErr("name", true))
+				}
+			})
+		})
+	}
 }
 
 // TestWorkloadIdentityCaseSensitiveName tests that workload identity name index keys remain case sensitive.

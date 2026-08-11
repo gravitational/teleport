@@ -710,7 +710,7 @@ func TestJoinGHA(t *testing.T) {
 			t.Run("scoped joinclient", func(t *testing.T) {
 				scopedToken := CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
 				result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:      scopedToken.GetMetadata().GetName(),
+					Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 					JoinMethod: types.JoinMethodGitHub,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
@@ -856,7 +856,7 @@ func TestJoinGHABot(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token:      scopedToken.GetMetadata().GetName(),
+		Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodGitHub,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -914,7 +914,7 @@ func TestJoinGHABot(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-			Token:      nonMatchingToken.GetMetadata().GetName(),
+			Token:      scopes.QualifiedName{Scope: nonMatchingToken.GetScope(), Name: nonMatchingToken.GetMetadata().GetName()}.String(),
 			JoinMethod: types.JoinMethodGitHub,
 			ID: state.IdentityID{
 				Role: types.RoleBot,

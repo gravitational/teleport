@@ -920,6 +920,12 @@ const (
 	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
 	// used for tenant-wide discovery scoping.
 	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
+	// AWSOrganizationalUnitsIncludeLabel is the label key for the comma-separated
+	// list of AWS Organizational Unit IDs to include for organization-wide discovery.
+	AWSOrganizationalUnitsIncludeLabel = TeleportNamespace + "/aws-organizational-units-include"
+	// AWSOrganizationalUnitsExcludeLabel is the label key for the comma-separated
+	// list of AWS Organizational Unit IDs to exclude from organization-wide discovery.
+	AWSOrganizationalUnitsExcludeLabel = TeleportNamespace + "/aws-organizational-units-exclude"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -1390,6 +1396,10 @@ const (
 	// BeamAppTypeLabel is the label used to denote the type of app created for
 	// Beams. Valid values: "ingress" and "llm".
 	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
+
+	// BeamRegionLabel is the label used to track the resolved routing region
+	// for a Beam.
+	BeamRegionLabel = BeamsInternalLabelPrefix + "region"
 )
 
 const (

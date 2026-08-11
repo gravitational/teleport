@@ -24,6 +24,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Slack API: Socket Mode constants
+
+const (
+	SocketModeEventTypeHello          = "hello"
+	SocketModeEventTypeDisconnect     = "disconnect"
+	SocketModeEventTypeInteractive    = "interactive"
+	SocketModeEventReasonLinkDisabled = "link_disabled"
+)
+
 // Slack API types
 
 type APIResponse struct {
@@ -53,6 +62,11 @@ type Message struct {
 	Text       string      `json:"text,omitempty"`
 }
 
+type UsersLookupResponse struct {
+	APIResponse
+	User User `json:"user"`
+}
+
 type User struct {
 	ID      string      `json:"id"`
 	Name    string      `json:"name"`
@@ -70,6 +84,106 @@ type AccessResponse struct {
 	AccessToken      string `json:"access_token"`
 	RefreshToken     string `json:"refresh_token"`
 	ExpiresInSeconds int    `json:"expires_in"`
+}
+
+// Slack API: Socket Mode (interactivity)
+
+type AppsOpenResponse struct {
+	APIResponse
+	URL string `json:"url"`
+}
+
+type SocketModeAckResponse struct {
+	EnvelopeID string          `json:"envelope_id"`
+	Payload    json.RawMessage `json:"payload,omitempty"`
+}
+
+type SocketModeEvent struct {
+	Type      string          `json:"type"`
+	DebugInfo json.RawMessage `json:"debug_info,omitempty"`
+
+	// `hello` type
+
+	NumConnections int             `json:"num_connections"`
+	ConnectionInfo json.RawMessage `json:"connection_info"`
+
+	// `disconnect` type
+
+	Reason string `json:"reason"`
+
+	// `interactive` type
+
+	EnvelopeID             string          `json:"envelope_id"`
+	AcceptsResponsePayload bool            `json:"accepts_response_payload"`
+	Payload                json.RawMessage `json:"payload"`
+	RetryAttempt           int             `json:"retry_attempt"`
+	RetryReason            string          `json:"retry_reason"`
+}
+
+// InteractionEventType is the type of interaction event received from Slack Socket Mode.
+type InteractionEventType string
+
+// InteractionEvent is an app interaction event received from Slack Socket Mode,
+// such as a button interaction within an Actions block.
+type InteractionEvent interface {
+	// Type is type of InteractionEvent.
+	Type() InteractionEventType
+}
+
+// UnmarshalInteractionEvent unmarshals a raw interaction payload based on the type
+// of interaction. Currently, we only handle "block_actions" type.
+func UnmarshalInteractionEvent(data []byte) (InteractionEvent, error) {
+	var interactionType struct {
+		Type InteractionEventType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &interactionType); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var interaction InteractionEvent
+	var err error
+	switch interactionType.Type {
+	case BlockActionsEvent{}.Type():
+		var val BlockActionsEvent
+		err = trace.Wrap(json.Unmarshal(data, &val))
+		interaction = val
+	default:
+		err = trace.BadParameter("unsupported interaction event type %q", interactionType.Type)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return interaction, nil
+}
+
+type BlockActionsEvent struct {
+	User          User            `json:"user"`
+	Team          json.RawMessage `json:"team"`
+	TriggerID     string          `json:"trigger_id"`
+	Container     json.RawMessage `json:"container"`
+	APIAppID      string          `json:"api_app_id"`
+	Actions       []Action        `json:"actions"`
+	Interactivity json.RawMessage `json:"interactivity"`
+	Channel       Channel         `json:"channel,omitzero"`
+	Message       Message         `json:"message,omitzero"`
+}
+
+func (p BlockActionsEvent) Type() InteractionEventType {
+	return InteractionEventType("block_actions")
+}
+
+type Action struct {
+	Type      string         `json:"type"`
+	ID        string         `json:"action_id"`
+	Timestamp string         `json:"action_ts"`
+	BlockID   string         `json:"block_id"`
+	Text      TextObjectItem `json:"text"`
+	Value     string         `json:"value"`
+}
+
+type Channel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // Slack API: blocks
@@ -187,12 +301,59 @@ func NewBlockItem(block Block) BlockItem {
 // Slack API: actions blocks
 
 type ActionsBlock struct {
-	Elements []json.RawMessage `json:"elements"`
-	BlockID  string            `json:"block_id,omitempty"`
+	ElementItems []ActionElementItem `json:"elements"`
+	BlockID      string              `json:"block_id,omitempty"`
 }
 
 func (b ActionsBlock) BlockType() BlockType {
 	return BlockType("actions")
+}
+
+type ActionElementType string
+
+type ActionElement interface {
+	ActionElementType() ActionElementType
+}
+
+type ActionElementItem struct{ ActionElement }
+
+func NewActionElementItem(element ActionElement) ActionElementItem {
+	return ActionElementItem{element}
+}
+
+func (p *ActionElementItem) UnmarshalJSON(data []byte) error {
+	var itemType struct {
+		Type ActionElementType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &itemType); err != nil {
+		return trace.Wrap(err)
+	}
+	var element ActionElement
+	var err error
+	switch itemType.Type {
+	case ButtonElement{}.ActionElementType():
+		var val ButtonElement
+		err = trace.Wrap(json.Unmarshal(data, &val))
+		element = val
+	}
+	if err != nil {
+		return err
+	}
+	p.ActionElement = element
+	return nil
+}
+
+func (p ActionElementItem) MarshalJSON() ([]byte, error) {
+	typeVal := string(p.ActionElementType())
+	switch val := p.ActionElement.(type) {
+	case ButtonElement:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			ButtonElement
+		}{typeVal, val})
+	default:
+		return json.Marshal(val)
+	}
 }
 
 // Slack API: context blocks
@@ -430,4 +591,71 @@ func (t MarkdownObject) ContextElementType() ContextElementType {
 
 func (t MarkdownObject) GetText() string {
 	return t.Text
+}
+
+// Slack API: block elements
+
+type BlockElementType string
+
+type BlockElement interface {
+	BlockElementType() BlockElementType
+}
+
+type BlockElementItem struct{ BlockElement }
+
+func NewBlockElementItem(element BlockElement) BlockElementItem {
+	return BlockElementItem{element}
+}
+
+func (p *BlockElementItem) UnmarshalJSON(data []byte) error {
+	var itemType struct {
+		Type BlockElementType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &itemType); err != nil {
+		return trace.Wrap(err)
+	}
+	var element BlockElement
+	var err error
+	switch itemType.Type {
+	case ButtonElement{}.BlockElementType():
+		var val ButtonElement
+		err = trace.Wrap(json.Unmarshal(data, &val))
+		element = val
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.BlockElement = element
+	return nil
+}
+
+func (p BlockElementItem) MarshalJSON() ([]byte, error) {
+	typeVal := string(p.BlockElementType())
+	switch val := p.BlockElement.(type) {
+	case ButtonElement:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			ButtonElement
+		}{typeVal, val})
+	default:
+		return json.Marshal(val)
+	}
+}
+
+type ButtonElement struct {
+	Text               TextObjectItem  `json:"text"`
+	ActionID           string          `json:"action_id,omitempty"`
+	URL                string          `json:"url,omitempty"`
+	Value              string          `json:"value,omitempty"`
+	Style              string          `json:"style,omitempty"`
+	Confirm            json.RawMessage `json:"confirm,omitempty"`
+	AccessibilityLabel string          `json:"accessibility_label,omitempty"`
+}
+
+func (b ButtonElement) BlockElementType() BlockElementType {
+	return BlockElementType("button")
+}
+
+func (b ButtonElement) ActionElementType() ActionElementType {
+	return ActionElementType("button")
 }

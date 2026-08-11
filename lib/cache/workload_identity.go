@@ -25,9 +25,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -53,6 +55,19 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 		return nil, trace.Wrap(err)
 	}
 
+	// The seed must select the same set as the event stream, which is filtered
+	// per-event by services.WatchKindMatchesScope; an unfiltered seed would leave
+	// permanently stale out-of-scope entries in the store.
+	scopeFilter := w.ScopeFilter.ToProto()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// An omitted filter means match-all here but identity-based defaults at the
+	// authz layer, so require the config to say which is meant.
+	if scopeFilter.GetMode() == scopesv1.Mode_MODE_UNSPECIFIED {
+		return nil, trace.BadParameter("workload identity cache requires an explicit scope filter mode")
+	}
+
 	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		store: newStore(
 			types.KindWorkloadIdentity,
@@ -62,10 +77,18 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 				workloadIdentitySpiffeIDIndex: spiffeIDKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			out, err := stream.Collect(upstream.RangeWorkloadIdentities(ctx, "", "", "", false))
+			out, err := stream.Collect(stream.FilterMap(
+				upstream.RangeWorkloadIdentities(ctx, "", "", "", false),
+				func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+					return wi, scopes.MatchScope(scopeFilter, wi.GetScope())
+				},
+			))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
+			// Only unscoped deletes arrive as a ResourceHeader (scoped deletes
+			// carry a skeleton WorkloadIdentity with the scope set), so the
+			// rebuilt skeleton keys on the bare name.
 			return &workloadidentityv1pb.WorkloadIdentity{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
@@ -99,11 +122,18 @@ func (c *Cache) RangeWorkloadIdentities(
 		isDesc:     sortDesc,
 		upstreamList: func(ctx context.Context, pageSize int, nextToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
 			// When the cache is unhealthy, fall back to collecting a page from
-			// the upstream backend's range. The backend only supports
-			// name-ordered ascending iteration, so a spiffe_id or descending
-			// range surfaces an error here.
+			// the upstream backend's range, applying the collection's scope
+			// filter so cache health doesn't change the visible set. The
+			// backend only supports name-ordered ascending iteration, so a
+			// spiffe_id or descending range surfaces an error here.
+			scopeFilter := c.collections.workloadIdentity.watch.ScopeFilter.ToProto()
 			return generic.CollectPageAndCursor(
-				c.Config.WorkloadIdentity.RangeWorkloadIdentities(ctx, nextToken, "", sortField, sortDesc),
+				stream.FilterMap(
+					c.Config.WorkloadIdentity.RangeWorkloadIdentities(ctx, nextToken, "", sortField, sortDesc),
+					func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+						return wi, scopes.MatchScope(scopeFilter, wi.GetScope())
+					},
+				),
 				pageSize,
 				keyFn,
 			)
@@ -127,18 +157,40 @@ func (c *Cache) RangeWorkloadIdentities(
 	}
 }
 
-// GetWorkloadIdentity returns a single WorkloadIdentity by name
-func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+// GetWorkloadIdentity returns a single WorkloadIdentity by the name and scope in
+// the request.
+func (c *Cache) GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWorkloadIdentity")
 	defer span.End()
 
-	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		cache:       c,
-		collection:  c.collections.workloadIdentity,
-		index:       workloadIdentityNameIndex,
-		upstreamGet: c.Config.WorkloadIdentity.GetWorkloadIdentity,
+	// The name index is keyed by resource cursor, so look up by the cursor for
+	// the requested scope-qualified name. The scope is caller input, so weakly
+	// validate it before deriving the cursor.
+	if req.GetScope() != "" {
+		if err := scopes.WeakValidate(req.GetScope()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	out, err := getter.get(ctx, name)
+	cursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
+
+	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
+		cache:      c,
+		collection: c.collections.workloadIdentity,
+		index:      workloadIdentityNameIndex,
+		upstreamGet: func(ctx context.Context, cursor string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+			wi, err := c.Config.WorkloadIdentity.GetWorkloadIdentity(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Mirror the healthy path: an identity outside the collection's
+			// scope filter is never in the store.
+			if !scopes.MatchScope(c.collections.workloadIdentity.watch.ScopeFilter.ToProto(), wi.GetScope()) {
+				return nil, trace.NotFound("%q %q does not exist", types.KindWorkloadIdentity, cursor)
+			}
+			return wi, nil
+		},
+	}
+	out, err := getter.get(ctx, cursor)
 	return out, trace.Wrap(err)
 }
 

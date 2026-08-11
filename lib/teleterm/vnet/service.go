@@ -269,10 +269,6 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
-	if s.networkStackInfo.Ipv6Prefix == "" {
-		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
-	}
-
 	nsa := &diagv1.NetworkStackAttempt{}
 	if ns, err := s.getNetworkStack(ctx); err != nil {
 		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR

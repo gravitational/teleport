@@ -53,6 +53,7 @@ import (
 	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
@@ -974,6 +975,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
+		teleport.PresetAccessPluginWithReviewRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
 		teleport.PresetMCPUserRoleName,
 	}
@@ -2935,7 +2937,7 @@ func TestInitWithWorkloadIdentityResources(t *testing.T) {
 			auth, err := auth.Init(ctx, cfg)
 			require.NoError(t, err)
 
-			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, "example-workload-identity")
+			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example-workload-identity"}.Build())
 			require.NoError(t, err)
 			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})

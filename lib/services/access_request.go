@@ -77,6 +77,14 @@ const (
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
+	return validateAccessRequest(ar, false)
+}
+
+// validateAccessRequest implements [ValidateAccessRequest]. With
+// allowUnenforceable set, unenforceable constraints (see
+// [types.ResourceConstraints.Unenforceable]) pass validation, keeping
+// requests written by newer Auths readable.
+func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) error {
 	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,10 +104,15 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	}
 
 	for _, r := range ar.GetRequestedResourceAccessIDs() {
-		if r.GetConstraints() == nil {
+		rc := r.GetConstraints()
+		if rc == nil {
 			continue
 		}
-		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
+		if allowUnenforceable && rc.Unenforceable() {
+			// Skip all validation; these may carry a newer version.
+			continue
+		}
+		if err := rc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		switch r.GetResourceID().Kind {
@@ -565,6 +578,12 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 		return trace.BadParameter("request is uninitialized or does not support reviews")
 	}
 
+	// A review submitted by an identity (eg. plugin), for another user, cannot be applied to the submitter's
+	// own request.
+	if rev.SubmittedBy == req.GetUser() {
+		return trace.AccessDenied("review submitter %q cannot apply a review on their own request", rev.SubmittedBy)
+	}
+
 	// user must not have previously reviewed this request
 	for _, existingReview := range req.GetReviews() {
 		if existingReview.Author == rev.Author {
@@ -992,6 +1011,11 @@ func (u userStateRoleOverride) GetRoles() []string {
 	return u.Roles
 }
 
+// NewReviewPermissionChecker creates a review permission checker for the Teleport user given
+// by the username and identity. The identity is used for bot users that must retain minimal
+// permissions granted by the bot identity's roles.
+// The caller of this function should verify that the username (review author) and identity
+// refer to the same user, or otherwise pass in a nil identity.
 func NewReviewPermissionChecker(
 	ctx context.Context,
 	getter RequestValidatorGetter,
@@ -1014,6 +1038,11 @@ func NewReviewPermissionChecker(
 		if identity == nil {
 			// Handle an edge case where SubmitAccessReview is being invoked
 			// in-memory but as a bot user.
+			//
+			// There should not be a scenario where a different identity (eg. plugin) submits
+			// a review for a bot user, and this check enforces it.
+			// Identities submitting for other users should only be able to create
+			// permission checkers for human users, if they are granted `submit_for_users` permissions.
 			return ReviewPermissionChecker{}, trace.BadParameter(
 				"bot user provided but identity parameter is nil",
 			)
@@ -2344,7 +2373,8 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 	if err := utils.FastUnmarshal(data, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ValidateAccessRequest(&req); err != nil {
+	// Requests written by newer Auths must stay readable.
+	if err := validateAccessRequest(&req, true); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
@@ -2358,6 +2388,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
 func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	// Writes stay strict; re-persisting a request whose constraints
+	// this build couldn't decode would overwrite the newer content in
+	// the backend.
 	if err := ValidateAccessRequest(accessRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}

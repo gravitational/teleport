@@ -38,8 +38,10 @@ type osConfigProvider struct {
 
 // osConfigProviderConfig holds configuration parameters for an osConfigProvider.
 type osConfigProviderConfig struct {
-	clt           targetOSConfigGetter
-	tunName       string
+	clt     targetOSConfigGetter
+	tunName string
+	// ipv6Prefix is the IPv6 prefix VNet advertises to the host OS. Empty
+	// when IPv6 is disabled on the host.
 	ipv6Prefix    string
 	dnsIPv6       string
 	addDNSAddress func(net.IP) error
@@ -50,6 +52,10 @@ type targetOSConfigGetter interface {
 }
 
 func newOSConfigProvider(cfg osConfigProviderConfig) (*osConfigProvider, error) {
+	if cfg.ipv6Prefix == "" {
+		// IPv6 is disabled on this host, don't set up any IPv6 configuration.
+		return &osConfigProvider{cfg: cfg}, nil
+	}
 	tunIPv6, err := tunIPv6ForPrefix(cfg.ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)

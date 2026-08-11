@@ -35,7 +35,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -75,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -164,7 +164,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindSAMLIdPServiceProvider:             rc.createSAMLIdPServiceProvider,
 		types.KindDevice:                             rc.createDevice,
 		types.KindOktaImportRule:                     rc.createOktaImportRule,
-		types.KindIntegration:                        rc.createIntegration,
 		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
 		types.KindLinuxDesktop:                       rc.createLinuxDesktop,
@@ -172,7 +171,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAuditQuery:                         rc.createAuditQuery,
 		types.KindSecurityReport:                     rc.createSecurityReport,
 		types.KindServerInfo:                         rc.createServerInfo,
-		types.KindBot:                                rc.createBot,
 		types.KindDatabaseObjectImportRule:           rc.createDatabaseObjectImportRule,
 		types.KindDatabaseObject:                     rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:               rc.createAccessMonitoringRule,
@@ -760,32 +758,6 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Cl
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
-	return nil
-}
-
-func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	bot := &machineidv1pb.Bot{}
-	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
-		return trace.Wrap(err)
-	}
-	if rc.IsForced() {
-		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
-			Bot: bot,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
-		return nil
-	}
-
-	_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: bot,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
 	return nil
 }
 
@@ -1698,60 +1670,6 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	integration, err := services.UnmarshalIntegration(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists {
-		if !rc.force {
-			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
-		}
-
-		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch integration.GetSubKind() {
-		case types.IntegrationSubKindAWSOIDC:
-			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
-		case types.IntegrationSubKindGitHub:
-			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		case types.IntegrationSubKindAWSRolesAnywhere:
-			existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
-		case types.IntegrationSubKindAzureOIDC:
-			existingIntegration.SetAzureOIDCIntegrationSpec(integration.GetAzureOIDCIntegrationSpec())
-		default:
-			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
-		}
-
-		if _, err := client.UpdateIntegration(ctx, existingIntegration); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q has been updated\n", integration.GetName())
-		return nil
-	}
-
-	igV1, ok := integration.(*types.IntegrationV1)
-	if !ok {
-		return trace.BadParameter("unexpected Integration type %T", integration)
-	}
-
-	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Integration %q has been created\n", integration.GetName())
-
-	return nil
-}
-
 func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -2172,12 +2090,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Device %q removed\n", ref.Name)
 
-	case types.KindIntegration:
-		if err := client.DeleteIntegration(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q removed\n", ref.Name)
-
 	case types.KindUserTask:
 		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2253,11 +2165,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", ref.Name)
-	case types.KindBot:
-		if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: ref.Name}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Bot %q has been deleted\n", ref.Name)
 	case types.KindDatabaseObjectImportRule:
 		if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: ref.Name}); err != nil {
 			return trace.Wrap(err)
@@ -2548,6 +2455,19 @@ func (rc *ResourceCommand) getCollectionByScopedRef(ctx context.Context, client 
 func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authclient.Client, ref services.Ref, opts resources.GetOpts) (resources.Collection, error) {
 	if ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+
+	// ParseRef splits on '/', so a scope-qualified name given in the single-arg
+	// form arrives with its scope stranded in the name or the sub-kind. Kinds with
+	// only a scoped handler are already rejected below; kinds with both would
+	// otherwise treat it as an unscoped name and match nothing.
+	_, classicFound := resources.Handlers()[ref.Kind]
+	_, scopedFound := resources.ScopedHandlers()[ref.Kind]
+	if classicFound && scopedFound && (scopes.MaybeSQN(ref.Name) || scopes.MaybeSQN(ref.SubKind)) {
+		return nil, trace.BadParameter(
+			"resource type %q does not accept a scope-qualified name in the single-arg '<kind>/<name>' form, try:\n  tctl get %s <scope>::<name>",
+			ref.Kind, ref.Kind,
+		)
 	}
 
 	if handler, found := resources.Handlers()[ref.Kind]; found {
@@ -3156,32 +3076,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		})
 
 		return &deviceCollection{devices: devs}, nil
-	case types.KindBot:
-		remote := client.BotServiceClient()
-		if ref.Name != "" {
-			bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
-				BotName: ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
-		}
-
-		bots, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*machineidv1pb.Bot, string, error) {
-			resp, err := remote.ListBots(ctx, &machineidv1pb.ListBotsRequest{
-				PageSize:  int32(limit),
-				PageToken: token,
-			})
-
-			return resp.GetBots(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &botCollection{bots: bots}, nil
 	case types.KindDatabaseObjectImportRule:
 		remote := client.DatabaseObjectImportRuleClient()
 		if ref.Name != "" {
@@ -3303,21 +3197,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		default:
 			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
 		}
-	case types.KindIntegration:
-		if ref.Name != "" {
-			ig, err := client.GetIntegration(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &integrationCollection{integrations: []types.Integration{ig}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, client.ListIntegrations))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &integrationCollection{integrations: resources}, nil
 	case types.KindUserTask:
 		userTasksClient := client.UserTasksClient()
 		if ref.Name != "" {

@@ -56,7 +56,7 @@ func (d *dockerNode) start(ctx context.Context) error {
 }
 
 func (d *dockerNode) removeStale(ctx context.Context) {
-	cli, err := client.New(client.WithAPIVersionNegotiation())
+	cli, err := client.New()
 	if err != nil {
 		return
 	}
@@ -66,7 +66,7 @@ func (d *dockerNode) removeStale(ctx context.Context) {
 }
 
 func (d *dockerNode) runContainer(ctx context.Context) error {
-	d.log.Info("starting docker SSH node")
+	d.log.InfoContext(ctx, "starting docker SSH node")
 
 	d.removeStale(ctx)
 
@@ -114,7 +114,7 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 }
 
 func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) error {
-	d.log.Debug("waiting for docker node to join cluster")
+	d.log.DebugContext(ctx, "waiting for docker node to join cluster")
 
 	probe := func(ctx context.Context) (bool, error) {
 		cmd := exec.CommandContext(ctx, d.tctlBin, "nodes", "ls",
@@ -131,7 +131,7 @@ func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) erro
 		return fmt.Errorf("docker node failed to join cluster: %w", err)
 	}
 
-	d.log.Info("docker SSH node is ready")
+	d.log.InfoContext(ctx, "docker SSH node is ready")
 
 	return nil
 }
@@ -145,24 +145,24 @@ func (d *dockerNode) saveLogs(ctx context.Context) {
 
 	logs, err := d.ctr.Logs(ctx)
 	if err != nil {
-		d.log.Warn("could not get docker node logs", "error", err)
+		d.log.WarnContext(ctx, "could not get docker node logs", "error", err)
 		return
 	}
 	defer logs.Close()
 
 	f, err := os.Create(logPath)
 	if err != nil {
-		d.log.Warn("could not create docker node log file", "error", err)
+		d.log.WarnContext(ctx, "could not create docker node log file", "error", err)
 		return
 	}
 	defer f.Close()
 
 	if _, err := io.Copy(f, logs); err != nil {
-		d.log.Warn("could not write docker node logs", "error", err)
+		d.log.WarnContext(ctx, "could not write docker node logs", "error", err)
 		return
 	}
 
-	d.log.Info("saved docker node logs", "path", logPath)
+	d.log.InfoContext(ctx, "saved docker node logs", "path", logPath)
 }
 
 func (d *dockerNode) stop(ctx context.Context) {
@@ -170,16 +170,16 @@ func (d *dockerNode) stop(ctx context.Context) {
 		return
 	}
 
-	d.log.Info("stopping docker SSH node")
+	d.log.InfoContext(ctx, "stopping docker SSH node")
 
 	d.saveLogs(ctx)
 	_ = d.ctr.Terminate(ctx, container.TerminateTimeout(10*time.Second))
 }
 
 func pullImage(ctx context.Context, image string) error {
-	slog.Info("pulling docker image", "image", image)
+	slog.InfoContext(ctx, "pulling docker image", "image", image)
 
-	cli, err := client.New(client.WithAPIVersionNegotiation())
+	cli, err := client.New()
 	if err != nil {
 		return fmt.Errorf("creating docker client: %w", err)
 	}
