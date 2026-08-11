@@ -1127,7 +1127,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
 	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
-	require.NoError(t, os.Mkdir(tmpDir, 0o777))
+	require.NoError(t, os.Mkdir(tmpDir, 0777))
 	t.Cleanup(func() {
 		assert.NoError(t, os.RemoveAll(tmpDir))
 	})
@@ -2056,7 +2056,7 @@ func TestScopedBotApp(t *testing.T) {
 		unscopedBot := New(unscopedBotConfig, log)
 		err = unscopedBot.Run(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "app_name: needs to be a scope-qualified name when in scope mode")
+		require.ErrorContains(t, err, `app_name: scope-qualified name "unscoped-app" missing "::" separator`)
 	})
 }
 
@@ -2305,7 +2305,7 @@ func createScopedBot(
 	require.NoError(t, err)
 	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
 	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
-	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0o600))
+	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
 
 	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
 		Token: joiningv1.ScopedToken_builder{
