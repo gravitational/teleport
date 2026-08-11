@@ -317,6 +317,11 @@ type IdentityContext struct {
 
 	// BeamID is the identifier of the Beam this session was created for.
 	BeamID string
+
+	// MFADeviceID is device ID that was used to satisfy an MFA challenge during in-band MFA. Empty for connections that
+	// did not use in-band MFA.  Mutually exclusive with UnmappedIdentity.MFAVerified. Used for lock target computation
+	// and runtime termination of sessions.
+	MFADeviceID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -495,6 +500,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		lockingMode = identityContext.GitForwardingPermit.LockingMode
 	default:
 		return nil, trace.BadParameter("server context requires permit for one of ssh access, proxying, or git forwarding to be set (this is a bug)")
+	}
+
+	if identityContext.MFADeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: identityContext.MFADeviceID})
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)

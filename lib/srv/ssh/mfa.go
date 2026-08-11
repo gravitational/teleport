@@ -41,6 +41,7 @@ type MFAPromptVerifier struct {
 	sourceCluster string
 	username      string
 	sessionID     []byte
+	deviceID      string
 }
 
 var _ PromptVerifier = (*MFAPromptVerifier)(nil)
@@ -117,8 +118,17 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 			Username:      pv.username,
 		}.Build()
 
-		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
-		return trace.Wrap(err)
+		resp, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Capture the MFA device ID that was used to satisfy the challenge. This will be used for lock enforcement.
+		if pv.deviceID = resp.GetDeviceId(); pv.deviceID == "" {
+			return trace.BadParameter("missing device ID in VerifyValidatedMFAChallenge response (this is a bug)")
+		}
+
+		return nil
 
 	case 0:
 		return trace.BadParameter("missing Response in MFAPromptResponse")

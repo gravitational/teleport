@@ -143,6 +143,31 @@ func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestMFAPromptVerifier_VerifyAnswer_EmptyDeviceID(t *testing.T) {
+	t.Parallel()
+
+	emptyDeviceID := ""
+
+	verifier, err := srvssh.NewMFAPromptVerifier(
+		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName, deviceID: &emptyDeviceID},
+		sourceCluster,
+		teleportUsername,
+		[]byte(sessionID),
+	)
+	require.NoError(t, err)
+
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: challengeName,
+		}.Build(),
+	}.Build()
+	respJSON, err := protojson.Marshal(resp)
+	require.NoError(t, err)
+
+	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
+	require.ErrorIs(t, err, trace.BadParameter("missing device ID in VerifyValidatedMFAChallenge response (this is a bug)"))
+}
+
 func TestMFAPromptVerifier_VerifyAnswer_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
@@ -203,6 +228,7 @@ func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
 
 type mockValidatedMFAChallengeVerifier struct {
 	expectedChallengeName string
+	deviceID              *string
 	err                   error
 }
 
@@ -223,5 +249,12 @@ func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
 		)
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	deviceID := "test-device-id"
+	if m.deviceID != nil {
+		deviceID = *m.deviceID
+	}
+
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		DeviceId: deviceID,
+	}.Build(), nil
 }

@@ -25,7 +25,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 )
 
@@ -157,6 +159,31 @@ func TestKeyboardInteractiveCallback_CheckParams(t *testing.T) {
 	}
 }
 
+func TestKeyboardInteractiveCallback_MFADeviceIDPropagation(t *testing.T) {
+	t.Parallel()
+
+	mfaVerifier, err := srvssh.NewMFAPromptVerifier(
+		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
+		sourceCluster,
+		teleportUsername,
+		[]byte(sessionID),
+	)
+	require.NoError(t, err)
+
+	params := srvssh.KeyboardInteractiveCallbackParams{
+		Metadata:    &mockConnMetadata{sessionID: []byte(sessionID), user: "nonroot"},
+		Challenge:   mockKeyboardInteractiveChallengeMFA(),
+		Permissions: &ssh.Permissions{},
+		PromptVerifiers: []srvssh.PromptVerifier{
+			mfaVerifier,
+		},
+	}
+
+	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
+	require.NoError(t, err)
+	require.Equal(t, "test-device-id", perms.ExtraData["mfa_device_id"])
+}
+
 type mockConnMetadata struct {
 	ssh.ConnMetadata
 
@@ -197,4 +224,17 @@ func (m *mockPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 	}
 
 	return nil
+}
+
+func mockKeyboardInteractiveChallengeMFA() ssh.KeyboardInteractiveChallenge {
+	return func(_ string, _ string, _ []string, _ []bool) ([]string, error) {
+		resp := sshpb.MFAPromptResponse_builder{
+			Reference: sshpb.MFAPromptResponseReference_builder{
+				ChallengeName: challengeName,
+			}.Build(),
+		}.Build()
+
+		respJSON, _ := protojson.Marshal(resp)
+		return []string{string(respJSON)}, nil
+	}
 }

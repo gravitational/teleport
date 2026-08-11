@@ -281,6 +281,10 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return nil, trace.BadParameter("session context requires one of AccessPermit, ProxyingPermit, or webSessionPermit to be set (this is a bug)")
 	}
 
+	if identity.MFADeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: identity.MFADeviceID})
+	}
+
 	if lockErr := s.cfg.LockEnforcer.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
 		s.emitRejection(spanCtx, identity.GetUserMetadata(), localAddr, remoteAddr, lockErr.Error(), 0)
 		return ctx, trace.Wrap(lockErr)

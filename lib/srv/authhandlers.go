@@ -263,6 +263,13 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return unstableAccessChecker.CheckAccessToRemoteCluster(cluster)
 	}
 
+	var mfaDeviceID string
+	if id, ok := sconn.Permissions.ExtraData["mfa_device_id"]; ok {
+		if mfaDeviceID, ok = id.(string); !ok {
+			return IdentityContext{}, trace.BadParameter("mfa_device_id must be a string, got %T (this is a bug)", id)
+		}
+	}
+
 	return IdentityContext{
 		UnmappedIdentity:                    unmappedIdentity,
 		AccessPermit:                        accessPermit,
@@ -289,6 +296,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		OriginClusterName:                   certAuthority.GetClusterName(),
 		MappedRoles:                         accessInfo.Roles,
 		Traits:                              accessInfo.Traits,
+		MFADeviceID:                         mfaDeviceID,
 	}, nil
 }
 

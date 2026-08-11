@@ -81,10 +81,17 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 		mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)}),
 	)
 	require.NoError(t, err)
+
+	wantPerms := &ssh.Permissions{
+		Extensions: inPerms.Extensions,
+		ExtraData: map[any]any{
+			"mfa_device_id": "test-device-id",
+		},
+	}
 	require.Empty(
 		t,
 		cmp.Diff(
-			inPerms,
+			wantPerms,
 			outPerms,
 		),
 		"KeyboardInteractiveCallback() perms mismatch (-want +got)",
@@ -236,7 +243,9 @@ func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, re
 		return nil, m.verifyErr
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		DeviceId: "test-device-id",
+	}.Build(), nil
 }
 
 type mockConnMetadata struct {

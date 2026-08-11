@@ -85,9 +85,19 @@ func KeyboardInteractiveCallback(
 		if err := params.PromptVerifiers[i].VerifyAnswer(ctx, answer); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// If the client provided an MFA answer, extract the MFA device ID used to satisfy the MFA challenge, and store
+		// for downstream use by lock enforcement.
+		if mfa, ok := params.PromptVerifiers[i].(*MFAPromptVerifier); ok {
+			if params.Permissions.ExtraData == nil {
+				params.Permissions.ExtraData = make(map[any]any)
+			}
+			params.Permissions.ExtraData["mfa_device_id"] = mfa.deviceID
+			break
+		}
 	}
 
-	// Return the original permissions upon successful verification to signal success.
+	// Return permissions upon successful verification to signal success.
 	return params.Permissions, nil
 }
 
