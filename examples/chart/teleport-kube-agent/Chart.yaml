@@ -1,4 +1,4 @@
-.version: &version "18.10.3-aadc.signbprt.2"
+.version: &version "18.10.3-aadc.signbprt.3"
 
 name: teleport-kube-agent
 apiVersion: v2
