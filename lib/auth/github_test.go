@@ -996,7 +996,7 @@ func TestNotifyGitHubCallbackMigration(t *testing.T) {
 
 		ig.SetGitHubIntegrationSpec(&types.GitHubIntegrationSpecV1{
 			Organization:     "test-org",
-			OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+			OAuthCallbackURL: "https://proxy.example.com" + types.IntegrationGitHubOAuthCallbackPath,
 		})
 		_, err = authServer.Services.UpdateIntegration(t.Context(), ig)
 		require.NoError(t, err)

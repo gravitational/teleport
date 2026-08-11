@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -113,6 +114,8 @@ type ServiceConfig struct {
 	// NotifyGitHubCallbackMigration is called after integration changes to
 	// update the GitHub OAuth callback migration notification.
 	NotifyGitHubCallbackMigration func()
+	// ProxyPublicAddrGetter gets the public proxy address for validation.
+	ProxyPublicAddrGetter func(context.Context) string
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -158,6 +161,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.NotifyGitHubCallbackMigration == nil {
 		return trace.BadParameter("NotifyGitHubCallbackMigration is required")
 	}
+	if s.ProxyPublicAddrGetter == nil {
+		return trace.BadParameter("ProxyPublicAddrGetter is required")
+	}
 
 	return nil
 }
@@ -176,6 +182,7 @@ type Service struct {
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 	notifyGitHubCallbackMigration   func()
+	proxyPublicAddrGetter           func(context.Context) string
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -195,6 +202,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		modules:                         cfg.Modules,
 		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
 		notifyGitHubCallbackMigration:   cfg.NotifyGitHubCallbackMigration,
+		proxyPublicAddrGetter:           cfg.ProxyPublicAddrGetter,
 	}, nil
 }
 
@@ -280,15 +288,8 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if spec == nil {
 			return nil, trace.BadParameter("missing GitHub integration spec")
 		}
-		switch spec.OAuthCallbackURL {
-		case types.IntegrationGitHubOAuthCallbackURL:
-		case "":
-			return nil, trace.BadParameter(
-				"oauth_callback_url must be %q, ensure the Teleport Proxy is upgraded to the latest version",
-				types.IntegrationGitHubOAuthCallbackURL,
-			)
-		default:
-			return nil, trace.BadParameter("oauth_callback_url must be %q", types.IntegrationGitHubOAuthCallbackURL)
+		if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		if err := s.createGitHubCredentials(ctx, req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
@@ -359,11 +360,11 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 			return nil, trace.BadParameter("missing GitHub integration spec")
 		}
 		// Allow empty oauth_callback_url for backwards compatibility or
-		// temporary rollback. Otherwise must be the authenticated URL.
-		switch spec.OAuthCallbackURL {
-		case "", types.IntegrationGitHubOAuthCallbackURL:
-		default:
-			return nil, trace.BadParameter("oauth_callback_url must be %q", types.IntegrationGitHubOAuthCallbackURL)
+		// temporary rollback.
+		if spec.OAuthCallbackURL != "" {
+			if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
@@ -409,6 +410,24 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 	s.postWriteOp(ig)
 	return igV1, nil
+}
+
+func (s *Service) validateGitHubOAuthCallbackURL(ctx context.Context, callbackURL string) error {
+	proxyAddr, err := utils.ParseAddr(s.proxyPublicAddrGetter(ctx))
+	if err != nil {
+		return trace.Wrap(err, "parsing proxy addr")
+	}
+
+	// Accept with or without the default HTTPS port.
+	allowed := []string{fmt.Sprintf("https://%s%s", proxyAddr.String(), types.IntegrationGitHubOAuthCallbackPath)}
+	if proxyAddr.Port(0) == 443 {
+		allowed = append(allowed, fmt.Sprintf("https://%s%s", proxyAddr.Host(), types.IntegrationGitHubOAuthCallbackPath))
+	}
+
+	if !slices.Contains(allowed, callbackURL) {
+		return trace.BadParameter("oauth_callback_url %q does not match expected %q", callbackURL, allowed[len(allowed)-1])
+	}
+	return nil
 }
 
 func validateAWSRolesAnywhereProfileFilters(ig types.Integration) error {

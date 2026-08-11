@@ -1182,7 +1182,7 @@ export type UpdateIntegrationAwsRa = {
 export type UpdateIntegrationGithub = {
   kind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
+  github: { organization: string; oauthCallbackUrl?: string };
 };
 
 export type IntegrationUpdateRequest =

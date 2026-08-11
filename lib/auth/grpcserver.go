@@ -6538,6 +6538,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Modules:                       cfg.AuthServer.modules,
 		Logger:                        cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
 		NotifyGitHubCallbackMigration: cfg.AuthServer.notifyGitHubCallbackMigration,
+		ProxyPublicAddrGetter:         cfg.AuthServer.getProxyPublicAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

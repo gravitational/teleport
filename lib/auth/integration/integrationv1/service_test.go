@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 func TestIntegrationCRUD(t *testing.T) {
 	t.Parallel()
 	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1.nip.io"
+	proxyPublicAddr := "proxy.example.com:443"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
 	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
@@ -1135,6 +1135,9 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 			}, nil
 		},
 		NotifyGitHubCallbackMigration: func() {},
+		ProxyPublicAddrGetter: func(context.Context) string {
+			return proxyPublicAddr
+		},
 	})
 	require.NoError(t, err)
 
@@ -1247,7 +1250,7 @@ func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error)
 		},
 		&types.GitHubIntegrationSpecV1{
 			Organization:     "my-org",
-			OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+			OAuthCallbackURL: "https://proxy.example.com" + types.IntegrationGitHubOAuthCallbackPath,
 		},
 	)
 	if err != nil {
@@ -1354,7 +1357,7 @@ func mustMakeAppServer(t *testing.T, ig types.Integration) types.AppServer {
 func TestGitHubIntegrationOAuthCallbackURL(t *testing.T) {
 	t.Parallel()
 	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1.nip.io"
+	proxyPublicAddr := "proxy.example.com:443"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
 	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
@@ -1365,7 +1368,7 @@ func TestGitHubIntegrationOAuthCallbackURL(t *testing.T) {
 			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
 		}}},
 	}
-	adminCtx := authorizerForDummyUser(t, ctx, adminRole, localClient)
+	adminCtx := authorizerForAdminUser(t, ctx, adminRole, localClient)
 
 	// Pre-create an integration via localClient (bypasses service validation)
 	// so update tests have something to work with.
@@ -1373,7 +1376,7 @@ func TestGitHubIntegrationOAuthCallbackURL(t *testing.T) {
 		types.Metadata{Name: "github-test-org"},
 		&types.GitHubIntegrationSpecV1{
 			Organization:     "test-org",
-			OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+			OAuthCallbackURL: "https://" + proxyPublicAddr + types.IntegrationGitHubOAuthCallbackPath,
 		},
 	)
 	require.NoError(t, err)
@@ -1419,7 +1422,21 @@ func TestGitHubIntegrationOAuthCallbackURL(t *testing.T) {
 
 		ig.SetGitHubIntegrationSpec(&types.GitHubIntegrationSpecV1{
 			Organization:     "test-org",
-			OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+			OAuthCallbackURL: "https://proxy.example.com:443/web/github/integration/callback",
+		})
+		_, err = resourceSvc.UpdateIntegration(adminCtx, integrationpb.UpdateIntegrationRequest_builder{
+			Integration: ig.(*types.IntegrationV1),
+		}.Build())
+		require.NoError(t, err)
+	})
+
+	t.Run("update allows authenticated callback URL without port", func(t *testing.T) {
+		ig, err := localClient.GetIntegration(ctx, "github-test-org")
+		require.NoError(t, err)
+
+		ig.SetGitHubIntegrationSpec(&types.GitHubIntegrationSpecV1{
+			Organization:     "test-org",
+			OAuthCallbackURL: "https://proxy.example.com/web/github/integration/callback",
 		})
 		_, err = resourceSvc.UpdateIntegration(adminCtx, integrationpb.UpdateIntegrationRequest_builder{
 			Integration: ig.(*types.IntegrationV1),

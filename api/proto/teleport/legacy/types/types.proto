@@ -9258,9 +9258,10 @@ message GitHubIntegrationSpecV1 {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 
-  // OAuthCallbackURL is the callback URL for the GitHub integration OAuth
-  // flow. New integrations should use "/web/github/integration/callback"
-  // which requires an authenticated web session.
+  // OAuthCallbackURL is the full callback URL for the GitHub integration
+  // OAuth flow, including the proxy public address (e.g.
+  // "https://proxy.example.com/web/github/integration/callback"). The
+  // authenticated callback path requires a valid web session.
   string OAuthCallbackURL = 2 [(gogoproto.jsontag) = "oauth_callback_url"];
 }
 

@@ -24299,9 +24299,10 @@ var xxx_messageInfo_AzureOIDCIntegrationSpecV1 proto.InternalMessageInfo
 type GitHubIntegrationSpecV1 struct {
 	// Organization specifies the name of the organization for the GitHub integration.
 	Organization string `protobuf:"bytes,1,opt,name=Organization,proto3" json:"organization,omitempty"`
-	// OAuthCallbackURL is the callback URL for the GitHub integration OAuth
-	// flow. New integrations should use "/web/github/integration/callback"
-	// which requires an authenticated web session.
+	// OAuthCallbackURL is the full callback URL for the GitHub integration
+	// OAuth flow, including the proxy public address (e.g.
+	// "https://proxy.example.com/web/github/integration/callback"). The
+	// authenticated callback path requires a valid web session.
 	OAuthCallbackURL     string   `protobuf:"bytes,2,opt,name=OAuthCallbackURL,proto3" json:"oauth_callback_url"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

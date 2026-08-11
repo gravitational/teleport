@@ -75,9 +75,9 @@ const (
 )
 
 const (
-	// IntegrationGitHubOAuthCallbackURL is the authenticated callback URL for
-	// GitHub integration OAuth flows.
-	IntegrationGitHubOAuthCallbackURL = "/web/github/integration/callback"
+	// IntegrationGitHubOAuthCallbackPath is the path for the authenticated
+	// callback URL used by GitHub integration OAuth flows.
+	IntegrationGitHubOAuthCallbackPath = "/web/github/integration/callback"
 )
 
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.

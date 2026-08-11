@@ -1253,7 +1253,7 @@ func (a *Server) notifyGitHubCallbackMigration() {
 			return
 		}
 		if spec := ig.GetGitHubIntegrationSpec(); spec != nil &&
-			spec.OAuthCallbackURL != types.IntegrationGitHubOAuthCallbackURL {
+			!strings.HasSuffix(spec.OAuthCallbackURL, types.IntegrationGitHubOAuthCallbackPath) {
 			unmigrated = append(unmigrated, ig.GetName())
 		}
 	}
@@ -1268,19 +1268,18 @@ func (a *Server) notifyGitHubCallbackMigration() {
 		return
 	}
 
-	callbackURL := fmt.Sprintf("https://%s%s", a.getProxyPublicAddr(ctx), types.IntegrationGitHubOAuthCallbackURL)
+	callbackURL := fmt.Sprintf("https://%s%s", a.getProxyPublicAddr(ctx), types.IntegrationGitHubOAuthCallbackPath)
 
 	title := "GitHub integration OAuth callback URL migration required"
 	text := fmt.Sprintf(`The following GitHub integrations should migrate to the authenticated OAuth callback URL for improved security:
 - %s
 
 1. Update the callback URL to %q in your GitHub App settings.
-2. Set oauth_callback_url to %q on the integration resource (e.g. tctl edit integration/<name>).
+2. Set oauth_callback_url to the same value on the integration resource (e.g. tctl edit integration/<name>).
 
 See https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/github-integration/ for details.`,
 		strings.Join(unmigrated, "\n- "),
 		callbackURL,
-		types.IntegrationGitHubOAuthCallbackURL,
 	)
 
 	now := a.GetClock().Now()

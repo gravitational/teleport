@@ -1174,7 +1174,7 @@ func TestGitHubIntegration(t *testing.T) {
 			SubKind: types.IntegrationSubKindGitHub,
 			GitHub: &ui.IntegrationGitHub{
 				Organization:     orgName,
-				OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+				OAuthCallbackURL: "https://" + proxy.webURL.Host + types.IntegrationGitHubOAuthCallbackPath,
 			},
 		}
 		t.Run("missing oauth", func(t *testing.T) {
@@ -1209,7 +1209,7 @@ func TestGitHubIntegration(t *testing.T) {
 			SubKind: types.IntegrationSubKindGitHub,
 			GitHub: &ui.IntegrationGitHub{
 				Organization:     orgName,
-				OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+				OAuthCallbackURL: "https://" + proxy.webURL.Host + types.IntegrationGitHubOAuthCallbackPath,
 			},
 		}, resp)
 	})

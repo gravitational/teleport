@@ -9738,30 +9738,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		}
 	}()
 
-	proxyServer, err := regular.New(
-		ctx,
-		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
-		authServer.ClusterName(),
-		sshutils.StaticHostSigners(hostSigners...),
-		client,
-		t.TempDir(),
-		"",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
-		client,
-		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client, router),
-		regular.SetEmitter(client),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetClock(clock),
-		regular.SetLockWatcher(proxyLockWatcher),
-		regular.SetSessionController(sessionController),
-		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
-
 	authID := state.IdentityID{
 		Role:     types.RoleProxy,
 		HostUUID: proxyID,
@@ -9812,6 +9788,31 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	webServer := httptest.NewTLSServer(handler)
 	t.Cleanup(webServer.Close)
+
+	proxyServer, err := regular.New(
+		ctx,
+		utils.NetAddr{AddrNetwork: proxyListener.Addr().Network(), Addr: mux.SSH().Addr().String()},
+		authServer.ClusterName(),
+		sshutils.StaticHostSigners(hostSigners...),
+		client,
+		t.TempDir(),
+		"",
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy-1.example.com:443"},
+		client,
+		regular.SetUUID(proxyID),
+		regular.SetProxyMode("", revTunServer, client, router),
+		regular.SetEmitter(client),
+		regular.SetNamespace(apidefaults.Namespace),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(clock),
+		regular.SetLockWatcher(proxyLockWatcher),
+		regular.SetSessionController(sessionController),
+		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: webServer.Listener.Addr().String()}}),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
+
 	go func() {
 		if err := proxyServer.Serve(mux.SSH()); err != nil && !utils.IsOKNetworkError(err) {
 			slog.ErrorContext(context.Background(), "SSH proxy server terminated unexpectedly", "error", err)

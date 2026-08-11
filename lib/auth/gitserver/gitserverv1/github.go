@@ -144,16 +144,16 @@ func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid, org, integr
 }
 
 func (s *Service) getGitHubOAuthCallbackURL(ctx context.Context, integrationName string) (string, error) {
-	proxyAddr := s.cfg.ProxyPublicAddrGetter(ctx)
-
 	ig, err := s.cfg.Backend.GetIntegration(ctx, integrationName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	if github := ig.GetGitHubIntegrationSpec(); github != nil && github.OAuthCallbackURL != "" {
-		return fmt.Sprintf("https://%s%s", proxyAddr, github.OAuthCallbackURL), nil
+		return github.OAuthCallbackURL, nil
 	}
 
+	// Fallback for integrations that haven't migrated to the full URL.
+	proxyAddr := s.cfg.ProxyPublicAddrGetter(ctx)
 	return fmt.Sprintf("https://%s/v1/webapi/github/callback", proxyAddr), nil
 }
