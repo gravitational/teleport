@@ -309,6 +309,7 @@ func getApp(ctx context.Context, clt *apiclient.Client, qn scopes.QualifiedName)
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
+	// TODO (tscolari): On the next major version: always perform the scope filtering.
 	predicate := fmt.Sprintf(`name == %q`, qn.Name)
 	if qn.Scope != "" {
 		predicate += fmt.Sprintf(" && resource.scope == %q", qn.Scope)
@@ -327,6 +328,9 @@ func getApp(ctx context.Context, clt *apiclient.Client, qn scopes.QualifiedName)
 	var apps []types.Application
 	for _, server := range servers {
 		app := server.GetApp()
+		// This check servers 2 purposes:
+		// 1. Avoid unscoped bots from accidentally picking up a scoped app.
+		// 2. Avoid picking up an app with matching name that lives in a child scope.
 		if qn.Scope != "" && qn.Scope != app.GetScope() {
 			continue
 		}
