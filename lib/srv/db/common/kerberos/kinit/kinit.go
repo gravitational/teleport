@@ -160,7 +160,7 @@ type dbCertGetter struct {
 type getCertificateResult struct {
 	certPEM []byte
 	keyPEM  []byte
-	caCert  []byte
+	caCerts [][]byte
 
 	sidLookupError error
 }
@@ -194,7 +194,7 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 	return &getCertificateResult{
 		certPEM:        certPEM,
 		keyPEM:         keyPEM,
-		caCert:         bytes.Join(caCerts, []byte("\n")),
+		caCerts:        caCerts,
 		sidLookupError: sidLookupError,
 	}, nil
 }
@@ -237,7 +237,7 @@ func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*cli
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(certResult.caCert), 0600)
+	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(certResult.caCerts), 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -286,6 +286,13 @@ func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*cli
 // buildAnchorsFileContents generates the contents of the anchors file (pkinit).
 // The file must contain the Teleport DB CA and the KDB/LDAP CA, otherwise the
 // connections will fail.
-func (k *kinitProvider) buildAnchorsFileContents(caBytes []byte) []byte {
-	return append(caBytes, []byte(k.ldapCertificatePEM)...)
+func (k *kinitProvider) buildAnchorsFileContents(caCerts [][]byte) []byte {
+	var buf bytes.Buffer
+	for _, pem := range caCerts {
+		buf.Write(bytes.TrimSpace(pem))
+		buf.WriteRune('\n')
+	}
+	buf.WriteString(strings.TrimSpace(k.ldapCertificatePEM))
+	buf.WriteRune('\n')
+	return buf.Bytes()
 }
