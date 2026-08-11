@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -597,6 +598,11 @@ func (c *Client) AccessListClient() services.AccessLists {
 // AccessMonitoringRuleClient returns the access monitoring rules client.
 func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return c.APIClient.AccessMonitoringRulesClient()
+}
+
+// ClientIPRestrictionClient returns the client IP restriction client.
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return c.APIClient.ClientIPRestrictionClient()
 }
 
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
@@ -1711,6 +1717,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessMonitoringRuleClient() services.AccessMonitoringRules
+
+	// ClientIPRestrictionClient returns a client IP restriction client.
+	// Clients connecting to older Teleport versions still get a client when calling
+	// this method, but all RPCs will return "not implemented" errors (as per the
+	// default gRPC behavior).
+	ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient
 
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
