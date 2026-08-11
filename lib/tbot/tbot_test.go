@@ -1866,9 +1866,6 @@ func TestScopedBotKubernetes(t *testing.T) {
 //   - No roles or traits are encoded
 //   - An out-of-scope app (registered by the unscoped main process) is not visible
 func TestScopedBotApp(t *testing.T) {
-	if !scopes.FeaturesFromEnv().AgentPinEnabled {
-		t.Skip("test requires TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
-	}
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)

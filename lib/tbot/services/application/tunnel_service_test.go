@@ -391,9 +391,6 @@ func (p fakePinger) Ping(_ context.Context) (*connection.ProxyPong, error) {
 // service works in scoped mode, issuing scoped app certs and proxying
 // traffic through to the backend.
 func TestE2E_ScopedApplicationTunnelService(t *testing.T) {
-	if !scopes.FeaturesFromEnv().AgentPinEnabled {
-		t.Skip("test requires TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
-	}
 	t.Parallel()
 	ctx := t.Context()
 	log := logtest.NewLogger()
