@@ -28,8 +28,8 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(record: Data("first\n".utf8))
-			writer.enqueue(record: Data("second\n".utf8))
+			writer.enqueue(logMessage: "first\n")
+			writer.enqueue(logMessage: "second\n")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)

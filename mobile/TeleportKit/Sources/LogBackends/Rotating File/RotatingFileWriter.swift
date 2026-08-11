@@ -19,10 +19,20 @@ public import Foundation
 import Synchronization
 import SystemClients
 
+/// Opens a file for writing which rotates to a new file whenever the original is at capacity.
 public final class RotatingFileWriter: Sendable {
 	// MARK: Mutable State
 
+	///	An inbox that maintains the pending items to be written.
+	///
+	/// This mutext protects pending-item bookkeeping only. Filesystem work must never occur while holding this mutex,
+	/// keeping enqueue operations independent of slow I/O.
 	private let inbox = Mutex(Inbox())
+
+	/// A handle to the currently open/active file.
+	///
+	/// This mutex protects the active file state separately from the inbox mutext because it may be held during
+	/// synchronous filesystem operations.
 	private let fileState = Mutex(FileState())
 
 	// MARK: Immutable State
@@ -49,35 +59,127 @@ public final class RotatingFileWriter: Sendable {
 	}
 
 	/// Waits for all previously enqueued records to be processed and synchronizes the active file.
-	public func flush() async throws {}
+	public func flush() async throws {
+		try await withCheckedThrowingContinuation { continuation in
+			// Enqueuing the continuation allows us to ensure all earlier items are processed before the active file is
+			// synchronized and the continuation resumes.
+			enqueue(item: .flush(continuation))
+		}
+	}
 
-	func enqueue(record: Data) {}
+	/// Enqueues a log message to be written to disk
+	func enqueue(logMessage: String) {
+		enqueue(item: .logMessage(logMessage))
+	}
 }
 
 // MARK: - Inbox Processing
 
 extension RotatingFileWriter {
-	private func enqueue(item: PendingItem) {}
+	/// Adds an item to the inbox and schedules processing if it isn't already scheduled or active.
+	private func enqueue(item: PendingItem) {
+		let shouldScheduleProcessing = inbox.withLock { inbox in
+			inbox.append(item)
+		}
 
-	private func processInbox() {}
+		guard shouldScheduleProcessing else { return }
+		queue.async {
+			self.processInbox()
+		}
+	}
+
+	/// The top level inbox processing function that iterates through the pending items and performs their corresponding
+	/// operation.
+	private func processInbox() {
+		inbox.withLock { $0.beginProcessing() }
+
+		while let item = inbox.withLock({ $0.nextPendingItem() }) {
+			switch item {
+				case let .logMessage(record):
+					do {
+						try append(record: record)
+					} catch {
+						recordFailure(error)
+					}
+				case let .droppedRecordNotice(count):
+					do {
+						try append(droppedRecordNoticeFor: count)
+					} catch {
+						recordFailure(error)
+					}
+				case let .flush(continuation):
+					processFlushRequest(continuation)
+			}
+		}
+	}
 }
 
 // MARK: - File Operations
 
 extension RotatingFileWriter {
-	private func append(record: Data) throws {}
+	/// Appends the record to the currently active file.
+	/// - Parameter record: The record to write to disk.
+	private func append(record: String) throws {
+		let record = truncateRecordIfNeeded(Data(record.utf8))
+		try openActiveFileIfNeeded()
+		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 
-	private func append(droppedRecordNoticeFor count: Int) throws {}
+		try fileState.withLock { fileState in
+			guard let fileClient = fileState.fileClient else { return }
+			_ = try fileClient.seekToEnd()
+			try fileClient.write(data: record)
+		}
+	}
 
+	/// Appends a line to the log file indicating that some number of records were dropped, perhaps due to overflowing
+	/// the queue.
+	/// - Parameter count: The number of log records
+	private func append(droppedRecordNoticeFor count: Int) throws {
+		// TODO: Implement dropped record logging
+	}
+
+	/// Truncates a record if its size exceeds the max size of a single log file.
+	/// - Parameter record: The record to truncate
+	/// - Returns: The record, truncated only if necessary
 	private func truncateRecordIfNeeded(_ record: Data) -> Data {
+		// TODO: Truncate the record
 		record
 	}
 
-	private func openActiveFileIfNeeded() throws {}
+	/// Opens a file for appending if no active file is yet open.
+	private func openActiveFileIfNeeded() throws {
+		try fileState.withLock { fileState in
+			guard fileState.fileClient == nil else { return }
 
-	private func rotateActiveFileIfNeeded(forAppendingByteCount byteCount: Int) throws {}
+			try fileSystemClient.createDirectory(url: activeFileURL.deletingLastPathComponent())
+			if !fileSystemClient.fileExists(url: activeFileURL) {
+				try fileSystemClient.createFile(url: activeFileURL, contents: nil)
+			}
+			fileState.fileClient = try fileSystemClient.openFileForWriting(url: activeFileURL)
+		}
+	}
 
-	private func processFlushRequest(_ continuation: CheckedContinuation<Void, any Error>) {}
+	/// Rotates the active file if needed.
+	///
+	/// Rotation is "needed" when appending a record of the indicated count would cause the log file to exceed its
+	/// maximum capacity.
+	/// - Parameter byteCount: The number of bytes we intend to append to the log file.
+	private func rotateActiveFileIfNeeded(forAppendingByteCount byteCount: Int) throws {
+		// TODO: Implement rotation
+	}
+
+	/// Flushes all pending writes to disk via the file handle, ensuring all records are persisted.
+	/// - Parameter continuation: The continuation to resume when the synchronize operation is done.
+	private func processFlushRequest(_ continuation: CheckedContinuation<Void, any Error>) {
+		do {
+			try fileState.withLock { fileState in
+				try fileState.fileClient?.synchronize()
+			}
+			continuation.resume()
+		} catch {
+			continuation.resume(throwing: error)
+		}
+	}
 
 	private func recordFailure(_ error: any Error) {}
 }
@@ -85,10 +187,10 @@ extension RotatingFileWriter {
 // MARK: - Supporting Types
 
 extension RotatingFileWriter {
-	struct Configuration: Sendable {
+	struct Configuration {
 		static let live = Configuration(
-			maximumFileSize: 4 * 1024 * 1024, // 4 MB
-			maximumArchiveCount: 3, // At most 3 archived files. Including
+			maximumFileSize: 4 * 1024 * 1024,
+			maximumArchiveCount: 3,
 		)
 
 		/// The maximum size any individual file is allowed to be, in number of bytes
@@ -103,7 +205,49 @@ extension RotatingFileWriter {
 
 	private struct Inbox {
 		var pendingItems: [PendingItem] = []
-		var isProcessing = false
+		var processingState = ProcessingState.idle
+
+		/// Appends an item to the pendingItems queue and marks the inbox as scheduled for processing
+		/// - Parameter item: The item to queue up
+		/// - Returns: True if a new processing job should be started. False otherwise.
+		mutating func append(_ item: PendingItem) -> Bool {
+			pendingItems.append(item)
+
+			guard processingState == .idle else { return false }
+			processingState = .scheduled
+			return true
+		}
+
+		/// Marks the inbox as being actively processed.
+		mutating func beginProcessing() {
+			assert(processingState == .scheduled)
+			processingState = .processing
+		}
+
+		/// Retrieves the next item from the queue. If the queue is empty, that means processing is done and we mark the
+		/// inbox as idle.
+		/// - Returns: The next item to process from the queue, if the queue is non-empty. Nil otherwise.
+		mutating func nextPendingItem() -> PendingItem? {
+			assert(processingState == .processing)
+
+			guard !pendingItems.isEmpty else {
+				processingState = .idle
+				return nil
+			}
+
+			return pendingItems.removeFirst()
+		}
+	}
+
+	/// Enumerates the possible states the inbox can be in with respect to processing.
+	///
+	/// Lifecycle: idle → scheduled → processing → idle.
+	///
+	/// Whenever the mutex is released, a nonempty inbox must have processing scheduled or active.
+	private enum ProcessingState {
+		case idle
+		case scheduled
+		case processing
 	}
 
 	/// Contains mutable state that the worker needs in order to write to disk.
@@ -111,9 +255,13 @@ extension RotatingFileWriter {
 		var fileClient: WritableFileClient? = nil
 	}
 
+	/// An enumeration of the various items that can be enqueued in the inbox
 	private enum PendingItem {
-		case logMessage(Data)
+		/// A log message to be written to disk
+		case logMessage(String)
+		/// An indicator saying a certain number of records were dropped.
 		case droppedRecordNotice(Int)
+		/// A request to flush the current file handle to disk
 		case flush(CheckedContinuation<Void, any Error>)
 	}
 }

@@ -45,6 +45,6 @@ public struct RotatingFileLogHandler: LogHandler {
 
 	public func log(event: LogEvent) {
 		let logMessage = LogFormatter.format(label: label, event: event, handlerMetadata: metadata, timestamp: now)
-		writer.enqueue(record: Data("\(logMessage)\n".utf8))
+		writer.enqueue(logMessage: "\(logMessage)\n")
 	}
 }
