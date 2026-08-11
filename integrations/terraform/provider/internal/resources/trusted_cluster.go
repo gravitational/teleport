@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewTrustedClusterDataSourceType returns the trusted cluster data source type.
 func NewTrustedClusterDataSourceType() tfdriver.DataSourceType[types.TrustedClusterV2, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.TrustedClusterV2, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.TrustedClusterV2, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.TrustedClusterV2, tfdriver.NameIdentifier] {
 			return teleport.NewTrustedClusterClient(clientFromProvider(p))
 		},
 		Kind: types.KindTrustedCluster,
+		Name: types.KindTrustedCluster,
 		Codec: tfdriver.DataSourceCodecFuncs[types.TrustedClusterV2]{
 			SchemaFunc:  tfschema.GenSchemaTrustedClusterV2,
 			ToStateFunc: tfschema.CopyTrustedClusterV2ToTerraform,
@@ -45,10 +46,11 @@ func NewTrustedClusterDataSourceType() tfdriver.DataSourceType[types.TrustedClus
 // NewTrustedClusterResourceType returns the trusted cluster resource type.
 func NewTrustedClusterResourceType() tfdriver.ResourceType[types.TrustedClusterV2, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.TrustedClusterV2, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.TrustedClusterV2, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.TrustedClusterV2, tfdriver.NameIdentifier] {
 			return teleport.NewTrustedClusterClient(clientFromProvider(p))
 		},
 		Kind: types.KindTrustedCluster,
+		Name: types.KindTrustedCluster,
 		Codec: tfdriver.ResourceCodecFuncs[types.TrustedClusterV2]{
 			SchemaFunc:   tfschema.GenSchemaTrustedClusterV2,
 			ToStateFunc:  tfschema.CopyTrustedClusterV2ToTerraform,

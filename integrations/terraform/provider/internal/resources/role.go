@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewRoleDataSourceType returns the role data source type.
 func NewRoleDataSourceType() tfdriver.DataSourceType[apitypes.RoleV6, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[apitypes.RoleV6, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.RoleV6, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[apitypes.RoleV6, tfdriver.NameIdentifier] {
 			return teleport.NewRoleClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindRole,
+		Name: apitypes.KindRole,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.RoleV6]{
 			SchemaFunc:  tfschema.GenSchemaRoleV6,
 			ToStateFunc: tfschema.CopyRoleV6ToTerraform,
@@ -45,10 +46,11 @@ func NewRoleDataSourceType() tfdriver.DataSourceType[apitypes.RoleV6, tfdriver.N
 // NewRoleResourceType returns the role resource type.
 func NewRoleResourceType() tfdriver.ResourceType[apitypes.RoleV6, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[apitypes.RoleV6, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.RoleV6, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[apitypes.RoleV6, tfdriver.NameIdentifier] {
 			return teleport.NewRoleClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindRole,
+		Name: apitypes.KindRole,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.RoleV6]{
 			SchemaFunc:   tfschema.GenSchemaRoleV6,
 			ToStateFunc:  tfschema.CopyRoleV6ToTerraform,

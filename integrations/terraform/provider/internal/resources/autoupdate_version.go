@@ -17,7 +17,7 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -30,10 +30,11 @@ import (
 // NewAutoUpdateVersionDataSourceType returns the autoupdate version data source type.
 func NewAutoUpdateVersionDataSourceType() tfdriver.DataSourceType[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier] {
 			return teleport.NewAutoUpdateVersionClient(clientFromProvider(p))
 		},
 		Kind: types.KindAutoUpdateVersion,
+		Name: types.KindAutoUpdateVersion,
 		Codec: tfdriver.DataSourceCodecFuncs[autoupdatev1.AutoUpdateVersion]{
 			SchemaFunc:  schemav1.GenSchemaAutoUpdateVersion,
 			ToStateFunc: schemav1.CopyAutoUpdateVersionToTerraform,
@@ -45,10 +46,11 @@ func NewAutoUpdateVersionDataSourceType() tfdriver.DataSourceType[autoupdatev1.A
 // NewAutoUpdateVersionResourceType returns the autoupdate version resource type.
 func NewAutoUpdateVersionResourceType() tfdriver.ResourceType[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[autoupdatev1.AutoUpdateVersion, tfdriver.SingletonIdentifier] {
 			return teleport.NewAutoUpdateVersionClient(clientFromProvider(p))
 		},
 		Kind: types.KindAutoUpdateVersion,
+		Name: types.KindAutoUpdateVersion,
 		Codec: tfdriver.ResourceCodecFuncs[autoupdatev1.AutoUpdateVersion]{
 			SchemaFunc:   schemav1.GenSchemaAutoUpdateVersion,
 			ToStateFunc:  schemav1.CopyAutoUpdateVersionToTerraform,

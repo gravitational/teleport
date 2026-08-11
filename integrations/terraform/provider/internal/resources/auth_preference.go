@@ -17,9 +17,8 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -34,10 +33,11 @@ const authPreferenceID = "auth_preference"
 // NewAuthPreferenceDataSourceType returns the cluster auth preference data source type.
 func NewAuthPreferenceDataSourceType() tfdriver.DataSourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewAuthPreferenceClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterAuthPreference,
+		Name: "auth_preference",
 		Codec: tfdriver.DataSourceCodecFuncs[types.AuthPreferenceV2]{
 			SchemaFunc:  tfschema.GenSchemaAuthPreferenceV2,
 			ToStateFunc: tfschema.CopyAuthPreferenceV2ToTerraform,
@@ -49,10 +49,11 @@ func NewAuthPreferenceDataSourceType() tfdriver.DataSourceType[types.AuthPrefere
 // NewAuthPreferenceResourceType returns the cluster auth preference resource type.
 func NewAuthPreferenceResourceType() tfdriver.ResourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewAuthPreferenceClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterAuthPreference,
+		Name: "auth_preference",
 		Codec: tfdriver.ResourceCodecFuncs[types.AuthPreferenceV2]{
 			SchemaFunc:   tfschema.GenSchemaAuthPreferenceV2,
 			ToStateFunc:  tfschema.CopyAuthPreferenceV2ToTerraform,

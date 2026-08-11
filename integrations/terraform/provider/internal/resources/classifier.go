@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,10 +31,11 @@ import (
 // NewClassifierDataSourceType returns the classifier data source type.
 func NewClassifierDataSourceType() tfdriver.DataSourceType[summarizerv1.Classifier, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[summarizerv1.Classifier, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[summarizerv1.Classifier, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[summarizerv1.Classifier, tfdriver.NameIdentifier] {
 			return teleport.NewClassifierClient(clientFromProvider(p))
 		},
 		Kind: types.KindClassifier,
+		Name: types.KindClassifier,
 		Codec: tfdriver.DataSourceCodecFuncs[summarizerv1.Classifier]{
 			SchemaFunc:  schemav1.GenSchemaClassifier,
 			ToStateFunc: schemav1.CopyClassifierToTerraform,
@@ -46,10 +47,11 @@ func NewClassifierDataSourceType() tfdriver.DataSourceType[summarizerv1.Classifi
 // NewClassifierResourceType returns the classifier resource type.
 func NewClassifierResourceType() tfdriver.ResourceType[summarizerv1.Classifier, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[summarizerv1.Classifier, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[summarizerv1.Classifier, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[summarizerv1.Classifier, tfdriver.NameIdentifier] {
 			return teleport.NewClassifierClient(clientFromProvider(p))
 		},
 		Kind: types.KindClassifier,
+		Name: types.KindClassifier,
 		Codec: tfdriver.ResourceCodecFuncs[summarizerv1.Classifier]{
 			SchemaFunc:   schemav1.GenSchemaClassifier,
 			ToStateFunc:  schemav1.CopyClassifierToTerraform,

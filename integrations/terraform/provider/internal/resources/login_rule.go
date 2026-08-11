@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	loginrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,10 +31,11 @@ import (
 // NewLoginRuleDataSourceType returns the login rule data source type.
 func NewLoginRuleDataSourceType() tfdriver.DataSourceType[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[loginrulev1.LoginRule, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
 			return teleport.NewLoginRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindLoginRule,
+		Name: types.KindLoginRule,
 		Codec: tfdriver.DataSourceCodecFuncs[loginrulev1.LoginRule]{
 			SchemaFunc:  schemav1.GenSchemaLoginRule,
 			ToStateFunc: schemav1.CopyLoginRuleToTerraform,
@@ -46,10 +47,11 @@ func NewLoginRuleDataSourceType() tfdriver.DataSourceType[loginrulev1.LoginRule,
 // NewLoginRuleResourceType returns the login rule resource type.
 func NewLoginRuleResourceType() tfdriver.ResourceType[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[loginrulev1.LoginRule, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
 			return teleport.NewLoginRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindLoginRule,
+		Name: types.KindLoginRule,
 		Codec: tfdriver.ResourceCodecFuncs[loginrulev1.LoginRule]{
 			SchemaFunc:   schemav1.GenSchemaLoginRule,
 			ToStateFunc:  schemav1.CopyLoginRuleToTerraform,

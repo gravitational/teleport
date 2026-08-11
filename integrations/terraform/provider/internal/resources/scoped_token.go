@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -32,7 +32,7 @@ import (
 // NewScopedTokenDataSourceType returns the scoped token data source type.
 func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
@@ -41,6 +41,7 @@ func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToke
 				Scope: path.Root("scope"),
 			}),
 		Kind: apitypes.KindScopedToken,
+		Name: apitypes.KindScopedToken,
 		Codec: tfdriver.DataSourceCodecFuncs[joiningv1.ScopedToken]{
 			SchemaFunc:  schemav1.GenSchemaScopedToken,
 			ToStateFunc: schemav1.CopyScopedTokenToTerraform,
@@ -51,10 +52,11 @@ func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToke
 // NewScopedTokenResourceType returns the scoped token resource type.
 func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[joiningv1.ScopedToken, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindScopedToken,
+		Name: apitypes.KindScopedToken,
 		Codec: tfdriver.ResourceCodecFuncs[joiningv1.ScopedToken]{
 			SchemaFunc:   schemav1.GenSchemaScopedToken,
 			ToStateFunc:  schemav1.CopyScopedTokenToTerraform,

@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewSAMLConnectorDataSourceType returns SAML connector data source type.
 func NewSAMLConnectorDataSourceType() tfdriver.DataSourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
 			return teleport.NewSAMLConnectorClient(clientFromProvider(p))
 		},
 		Kind: types.KindSAMLConnector,
+		Name: "saml_connector",
 		Codec: tfdriver.DataSourceCodecFuncs[types.SAMLConnectorV2]{
 			SchemaFunc:  tfschema.GenSchemaSAMLConnectorV2,
 			ToStateFunc: tfschema.CopySAMLConnectorV2ToTerraform,
@@ -47,10 +48,11 @@ func NewSAMLConnectorDataSourceType() tfdriver.DataSourceType[types.SAMLConnecto
 // NewSAMLConnectorResourceType returns SAML connector resource type.
 func NewSAMLConnectorResourceType() tfdriver.ResourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
 			return teleport.NewSAMLConnectorClient(clientFromProvider(p))
 		},
 		Kind: types.KindSAMLConnector,
+		Name: "saml_connector",
 		Codec: tfdriver.ResourceCodecFuncs[types.SAMLConnectorV2]{
 			SchemaFunc:   tfschema.GenSchemaSAMLConnectorV2,
 			FromPlanFunc: tfschema.CopySAMLConnectorV2FromTerraform,

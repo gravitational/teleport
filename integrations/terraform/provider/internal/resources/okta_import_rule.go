@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewOktaImportRuleDataSourceType returns the Okta import rule data source type.
 func NewOktaImportRuleDataSourceType() tfdriver.DataSourceType[types.OktaImportRuleV1, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.OktaImportRuleV1, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.OktaImportRuleV1, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.OktaImportRuleV1, tfdriver.NameIdentifier] {
 			return teleport.NewOktaImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindOktaImportRule,
+		Name: types.KindOktaImportRule,
 		Codec: tfdriver.DataSourceCodecFuncs[types.OktaImportRuleV1]{
 			SchemaFunc:  tfschema.GenSchemaOktaImportRuleV1,
 			ToStateFunc: tfschema.CopyOktaImportRuleV1ToTerraform,
@@ -45,10 +46,11 @@ func NewOktaImportRuleDataSourceType() tfdriver.DataSourceType[types.OktaImportR
 // NewOktaImportRuleResourceType returns the Okta import rule resource type.
 func NewOktaImportRuleResourceType() tfdriver.ResourceType[types.OktaImportRuleV1, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.OktaImportRuleV1, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.OktaImportRuleV1, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.OktaImportRuleV1, tfdriver.NameIdentifier] {
 			return teleport.NewOktaImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindOktaImportRule,
+		Name: types.KindOktaImportRule,
 		Codec: tfdriver.ResourceCodecFuncs[types.OktaImportRuleV1]{
 			SchemaFunc:   tfschema.GenSchemaOktaImportRuleV1,
 			ToStateFunc:  tfschema.CopyOktaImportRuleV1ToTerraform,

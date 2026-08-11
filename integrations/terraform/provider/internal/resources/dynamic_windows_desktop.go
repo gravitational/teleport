@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewDynamicWindowsDesktopDataSourceType returns the dynamic Windows desktop data source type.
 func NewDynamicWindowsDesktopDataSourceType() tfdriver.DataSourceType[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier] {
 			return teleport.NewDynamicWindowsDesktopClient(clientFromProvider(p))
 		},
 		Kind: types.KindDynamicWindowsDesktop,
+		Name: types.KindDynamicWindowsDesktop,
 		Codec: tfdriver.DataSourceCodecFuncs[types.DynamicWindowsDesktopV1]{
 			SchemaFunc:  tfschema.GenSchemaDynamicWindowsDesktopV1,
 			ToStateFunc: tfschema.CopyDynamicWindowsDesktopV1ToTerraform,
@@ -45,10 +46,11 @@ func NewDynamicWindowsDesktopDataSourceType() tfdriver.DataSourceType[types.Dyna
 // NewDynamicWindowsDesktopResourceType returns the dynamic Windows desktop resource type.
 func NewDynamicWindowsDesktopResourceType() tfdriver.ResourceType[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.DynamicWindowsDesktopV1, tfdriver.NameIdentifier] {
 			return teleport.NewDynamicWindowsDesktopClient(clientFromProvider(p))
 		},
 		Kind: types.KindDynamicWindowsDesktop,
+		Name: types.KindDynamicWindowsDesktop,
 		Codec: tfdriver.ResourceCodecFuncs[types.DynamicWindowsDesktopV1]{
 			SchemaFunc:   tfschema.GenSchemaDynamicWindowsDesktopV1,
 			ToStateFunc:  tfschema.CopyDynamicWindowsDesktopV1ToTerraform,

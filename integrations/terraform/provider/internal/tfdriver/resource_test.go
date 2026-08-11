@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	tfresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
@@ -148,10 +149,10 @@ func TestResourceCreateAppliesNormalizerBeforeCreate(t *testing.T) {
 		runtime: testRuntime{},
 	}
 
-	resp := &tfsdk.CreateResourceResponse{
+	resp := &tfresource.CreateResponse{
 		State: tfsdk.State{Schema: schema},
 	}
-	resource.Create(t.Context(), tfsdk.CreateResourceRequest{
+	resource.Create(t.Context(), tfresource.CreateRequest{
 		Plan: testTeleportResourcePlan(t, t.Context(), schema, map[string]string{
 			"id":           "example",
 			"name":         "example",
@@ -215,10 +216,10 @@ func TestResourceUpdateSetsStateFromRetrieved(t *testing.T) {
 		runtime: testRuntime{},
 	}
 
-	resp := &tfsdk.UpdateResourceResponse{
+	resp := &tfresource.UpdateResponse{
 		State: tfsdk.State{Schema: schema},
 	}
-	resource.Update(t.Context(), tfsdk.UpdateResourceRequest{
+	resource.Update(t.Context(), tfresource.UpdateRequest{
 		Plan: testTeleportResourcePlan(t, t.Context(), schema, map[string]string{
 			"id":           "example",
 			"name":         "example",

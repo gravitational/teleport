@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
@@ -31,10 +31,11 @@ import (
 // NewStaticHostUserDataSourceType returns the static host user data source type.
 func NewStaticHostUserDataSourceType() tfdriver.DataSourceType[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier] {
 			return teleport.NewStaticHostUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindStaticHostUser,
+		Name: types.KindStaticHostUser,
 		Codec: tfdriver.DataSourceCodecFuncs[userprovisioningv2.StaticHostUser]{
 			SchemaFunc:  schemav1.GenSchemaStaticHostUser,
 			ToStateFunc: schemav1.CopyStaticHostUserToTerraform,
@@ -46,10 +47,11 @@ func NewStaticHostUserDataSourceType() tfdriver.DataSourceType[userprovisioningv
 // NewStaticHostUserResourceType returns the static host user resource type.
 func NewStaticHostUserResourceType() tfdriver.ResourceType[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[userprovisioningv2.StaticHostUser, tfdriver.NameIdentifier] {
 			return teleport.NewStaticHostUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindStaticHostUser,
+		Name: types.KindStaticHostUser,
 		Codec: tfdriver.ResourceCodecFuncs[userprovisioningv2.StaticHostUser]{
 			SchemaFunc:   schemav1.GenSchemaStaticHostUser,
 			ToStateFunc:  schemav1.CopyStaticHostUserToTerraform,

@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -32,7 +32,7 @@ import (
 // NewScopedRoleDataSourceType returns the scoped role data source type.
 func NewScopedRoleDataSourceType() tfdriver.DataSourceType[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedRoleClient(clientFromProvider(p))
 		},
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
@@ -41,6 +41,7 @@ func NewScopedRoleDataSourceType() tfdriver.DataSourceType[accessv1.ScopedRole, 
 				Scope: path.Root("scope"),
 			}),
 		Kind: scopedaccess.KindScopedRole,
+		Name: scopedaccess.KindScopedRole,
 		Codec: tfdriver.DataSourceCodecFuncs[accessv1.ScopedRole]{
 			SchemaFunc:  schemav1.GenSchemaScopedRole,
 			ToStateFunc: schemav1.CopyScopedRoleToTerraform,
@@ -51,10 +52,11 @@ func NewScopedRoleDataSourceType() tfdriver.DataSourceType[accessv1.ScopedRole, 
 // NewScopedRoleResourceType returns the scoped role resource type.
 func NewScopedRoleResourceType() tfdriver.ResourceType[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedRoleClient(clientFromProvider(p))
 		},
 		Kind: scopedaccess.KindScopedRole,
+		Name: scopedaccess.KindScopedRole,
 		Codec: tfdriver.ResourceCodecFuncs[accessv1.ScopedRole]{
 			SchemaFunc:   schemav1.GenSchemaScopedRole,
 			ToStateFunc:  schemav1.CopyScopedRoleToTerraform,

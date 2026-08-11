@@ -21,7 +21,9 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -36,8 +38,9 @@ type DataSourceClient[T any, I Identifier] interface {
 
 // DataSourceType describes a Terraform data source.
 type DataSourceType[T any, I Identifier] struct {
-	NewDataSourceClient func(tfsdk.Provider) DataSourceClient[T, I]
+	NewDataSourceClient func(provider.Provider) DataSourceClient[T, I]
 	Kind                string
+	Name                string
 	Codec               DataSourceCodec[T]
 	Identifier          TerraformIdentifierExtractor[I]
 }
@@ -48,11 +51,11 @@ func (r DataSourceType[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag
 }
 
 // NewDataSource creates the data source.
-func (r DataSourceType[T, I]) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r DataSourceType[T, I]) NewDataSource(p provider.Provider) datasource.DataSource {
 	return dataSource[T, I]{
 		dataSourceClient: r.NewDataSourceClient(p),
 		dataSource:       r,
-	}, nil
+	}
 }
 
 type dataSource[T any, I Identifier] struct {
@@ -60,8 +63,16 @@ type dataSource[T any, I Identifier] struct {
 	dataSource       DataSourceType[T, I]
 }
 
+func (r dataSource[T, I]) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_" + r.dataSource.Name
+}
+
+func (r dataSource[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return r.dataSource.GetSchema(ctx)
+}
+
 // Read reads the Teleport resource.
-func (r dataSource[T, I]) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSource[T, I]) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	id, diags := r.dataSource.Identifier(ctx, req.Config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

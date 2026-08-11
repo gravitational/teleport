@@ -17,9 +17,8 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -34,10 +33,11 @@ const sessionRecordingConfigID = "session_recording_config"
 // NewSessionRecordingConfigDataSourceType returns the session recording config data source type.
 func NewSessionRecordingConfigDataSourceType() tfdriver.DataSourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewSessionRecordingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindSessionRecordingConfig,
+		Name: types.KindSessionRecordingConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.SessionRecordingConfigV2]{
 			SchemaFunc:  tfschema.GenSchemaSessionRecordingConfigV2,
 			ToStateFunc: tfschema.CopySessionRecordingConfigV2ToTerraform,
@@ -49,10 +49,11 @@ func NewSessionRecordingConfigDataSourceType() tfdriver.DataSourceType[types.Ses
 // NewSessionRecordingConfigResourceType returns the session recording config resource type.
 func NewSessionRecordingConfigResourceType() tfdriver.ResourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewSessionRecordingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindSessionRecordingConfig,
+		Name: types.KindSessionRecordingConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.SessionRecordingConfigV2]{
 			SchemaFunc:   tfschema.GenSchemaSessionRecordingConfigV2,
 			ToStateFunc:  tfschema.CopySessionRecordingConfigV2ToTerraform,

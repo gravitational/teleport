@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewAppDataSourceType returns the app data source type.
 func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[apitypes.AppV3, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.AppV3, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[apitypes.AppV3, tfdriver.NameIdentifier] {
 			return teleport.NewAppClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindApp,
+		Name: apitypes.KindApp,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.AppV3]{
 			SchemaFunc:  tfschema.GenSchemaAppV3,
 			ToStateFunc: tfschema.CopyAppV3ToTerraform,
@@ -45,10 +46,11 @@ func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.Nam
 // NewAppResourceType returns the app resource type.
 func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.AppV3, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[apitypes.AppV3, tfdriver.NameIdentifier] {
 			return teleport.NewAppClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindApp,
+		Name: apitypes.KindApp,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.AppV3]{
 			SchemaFunc:   tfschema.GenSchemaAppV3,
 			ToStateFunc:  tfschema.CopyAppV3ToTerraform,

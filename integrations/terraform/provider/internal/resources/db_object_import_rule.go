@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,10 +31,11 @@ import (
 // NewDatabaseObjectImportRuleDataSourceType returns the database object import rule data source type.
 func NewDatabaseObjectImportRuleDataSourceType() tfdriver.DataSourceType[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier] {
 			return teleport.NewDatabaseObjectImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindDatabaseObjectImportRule,
+		Name: types.KindDatabaseObjectImportRule,
 		Codec: tfdriver.DataSourceCodecFuncs[dbobjectimportrulev1.DatabaseObjectImportRule]{
 			SchemaFunc:  schemav1.GenSchemaDatabaseObjectImportRule,
 			ToStateFunc: schemav1.CopyDatabaseObjectImportRuleToTerraform,
@@ -46,10 +47,11 @@ func NewDatabaseObjectImportRuleDataSourceType() tfdriver.DataSourceType[dbobjec
 // NewDatabaseObjectImportRuleResourceType returns the database object import rule resource type.
 func NewDatabaseObjectImportRuleResourceType() tfdriver.ResourceType[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[dbobjectimportrulev1.DatabaseObjectImportRule, tfdriver.NameIdentifier] {
 			return teleport.NewDatabaseObjectImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindDatabaseObjectImportRule,
+		Name: types.KindDatabaseObjectImportRule,
 		Codec: tfdriver.ResourceCodecFuncs[dbobjectimportrulev1.DatabaseObjectImportRule]{
 			SchemaFunc:   schemav1.GenSchemaDatabaseObjectImportRule,
 			ToStateFunc:  schemav1.CopyDatabaseObjectImportRuleToTerraform,

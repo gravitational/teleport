@@ -17,9 +17,9 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-
 	"github.com/gravitational/teleport/api/client"
+
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 )
 
 // ClientProvider supplies a Teleport client to resource types.
@@ -28,6 +28,6 @@ type ClientProvider interface {
 	Client() *client.Client
 }
 
-func clientFromProvider(p tfsdk.Provider) *client.Client {
+func clientFromProvider(p provider.Provider) *client.Client {
 	return p.(ClientProvider).Client()
 }

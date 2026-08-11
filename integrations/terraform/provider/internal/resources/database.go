@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewDatabaseDataSourceType returns the database data source type.
 func NewDatabaseDataSourceType() tfdriver.DataSourceType[apitypes.DatabaseV3, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[apitypes.DatabaseV3, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.DatabaseV3, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[apitypes.DatabaseV3, tfdriver.NameIdentifier] {
 			return teleport.NewDatabaseClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindDatabase,
+		Name: "database",
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.DatabaseV3]{
 			SchemaFunc:  tfschema.GenSchemaDatabaseV3,
 			ToStateFunc: tfschema.CopyDatabaseV3ToTerraform,
@@ -45,10 +46,11 @@ func NewDatabaseDataSourceType() tfdriver.DataSourceType[apitypes.DatabaseV3, tf
 // NewDatabaseResourceType returns the database resource type.
 func NewDatabaseResourceType() tfdriver.ResourceType[apitypes.DatabaseV3, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[apitypes.DatabaseV3, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.DatabaseV3, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[apitypes.DatabaseV3, tfdriver.NameIdentifier] {
 			return teleport.NewDatabaseClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindDatabase,
+		Name: "database",
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.DatabaseV3]{
 			SchemaFunc:   tfschema.GenSchemaDatabaseV3,
 			ToStateFunc:  tfschema.CopyDatabaseV3ToTerraform,

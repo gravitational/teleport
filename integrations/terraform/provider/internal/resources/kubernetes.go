@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -31,10 +31,11 @@ import (
 // NewKubernetesClusterDataSourceType returns the app data source type.
 func NewKubernetesClusterDataSourceType() tfdriver.DataSourceType[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewKubernetesClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindKubernetesCluster,
+		Name: apitypes.KindKubernetesCluster,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.KubernetesClusterV3]{
 			SchemaFunc:  tfschema.GenSchemaKubernetesClusterV3,
 			ToStateFunc: tfschema.CopyKubernetesClusterV3ToTerraform,
@@ -51,10 +52,11 @@ func NewKubernetesClusterDataSourceType() tfdriver.DataSourceType[apitypes.Kuber
 // NewKubernetesClusterResourceType returns the app resource type.
 func NewKubernetesClusterResourceType() tfdriver.ResourceType[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[apitypes.KubernetesClusterV3, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewKubernetesClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindKubernetesCluster,
+		Name: apitypes.KindKubernetesCluster,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.KubernetesClusterV3]{
 			SchemaFunc:   tfschema.GenSchemaKubernetesClusterV3,
 			ToStateFunc:  tfschema.CopyKubernetesClusterV3ToTerraform,

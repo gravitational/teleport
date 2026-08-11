@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,10 +30,11 @@ import (
 // NewTrustedDeviceDataSourceType returns the trusted device data source type.
 func NewTrustedDeviceDataSourceType() tfdriver.DataSourceType[types.DeviceV1, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.DeviceV1, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.DeviceV1, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.DeviceV1, tfdriver.NameIdentifier] {
 			return teleport.NewTrustedDeviceClient(clientFromProvider(p))
 		},
 		Kind: types.KindDevice,
+		Name: "trusted_device",
 		Codec: tfdriver.DataSourceCodecFuncs[types.DeviceV1]{
 			SchemaFunc:  schemav1.GenSchemaDeviceV1,
 			ToStateFunc: schemav1.CopyDeviceV1ToTerraform,
@@ -45,10 +46,11 @@ func NewTrustedDeviceDataSourceType() tfdriver.DataSourceType[types.DeviceV1, tf
 // NewTrustedDeviceResourceType returns the trusted device resource type.
 func NewTrustedDeviceResourceType() tfdriver.ResourceType[types.DeviceV1, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.DeviceV1, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.DeviceV1, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.DeviceV1, tfdriver.NameIdentifier] {
 			return teleport.NewTrustedDeviceClient(clientFromProvider(p))
 		},
 		Kind: types.KindDevice,
+		Name: "trusted_device",
 		Codec: tfdriver.ResourceCodecFuncs[types.DeviceV1]{
 			SchemaFunc:   schemav1.GenSchemaDeviceV1,
 			ToStateFunc:  schemav1.CopyDeviceV1ToTerraform,

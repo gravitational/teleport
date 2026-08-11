@@ -21,7 +21,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -38,10 +38,11 @@ import (
 // NewAccessListDataSourceType returns the app data source type.
 func NewAccessListDataSourceType() tfdriver.DataSourceType[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewAccessListClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindAccessList,
+		Name: apitypes.KindAccessList,
 		Codec: tfdriver.DataSourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
 			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {
@@ -60,10 +61,11 @@ func NewAccessListDataSourceType() tfdriver.DataSourceType[accesslist.AccessList
 // NewAccessListResourceType returns the app resource type.
 func NewAccessListResourceType() tfdriver.ResourceType[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[accesslist.AccessList, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewAccessListClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindAccessList,
+		Name: apitypes.KindAccessList,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
 			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {

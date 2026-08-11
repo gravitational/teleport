@@ -17,9 +17,8 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -34,10 +33,11 @@ const uiConfigID = "ui_config"
 // NewUIConfigDataSourceType returns the web ui config data source type.
 func NewUIConfigDataSourceType() tfdriver.DataSourceType[types.UIConfigV1, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[types.UIConfigV1, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.UIConfigV1, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.UIConfigV1, tfdriver.SingletonIdentifier] {
 			return teleport.NewUIConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindUIConfig,
+		Name: types.KindUIConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.UIConfigV1]{
 			SchemaFunc:  tfschema.GenSchemaUIConfigV1,
 			ToStateFunc: tfschema.CopyUIConfigV1ToTerraform,
@@ -49,10 +49,11 @@ func NewUIConfigDataSourceType() tfdriver.DataSourceType[types.UIConfigV1, tfdri
 // NewUIConfigResourceType returns the web ui config resource type.
 func NewUIConfigResourceType() tfdriver.ResourceType[types.UIConfigV1, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[types.UIConfigV1, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.UIConfigV1, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.UIConfigV1, tfdriver.SingletonIdentifier] {
 			return teleport.NewUIConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindUIConfig,
+		Name: types.KindUIConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.UIConfigV1]{
 			SchemaFunc:   tfschema.GenSchemaUIConfigV1,
 			ToStateFunc:  tfschema.CopyUIConfigV1ToTerraform,
