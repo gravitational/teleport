@@ -73,6 +73,26 @@ teleport:
       # `registration_secret_` fields should be set.
       static_key_path: /path/to/key
 
+    # generic_oidc specifies parameters specific to the `generic_oidc` join
+    # method and should be omitted if any other join method is configured in the
+    # `method` field above.
+    generic_oidc:
+      # A command used to fetch a JWT. This can call a platform tool, a custom
+      # helper you write, or a tool like `curl` to fetch a JWT from an internal
+      # issuer. The first parameter is the executable to run, followed by any
+      # arguments. Commands have a default timeout of 1m, which can be
+      # overridden. Cannot be used with `env`.
+      command: ["example-command", "issue-jwt", "--audience=example.teleport.sh/token"]
+
+      # Overrides the default command timeout of 1m.
+      # timeout: 1m
+
+      # env is the name of an environment variable containing a JWT. This can be
+      # used instead of `command` if the JWT you wish to authenticate with
+      # exists in an environment variable already. Cannot be used with
+      # `command`, and `timeout` is ignored if set.
+      # env: ENV_VAR_NAME
+
   # Optional CA pin of the Auth Service. Specifying a CA pin enables new
   # agents to trust a Teleport cluster when joining via the Auth Service
   # directly. You can assign the ca_pin field to the literal value of the CA
