@@ -1,4 +1,4 @@
 Name            Type     Spec                                           
 --------------- -------- ---------------------------------------------- 
 aws-integration aws-oidc RoleARN=arn:aws:iam::123456789012:role/OpsTeam 
-github-my-org   github                                                  
+github-my-org   github   Organization=my-org                            
