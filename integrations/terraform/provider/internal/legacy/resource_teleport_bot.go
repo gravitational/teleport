@@ -33,9 +33,11 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
@@ -165,6 +167,12 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Description: "Requires provider v18.4.0 or newer. Fields that are set by the server as results of operations. These should not be modified by users.",
 				Computed:    true,
 			},
+			"scope": {
+				Description:   "Scope is the scope of the bot resource. Leave empty for unscoped bots.",
+				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.RequiresReplace()},
+				Optional:      true,
+				Type:          types.StringType,
+			},
 
 			// Deprecated fields.
 			"name": {
@@ -282,6 +290,7 @@ func (r resourceTeleportBot) Read(ctx context.Context, req tfsdk.ReadResourceReq
 
 	bot, err := r.p.Client().BotServiceClient().GetBot(ctx, &machineidv1.GetBotRequest{
 		BotName: state.GetName(),
+		Scope:   state.GetScope(),
 	})
 	switch {
 	case trace.IsNotFound(err):
@@ -344,17 +353,20 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		return !ok || attr.IsNull()
 	}
 
+	sqn := scopes.QualifiedName{Name: bot.GetMetadata().GetName(), Scope: bot.GetScope()}
+
 	result := Bot{
 		// User-provided attributes. Will be marked as null based on whether the
 		// user provided legacy or RFD 153-style attributes.
 		Metadata: types.Object{AttrTypes: attrTypes("metadata")},
 		Spec:     types.Object{AttrTypes: attrTypes("spec")},
+		Scope:    stringValue(bot.GetScope()),
 
 		// Deprecated user-provided attributes.
 		Name: types.String{},
 
 		// Computed attributes.
-		ID:      stringValue(bot.GetMetadata().GetName()),
+		ID:      stringValue(sqn.String()),
 		Kind:    stringValue(bot.GetKind()),
 		SubKind: stringValue(bot.GetSubKind()),
 		Version: stringValue(bot.GetVersion()),
@@ -381,7 +393,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	// If the plan or state includes the metadata or spec attribute, it means
 	// the user has "opted in" to the new RFD 153-style attributes. Otherwise,
 	// for backward-compatibility we'll populate the old fields.
-	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec)
+	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec) || attrPresent(base.Scope)
 
 	if rfd153Style {
 		result.Name.Null = true
@@ -452,9 +464,13 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		// returned.
 		if attrPresent(base.Spec) {
 			if prev, ok := base.Spec.Attrs["max_session_ttl"]; ok {
-				if dur, ok := prev.(tfschema.DurationValue); ok {
-					if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
-						result.Spec.Attrs["max_session_ttl"] = prev
+				// Scoped bots don't have a max_session_ttl. We don't want to replace the new value by the old one
+				// if the old one is Unknown.
+				if !prev.IsUnknown() {
+					if dur, ok := prev.(tfschema.DurationValue); ok {
+						if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
+							result.Spec.Attrs["max_session_ttl"] = prev
+						}
 					}
 				}
 			}
@@ -512,7 +528,10 @@ func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourc
 		return
 	}
 	_, err := r.p.Client().BotServiceClient().
-		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: state.GetName()})
+		DeleteBot(ctx, &machineidv1.DeleteBotRequest{
+			BotName: state.GetName(),
+			Scope:   state.GetScope(),
+		})
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting Bot", trace.Wrap(err), "bot"))
 		return
@@ -522,8 +541,17 @@ func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourc
 }
 
 func (r resourceTeleportBot) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, rsp *tfsdk.ImportResourceStateResponse) {
+	sqn, err := tfdriver.NewPossiblyUnscopedScopeQualifiedNameIdentifier(req.ID)
+	if err != nil {
+		rsp.Diagnostics.AddError("Error parsing bot ID", err.Error())
+		return
+	}
+
 	bot, err := r.p.Client().BotServiceClient().
-		GetBot(ctx, &machineidv1.GetBotRequest{BotName: req.ID})
+		GetBot(ctx, &machineidv1.GetBotRequest{
+			BotName: sqn.Name,
+			Scope:   sqn.Scope,
+		})
 	if err != nil {
 		rsp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Bot", trace.Wrap(err), "bot"))
 		return
@@ -554,14 +582,16 @@ func (v rfd153OnlyValidator) Validate(ctx context.Context, req tfsdk.ValidateAtt
 	}
 
 	var meta, spec types.Object
+	var scope types.String
 	req.Config.GetAttribute(ctx, path.Root("metadata"), &meta)
 	req.Config.GetAttribute(ctx, path.Root("spec"), &spec)
+	req.Config.GetAttribute(ctx, path.Root("scope"), &scope)
 
-	if attrPresent(meta) || attrPresent(spec) {
+	if attrPresent(meta) || attrPresent(spec) || attrPresent(scope) {
 		rsp.Diagnostics.AddAttributeError(
 			req.AttributePath,
 			"Attribute Validation Error",
-			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec` or `metadata`.", req.AttributePath),
+			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec`, `metadata`, or `scope`.", req.AttributePath),
 		)
 	}
 }
@@ -619,6 +649,7 @@ type Bot struct {
 	Metadata types.Object `tfsdk:"metadata"`
 	Spec     types.Object `tfsdk:"spec"`
 	Status   types.Object `tfsdk:"status"`
+	Scope    types.String `tfsdk:"scope"`
 
 	// Deprecated fields
 	Name     types.String   `tfsdk:"name"`
@@ -636,6 +667,7 @@ func (b Bot) ToProto() *machineidv1.Bot {
 		Version:  apitypes.V1,
 		Metadata: b.GetMetadata(),
 		Spec:     b.GetSpec(),
+		Scope:    b.GetScope(),
 	}
 }
 
@@ -803,6 +835,13 @@ func (b Bot) GetMaxSessionTTL() *durationpb.Duration {
 	}
 
 	return durationpb.New(dur.Value)
+}
+
+func (b Bot) GetScope() string {
+	if !attrPresent(b.Scope) {
+		return ""
+	}
+	return b.Scope.Value
 }
 
 func attrPresent(v attr.Value) bool {

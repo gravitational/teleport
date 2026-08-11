@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -41,6 +42,7 @@ func (s *TerraformSuiteOSSScopedResources) TestScopedRoleAssignment() {
 
 		_, err := accessClient.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
 			Name:    "test-scoped-role-assignment",
+			Scope:   "/staging",
 			SubKind: access.SubKindDynamic,
 		})
 		if !trace.IsNotFound(err) {
@@ -63,7 +65,7 @@ func (s *TerraformSuiteOSSScopedResources) TestScopedRoleAssignment() {
 					resource.TestCheckResourceAttr(name, "sub_kind", access.SubKindDynamic),
 					resource.TestCheckResourceAttr(name, "scope", "/staging"),
 					resource.TestCheckResourceAttr(name, "spec.user", "testuser"),
-					resource.TestCheckResourceAttr(name, "spec.assignments.0.role", "test-scoped-role"),
+					resource.TestCheckResourceAttr(name, "spec.assignments.0.role", "/staging::test-scoped-role"),
 					resource.TestCheckResourceAttr(name, "spec.assignments.0.scope", "/staging/aa"),
 				),
 			},
@@ -71,7 +73,7 @@ func (s *TerraformSuiteOSSScopedResources) TestScopedRoleAssignment() {
 				Config: s.getFixture("scoped_role_assignment_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "scope", "/staging"),
-					resource.TestCheckResourceAttr(name, "spec.assignments.0.role", "test-scoped-role"),
+					resource.TestCheckResourceAttr(name, "spec.assignments.0.role", "/staging::test-scoped-role"),
 					resource.TestCheckResourceAttr(name, "spec.assignments.0.scope", "/staging/aaaa"),
 				),
 			},
@@ -91,6 +93,7 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRoleAssignment() {
 	r := "teleport_scoped_role_assignment"
 	id := "test-import-sra"
 	name := r + "." + id
+	const testScope = "/staging"
 
 	assignment := &accessv1.ScopedRoleAssignment{
 		Kind:    access.KindScopedRoleAssignment,
@@ -99,13 +102,13 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRoleAssignment() {
 		Metadata: &headerv1.Metadata{
 			Name: id,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec: &accessv1.ScopedRoleAssignmentSpec{
 			User: "testuser",
 			Assignments: []*accessv1.Assignment{
 				{
-					Role:  "test-scoped-role",
-					Scope: "/staging/aa",
+					Role:  testScope + "::test-scoped-role",
+					Scope: testScope + "/aa",
 				},
 			},
 		},
@@ -119,11 +122,13 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRoleAssignment() {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := accessClient.GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
 			Name:    id,
+			Scope:   testScope,
 			SubKind: access.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
 
+	sqn := scopes.QualifiedName{Scope: testScope, Name: id}
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		IsUnitTest:               true,
@@ -132,7 +137,7 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRoleAssignment() {
 				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: sqn.String(),
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(t, access.KindScopedRoleAssignment, state[0].Attributes["kind"])
 					require.Equal(t, "/staging", state[0].Attributes["scope"])

@@ -31,12 +31,12 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "ScopedRole.metadata.id"
+  - "ScopedRole.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
   - "ScopedRole.metadata.expires"
   - "ScopedRole.metadata.namespace"
-  - "ScopedRole.metadata.revision"
   - "ScopedRole.kind"
 
 # These fields will be marked as Required: true

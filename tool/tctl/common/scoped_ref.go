@@ -106,7 +106,7 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 	// the old format always treats token/token as kind/name, but if id was set then the second token
 	// is actually a subkind in the new format.
 	subKind := r.Name
-	if strings.Contains(id, scopes.QualifiedNameSeparator) {
+	if scopes.MaybeSQN(id) {
 		qn, err := scopes.ParseQualifiedName(id)
 		if err != nil {
 			return ScopedRef{}, trace.Wrap(err)
@@ -130,7 +130,7 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 					return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid scope: %v", qn, err)
 				}
 				for _, part := range []string{botName, instanceID} {
-					if err := scopes.StrongValidateSegment(part); err != nil {
+					if err := scopes.StrongValidateResourceName(part); err != nil {
 						return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid name: %v", qn, err)
 					}
 				}

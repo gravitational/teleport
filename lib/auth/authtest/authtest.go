@@ -343,7 +343,9 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: srv.Backend,
 		// TODO(tross): replace with cfg.Modules
-		Modules: modules.GetModules(),
+		Modules:                     modules.GetModules(),
+		ScopesFeatures:              cfg.ScopesFeatures,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1164,8 +1166,12 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 }
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
-func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
+func TestScopedBot(t *testing.T, botName scopes.QualifiedName, botInternal bool) TestIdentity {
+	// The cert username must match the User name the bot service persists.
+	userName, err := services.BotResourceName(botName)
+	if err != nil {
+		t.Fatalf("TestScopedBot: %s", err.Error())
+	}
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: userName,
@@ -1176,7 +1182,7 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 				BotInternal: botInternal,
 			},
 		},
-		Scope: scope,
+		Scope: botName.Scope,
 	}
 }
 

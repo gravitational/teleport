@@ -12,6 +12,7 @@ types:
     - "ClusterNetworkingConfigV2"
     - "DatabaseV3"
     - "GithubConnectorV3"
+    - "KubernetesClusterV3"
     - "LockV2"
     - "OIDCConnectorV3"
     - "OktaImportRuleV1"
@@ -67,6 +68,13 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   GithubConnectorV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  KubernetesClusterV3:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -196,6 +204,9 @@ exclude_fields:
 
     # Status
     - "DatabaseV3.Status"
+    
+    # Status (warning, this field is a special case and has no capital "S").
+    - "KubernetesClusterV3.status"
 
     # Role
     - "RoleV6.Spec.Allow.Namespaces" # These fields are not settable via API
@@ -267,6 +278,9 @@ computed_fields:
 
     # Github connector
     - "GithubConnectorV3.Kind"
+
+    # Kubernetes cluster
+    - "KubernetesClusterV3.Kind"
 
     # Lock
     - "LockV2.Kind"
@@ -399,6 +413,10 @@ required_fields:
     - "GithubConnectorV3.Metadata.Name"
     - "GithubConnectorV3.Version"
 
+    # KubernetesCluster
+    - "KubernetesClusterV3.Metadata.Name"
+    - "KubernetesClusterV3.Version"
+
     # OIDC connector
     - "OIDCConnectorV3.Spec"
     - "OIDCConnectorV3.Metadata.Name"
@@ -472,6 +490,7 @@ required_fields:
 
 # These fields must be marked as sensitive
 sensitive_fields:
+    - "KubernetesClusterV3.Spec.Kubeconfig"
     - "ProvisionTokenV2.Metadata.Name"
     - "SAMLConnectorV2.Spec.Cert"
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
@@ -493,6 +512,11 @@ suffixes:
 plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    # Scope is part of the scoped resource identity and must not be updated in-place.
+    AppV3.scope:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    KubernetesClusterV3.scope:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"

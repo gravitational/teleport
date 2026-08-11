@@ -38,6 +38,7 @@ func TestOSConfigProvider(t *testing.T) {
 		getTargetOSConfigErr error
 		expectErr            error
 		expectTargetOSConfig *osConfig
+		expectAddedDNSAddrs  []string
 	}{
 		{
 			// No IPv4 address should be assigned until an IPv4 CIDR range is
@@ -73,6 +74,7 @@ func TestOSConfigProvider(t *testing.T) {
 				dnsZones:   []string{"test.example.com"},
 				cidrRanges: []string{"192.168.1.0/24"},
 			},
+			expectAddedDNSAddrs: []string{"192.168.1.2"},
 		},
 		{
 			desc:           "multiple cidr ranges",
@@ -91,6 +93,29 @@ func TestOSConfigProvider(t *testing.T) {
 				dnsZones:   []string{"test.example.com"},
 				cidrRanges: []string{"10.64.0.0/10", "192.168.1.0/24"},
 			},
+			expectAddedDNSAddrs: []string{"10.64.0.2"},
+		},
+		{
+			desc:    "ipv6 disabled, no cidr ranges",
+			tunName: "testtun1",
+			expectTargetOSConfig: &osConfig{
+				tunName: "testtun1",
+			},
+		},
+		{
+			desc:           "ipv6 disabled, with cidr range",
+			tunName:        "testtun1",
+			dnsZones:       []string{"test.example.com"},
+			ipv4CIDRRanges: []string{"192.168.1.0/24"},
+			expectTargetOSConfig: &osConfig{
+				tunName:    "testtun1",
+				tunIPv4:    "192.168.1.1",
+				tunIPv4Net: &net.IPNet{IP: []byte{192, 168, 1, 0}, Mask: []byte{255, 255, 255, 0}},
+				dnsAddrs:   []string{"192.168.1.2"},
+				dnsZones:   []string{"test.example.com"},
+				cidrRanges: []string{"192.168.1.0/24"},
+			},
+			expectAddedDNSAddrs: []string{"192.168.1.2"},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -122,12 +147,7 @@ func TestOSConfigProvider(t *testing.T) {
 			}
 			require.Equal(t, tc.expectTargetOSConfig, targetOSConfig)
 
-			// expectTargetOSConfig.dnsAddrs always starts with the IPv6 DNS
-			// addr, assert that any additional addrs were added to the network
-			// stack.
-			if len(tc.expectTargetOSConfig.dnsAddrs) > 1 {
-				require.ElementsMatch(t, tc.expectTargetOSConfig.dnsAddrs[1:], addedDNSAddrs)
-			}
+			require.ElementsMatch(t, tc.expectAddedDNSAddrs, addedDNSAddrs)
 		})
 	}
 }

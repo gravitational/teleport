@@ -1,0 +1,13 @@
+[
+  {
+    "kind": "node",
+    "metadata": {
+      "name": "a3f1c2d4-0000-4000-8000-000000000301",
+      "labels": { "team": "sensor", "env": "*" }
+    },
+    "spec": {
+      "hostname": "sensor-01",
+      "addr": "10.0.9.21:3022"
+    }
+  }
+]

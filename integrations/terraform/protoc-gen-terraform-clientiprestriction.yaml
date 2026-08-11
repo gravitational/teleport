@@ -38,6 +38,12 @@ exclude_fields:
   # not track it. The Create/Update poll reads it from the live resource, not
   # from Terraform state.
   - "ClientIPRestriction.status"
+  # TODO: add Terraform support for mode and expires. Excluded for now so the
+  # provider surface stays unchanged until they can be wired up together;
+  # spec.expires additionally needs a `Timestamp` custom_types entry, without
+  # which codegen emits invalid Go.
+  - "ClientIPRestriction.spec.mode"
+  - "ClientIPRestriction.spec.expires"
 
 # These fields will be marked as Computed: true
 computed_fields:

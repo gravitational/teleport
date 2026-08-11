@@ -1482,7 +1482,7 @@ func TestScopedBotSSH(t *testing.T) {
 	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret()))
+	nodeCfg.SetToken(scopes.QualifiedName{Scope: scopeName, Name: jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret())}.String())
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1764,7 +1764,15 @@ func TestScopedBotKubernetes(t *testing.T) {
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
 	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(kubeTokenResp.GetToken().GetMetadata().GetName(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
+	kubeNodeCfg.SetToken(
+		jointoken.EncodeScopedToken(
+			scopes.QualifiedName{
+				Name:  kubeTokenResp.GetToken().GetMetadata().GetName(),
+				Scope: kubeTokenResp.GetToken().GetScope(),
+			}.String(),
+			kubeTokenResp.GetToken().GetStatus().GetSecret(),
+		),
+	)
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
@@ -1969,9 +1977,13 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 	// long-running service, so the bot runs in daemon mode rather than oneshot.
 	tmpDir := t.TempDir()
 	jwtDir := t.TempDir()
+	// t.TempDir paths can exceed the Unix socket path limit on macOS.
+	socketDir, err := os.MkdirTemp("", "tbot-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	listenURL := url.URL{
 		Scheme: "unix",
-		Path:   filepath.Join(t.TempDir(), "workload.sock"),
+		Path:   filepath.Join(socketDir, "workload.sock"),
 	}
 	selector := bot.WorkloadIdentitySelector{
 		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
@@ -2176,7 +2188,7 @@ func createScopedBot(
 	waitForSRACache(t, process.GetAuthServer(), sraResp)
 
 	return &onboarding.Config{
-		TokenValue: botTokenResp.Token.Metadata.Name,
+		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodBoundKeypair,
 		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 			StaticPrivateKeyPath: botKeyPath,

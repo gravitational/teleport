@@ -146,7 +146,7 @@ func TestIssueScopedBotCerts(t *testing.T) {
 
 	// Create a client with a scoped bot internal identity.
 	botClient, err := srv.NewClient(
-		authtest.TestScopedBot(bot.Metadata.Name, botScope, true),
+		authtest.TestScopedBot(t, scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}, true),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = botClient.Close() })
@@ -459,7 +459,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 
 	t.Run("scoped bot without BotInternal", func(t *testing.T) {
 		botClient, err := srv.NewClient(
-			authtest.TestScopedBot(scopedBot.Metadata.Name, testScope, false),
+			authtest.TestScopedBot(t, scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}, false),
 		)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = botClient.Close() })
@@ -473,7 +473,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 	})
 
 	t.Run("scoped bot with DisallowReissue", func(t *testing.T) {
-		ident := authtest.TestScopedBot(scopedBot.Metadata.Name, testScope, true)
+		ident := authtest.TestScopedBot(t, scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}, true)
 		lu := ident.I.(authz.LocalUser)
 		lu.Identity.DisallowReissue = true
 		ident.I = lu

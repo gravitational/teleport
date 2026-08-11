@@ -37,7 +37,7 @@ type autoUpdateConfigClient struct {
 }
 
 // Get gets the Teleport autoUpdateConfig of a given name
-func (l autoUpdateConfigClient) Get(ctx context.Context, name string) (*autoupdatev1pb.AutoUpdateConfig, error) {
+func (l autoUpdateConfigClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*autoupdatev1pb.AutoUpdateConfig, error) {
 	resp, err := l.teleportClient.
 		GetAutoUpdateConfig(ctx)
 	if err != nil {
@@ -61,13 +61,13 @@ func (l autoUpdateConfigClient) Update(ctx context.Context, resource *autoupdate
 }
 
 // Delete deletes a Teleport autoUpdateConfig
-func (l autoUpdateConfigClient) Delete(ctx context.Context, name string) error {
+func (l autoUpdateConfigClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	return trace.Wrap(l.teleportClient.DeleteAutoUpdateConfig(ctx))
 }
 
 // NewAutoUpdateConfigV1Reconciler instantiates a new Kubernetes controller reconciling autoUpdateConfig
 // resources
-func NewAutoUpdateConfigV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewAutoUpdateConfigV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	autoUpdateConfigClient := &autoUpdateConfigClient{
 		teleportClient: tClient,
 	}
@@ -77,6 +77,7 @@ func NewAutoUpdateConfigV1Reconciler(client kclient.Client, tClient *client.Clie
 	](
 		client,
 		autoUpdateConfigClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -689,10 +689,6 @@ const (
 // SCP is Secure Copy.
 const SCP = "scp"
 
-// AdminRoleName is the name of the default admin role for all local users if
-// another role is not explicitly assigned
-const AdminRoleName = "admin"
-
 const (
 	// PresetEditorRoleName is a name of a preset role that allows
 	// editing cluster configuration.
