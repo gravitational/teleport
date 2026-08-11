@@ -4493,10 +4493,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 
 			BotName:  getBotName(user),
 			BotScope: getBotScope(user),
-			// Always pass through a bot instance ID if available. Legacy bots
-			// joining without an instance ID may have one generated when
-			// `updateBotInstance()` is called below, and this (empty) value will be
-			// overridden.
+			// Pass through the bot instance ID from the current identity.
 			BotInstanceID: a.scopedContext.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
@@ -4569,10 +4566,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		BotName:                getBotName(user),
 		BotScope:               getBotScope(user),
 
-		// Always pass through a bot instance ID if available. Legacy bots
-		// joining without an instance ID may have one generated when
-		// `updateBotInstance()` is called below, and this (empty) value will be
-		// overridden.
+		// Pass through the bot instance ID from the current identity.
 		BotInstanceID: a.scopedContext.Identity.GetIdentity().BotInstanceID,
 		JoinToken:     a.scopedContext.Identity.GetIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
@@ -4663,17 +4657,9 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			certReq.IncludeHostCA = true
 		}
 
-		// Update the bot instance based on this authentication. This may create
-		// a new bot instance record if the identity is missing an instance ID.
-		//
-		// botScope is always empty - this code path is only invoked for `token`
-		// joining bots, and we do not support `token` join method for scoped
-		// bots.
-		botScope := ""
+		// Update the bot instance based on this authentication.
 		if err := a.authServer.updateBotInstance(
-			ctx, &certReq, user.GetName(), certReq.BotName,
-			certReq.BotInstanceID, nil, int32(currentIdentityGeneration),
-			botScope,
+			ctx, &certReq, nil, int32(currentIdentityGeneration),
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}
