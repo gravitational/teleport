@@ -633,71 +633,85 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		assert.Equal(t, botScope, identity.RouteToApp.Scope)
 	})
 
-	t.Run("missing app name rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			TlsPublicKey: tlsPubKeyPEM,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Scope: botScope,
-			}.Build(),
-		}.Build())
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-		require.ErrorContains(t, err, "app.name: is required")
-	})
+	t.Run("failures", func(t *testing.T) {
+		testCases := map[string]struct {
+			req           *issuancev1pb.IssueScopedBotCertsRequest
+			traceErrCheck func(error) bool
+			errMsg        string
+		}{
+			"missing app name rejected": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					TlsPublicKey: tlsPubKeyPEM,
+					Ttl:          durationpb.New(requestedTTL),
+					App: issuancev1pb.UsageApp_builder{
+						Scope: botScope,
+					}.Build(),
+				}.Build(),
+				traceErrCheck: trace.IsBadParameter,
+				errMsg:        "app.name: is required",
+			},
+			"invalid scope rejected": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					TlsPublicKey: tlsPubKeyPEM,
+					Ttl:          durationpb.New(requestedTTL),
+					App: issuancev1pb.UsageApp_builder{
+						Name:  "test-app",
+						Scope: "not-a-scope",
+					}.Build(),
+				}.Build(),
+				traceErrCheck: trace.IsBadParameter,
+				errMsg:        "app.scope",
+			},
+			"tls public key required for app usage": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					SshPublicKey: sshPubKeyBytes,
+					Ttl:          durationpb.New(requestedTTL),
+					App: issuancev1pb.UsageApp_builder{
+						Name:       "test-app",
+						PublicAddr: app.GetPublicAddr(),
+						Scope:      botScope,
+					}.Build(),
+				}.Build(),
+				traceErrCheck: trace.IsBadParameter,
+				errMsg:        "tls_public_key: is required for app usage",
+			},
+			"public_addr required for app usage": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					SshPublicKey: sshPubKeyBytes,
+					Ttl:          durationpb.New(requestedTTL),
+					TlsPublicKey: tlsPubKeyPEM,
+					App: issuancev1pb.UsageApp_builder{
+						Name:       "test-app",
+						PublicAddr: "",
+						Scope:      botScope,
+					}.Build(),
+				}.Build(),
+				traceErrCheck: trace.IsBadParameter,
+				errMsg:        "app.public_addr: is required",
+			},
+			"app scope outside pinned scope rejected": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					TlsPublicKey: tlsPubKeyPEM,
+					Ttl:          durationpb.New(requestedTTL),
+					App: issuancev1pb.UsageApp_builder{
+						Name:       "test-app",
+						PublicAddr: app.GetPublicAddr(),
+						Scope:      "/other-scope",
+					}.Build(),
+				}.Build(),
+				traceErrCheck: trace.IsAccessDenied,
+				errMsg:        "other scope",
+			},
+		}
 
-	t.Run("invalid scope rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			TlsPublicKey: tlsPubKeyPEM,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Name:  "test-app",
-				Scope: "not-a-scope",
-			}.Build(),
-		}.Build())
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-		require.ErrorContains(t, err, "app.scope")
-	})
-
-	t.Run("tls public key required for app usage", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			SshPublicKey: sshPubKeyBytes,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Name:       "test-app",
-				PublicAddr: app.GetPublicAddr(),
-				Scope:      botScope,
-			}.Build(),
-		}.Build())
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-		require.ErrorContains(t, err, "tls_public_key: is required for app usage")
-	})
-
-	t.Run("public_addr required for app usage", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			SshPublicKey: sshPubKeyBytes,
-			Ttl:          durationpb.New(requestedTTL),
-			TlsPublicKey: tlsPubKeyPEM,
-			App: issuancev1pb.UsageApp_builder{
-				Name:       "test-app",
-				PublicAddr: "",
-				Scope:      botScope,
-			}.Build(),
-		}.Build())
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
-		require.ErrorContains(t, err, "app.public_addr: is required")
-	})
-
-	t.Run("app scope outside pinned scope rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(t.Context(), issuancev1pb.IssueScopedBotCertsRequest_builder{
-			TlsPublicKey: tlsPubKeyPEM,
-			Ttl:          durationpb.New(requestedTTL),
-			App: issuancev1pb.UsageApp_builder{
-				Name:       "test-app",
-				PublicAddr: app.GetPublicAddr(),
-				Scope:      "/other-scope",
-			}.Build(),
-		}.Build())
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+		for name, tc := range testCases {
+			t.Run(name, func(t *testing.T) {
+				_, err := issuanceClient.IssueScopedBotCerts(t.Context(), tc.req)
+				require.Error(t, err)
+				require.True(t, tc.traceErrCheck(err), "error is not of the expected type: %v", err)
+				require.ErrorContains(t, err, tc.errMsg)
+			})
+		}
 	})
 
 	// Register a child-scope app for hierarchy tests.
