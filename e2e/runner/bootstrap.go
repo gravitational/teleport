@@ -105,8 +105,8 @@ func readRoleFile(e2eDir, filename string) (*customRole, error) {
 // should appear as the session's principal and the freshly-generated session
 // ID assigned to this copy of the recording.
 type recordingOwner struct {
-	user        string
-	sessionID   string
+	user      string
+	sessionID string
 }
 
 type recordingOwners map[string][]recordingOwner

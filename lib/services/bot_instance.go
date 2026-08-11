@@ -25,7 +25,9 @@ import (
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -36,27 +38,45 @@ import (
 const BotUserPrefix = "bot-"
 
 // BotInstance is an interface for the BotInstance service.
+//
+// Bot instances belong to a bot, and bots are identified by their scope and
+// name: instances of scoped bots are stored in a scope-namespaced key range,
+// separate from instances of unscoped bots. Methods addressing an individual
+// instance take the owning bot's scope, which must be empty if the bot is
+// unscoped.
 type BotInstance interface {
-	// CreateBotInstance
+	// CreateBotInstance creates a new bot instance. It is stored in the key
+	// range determined by the scope set on the instance itself.
 	CreateBotInstance(ctx context.Context, botInstance *machineidv1.BotInstance) (*machineidv1.BotInstance, error)
 
-	// GetBotInstance
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+	// GetBotInstance returns the bot instance owned by the bot identified by
+	// the request's (bot_scope, bot_name) with the given instance ID.
+	GetBotInstance(ctx context.Context, req *machineidv1.GetBotInstanceRequest) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)
 
-	// DeleteBotInstance
-	DeleteBotInstance(ctx context.Context, botName, instanceID string) error
+	// DeleteBotInstance deletes the bot instance owned by the bot identified
+	// by the request's (bot_scope, bot_name) with the given instance ID.
+	DeleteBotInstance(ctx context.Context, req *machineidv1.DeleteBotInstanceRequest) error
 
-	// PatchBotInstance fetches an existing bot instance by bot name and ID,
-	// then calls `updateFn` to apply any changes before persisting the
-	// resource.
-	PatchBotInstance(
-		ctx context.Context,
-		botName, instanceID string,
-		updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
-	) (*machineidv1.BotInstance, error)
+	// PatchBotInstance fetches the existing bot instance identified by the
+	// given options, then calls the options' UpdateFn to apply any changes
+	// before persisting the resource.
+	PatchBotInstance(ctx context.Context, opts PatchBotInstanceOpts) (*machineidv1.BotInstance, error)
+}
+
+// PatchBotInstanceOpts identifies the bot instance to be patched by
+// [BotInstance.PatchBotInstance] and holds the patch to apply to it.
+type PatchBotInstanceOpts struct {
+	// Bot is the scope-qualified name of the bot that owns the instance. The
+	// scope must be empty if the bot is unscoped.
+	Bot scopes.QualifiedName
+	// InstanceID is the ID of the instance to patch.
+	InstanceID string
+	// UpdateFn is applied to the fetched instance to produce the instance to
+	// persist. It may be called more than once if the write is retried.
+	UpdateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error)
 }
 
 // ValidateBotInstance verifies that required fields for a new BotInstance are present
@@ -159,6 +179,19 @@ type ListBotInstancesRequestOptions struct {
 	// The name of the Bot to list BotInstances for. If empty, all BotInstances
 	// will be listed.
 	FilterBotName string
+	// The scope of the Bot to list BotInstances for. A bot is identified by the
+	// pair (scope, name), so this only ever qualifies FilterBotName and must be
+	// set alongside it; setting it without FilterBotName is an error. Leave
+	// empty if the bot is unscoped. This is deliberately not a scope filter for
+	// listing every BotInstance in a scope - use ScopeFilter for that.
+	FilterBotScope string
+	// ScopeFilter selects BotInstances by the scope of their owning bot. A nil or
+	// MODE_UNSPECIFIED filter matches every scope; identity-derived defaulting is
+	// the caller's job (see ScopedAccessCheckerContext.ResolveScopeFilter).
+	//
+	// Mutually exclusive with FilterBotName, which already constrains the result
+	// to a single bot in a single scope.
+	ScopeFilter *scopesv1.Filter
 	// A search term used to filter the results. If non-empty, it's used to
 	// match against supported fields.
 	FilterSearchTerm string
@@ -189,6 +222,20 @@ func (o *ListBotInstancesRequestOptions) GetFilterBotName() string {
 	return o.FilterBotName
 }
 
+func (o *ListBotInstancesRequestOptions) GetFilterBotScope() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterBotScope
+}
+
+func (o *ListBotInstancesRequestOptions) GetScopeFilter() *scopesv1.Filter {
+	if o == nil {
+		return nil
+	}
+	return o.ScopeFilter
+}
+
 func (o *ListBotInstancesRequestOptions) GetFilterSearchTerm() string {
 	if o == nil {
 		return ""
@@ -211,7 +258,22 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 }
 
 // BotResourceName returns the default name for resources associated with the
-// given named bot.
-func BotResourceName(botName string) string {
-	return BotUserPrefix + strings.ReplaceAll(botName, " ", "-")
+// given bot. An empty Scope refers to an unscoped bot.
+//
+// Bots are namespaced by their scope, so a scoped bot's name encodes the scope
+// as well as the bot name (bot-<encoded_scope>-<name>), allowing a name to be reused across
+// scopes. An encoded scope only ever contains lowercase alphanumerics, so the "-" separator
+// keeps the two apart and two different scopes cannot yield the same name. Scoped bots are
+// reconstructed from User labels rather than by parsing this name, so it serves
+// only as an identity key.
+func BotResourceName(bot scopes.QualifiedName) (string, error) {
+	name := bot.Name
+	if bot.Scope != "" {
+		encodedScope, err := scopes.EncodeForKey(bot.Scope)
+		if err != nil {
+			return "", trace.Wrap(err, "encoding scope for bot resource name")
+		}
+		name = encodedScope + "-" + bot.Name
+	}
+	return BotUserPrefix + strings.ReplaceAll(name, " ", "-"), nil
 }

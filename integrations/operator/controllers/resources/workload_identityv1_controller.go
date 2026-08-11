@@ -94,7 +94,7 @@ func (l workloadIdentityClient) Delete(ctx context.Context, key reconcilers.Reso
 
 // NewWorkloadIdentityV1Reconciler instantiates a new Kubernetes controller
 // reconciling WorkloadIdentity resources
-func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	workloadIdentityClient := &workloadIdentityClient{
 		teleportClient: tClient,
 	}

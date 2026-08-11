@@ -394,6 +394,31 @@ message BeamsDestroyedEvent {
   string region = 3;
 }
 
+// BeamsPublishedEvent is emitted when a beam app is published.
+//
+// PostHog event: tp.beams.published
+message BeamsPublishedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the protocol of the published app (http or tcp)
+  //
+  // PostHog property: tp.beam.protocol
+  string protocol = 2;
+}
+
+// BeamsUnpublishedEvent is emitted when a beam app is unpublished.
+//
+// PostHog event: tp.beams.unpublished
+message BeamsUnpublishedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+}
+
 // the issuance of a user certificate from the user CA
 //
 // PostHog event: tp.certificate.issued
@@ -2362,6 +2387,8 @@ message SubmitEventRequest {
 
     BeamsCreatedEvent beams_created = 123;
     BeamsDestroyedEvent beams_destroyed = 124;
+    BeamsPublishedEvent beams_published = 125;
+    BeamsUnpublishedEvent beams_unpublished = 126;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

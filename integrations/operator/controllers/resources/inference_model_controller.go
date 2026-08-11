@@ -80,7 +80,7 @@ func (c inferenceModelClient) Delete(ctx context.Context, key reconcilers.Resour
 // NewInferenceModelReconciler creates a new Kubernetes controller reconciling
 // inference_model resources.
 func NewInferenceModelReconciler(
-	client kclient.Client, tClient *client.Client,
+	client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	inferenceModelClient := &inferenceModelClient{
 		teleportClient: tClient,
@@ -92,7 +92,7 @@ func NewInferenceModelReconciler(
 		client,
 		inferenceModelClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 

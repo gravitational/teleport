@@ -17,106 +17,115 @@
 package scopes
 
 import (
-	"strings"
+	"encoding/hex"
 
 	"github.com/gravitational/trace"
+	"rsc.io/ordered"
 )
 
+// The scope key encoding produces a single opaque, order-preserving backend key
+// segment for a scope. It is used to namespace scoped resources in the backend,
+// e.g. as the <encoded_scope> component of a key like:
+//
+//	/scoped/<kind>/<encoded_scope>/<name>
+//
+// The encoding is built in two phases. First, the scope is encoded as an
+// [ordered] sequence consisting of a leading discriminant that distinguishes
+// scoped from unscoped values, followed by one string element per scope segment:
+//
+//	unscoped ("")    -> ordered.Encode(unscopedDisc)
+//	root     ("/")   -> ordered.Encode(scopedDisc)
+//	"/a"             -> ordered.Encode(scopedDisc, "a")
+//	"/a/b"           -> ordered.Encode(scopedDisc, "a", "b")
+//
+// This encoding was chosen to satisfy several properties simultaneously:
+//
+//   - Order-preserving: a plain byte-sort of the encoded values reproduces
+//     the same sort order as the [Sort] function.
+//
+//  - Scope prefixing: An encoded scope S is a string prefix of any encoded child scope,
+//    but is *not* a prefix of a scope that is a sibling of S with the same leading segment
+//    characters (e.g. EncodeForKey("/staging") is a prefix of EncodeForKey("/staging/west")
+//    but not of EncodeForKey("/stagingwest")).
+//
+//  - Exact prefixing in backend: Appending the backend separator to the encoded scope allows
+//    backend range queries to retrieve *exactly* the set of keys with that exact scope prefix,
+//    without ambiguity.
+//
+//   - Forward-compatible: The encoding scheme can theoretically handle any future extension to
+//     allowed scope characters.
+
 const (
-	// + sorts before all characters that can appear in a scope (see
-	// segmentRegexp), is allowed in backend keys, and is not the backend key
-	// separator.
-	encodedSeparator       = '+'
-	encodedSeparatorString = string(encodedSeparator)
+	// scopeKeyUnscopedDisc is the leading discriminant for the encoding of an
+	// unscoped value (i.e. EncodeForKey("")). It sorts before
+	// scopeKeyScopedDisc so that unscoped values sort before all scoped values.
+	scopeKeyUnscopedDisc = 0
+
+	// scopeKeyScopedDisc is the leading discriminant for the encoding of any
+	// scoped value (including the root scope "/").
+	scopeKeyScopedDisc = 1
 )
 
 // EncodeForKey encodes a scope so that it will be valid for use in a single
 // backend key segment, preserving sort order. If given an empty string, it
 // will return a non-empty encoding that sorts before all valid encoded
 // scopes.
-//
-// This implementation is a placeholder to unblock development, it is intended
-// to be replaced with a better implementation.
 func EncodeForKey(scope string) (string, error) {
-	// The empty scope is encoded as a single encoded separator.
-	//
-	// All other scopes are encoded with an extra separator at the beginning so
-	// that the root scope sorts after the empty scope.
-	// They also have an extra separator added at the end to support prefix and
-	// exact matches.
 	if scope == "" {
-		return encodedSeparatorString, nil
+		return hex.EncodeToString(ordered.Encode(scopeKeyUnscopedDisc)), nil
 	}
 
 	if err := WeakValidate(scope); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	// Enforce that the scope does not contain any byte that would sort before
-	// or equal to the encoded separator, which would break sorting.
-	// StrongValidate would prevent this, WeakValidate may not.
-	for _, b := range []byte(scope) {
-		if b <= encodedSeparator {
-			return "", trace.BadParameter("scope contains invalid byte %d which would break sorting", b)
-		}
-	}
-
-	// Enforce that the scope does not contain empty segments, which can also
-	// break sorting of composed keys. For example / and /// could encode to:
-	//
-	//   +++/resource
-	//   +++++/resource
-	//
-	// and the sort order would invert depending on whether the /resource
-	// suffix was present.
-	//
-	// Also enforce that each segment does not start with a byte that would
-	// sort before the backend separator, which could break sorting of composed
-	// keys. For example /a and /a/.b could encode to:
-	//
-	//   ++a+/resource
-	//   ++a+.b+/resource
-	//
-	// and the sort order would be inverted because '.' sorts before '/'
-	// This is only an issue at the first byte of a segment.
+	raw := ordered.Encode(scopeKeyScopedDisc)
 	for segment := range DescendingSegments(scope) {
-		if len(segment) == 0 {
-			return "", trace.BadParameter("scope contains empty segment which would break sorting")
-		}
-		if segment[0] < '/' {
-			return "", trace.BadParameter("scope segment starts with invalid byte %d which would break sorting", segment[0])
-		}
+		raw = ordered.Append(raw, segment)
 	}
 
-	// NormalizeForEquality will trim a trailing separator, which may be
-	// necessary for prefix/exact match queries on encoded scopes.
-	encoded := NormalizeForEquality(scope)
-	encoded = strings.ReplaceAll(encoded, separator, encodedSeparatorString)
-
-	encoded = encodedSeparatorString + encoded + encodedSeparatorString
-	return encoded, nil
+	return hex.EncodeToString(raw), nil
 }
 
-// DecodeFromKey decodes a scope encoded by EncodeForKey.
-func DecodeFromKey(encodedScope string) (string, error) {
-	if encodedScope == encodedSeparatorString {
+// DecodeFromKey decodes a scope encoded by [EncodeForKey].
+func DecodeFromKey(encoded string) (string, error) {
+	raw, err := hex.DecodeString(encoded)
+	if err != nil {
+		return "", trace.BadParameter("invalid encoded scope %q: %v", encoded, err)
+	}
+
+	if len(raw) == 0 {
+		return "", trace.BadParameter("invalid empty encoded scope")
+	}
+
+	var disc int
+	rest, err := ordered.DecodePrefix(raw, &disc)
+	if err != nil {
+		return "", trace.BadParameter("malformed encoded scope %q: %v", encoded, err)
+	}
+
+	switch disc {
+	case scopeKeyUnscopedDisc:
+		if len(rest) != 0 {
+			return "", trace.BadParameter("malformed unscoped encoding %q: unexpected trailing data", encoded)
+		}
 		return "", nil
-	}
+	case scopeKeyScopedDisc:
+		var segments []string
+		for len(rest) > 0 {
+			var segment string
+			if rest, err = ordered.DecodePrefix(rest, &segment); err != nil {
+				return "", trace.BadParameter("malformed encoded scope %q: %v", encoded, err)
+			}
+			segments = append(segments, segment)
+		}
 
-	decoded, ok := strings.CutPrefix(encodedScope, encodedSeparatorString)
-	if !ok {
-		return "", trace.BadParameter("encoded scope did not begin with separator")
+		decoded := Join(segments...)
+		if err := WeakValidate(decoded); err != nil {
+			return "", trace.Wrap(err)
+		}
+		return decoded, nil
+	default:
+		return "", trace.BadParameter("invalid scope discriminant %d in encoded scope %q", disc, encoded)
 	}
-	decoded, ok = strings.CutSuffix(decoded, encodedSeparatorString)
-	if !ok {
-		return "", trace.BadParameter("encoded scope did not end with separator")
-	}
-
-	decoded = strings.ReplaceAll(decoded, encodedSeparatorString, separator)
-
-	if err := WeakValidate(decoded); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return decoded, nil
 }

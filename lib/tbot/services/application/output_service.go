@@ -125,9 +125,7 @@ func (s *OutputService) generate(ctx context.Context) error {
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
-	if s.cfg.DelegationSessionID == "" {
-		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
-	} else {
+	if s.cfg.DelegationSessionID != "" {
 		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)

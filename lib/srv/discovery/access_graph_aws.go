@@ -333,6 +333,15 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 // in the cluster features.
 var errTAGFeatureNotEnabled = errors.New("TAG feature is not enabled")
 
+func accessGraphEntitlementEnabled(features *proto.Features) bool {
+	return features.GetAccessGraph() ||
+		modules.GetProtoEntitlement(features, entitlements.AccessGraph).Enabled
+}
+
+func activityCenterEntitlementEnabled(features *proto.Features) bool {
+	return modules.GetProtoEntitlement(features, entitlements.ActivityCenter).Enabled
+}
+
 // initializeAndWatchAccessGraph creates a new access graph service client and
 // watches the connection state. If the connection is closed, it will
 // automatically try to reconnect.
@@ -343,8 +352,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	if !accessGraphEntitlementEnabled(&clusterFeatures) {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
@@ -645,8 +653,7 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	const semaphoreName = "access_graph_aws_cloudtrail_sync"
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	if !activityCenterEntitlementEnabled(&clusterFeatures) {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 

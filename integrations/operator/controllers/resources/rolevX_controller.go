@@ -64,7 +64,7 @@ func (r roleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) err
 }
 
 // NewRoleReconciler instantiates a new Kubernetes controller reconciling legacy role v5 resources
-func NewRoleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
@@ -79,7 +79,7 @@ func NewRoleReconciler(client kclient.Client, tClient *client.Client) (controlle
 }
 
 // NewRoleV6Reconciler instantiates a new Kubernetes controller reconciling role v6 resources
-func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
@@ -94,7 +94,7 @@ func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (control
 }
 
 // NewRoleV7Reconciler instantiates a new Kubernetes controller reconciling role v7 resources
-func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
@@ -109,7 +109,7 @@ func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (control
 }
 
 // NewRoleV8Reconciler instantiates a new Kubernetes controller reconciling role v8 resources
-func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}

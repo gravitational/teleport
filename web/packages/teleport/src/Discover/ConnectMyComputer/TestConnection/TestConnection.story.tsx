@@ -29,39 +29,27 @@ import { TestConnection } from './TestConnection';
 
 export default {
   title: 'Teleport/Discover/ConnectMyComputer/TestConnection',
-  parameters: {
-    msw: {
-      // All handlers within the story must be specified as keys in order to use Storybook's
-      // parameter inheritance to share handlers between stories.
-      //
-      // https://github.com/mswjs/msw-storybook-addon/tree/v1.10.0#composing-request-handlers
-      // https://storybook.js.org/docs/6.5/writing-stories/parameters#rules-of-parameter-inheritance
-      handlers: {
-        renewToken: http.post(cfg.api.webRenewTokenPath, () =>
-          HttpResponse.json({})
-        ),
-        mfaRequired: [
-          http.post(cfg.getMfaRequiredUrl(cfg.proxyCluster), () =>
-            HttpResponse.json({ required: false })
-          ),
-        ],
-        connectionDiagnostic: [
-          http.post(cfg.getConnectionDiagnosticUrl(), () =>
-            HttpResponse.json({
-              id: '1234',
-              success: true,
-              traces: [
-                {
-                  traceType: 'rbac node',
-                  status: 'success',
-                  details: 'Everything is a-okay.',
-                },
-              ],
-            })
-          ),
-        ],
-      },
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.post(cfg.api.webRenewTokenPath, () => HttpResponse.json({})),
+      http.post(cfg.getMfaRequiredUrl(cfg.proxyCluster), () =>
+        HttpResponse.json({ required: false })
+      ),
+      http.post(cfg.getConnectionDiagnosticUrl(), () =>
+        HttpResponse.json({
+          id: '1234',
+          success: true,
+          traces: [
+            {
+              traceType: 'rbac node',
+              status: 'success',
+              details: 'Everything is a-okay.',
+            },
+          ],
+        })
+      )
+    );
   },
 };
 
@@ -82,16 +70,12 @@ export const SingleLogin = () => (
   </Provider>
 );
 
-SingleLogin.parameters = {
-  msw: {
-    handlers: {
-      connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json({ logins: ['foo'] })
-        ),
-      ],
-    },
-  },
+SingleLogin.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.connectMyComputerLoginsPath, () =>
+      HttpResponse.json({ logins: ['foo'] })
+    )
+  );
 };
 
 export const MultipleLogins = () => {
@@ -102,23 +86,19 @@ export const MultipleLogins = () => {
   );
 };
 
-MultipleLogins.parameters = {
-  msw: {
-    handlers: {
-      connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json({
-            logins: [
-              'foo',
-              'bar',
-              'baz',
-              'czesława_maria_de_domo_cieślak_primo_voto_gospodarek_secundo_voto_kowalczyk',
-            ],
-          })
-        ),
-      ],
-    },
-  },
+MultipleLogins.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.connectMyComputerLoginsPath, () =>
+      HttpResponse.json({
+        logins: [
+          'foo',
+          'bar',
+          'baz',
+          'czesława_maria_de_domo_cieślak_primo_voto_gospodarek_secundo_voto_kowalczyk',
+        ],
+      })
+    )
+  );
 };
 
 export const NoLogins = () => {
@@ -129,16 +109,12 @@ export const NoLogins = () => {
   );
 };
 
-NoLogins.parameters = {
-  msw: {
-    handlers: {
-      connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json({ logins: [] })
-        ),
-      ],
-    },
-  },
+NoLogins.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.connectMyComputerLoginsPath, () =>
+      HttpResponse.json({ logins: [] })
+    )
+  );
 };
 
 export const NoRole = () => {
@@ -149,21 +125,17 @@ export const NoRole = () => {
   );
 };
 
-NoRole.parameters = {
-  msw: {
-    handlers: {
-      connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json(
-            {
-              error: { message: 'No role found' },
-            },
-            { status: 404 }
-          )
-        ),
-      ],
-    },
-  },
+NoRole.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.connectMyComputerLoginsPath, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'No role found' },
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 export const ReloadUserProcessing = () => {
@@ -174,17 +146,10 @@ export const ReloadUserProcessing = () => {
   );
 };
 
-ReloadUserProcessing.parameters = {
-  msw: {
-    handlers: {
-      renewToken: [
-        http.post(
-          cfg.api.webRenewTokenPath,
-          async () => await delay('infinite')
-        ),
-      ],
-    },
-  },
+ReloadUserProcessing.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.webRenewTokenPath, async () => await delay('infinite'))
+  );
 };
 
 export const ReloadUserError = () => {
@@ -195,35 +160,29 @@ export const ReloadUserError = () => {
   );
 };
 
-ReloadUserError.parameters = {
-  msw: {
-    handlers: {
-      // The first handler returns an error immediately. Subsequent requests return after a delay so
-      // that we can show a spinner after clicking on "Retry".
-      renewToken: [
-        http.post(
-          cfg.api.webRenewTokenPath,
-          () =>
-            HttpResponse.json(
-              {
-                message: 'Could not renew session',
-              },
-              { status: 500 }
-            ),
-          { once: true }
+ReloadUserError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(
+      cfg.api.webRenewTokenPath,
+      () =>
+        HttpResponse.json(
+          {
+            message: 'Could not renew session',
+          },
+          { status: 500 }
         ),
-        http.post(cfg.api.webRenewTokenPath, async () => {
-          await delay(1000);
-          return HttpResponse.json(
-            {
-              message: 'Could not renew session',
-            },
-            { status: 500 }
-          );
-        }),
-      ],
-    },
-  },
+      { once: true }
+    ),
+    http.post(cfg.api.webRenewTokenPath, async () => {
+      await delay(1000);
+      return HttpResponse.json(
+        {
+          message: 'Could not renew session',
+        },
+        { status: 500 }
+      );
+    })
+  );
 };
 
 const Provider = ({ children }) => {

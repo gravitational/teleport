@@ -2,7 +2,7 @@ resource "teleport_cluster_networking_config" "test" {
   version = "v2"
   metadata = {
     labels = {
-      "example"             = "no"
+      "example"             = "yes"
       "teleport.dev/origin" = "dynamic"
     }
   }

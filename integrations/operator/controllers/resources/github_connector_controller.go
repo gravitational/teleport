@@ -74,7 +74,7 @@ func (r githubConnectorClient) Mutate(ctx context.Context, new, _ types.GithubCo
 }
 
 // NewGithubConnectorReconciler instantiates a new Kubernetes controller reconciling github_connector resources
-func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	githubClient := &githubConnectorClient{
 		teleportClient: tClient,
 		kubeClient:     client,

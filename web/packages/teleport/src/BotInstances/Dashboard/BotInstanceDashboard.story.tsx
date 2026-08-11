@@ -60,39 +60,31 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceMetricsSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceMetricsSuccess());
   },
 };
 
 export const NoData: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotInstanceMetricsSuccess({
-          upgrade_statuses: null,
-          refresh_after_seconds: 60_000,
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      getBotInstanceMetricsSuccess({
+        upgrade_statuses: null,
+        refresh_after_seconds: 60_000,
+      })
+    );
   },
 };
 
 export const Loading: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceMetricsForever()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceMetricsForever());
   },
 };
 
 export const Error: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotInstanceMetricsError(500, 'something went wrong')],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotInstanceMetricsError(500, 'something went wrong'));
   },
 };
 

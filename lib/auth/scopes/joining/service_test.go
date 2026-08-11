@@ -650,7 +650,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete, types.VerbUpdate},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Create, scopedaccess.Read, scopedaccess.Secrets, scopedaccess.List, scopedaccess.Delete, scopedaccess.Update),
 					}.Build(),
 				},
 			}.Build(),
@@ -666,7 +666,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbCreate},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Create),
 					}.Build(),
 				},
 			}.Build(),
@@ -682,7 +682,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbRead, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.Secrets, scopedaccess.List),
 					}.Build(),
 				},
 			}.Build(),
@@ -698,7 +698,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 					}.Build(),
 				},
 			}.Build(),
@@ -714,7 +714,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbDelete},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Delete),
 					}.Build(),
 				},
 			}.Build(),
@@ -730,7 +730,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Update, scopedaccess.Create),
 					}.Build(),
 				},
 			}.Build(),
@@ -746,7 +746,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.Secrets, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
 					}.Build(),
 				},
 			}.Build(),

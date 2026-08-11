@@ -67,7 +67,7 @@ func (r lockClient) Mutate(_ context.Context, new, existing types.Lock, _ kclien
 }
 
 // NewLockV2Reconciler instantiates a new Kubernetes controller reconciling lock resources
-func NewLockV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewLockV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	lockClient := &lockClient{
 		teleportClient: tClient,
 	}

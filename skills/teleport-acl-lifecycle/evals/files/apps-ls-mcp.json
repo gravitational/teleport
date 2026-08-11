@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "app_server",
+    "version": "v3",
+    "metadata": {
+      "name": "automation-mcp"
+    },
+    "spec": {
+      "version": "v3",
+      "hostname": "app-03",
+      "host_id": "33333333-3333-3333-3333-333333333333",
+      "app": {
+        "kind": "app",
+        "version": "v3",
+        "sub_kind": "mcp",
+        "metadata": {
+          "name": "automation-mcp",
+          "labels": {
+            "env": "prod",
+            "team": "automation"
+          }
+        },
+        "spec": {
+          "uri": "mcp+stdio://",
+          "public_addr": "automation-mcp.teleport.example.com",
+          "mcp": {
+            "command": "/usr/local/bin/automation-mcp",
+            "args": [
+              "--config",
+              "/etc/automation-mcp.yaml"
+            ],
+            "run_as_host_user": "mcp-svc"
+          }
+        }
+      }
+    }
+  }
+]

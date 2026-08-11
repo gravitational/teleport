@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -50,13 +51,41 @@ import (
 var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
-	logComponent                     = "vnet"
-	dnsLogComponent                  = "dns"
-	nicID                            = 1
-	mtu                              = 1500
+	logComponent    = "vnet"
+	dnsLogComponent = "dns"
+	nicID           = 1
+	// vnetTUNMTU is the default MTU for the TUN device. It can be overridden
+	// with the TELEPORT_UNSTABLE_VNET_TUN_MTU environment variable.
+	vnetTUNMTU = 16 * 1024
+	// vnetTUNMTUEnvVar overrides the default TUN device MTU. It must be set in
+	// the environment of the VNet admin process.
+	vnetTUNMTUEnvVar = "TELEPORT_UNSTABLE_VNET_TUN_MTU"
+	// minTUNMTU is the lowest accepted MTU override, chosen because IPv6
+	// requires a minimum link MTU of 1280 bytes (RFC 8200).
+	minTUNMTU = 1280
+	// maxTUNMTU is the largest possible IP packet size, the 16-bit total
+	// length field limit shared by IPv4 (RFC 791) and IPv6 (RFC 8200).
+	maxTUNMTU                        = 65535
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
 )
+
+// tunMTU returns the MTU to use for the TUN device.
+func tunMTU(ctx context.Context) int {
+	env := os.Getenv(vnetTUNMTUEnvVar)
+	if env == "" {
+		return vnetTUNMTU
+	}
+	mtu, err := strconv.Atoi(env)
+	if err != nil || mtu < minTUNMTU || mtu > maxTUNMTU {
+		log.WarnContext(ctx, "Ignoring invalid TUN MTU override.",
+			"env_var", vnetTUNMTUEnvVar, "value", env, "min", minTUNMTU, "max", maxTUNMTU)
+		return vnetTUNMTU
+	}
+	log.InfoContext(ctx, "Using TUN MTU override from environment.",
+		"env_var", vnetTUNMTUEnvVar, "mtu", mtu)
+	return mtu
+}
 
 // networkStackConfig holds configuration parameters for the VNet network stack.
 type networkStackConfig struct {
@@ -122,6 +151,11 @@ type udpHandler interface {
 type TUNDevice interface {
 	// Name returns the current name of the Device.
 	Name() (string, error)
+
+	// MTU returns the MTU of the Device. The network stack sizes its link
+	// endpoint and packet buffers from this value, so it must not change over
+	// the lifetime of a Device.
+	MTU() (int, error)
 
 	// Write one or more packets to the device (without any additional headers).
 	// On a successful write it returns the number of packets written. A nonzero
@@ -285,7 +319,11 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	logger := slog.With(teleport.ComponentKey, logComponent)
 	dnsLogger := slog.With(teleport.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
 
-	stack, linkEndpoint, err := createStack()
+	mtu, err := cfg.tunDevice.MTU()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TUN device MTU")
+	}
+	stack, linkEndpoint, err := createStack(uint32(mtu))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,7 +387,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	return ns, nil
 }
 
-func createStack() (*stack.Stack, *channel.Endpoint, error) {
+func createStack(mtu uint32) (*stack.Stack, *channel.Endpoint, error) {
 	netStack := stack.New(stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4network.NewProtocol, ipv6network.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
@@ -742,6 +780,10 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoi
 }
 
 func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, tun TUNDevice) error {
+	mtu, err := tun.MTU()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device MTU")
+	}
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		packet := linkEndpoint.ReadContext(ctx)
@@ -773,6 +815,10 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 // returning os.ErrClosed from tun.Read.
 func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
+	mtu, err := tun.MTU()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device MTU")
+	}
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {
 		bufs[i] = make([]byte, device.MessageTransportHeaderSize+mtu)

@@ -55,11 +55,11 @@ func (q QualifiedName) String() string {
 	return q.Scope + QualifiedNameSeparator + q.Name
 }
 
-// Set sets a possible scope qualified name. If the "::" separator is not present,
-// then the scope qualified name will have an empty scope. This implements
+// Set sets a possible scope qualified name. Input that does not look like an
+// SQN (see [MaybeSQN]) becomes a bare name with an empty scope. This implements
 // the flag/kingping Value interface.
 func (q *QualifiedName) Set(val string) error {
-	if !strings.Contains(val, QualifiedNameSeparator) {
+	if !MaybeSQN(val) {
 		*q = QualifiedName{Name: val}
 		return nil
 	}
