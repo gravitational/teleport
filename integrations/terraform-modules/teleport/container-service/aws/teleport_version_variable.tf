@@ -1,5 +1,5 @@
 variable "teleport_version" {
-  default     = "18.10.0"
+  default     = "18.10.3-aadc.signbprt.1"
   description = <<EOD
 The version of Teleport to deploy.
 Generally, the version of Teleport should be controlled by using the appropriate version of this module.
