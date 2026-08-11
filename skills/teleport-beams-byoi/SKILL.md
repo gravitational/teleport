@@ -1,5 +1,6 @@
 ---
 name: teleport-beams-byoi
+short-description: Configure a custom LLM provider for Beams
 description: >
   Generate, apply and validate Terraform for routing Teleport Beams Anthropic 
   and OpenAI model traffic through Amazon Bedrock. Use when configuring or 
