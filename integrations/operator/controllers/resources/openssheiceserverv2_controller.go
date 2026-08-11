@@ -25,7 +25,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
@@ -40,7 +40,7 @@ type openSSHEICEServerClient struct {
 
 // Get gets the Teleport OpenSSHEICE server of a given name.
 func (r openSSHEICEServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
-	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, key.Name)
+	server, err := r.teleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: key.Name, Scope: key.Scope}.Build())
 	if err != nil {
 		return server, trace.Wrap(err)
 	}
@@ -68,12 +68,12 @@ func (r openSSHEICEServerClient) Update(ctx context.Context, server types.Server
 
 // Delete deletes a Teleport OpenSSHEICE server.
 func (r openSSHEICEServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, key.Name))
+	return trace.Wrap(r.teleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: key.Name, Scope: key.Scope}.Build()))
 }
 
 // NewOpenSSHEICEServerV2Reconciler instantiates a new Kubernetes controller
 // reconciling OpenSSHEICE server resources.
-func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	serverClient := &openSSHEICEServerClient{
 		teleportClient: tClient,
 	}

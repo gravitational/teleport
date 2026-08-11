@@ -279,6 +279,8 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading GithubConnector", trace.Errorf("Can not convert %T to GithubConnectorV3", githubConnectorI), "github"))
 		return
 	}
+	githubConnector = githubConnectorResource
+
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -343,4 +345,53 @@ func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportGithubConnector) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	githubConnector := &apitypes.GithubConnectorV3{}
+	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3FromTerraform(ctx, config, githubConnector)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	githubConnectorResource := githubConnector
+
+	if err := githubConnectorResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting GithubConnector defaults", trace.Wrap(err), "github"))
+		return
+	}
+
+	githubConnector = githubConnectorResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3ToTerraformPreserveUnknown(ctx, githubConnector, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

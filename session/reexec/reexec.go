@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
+	"github.com/gravitational/teleport/session/reexec/safefile"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -894,6 +895,7 @@ func RunNetworking() (code int, err error) {
 	go func() {
 		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
+		cancel()
 	}()
 
 	// Alert the parent process that the child process is ready and listening for networking requests.
@@ -978,6 +980,13 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 		conn.Write([]byte(trace.Wrap(err, "failed to write networking file to control conn").Error()))
 		return nil
 	}
+
+	// Block for 30 seconds or until parent closes the request connection
+	// signaling it has a reference to the fd. This is to prevent the following
+	// race: child closes fd, but parent does not have reference to fd yet, and
+	// kernel comes and closes fd thinking it has 0 references.
+	<-ctx.Done()
+
 	return filePaths
 }
 
@@ -1222,28 +1231,48 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		return nil, trace.Wrap(err)
 	}
 
+	strIDs, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	suppGids := make([]int, len(strIDs))
+	for i, strID := range strIDs {
+		gid, err := strconv.Atoi(strID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		suppGids[i] = gid
+	}
+
 	prevUID := os.Geteuid()
 	prevGID := os.Getegid()
+	prevSuppGIDs, err := os.Getgroups()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	defer func() {
-		gidErr := syscall.Setegid(prevGID)
 		uidErr := syscall.Seteuid(prevUID)
-		if uidErr != nil || gidErr != nil {
+		gidErr := syscall.Setegid(prevGID)
+		suppGIDsErr := syscall.Setgroups(prevSuppGIDs)
+		if uidErr != nil || gidErr != nil || suppGIDsErr != nil {
 			file.Close()
-			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "error", err)
+			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "supp_gids_err", suppGIDsErr, "error", err)
 			os.Exit(reexecconstants.UnexpectedCredentials)
 		}
 	}()
 
+	if err := syscall.Setgroups(suppGids); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := syscall.Setegid(gid); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if err := syscall.Seteuid(uid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	file, err = os.Open(path)
+	file, err = safefile.OpenNoFollow(path)
 	return file, trace.ConvertSystemError(err)
 }
 

@@ -127,85 +127,77 @@ export const NotificationTypes = () => {
 };
 
 export const NotificationsList = () => <ListComponent />;
-NotificationsList.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        notificationsPathWithoutQuery,
-        () => HttpResponse.json(mockNotificationsResponseFirstPage),
-        { once: true }
-      ),
-      http.put(cfg.api.notificationLastSeenTimePath, async () => {
-        await delay(2000);
-        return HttpResponse.json({ time: Date.now() });
-      }),
-      http.put(cfg.api.notificationStatePath, async ({ request }) => {
-        const body = (await request.json()) as UpsertNotificationStateRequest;
-        return HttpResponse.json({ notificationState: body.notificationState });
-      }),
-      http.get(notificationsPathWithoutQuery, async () => {
-        await delay(2000);
-        return HttpResponse.json(mockNotificationsResponseSecondPage);
-      }),
-    ],
-  },
+NotificationsList.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      notificationsPathWithoutQuery,
+      () => HttpResponse.json(mockNotificationsResponseFirstPage),
+      { once: true }
+    ),
+    http.put(cfg.api.notificationLastSeenTimePath, async () => {
+      await delay(2000);
+      return HttpResponse.json({ time: Date.now() });
+    }),
+    http.put(cfg.api.notificationStatePath, async ({ request }) => {
+      const body = (await request.json()) as UpsertNotificationStateRequest;
+      return HttpResponse.json({ notificationState: body.notificationState });
+    }),
+    http.get(notificationsPathWithoutQuery, async () => {
+      await delay(2000);
+      return HttpResponse.json(mockNotificationsResponseSecondPage);
+    })
+  );
 };
 
 export const NotificationListNotificationStateErrors = () => <ListComponent />;
-NotificationListNotificationStateErrors.parameters = {
-  msw: {
-    handlers: [
-      http.get(notificationsPathWithoutQuery, () =>
-        HttpResponse.json(mockNotificationsResponseFirstPage)
-      ),
-      http.put(cfg.api.notificationLastSeenTimePath, () =>
-        HttpResponse.json({ time: Date.now() })
-      ),
-      http.put(cfg.api.notificationStatePath, () =>
-        HttpResponse.json(
-          {
-            message: 'failed to update state',
-          },
-          { status: 403 }
-        )
-      ),
-      http.get(notificationsPathWithoutQuery, async () => {
-        await delay(2000);
-        return HttpResponse.json(mockNotificationsResponseSecondPage);
-      }),
-    ],
-  },
+NotificationListNotificationStateErrors.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(notificationsPathWithoutQuery, () =>
+      HttpResponse.json(mockNotificationsResponseFirstPage)
+    ),
+    http.put(cfg.api.notificationLastSeenTimePath, () =>
+      HttpResponse.json({ time: Date.now() })
+    ),
+    http.put(cfg.api.notificationStatePath, () =>
+      HttpResponse.json(
+        {
+          message: 'failed to update state',
+        },
+        { status: 403 }
+      )
+    ),
+    http.get(notificationsPathWithoutQuery, async () => {
+      await delay(2000);
+      return HttpResponse.json(mockNotificationsResponseSecondPage);
+    })
+  );
 };
 
 export const NotificationsListEmpty = () => <ListComponent />;
-NotificationsListEmpty.parameters = {
-  msw: {
-    handlers: [
-      http.get(notificationsPathWithoutQuery, () =>
-        HttpResponse.json({
-          nextKey: '',
-          userLastSeenNotification: subDays(Date.now(), 15).toISOString(), // 15 days ago
-          notifications: [],
-        })
-      ),
-    ],
-  },
+NotificationsListEmpty.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(notificationsPathWithoutQuery, () =>
+      HttpResponse.json({
+        nextKey: '',
+        userLastSeenNotification: subDays(Date.now(), 15).toISOString(), // 15 days ago
+        notifications: [],
+      })
+    )
+  );
 };
 
 export const NotificationsListError = () => <ListComponent />;
-NotificationsListError.parameters = {
-  msw: {
-    handlers: [
-      http.get(notificationsPathWithoutQuery, () =>
-        HttpResponse.json(
-          {
-            message: 'Error encountered: failed to fetch notifications',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+NotificationsListError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(notificationsPathWithoutQuery, () =>
+      HttpResponse.json(
+        {
+          message: 'Error encountered: failed to fetch notifications',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 const ListComponent = () => {

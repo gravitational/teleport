@@ -73,28 +73,20 @@ func CopyFromClassifierActionMode(diags diag.Diagnostics, v attr.Value, o *summa
 }
 
 // CopyToClassifierActionMode converts a ClassifierActionMode enum value into an
-// optional Terraform boolean.
-func CopyToClassifierActionMode(diags diag.Diagnostics, o summarizerv1.ClassifierActionMode, t attr.Type, v attr.Value) attr.Value {
-	value, ok := v.(types.Bool)
-	if !ok {
-		value = types.Bool{}
+// optional Terraform boolean. Set `preserveUnknown` to preserve unknown values.
+func CopyToClassifierActionMode(_ diag.Diagnostics, o summarizerv1.ClassifierActionMode, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.Bool{Unknown: true}
 	}
 
 	switch o {
 	case summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED:
-		value.Null = false
-		value.Unknown = false
-		value.Value = true
+		return types.Bool{Value: true}
 	case summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED:
-		value.Null = false
-		value.Unknown = false
-		value.Value = false
+		return types.Bool{Value: false}
 	default: // CLASSIFIER_ACTION_MODE_UNSPECIFIED
-		value.Null = true
-		value.Unknown = false
+		return types.Bool{Null: true}
 	}
-
-	return value
 }
 
 var riskLevelToString = map[summarizerv1.RiskLevel]string{
@@ -143,24 +135,19 @@ func CopyFromRiskLevel(diags diag.Diagnostics, v attr.Value, o *summarizerv1.Ris
 	*o = level
 }
 
-func CopyToRiskLevel(diags diag.Diagnostics, o summarizerv1.RiskLevel, t attr.Type, v attr.Value) attr.Value {
-	value, ok := v.(types.String)
-	if !ok {
-		value = types.String{}
+// CopyToRiskLevel converts a [summarizerv1.RiskLevel] into a Terraform
+// [types.String] value. Set `preserveUnknown` to preserve unknown values.
+func CopyToRiskLevel(_ diag.Diagnostics, o summarizerv1.RiskLevel, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
+	if preserveUnknown && v != nil && v.IsUnknown() {
+		return types.String{Unknown: true}
 	}
 
 	s, ok := riskLevelToString[o]
 	if !ok { // RISK_LEVEL_UNSPECIFIED
-		value.Null = true
-		value.Unknown = false
-		return value
+		return types.String{Null: true}
 	}
 
-	value.Null = false
-	value.Unknown = false
-	value.Value = s
-
-	return value
+	return types.String{Value: s}
 }
 
 const riskLevelAllowed = `must be one of "low", "medium", "high", "critical"`

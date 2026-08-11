@@ -202,6 +202,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
 				legacyWithoutVersionInKindOverride(),
+				withScope(),
 			},
 		},
 		{

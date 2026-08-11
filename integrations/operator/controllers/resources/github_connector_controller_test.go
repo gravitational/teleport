@@ -130,22 +130,30 @@ func (g *githubTestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestGithubConnectorCreation(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceCreationSynchronousTest[
+		types.GithubConnector, *resourcesv3.TeleportGithubConnector,
+	](t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorDeletion(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceDeletionSynchronousTest[
+		types.GithubConnector, *resourcesv3.TeleportGithubConnector,
+	](t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorDeletionDrift(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[
+		types.GithubConnector, *resourcesv3.TeleportGithubConnector,
+	](t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorUpdate(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceUpdateTestSynchronous[
+		types.GithubConnector, *resourcesv3.TeleportGithubConnector,
+	](t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorSecretLookup(t *testing.T) {
@@ -192,7 +200,7 @@ func TestGithubConnectorSecretLookup(t *testing.T) {
 
 	require.NoError(t, kubeClient.Create(ctx, github))
 
-	reconciler, err := resources.NewGithubConnectorReconciler(kubeClient, setup.TeleportClient)
+	reconciler, err := resources.NewGithubConnectorReconciler(kubeClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 	// Test execution: Kick off the reconciliation.
 	req := reconcile.Request{
