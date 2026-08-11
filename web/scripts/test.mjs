@@ -18,32 +18,45 @@
  */
 import { spawnSync } from 'node:child_process';
 
-// Routes `pnpm test <args>` during the jest -> vitest migration. Vitest owns *.vitest.{ts,tsx} files. Everything
-// else (*.test.* files, name patterns, flags) goes to Jest, matching the pre-wrapper `jest <args>` behavior. Naming
-// both kinds of file runs both runners. With no args, both full suites run.
+// Routes `pnpm test <args>` during the jest -> vitest migration. Vitest owns *.vitest.{ts,tsx} files, Jest owns
+// *.test.{ts,tsx}. A positional naming neither (a directory or a bare path fragment) goes to both runners, since
+// each one's own testMatch/include already narrows the filter to the files it owns. With no args, both full
+// suites run.
 //
 // For advanced flag combos across a mixture (e.g. `-t <pattern>` alongside both file kinds), call `pnpm test-jest`
-// or `pnpm test-vitest` directly, since a flag can only be forwarded verbatim to each selected runner.
+// or `pnpm test-vitest` directly, since a flag can only be forwarded verbatim to each selected runner. Watching a
+// path is one such case: the runners are spawned in sequence, so the first watcher holds the terminal and the
+// second never starts.
 
 const args = process.argv.slice(2);
 const isVitestFile = arg => arg.includes('.vitest.');
+const isJestFile = arg => arg.includes('.test.');
 
 const flags = args.filter(arg => arg.startsWith('-'));
 const positionals = args.filter(arg => !arg.startsWith('-'));
 const vitestFiles = positionals.filter(isVitestFile);
-const jestFiles = positionals.filter(arg => !isVitestFile(arg));
+const jestFiles = positionals.filter(isJestFile);
+const paths = positionals.filter(arg => !isVitestFile(arg) && !isJestFile(arg));
 
 const commands = [];
 if (args.length === 0) {
   // Bare `pnpm test`: run both full suites, unchanged from before the wrapper existed.
   commands.push(['jest', []], ['vitest', ['run']]);
 } else {
-  // Run Jest for any non-vitest arg, or when only flags were passed so `pnpm test --watch` still starts Jest.
-  if (jestFiles.length > 0 || vitestFiles.length === 0) {
-    commands.push(['jest', [...flags, ...jestFiles]]);
+  // A path filter can legitimately match files for only one runner, so neither may fail on an empty selection.
+  const passWithNoTests = paths.length > 0 ? ['--passWithNoTests'] : [];
+  // Run Jest when it owns a positional, or when only flags were passed so `pnpm test --watch` still starts Jest.
+  if (jestFiles.length > 0 || paths.length > 0 || vitestFiles.length === 0) {
+    commands.push([
+      'jest',
+      [...passWithNoTests, ...flags, ...jestFiles, ...paths],
+    ]);
   }
-  if (vitestFiles.length > 0) {
-    commands.push(['vitest', ['run', ...flags, ...vitestFiles]]);
+  if (vitestFiles.length > 0 || paths.length > 0) {
+    commands.push([
+      'vitest',
+      ['run', ...passWithNoTests, ...flags, ...vitestFiles, ...paths],
+    ]);
   }
 }
 
