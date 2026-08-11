@@ -8,7 +8,6 @@ import (
 
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
@@ -202,30 +201,6 @@ func (fakeClient) ListAccessMonitoringRules(context.Context, int, string) ([]*ac
 
 func (fakeClient) ListAccessMonitoringRulesWithFilter(context.Context, *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 	return nil, "", trace.NotImplemented("not used")
-}
-
-func (fakeClient) GetAppAuthConfig(context.Context, string) (*appauthconfigv1.AppAuthConfig, error) {
-	return nil, trace.NotImplemented("not used")
-}
-
-func (fakeClient) ListAppAuthConfigs(context.Context, int, string) ([]*appauthconfigv1.AppAuthConfig, string, error) {
-	return nil, "", trace.NotImplemented("not used")
-}
-
-func (fakeClient) CreateAppAuthConfig(context.Context, *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
-	return nil, trace.NotImplemented("not used")
-}
-
-func (fakeClient) UpdateAppAuthConfig(context.Context, *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
-	return nil, trace.NotImplemented("not used")
-}
-
-func (fakeClient) UpsertAppAuthConfig(context.Context, *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
-	return nil, trace.NotImplemented("not used")
-}
-
-func (fakeClient) DeleteAppAuthConfig(context.Context, string) error {
-	return trace.NotImplemented("not used")
 }
 
 func (fakeClient) ListCrownJewels(context.Context, int64, string) ([]*crownjewelv1.CrownJewel, string, error) {

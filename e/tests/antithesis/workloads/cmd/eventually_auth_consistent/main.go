@@ -36,7 +36,6 @@ import (
 type localServiceClient struct {
 	*local.AccessService
 	*local.AppService
-	*local.AppAuthConfigService
 	*local.AccessMonitoringRulesService
 	*local.CrownJewelsService
 	*local.DatabaseService
@@ -149,11 +148,6 @@ func run(ctx context.Context) error {
 }
 
 func newLocalServiceClient(bk backend.Backend) (localServiceClient, error) {
-	appAuthConfigs, err := local.NewAppAuthConfigService(bk)
-	if err != nil {
-		return localServiceClient{}, trace.Wrap(err, "creating app auth config service")
-	}
-
 	accessMonitoringRules, err := local.NewAccessMonitoringRulesService(bk)
 	if err != nil {
 		return localServiceClient{}, trace.Wrap(err, "creating access monitoring rules service")
@@ -217,7 +211,6 @@ func newLocalServiceClient(bk backend.Backend) (localServiceClient, error) {
 	return localServiceClient{
 		AccessService:                 local.NewAccessService(bk),
 		AppService:                    local.NewAppService(bk),
-		AppAuthConfigService:          appAuthConfigs,
 		AccessMonitoringRulesService:  accessMonitoringRules,
 		CrownJewelsService:            crownJewels,
 		DatabaseService:               local.NewDatabasesService(bk),
