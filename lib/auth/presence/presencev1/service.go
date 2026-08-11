@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -370,7 +371,7 @@ func (s *Service) DeleteAppServer(
 	ruleCtx := authzCtx.RuleContext()
 	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleApp); err != nil {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, types.VerbDelete)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, scopedaccess.Delete)
 		}
 		return nil
 	}); err != nil {
@@ -615,8 +616,13 @@ func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClu
 		return nil, trace.Wrap(err)
 	}
 
+	verb := scopedaccess.Read
+	if req.GetWithSecrets() {
+		verb = scopedaccess.Secrets
+	}
+
 	ruleCtx := authContext.RuleContext()
-	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -626,7 +632,7 @@ func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClu
 	}
 
 	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb); err != nil {
 			return err
 		}
 		return checker.Kube().CanAccessCluster(cluster)
@@ -657,8 +663,13 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKube
 		return nil, trace.Wrap(err)
 	}
 
+	verb := scopedaccess.Read
+	if req.GetWithSecrets() {
+		verb = scopedaccess.Secrets
+	}
+
 	ruleCtx := authContext.RuleContext()
-	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb, scopedaccess.List); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -671,7 +682,7 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKube
 			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb, scopedaccess.List); err != nil {
 						return err
 					}
 					return checker.Kube().CanAccessCluster(cluster)
@@ -703,7 +714,7 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 	}
 
 	ruleCtx := authContext.RuleContext()
-	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -716,7 +727,7 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 		return nil, trace.Wrap(err)
 	}
 	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
 			return err
 		}
 		return checker.Kube().CanAccessCluster(cluster)
@@ -768,7 +779,7 @@ func (s *Service) DeleteKubeServer(
 		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleKube); err == nil {
 			return nil
 		}
-		return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, scopedaccess.Delete)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}

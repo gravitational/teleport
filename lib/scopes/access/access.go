@@ -194,13 +194,23 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	// verify that all rules are allowed for scoped roles
 	for _, rule := range role.GetSpec().GetRules() {
+		grantsRead := slices.Contains(rule.GetVerbs(), Read.String())
 		for _, resource := range rule.GetResources() {
 			for _, verb := range rule.GetVerbs() {
 				if !isAllowedScopedRule(resource, verb) {
-					if verb == types.VerbRead && isAllowedScopedRule(resource, types.VerbReadNoSecrets) {
-						return trace.BadParameter("scoped role %q has rule with verb %q that is too permissive for resource %q, use %q instead", role.GetMetadata().GetName(), verb, resource, types.VerbReadNoSecrets)
+					if verb == Secrets.String() && isAllowedScopedRule(resource, Read.String()) {
+						return trace.BadParameter("scoped role %q has rule with verb %q that is too permissive for resource %q, use %q instead", role.GetMetadata().GetName(), verb, resource, Read)
+					}
+					if verb == types.VerbReadNoSecrets {
+						return trace.BadParameter("scoped role %q has rule with legacy verb %q for resource %q, use %q instead (scoped read permission is secret-exclusive)", role.GetMetadata().GetName(), verb, resource, Read)
 					}
 					return trace.BadParameter("scoped role %q has rule with unsupported resource/verb combination: %q/%q", role.GetMetadata().GetName(), resource, verb)
+				}
+
+				// require secrets is always accompanied by read for ledgibility. our authz internals do not actually
+				// require this treat secret-inclusive read permissions as implying secret-exclusive read permissions.
+				if verb == Secrets.String() && !grantsRead {
+					return trace.BadParameter("scoped role %q has rule granting %q without %q for resource %q", role.GetMetadata().GetName(), Secrets, Read, resource)
 				}
 			}
 		}

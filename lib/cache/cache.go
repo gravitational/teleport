@@ -184,7 +184,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer, ScopeFilter: allScopes},
 		{Kind: types.KindInstaller},
-		{Kind: types.KindKubernetesCluster, ScopeFilter: allScopes},
+		{Kind: types.KindKubernetesCluster, ScopeFilter: allScopes, LoadSecrets: true},
 		{Kind: types.KindCrownJewel},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
@@ -388,7 +388,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindKubeServer},
-		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubernetesCluster, LoadSecrets: true},
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindHealthCheckConfig},
 	}

@@ -194,7 +194,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
-			parser = newKubeClusterParser()
+			parser = newKubeClusterParser(kind.LoadSecrets)
 		case types.KindCrownJewel:
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
@@ -1807,8 +1807,9 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 	}
 }
 
-func newKubeClusterParser() *kubeClusterParser {
+func newKubeClusterParser(loadSecrets bool) *kubeClusterParser {
 	return &kubeClusterParser{
+		loadSecrets: loadSecrets,
 		baseParser: newBaseParser(
 			kubeUnscopedPrefix(),
 			kubeScopedPrefix(),
@@ -1818,6 +1819,7 @@ func newKubeClusterParser() *kubeClusterParser {
 
 type kubeClusterParser struct {
 	baseParser
+	loadSecrets bool
 }
 
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
@@ -1838,10 +1840,17 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 			Scope: sqn.Scope,
 		}, nil
 	case types.OpPut:
-		return services.UnmarshalKubeCluster(event.Item.Value,
+		cluster, err := services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return cluster.WithoutSecrets(), nil
+		}
+		return cluster, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

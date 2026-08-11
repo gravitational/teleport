@@ -690,7 +690,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	// the same scope. Issuance requires a single role to hold both grants.
 	splitRulesRole := createScopedWorkloadIdentityRole(
 		t, adminClient, "split-rules-role", scopedScope,
-		[]string{types.VerbReadNoSecrets, types.VerbList}, nil,
+		scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List), nil,
 	)
 	splitLabelsRole := createScopedWorkloadIdentityRole(
 		t, adminClient, "split-labels-role", scopedScope,
@@ -2256,7 +2256,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	scopedCreator := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-creator", grantedScope, types.VerbCreate)
+	scopedCreator := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-creator", grantedScope, scopedaccess.Create)
 	scopedCreatorClient, err := srv.NewClient(authtest.TestScopedUser(scopedCreator, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedCreatorClient.Close() })
@@ -2520,11 +2520,11 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-granted", grantedScope, types.VerbDelete)
+	grantedDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-granted", grantedScope, scopedaccess.Delete)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedDeleter, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-other", otherScope, types.VerbDelete)
+	otherDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-other", otherScope, scopedaccess.Delete)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherDeleter, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -2701,11 +2701,11 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-granted", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-granted", grantedScope, scopedaccess.Read, scopedaccess.List)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedReader, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-other", otherScope, types.VerbReadNoSecrets, types.VerbList)
+	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-other", otherScope, scopedaccess.Read, scopedaccess.List)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherReader, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -2880,11 +2880,11 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-granted", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-granted", grantedScope, scopedaccess.Read, scopedaccess.List)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedReader, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-other", otherScope, types.VerbReadNoSecrets, types.VerbList)
+	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-other", otherScope, scopedaccess.Read, scopedaccess.List)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherReader, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -3076,7 +3076,7 @@ func TestResourceService_ListWorkloadIdentitiesScopeFilter(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = adminClient.Close() })
 
-	scopedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scope-filter-scoped", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	scopedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scope-filter-scoped", grantedScope, scopedaccess.Read, scopedaccess.List)
 	scopedClient, err := srv.NewClient(authtest.TestScopedUser(scopedReader, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedClient.Close() })
@@ -3258,11 +3258,11 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-granted", grantedScope, types.VerbUpdate)
+	grantedUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-granted", grantedScope, scopedaccess.Update)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedUpdater, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-other", otherScope, types.VerbUpdate)
+	otherUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-other", otherScope, scopedaccess.Update)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherUpdater, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -3459,7 +3459,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	scopedUpserter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-upserter", grantedScope, types.VerbCreate, types.VerbUpdate)
+	scopedUpserter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-upserter", grantedScope, scopedaccess.Create, scopedaccess.Update)
 	scopedUpserterClient, err := srv.NewClient(authtest.TestScopedUser(scopedUpserter, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedUpserterClient.Close() })
@@ -4846,7 +4846,7 @@ func newScopedWorkloadIdentityUser(
 	adminClient *authclient.Client,
 	username string,
 	scope string,
-	verbs ...string,
+	verbs ...scopedaccess.Verb,
 ) string {
 	t.Helper()
 	ctx := t.Context()
@@ -4865,7 +4865,7 @@ func newScopedWorkloadIdentityUser(
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindWorkloadIdentity},
-						Verbs:     verbs,
+						Verbs:     scopedaccess.EncodeScopedVerbs(verbs...),
 					}.Build(),
 				},
 			}.Build(),
@@ -5065,7 +5065,7 @@ func newScopedWorkloadIdentityIssuer(
 	t.Helper()
 	role := createScopedWorkloadIdentityRole(
 		t, adminClient, username+"-role", scope,
-		[]string{types.VerbReadNoSecrets, types.VerbList}, labels,
+		scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List), labels,
 	)
 	return createScopedWorkloadIdentityUser(t, srv, adminClient, username, scope, role)
 }
