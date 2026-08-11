@@ -109,7 +109,42 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
+			name:   "not scoped with SQN",
+			scoped: false,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:  "tcp://0.0.0.0:3621",
+					AppName: "/staging::my-app",
+					clock:   clock,
+				}
+			},
+			wantErr: "app_name: can not be a scope-qualified name when not in scope mode",
+		},
+		{
 			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:  "tcp://0.0.0.0:3621",
+					AppName: "/staging::my-app",
+					clock:   clock,
+				}
+			},
+		},
+		{
+			name:   "scoped with delegation_session_id set",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					AppName:             "/staging::my-app",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: not supported with scopes",
+		},
+		{
+			name:   "scoped without SQN",
 			scoped: true,
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
@@ -117,7 +152,7 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 					AppName: "my-app",
 				}
 			},
-			wantErr: "is not supported in scoped mode",
+			wantErr: "app_name: needs to be a scope-qualified name when in scope mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

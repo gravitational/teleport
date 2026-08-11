@@ -31,6 +31,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -66,6 +67,7 @@ func TunnelServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -89,6 +91,7 @@ type TunnelService struct {
 	statusReporter            readyz.Reporter
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
+	scoped                    bool
 }
 
 func (s *TunnelService) Run(ctx context.Context) error {
@@ -275,10 +278,42 @@ func (s *TunnelService) issueCert(
 	ctx, span := tracer.Start(ctx, "TunnelService/issueCert")
 	defer span.End()
 
-	// Right now we have to redetermine the route to app each time as the
-	// session ID may need to change. Once v17 hits, this will be automagically
-	// calculated by the auth server on cert generation, and we can fetch the
-	// routeToApp once.
+	var qn scopes.QualifiedName
+	if err := qn.Set(s.cfg.AppName); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var (
+		routedIdent *identity.Identity
+		app         types.Application
+		err         error
+	)
+
+	if s.scoped {
+		routedIdent, app, err = s.routedIdentityScoped(ctx, qn)
+	} else {
+		routedIdent, app, err = s.routedIdentityUnscoped(ctx, qn)
+	}
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
+
+	// In tests, notify the test that a cert has been issued.
+	if s.cfg.certIssuedHook != nil {
+		s.cfg.certIssuedHook()
+	}
+
+	// The leaf isn't appended by the stdlib, so add it here so we can inspect
+	// the TTL downstream.
+	cert := routedIdent.TLSCert
+	cert.Leaf = routedIdent.X509Cert
+
+	return cert, app, nil
+}
+
+func (s *TunnelService) routedIdentityUnscoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, types.Application, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -300,7 +335,8 @@ func (s *TunnelService) issueCert(
 			s.log.ErrorContext(ctx, "Failed to close impersonated client.", "error", err)
 		}
 	}()
-	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, s.cfg.AppName)
+
+	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, qn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -310,19 +346,45 @@ func (s *TunnelService) issueCert(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
 
-	// In tests, notify the test that a cert has been issued.
-	if s.cfg.certIssuedHook != nil {
-		s.cfg.certIssuedHook()
+	return routedIdent, app, nil
+}
+
+func (s *TunnelService) routedIdentityScoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, types.Application, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+
+	// An unrouted scoped identity, used only to look the app up.
+	lookupIdentity, err := s.identityGenerator.GenerateScopedFacade(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+		identity.UsageIdentity(),
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "generating scoped identity")
+	}
+	clt, err := s.clientBuilder.Build(ctx, lookupIdentity)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err := clt.Close(); err != nil {
+			s.log.ErrorContext(ctx, "Failed to close client.", "error", err)
+		}
+	}()
+
+	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), clt, qn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// The leaf isn't appended by the stdlib, so add it here so we can inspect
-	// the TTL downstream.
-	cert := routedIdent.TLSCert
-	cert.Leaf = routedIdent.X509Cert
+	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
+	routedIdent, err := s.identityGenerator.GenerateScoped(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageApp(route),
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
-	return cert, app, nil
+	return routedIdent, app, nil
 }
 
 // String returns a human-readable string that can uniquely identify the

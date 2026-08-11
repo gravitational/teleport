@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
@@ -71,56 +72,63 @@ type TunnelConfig struct {
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
-func (o *TunnelConfig) GetName() string {
-	return o.Name
+func (t *TunnelConfig) GetName() string {
+	return t.Name
 }
 
 // SetName sets the service's name to an automatically generated one.
-func (o *TunnelConfig) SetName(name string) {
-	o.Name = name
+func (t *TunnelConfig) SetName(name string) {
+	t.Name = name
 }
 
-func (s *TunnelConfig) Type() string {
+func (t *TunnelConfig) Type() string {
 	return TunnelServiceType
 }
 
-func (s *TunnelConfig) MarshalYAML() (any, error) {
+func (t *TunnelConfig) MarshalYAML() (any, error) {
 	type raw TunnelConfig
-	return encoding.WithTypeHeader((*raw)(s), TunnelServiceType)
+	return encoding.WithTypeHeader((*raw)(t), TunnelServiceType)
 }
 
-func (s *TunnelConfig) UnmarshalYAML(node *yaml.Node) error {
+func (t *TunnelConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw TunnelConfig
-	if err := node.Decode((*raw)(s)); err != nil {
+	if err := node.Decode((*raw)(t)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
-	if err := internal.CheckDeprecatedRoles(s.DeprecatedRoles); err != nil {
+func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(t.DeprecatedRoles); err != nil {
 		return trace.Wrap(err)
-	}
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", TunnelServiceType)
 	}
 	switch {
-	case s.Listen == "" && s.Listener == nil:
+	case t.Listen == "" && t.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
-	case s.AppName == "":
+	case t.AppName == "":
 		return trace.BadParameter("app_name: should not be empty")
 	}
-	if _, err := url.Parse(s.Listen); err != nil {
+	if _, err := url.Parse(t.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
 	}
-	if s.clock == nil {
-		s.clock = clockwork.NewRealClock()
+	if t.clock == nil {
+		t.clock = clockwork.NewRealClock()
+	}
+	if scoped {
+		if t.DelegationSessionID != "" {
+			return trace.BadParameter("delegation_session_id: not supported with scopes")
+		}
+		if !scopes.MaybeSQN(t.AppName) {
+			return trace.BadParameter("app_name: needs to be a scope-qualified name when in scope mode")
+		}
+	} else if scopes.MaybeSQN(t.AppName) {
+		return trace.BadParameter("app_name: can not be a scope-qualified name when not in scope mode")
 	}
 
 	return nil
 }
 
-func (o *TunnelConfig) GetCredentialLifetime() bot.CredentialLifetime {
-	return o.CredentialLifetime
+func (t *TunnelConfig) GetCredentialLifetime() bot.CredentialLifetime {
+	return t.CredentialLifetime
 }
