@@ -556,32 +556,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	appAuthConfig = payload{
-		Name:                  "AppAuthConfig",
-		TypeName:              "AppAuthConfig",
-		VarName:               "appauthconfig",
-		GetMethod:             "GetAppAuthConfig",
-		CreateMethod:          "CreateAppAuthConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertAppAuthConfig",
-		DeleteMethod:          "DeleteAppAuthConfig",
-		ID:                    "appauthconfig.Metadata.Name",
-		Kind:                  "app_auth_config",
-		HasStaticID:           false,
-		ProtoPackage:          "appauthconfigv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/appauthconfig/v1",
-		TerraformResourceType: "teleport_app_auth_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAppAuthConfig",
-	}
-
 	inferenceModel = payload{
 		Name:                  "InferenceModel",
 		VarName:               "inferenceModel",
@@ -850,8 +824,6 @@ func genTFSchema() {
 	generateDataSource(vnetConfig, singularDataSource)
 	generateResource(integration, pluralResource)
 	generateDataSource(integration, pluralDataSource)
-	generateResource(appAuthConfig, pluralResource)
-	generateDataSource(appAuthConfig, pluralDataSource)
 	generateResource(inferenceModel, pluralResource)
 	generateDataSource(inferenceModel, pluralDataSource)
 	generateResource(inferenceSecret, pluralResource)

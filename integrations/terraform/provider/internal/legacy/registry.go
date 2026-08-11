@@ -21,7 +21,6 @@ import "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 // DataSourceTypes returns all legacy Teleport data source types.
 func DataSourceTypes() map[string]tfsdk.DataSourceType {
 	return map[string]tfsdk.DataSourceType{
-		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
@@ -52,7 +51,6 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 // ResourceTypes returns all legacy Teleport resource types.
 func ResourceTypes() map[string]tfsdk.ResourceType {
 	return map[string]tfsdk.ResourceType{
-		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},

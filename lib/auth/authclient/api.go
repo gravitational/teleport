@@ -1569,9 +1569,6 @@ type Cache interface {
 	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
 	services.DiscoveryConfigsGetter
 
-	// AppAuthConfigGetter defines methods for fetching app auth configs.
-	services.AppAuthConfigReader
-
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
