@@ -209,21 +209,7 @@ func (s *OutputService) routedIdentityUnscoped(ctx context.Context, qn scopes.Qu
 func (s *OutputService) routedIdentityScoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 
-	// An unrouted scoped identity, used only to look the app up under the bot's own access rights.
-	lookupID, err := s.identityGenerator.GenerateScopedFacade(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageIdentity(),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "generating scoped facade identity")
-	}
-
-	clt, err := s.clientBuilder.Build(ctx, lookupID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	routeToApp, _, err := getRouteToApp(ctx, s.getBotIdentity(), clt, qn)
+	routeToApp, _, err := getRouteToApp(ctx, s.getBotIdentity(), s.botAuthClient, qn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

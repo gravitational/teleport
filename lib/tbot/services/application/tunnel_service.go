@@ -353,25 +353,7 @@ func (s *TunnelService) routedIdentityUnscoped(ctx context.Context, qn scopes.Qu
 func (s *TunnelService) routedIdentityScoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, types.Application, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 
-	// An unrouted scoped identity, used only to look the app up.
-	lookupIdentity, err := s.identityGenerator.GenerateScopedFacade(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
-		identity.UsageIdentity(),
-	)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating scoped identity")
-	}
-	clt, err := s.clientBuilder.Build(ctx, lookupIdentity)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	defer func() {
-		if err := clt.Close(); err != nil {
-			s.log.ErrorContext(ctx, "Failed to close client.", "error", err)
-		}
-	}()
-
-	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), clt, qn)
+	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), s.botClient, qn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
