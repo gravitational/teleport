@@ -31,71 +31,61 @@ import (
 )
 
 func TestScopedUsage(t *testing.T) {
-	t.Run("Existing types are valid", func(t *testing.T) {
-		testCases := map[string]*ScopedUsage{
-			"identity": UsageIdentity(),
-			"app":      UsageApp(proto.RouteToApp{}),
-		}
-
-		for name, tc := range testCases {
-			t.Run(name, func(t *testing.T) {
-				require.NoError(t, tc.Validate())
-			})
-		}
-	})
-
-	t.Run("Nil usage", func(t *testing.T) {
-		var scopedUsage *ScopedUsage
-
-		err := scopedUsage.Validate()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "usage is undefined")
-	})
-
-	t.Run("Empty usage", func(t *testing.T) {
-		scopedUsage := new(ScopedUsage)
-
-		err := scopedUsage.Validate()
-		require.Error(t, err)
-		require.ErrorContains(t, err, "usage is incomplete")
-	})
-}
-
-func TestScopedUsage_Identity(t *testing.T) {
-	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
-		Ttl: durationpb.New(time.Second),
-	}.Build()
-
-	require.Zero(t, req.WhichUsage())
-	require.Nil(t, req.GetIdentity())
-
-	usage := UsageIdentity()
-	usage.apply(req)
-
-	require.NotNil(t, req.GetIdentity())
-	require.Equal(t, issuancev1pb.IssueScopedBotCertsRequest_Identity_case, req.WhichUsage())
-}
-
-func TestScopedUsage_App(t *testing.T) {
-	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
-		Ttl: durationpb.New(time.Second),
-	}.Build()
-
-	require.Zero(t, req.WhichUsage())
-	require.Nil(t, req.GetApp())
-
-	routeToApp := proto.RouteToApp{
-		Name:       "abc",
-		PublicAddr: "remotehost",
-		Scope:      "/testing",
+	testCases := map[string]struct {
+		scopedUsage         *ScopedUsage
+		verifyReqAfterApply func(t *testing.T, req *issuancev1pb.IssueScopedBotCertsRequest)
+		validationWantErr   string
+	}{
+		"identity": {
+			scopedUsage: UsageIdentity(),
+			verifyReqAfterApply: func(t *testing.T, req *issuancev1pb.IssueScopedBotCertsRequest) {
+				require.Equal(t, issuancev1pb.IssueScopedBotCertsRequest_Identity_case, req.WhichUsage())
+				require.NotNil(t, req.GetIdentity())
+			},
+		},
+		"app": {
+			scopedUsage: UsageApp(proto.RouteToApp{
+				Name:       "abc",
+				PublicAddr: "remotehost",
+				Scope:      "/testing",
+			}),
+			verifyReqAfterApply: func(t *testing.T, req *issuancev1pb.IssueScopedBotCertsRequest) {
+				require.Equal(t, issuancev1pb.IssueScopedBotCertsRequest_App_case, req.WhichUsage())
+				usageApp := req.GetApp()
+				require.NotNil(t, usageApp)
+				assert.Equal(t, "abc", usageApp.GetName())
+				assert.Equal(t, "remotehost", usageApp.GetPublicAddr())
+				assert.Equal(t, "/testing", usageApp.GetScope())
+			},
+		},
+		"nil usage": {
+			scopedUsage:       nil,
+			validationWantErr: "usage is undefined",
+		},
+		"empty usage": {
+			scopedUsage:       new(ScopedUsage),
+			validationWantErr: "usage is incomplete",
+		},
 	}
-	usage := UsageApp(routeToApp)
-	usage.apply(req)
 
-	require.Equal(t, issuancev1pb.IssueScopedBotCertsRequest_App_case, req.WhichUsage())
-	usageApp := req.GetApp()
-	require.NotNil(t, usageApp)
-	assert.Equal(t, routeToApp.Name, usageApp.GetName())
-	assert.Equal(t, routeToApp.PublicAddr, usageApp.GetPublicAddr())
-	assert.Equal(t, routeToApp.Scope, usageApp.GetScope())
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := tc.scopedUsage.Validate()
+			if tc.validationWantErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.validationWantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			req := issuancev1pb.IssueScopedBotCertsRequest_builder{
+				Ttl: durationpb.New(time.Second),
+			}.Build()
+
+			require.Zero(t, req.WhichUsage())
+			tc.scopedUsage.apply(req)
+			require.NotZero(t, req.WhichUsage())
+			tc.verifyReqAfterApply(t, req)
+		})
+	}
 }
