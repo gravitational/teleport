@@ -33,6 +33,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,9 +44,13 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -314,4 +319,103 @@ func generateExecRequest(config generateExecRequestConfig) (*rest.Request, error
 		}, scheme.ParameterCodec)
 
 	return req, nil
+}
+
+// TestKubeProxyCertReissuerRestoresKubeconfig verifies that the middleware cert reissuer
+// recreates the ephemeral kubeconfig deleted by a relogin before it attempts the issuance,
+// so a failed issuance does not leave the running proxy without its kubeconfig and the next reissue can load it again.
+func TestKubeProxyCertReissuerRestoresKubeconfig(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	cfg := clientcmdapi.NewConfig()
+	cfg.CurrentContext = "test-context"
+	require.NoError(t, kubeconfig.Save(path, *cfg))
+
+	cc := &fakeKubeCertClient{mfaRequired: true}
+	cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+		return nil, trace.AccessDenied("issuance failed after the relogin")
+	}
+	issuer := newTestKubeCertIssuer(cc)
+	issuer.conn = &clusterConn{dialer: reloginClusterDialer{path: path, cc: cc}}
+
+	kubeProxy := &kubeLocalProxy{
+		kubeConfigPath: path,
+		kubeconfig:     cfg,
+		certIssuer:     issuer,
+	}
+
+	_, err := kubeProxy.getCertReissuer()(t.Context(), "root", "kube-a")
+	require.Error(t, err, "the issuance must fail in this scenario")
+
+	restored, err := kubeconfig.Load(path)
+	require.NoError(t, err, "the kubeconfig deleted by the relogin must be recreated even when the issuance fails")
+	require.Equal(t, "test-context", restored.CurrentContext)
+}
+
+// reloginClusterDialer deletes the ephemeral kubeconfig when it dials, mimicking a relogin during the dial.
+type reloginClusterDialer struct {
+	path string
+	cc   *fakeKubeCertClient
+}
+
+func (d reloginClusterDialer) DialCluster(ctx context.Context) (kubeCertClient, error) {
+	if err := os.Remove(d.path); err != nil && !os.IsNotExist(err) {
+		return nil, trace.Wrap(err)
+	}
+	return d.cc, nil
+}
+
+// TestKubeProxyCertReissuerReloginOverCachedConn verifies that
+// the middleware cert reissuer recovers when the cached cluster connection is dead.
+func TestKubeProxyCertReissuerReloginOverCachedConn(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	cfg := clientcmdapi.NewConfig()
+	cfg.CurrentContext = "test-context"
+	require.NoError(t, kubeconfig.Save(path, *cfg))
+
+	clusters := newTestKubeClusters(1)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	deadCC := &fakeKubeCertClient{mfaRequired: true}
+	deadCC.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+		return nil, trace.Wrap(&interceptors.RemoteError{Err: apiclient.ErrClientCredentialsHaveExpired})
+	}
+
+	freshCC := &fakeKubeCertClient{mfaRequired: true}
+	freshCC.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+		return &client.IssueUserCertsWithMFAResult{
+			KeyRing:     keyRing,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, nil
+	}
+
+	issuer := newTestKubeCertIssuer(freshCC)
+	issuer.conn = &clusterConn{dialer: reloginClusterDialer{path: path, cc: freshCC}, conn: deadCC}
+
+	kubeProxy := &kubeLocalProxy{
+		kubeConfigPath: path,
+		kubeconfig:     cfg,
+		certIssuer:     issuer,
+	}
+	reissue := kubeProxy.getCertReissuer()
+
+	// The reissue over the dead connection fails and kubectl gets an error for this request,
+	// but the issuer detects that a relogin can resolve the error and drops the connection
+	// instead of leaving it lingering for the next request.
+	_, err := reissue(t.Context(), clusters[0].TeleportCluster, clusters[0].KubeCluster)
+	require.ErrorIs(t, err, apiclient.ErrClientCredentialsHaveExpired)
+	require.Equal(t, 1, deadCC.closes, "the dead connection must be dropped so the next reissue dials afresh")
+
+	// Steady traffic delivers the next request.
+	cert, err := reissue(t.Context(), clusters[0].TeleportCluster, clusters[0].KubeCluster)
+	require.NoError(t, err, "the reissue must recover once the relogin ran on the fresh dial")
+	require.NotNil(t, cert.PrivateKey)
+
+	// The ephemeral kubeconfig deleted by the relogin was recreated before the issuance.
+	restored, err := kubeconfig.Load(path)
+	require.NoError(t, err)
+	require.Equal(t, "test-context", restored.CurrentContext)
 }
