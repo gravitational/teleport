@@ -187,7 +187,7 @@ func TestKinitProvider_CreateClient_multipleUserCAs(t *testing.T) {
 		result: &getCertificateResult{
 			certPEM: []byte(`insert cert pem here`),
 			keyPEM:  []byte(`insert key pem here`),
-			caCert:  bytes.Join(caCerts, []byte("\n")),
+			caCerts: caCerts,
 		},
 	}
 	runner := &parseUserCAsRunner{}
