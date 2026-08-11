@@ -38,6 +38,37 @@ struct RotatingFileWriterTests {
 	}
 
 	@Test
+	func `records enqueued after a completed flush are processed`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let writer = makeWriter(fileURL: fileURL)
+
+			writer.enqueue(logMessage: "first\n")
+			try await writer.flush()
+
+			writer.enqueue(logMessage: "second\n")
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == "first\nsecond\n")
+		}
+	}
+
+	@Test
+	func `writing creates missing parent directories`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "nested/logs/events.log")
+			let writer = makeWriter(fileURL: fileURL)
+
+			writer.enqueue(logMessage: "record\n")
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == "record\n")
+		}
+	}
+
+	@Test
 	func `handler sends its formatted record to the shared writer`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
