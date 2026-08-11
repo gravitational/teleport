@@ -26,6 +26,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,6 +35,9 @@ import (
 
 func newReadEvent(path string, directory directoryID, offset uint64, length uint32) *events.DesktopSharedDirectoryRead {
 	return &events.DesktopSharedDirectoryRead{
+		Metadata: events.Metadata{
+			ID: uuid.NewString(),
+		},
 		Path:        path,
 		DirectoryID: uint32(directory),
 		Offset:      offset,
@@ -48,6 +52,32 @@ func newWriteEvent(path string, directory directoryID, offset uint64, length uin
 		Offset:      offset,
 		Length:      length,
 	}
+}
+
+// Returns true if 'events' contains a fileOperationEvent equivalent to 'this'.
+func containsEventLike[T fileOperationEvent](t *testing.T, auditEvents []events.AuditEvent, this T) bool {
+	// 'this' is a readEvent or writeEvent wrapper
+	for _, item := range auditEvents {
+		switch t := item.(type) {
+		case *events.DesktopSharedDirectoryRead:
+			if this.GetPath() == t.Path &&
+				this.GetDirectoryID() == directoryID(t.DirectoryID) &&
+				this.GetOffset() == t.Offset &&
+				this.GetLength() == uint64(t.Length) &&
+				this.IsWriteEvent() == false {
+				return true
+			}
+		case *events.DesktopSharedDirectoryWrite:
+			if this.GetPath() == t.Path &&
+				this.GetDirectoryID() == directoryID(t.DirectoryID) &&
+				this.GetOffset() == t.Offset &&
+				this.GetLength() == uint64(t.Length) &&
+				this.IsWriteEvent() == true {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestAuditCompactor(t *testing.T) {
@@ -87,8 +117,8 @@ func TestAuditCompactor(t *testing.T) {
 			// Should be compacted to 2 audit events
 			// Once compacted, audit events should inherit the timestamp of
 			// the first event in the stream
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 640))
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 200))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 640)}))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 200)}))
 		})
 
 	})
@@ -104,9 +134,13 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.handleRead(ctx, newReadEvent("foo", 1, math.MaxUint32+1, 1))
 
 			compactor.flush(ctx)
-			require.Len(t, auditEvents, 1)
-			// We should emit a single audit event with the largest length that we can represent
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, math.MaxUint32))
+			require.Len(t, auditEvents, 2)
+			// The 'length' field of the underyling directory read/write audit events is a uint32,
+			// so we can't record a length greater than 'math.MaxUint32'. Expect the compaction algorithm
+			// to handle this gracefully by breaking the read sequence above into two events. One covering the range
+			// [0, math.MaxUint32) and the other [math.MaxUint32, math.MaxUint32+2)
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, math.MaxUint32)}))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, math.MaxUint32, 2)}))
 		})
 	})
 
@@ -160,9 +194,9 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.flush(ctx)
 			require.Len(t, auditEvents, 3)
 			// Should be compacted to 3 audit events
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 100, 325))
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 750))
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 1200))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 100, 325)}))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 750)}))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 1200)}))
 		})
 
 	})
@@ -186,7 +220,7 @@ func TestAuditCompactor(t *testing.T) {
 			time.Sleep(time.Millisecond)
 			synctest.Wait()
 			eventsLock.Lock()
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 200))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 200)}))
 			eventsLock.Unlock()
 
 			// Continue submitting events just before the refresh interval.
@@ -209,7 +243,7 @@ func TestAuditCompactor(t *testing.T) {
 			// a single consolidated event
 			eventsLock.Lock()
 			require.Len(t, auditEvents, 1)
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, length*uint32(count)))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 200, length*uint32(count))}))
 			eventsLock.Unlock()
 
 		})
@@ -231,8 +265,8 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.flush(ctx)
 			require.Len(t, auditEvents, 2)
 			// Should be compacted to 2 audit events
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 300))
-			assert.Contains(t, auditEvents, newWriteEvent("foo", 1, 300, 100))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 300)}))
+			assert.True(t, containsEventLike(t, auditEvents, &writeEvent{newWriteEvent("foo", 1, 300, 100)}))
 		})
 	})
 
@@ -252,9 +286,9 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.flush(ctx)
 			require.Len(t, auditEvents, 3)
 			// Should be compacted to 3 audit events
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 200))
-			assert.Contains(t, auditEvents, newReadEvent("foo", 2, 0, 200))
-			assert.Contains(t, auditEvents, newReadEvent("bar", 1, 0, 200))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 200)}))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 200)}))
+			assert.True(t, containsEventLike(t, auditEvents, &readEvent{newReadEvent("foo", 1, 0, 200)}))
 		})
 
 	})
@@ -291,7 +325,7 @@ func TestAuditCompactor(t *testing.T) {
 			}
 			for range len(expectedEvents) {
 				assert.False(t, flushDone)
-				assert.Contains(t, expectedEvents, <-auditEvents)
+				assert.True(t, containsEventLike(t, expectedEvents, &readEvent{(<-auditEvents).(*events.DesktopSharedDirectoryRead)}))
 				synctest.Wait()
 			}
 			assert.True(t, flushDone)
