@@ -1,4 +1,4 @@
-//go:build antithesis && cgo
+//go:build antithesis && cgo && linux
 
 package service
 
