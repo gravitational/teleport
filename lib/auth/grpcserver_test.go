@@ -5575,16 +5575,18 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				types.DefaultInstallerScriptName:                 installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
 			name:            "new default installers",
 			hasAgentRollout: true,
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.NewDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				types.DefaultInstallerScriptName:                 installer.NewDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
@@ -5593,9 +5595,10 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				"my-custom-installer": "echo test",
 			},
 			expectedInstallers: map[string]string{
-				"my-custom-installer":                   "echo test",
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				"my-custom-installer":                            "echo test",
+				types.DefaultInstallerScriptName:                 installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
@@ -5604,8 +5607,9 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				installers.InstallerScriptName: "echo test",
 			},
 			expectedInstallers: map[string]string{
-				installers.InstallerScriptName:          "echo test",
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptName:                   "echo test",
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 	}
