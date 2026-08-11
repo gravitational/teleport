@@ -80,7 +80,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 					Destination: destination.NewMemory(),
 				}
 			},
-			wantErr: "app_name must not be empty",
+			wantErr: "app_name: must not be empty",
 		},
 		{
 			name: "roles is no longer supported",
@@ -94,7 +94,40 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
+			name:   "not scoped but with SQN",
+			scoped: false,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					AppName:     "/staging::app",
+				}
+			},
+			wantErr: "app_name: can not be a scope-qualified name when not in scope mode",
+		},
+		{
 			name:   "scoped",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					AppName:     "/staging::app",
+				}
+			},
+		},
+		{
+			name:   "scoped with delegation_session_id set",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:         destination.NewMemory(),
+					AppName:             "/staging::app",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: not supported with scopes",
+		},
+		{
+			name:   "scoped without SQN",
 			scoped: true,
 			in: func() *OutputConfig {
 				return &OutputConfig{
@@ -102,7 +135,7 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 					AppName:     "app",
 				}
 			},
-			wantErr: "is not supported in scoped mode",
+			wantErr: "app_name: needs to be a scope-qualified name when in scope mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

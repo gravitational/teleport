@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -65,9 +66,6 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
 		return trace.Wrap(err)
 	}
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
-	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -75,7 +73,17 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 		return trace.Wrap(err, "validating configured destination")
 	}
 	if o.AppName == "" {
-		return trace.BadParameter("app_name must not be empty")
+		return trace.BadParameter("app_name: must not be empty")
+	}
+	if scoped {
+		if o.DelegationSessionID != "" {
+			return trace.BadParameter("delegation_session_id: not supported with scopes")
+		}
+		if !scopes.MaybeSQN(o.AppName) {
+			return trace.BadParameter("app_name: needs to be a scope-qualified name when in scope mode")
+		}
+	} else if scopes.MaybeSQN(o.AppName) {
+		return trace.BadParameter("app_name: can not be a scope-qualified name when not in scope mode")
 	}
 
 	return nil
