@@ -46,11 +46,45 @@ func WithCount(n int) QueryOption {
 	}
 }
 
+func parseQueryOptions(options ...QueryOption) QueryOptions {
+	var opts QueryOptions
+	for _, option := range options {
+		option(&opts)
+	}
+	return opts
+}
+
 // QueryOptions represents the options for a SCIM query.
 type QueryOptions struct {
 	filter     *string
 	startIndex *int
 	count      *int
+}
+
+// extractRange extracts the zero-based start index and count from the
+// QueryOptions struct, supplying default values if not specified.
+func (o *QueryOptions) extractRange(rangeLength int) (int, int) {
+	// Pull out the optional count parameter, defaulting to the entire range
+	count := rangeLength
+	if o.count != nil {
+		count = *o.count
+	}
+
+	// Pull out the optional start index parameter, defaulting to 1 if unspecified
+	// or otherwise invalid.
+	startIndex := 1
+	if o.startIndex != nil {
+		// As per RFC7644 § 3.4.2.4: "A value less than 1 SHALL be interpreted as 1"
+		startIndex = max(1, *o.startIndex)
+	}
+	// translate the 1-based index it to a more useful 0-based index
+	startIndex = startIndex - 1
+
+	// ensure that the start index is within the valid range so it can be used to
+	// create an empty slice when out of bounds, rather than crashing
+	startIndex = min(startIndex, rangeLength)
+
+	return startIndex, count
 }
 
 func (o *QueryOptions) toQuery() url.Values {

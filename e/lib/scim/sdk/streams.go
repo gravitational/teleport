@@ -46,7 +46,7 @@ func StreamUsers(ctx context.Context, client Client, queryOptions ...QueryOption
 
 		pageSize := len(resp.Users)
 		totalListed += pageSize
-		startIndex = startIndex + pageSize
+		startIndex += pageSize
 		isEOF = pageSize == 0 || totalListed >= int(resp.TotalResults)
 
 		return resp.Users, nil
@@ -90,6 +90,7 @@ func StreamGroups(ctx context.Context, client Client, queryOptions ...QueryOptio
 
 		pageSize := len(resp.Groups)
 		totalListed += pageSize
+		startIndex += pageSize
 		isEOF = pageSize == 0 || totalListed >= int(resp.TotalResults)
 
 		return resp.Groups, nil

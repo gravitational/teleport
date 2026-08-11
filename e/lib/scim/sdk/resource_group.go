@@ -40,6 +40,11 @@ type Group struct {
 	Members []*GroupMember `json:"members,omitempty"`
 }
 
+// GetID returns the ID of the Group.
+func (g *Group) GetID() string {
+	return g.ID
+}
+
 // ListGroupResponse represents a SCIM Group list response.
 type ListGroupResponse struct {
 	// Schemas is a list of URIs that are used to indicate the namespaces of the SCIM schemas used for the representation of a resource.

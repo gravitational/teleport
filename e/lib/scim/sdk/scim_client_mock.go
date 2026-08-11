@@ -2,6 +2,7 @@ package scimsdk
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 
@@ -155,14 +156,38 @@ func (s *ClientMock) UpdateUser(ctx context.Context, user *User) (*User, error) 
 
 // ListUsers lists all Users.
 func (s *ClientMock) ListUsers(ctx context.Context, queryOptions ...QueryOption) (*ListUserResponse, error) {
+	options := parseQueryOptions(queryOptions...)
+
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	var userList []*User
-	for _, user := range s.Users {
-		userList = append(userList, user)
+	startIndex, maxPageSize := options.extractRange(len(s.Users))
+
+	response := &ListUserResponse{
+		Schemas:      []string{"urn:ietf:params:scim:api:messages:2.0:ListResponse"},
+		TotalResults: int32(len(s.Users)),
 	}
-	return &ListUserResponse{Users: userList}, nil
+
+	// As per RFC7644 §3.4.2.4, a page size request of 0 should be interpreted
+	// as a query for just the total number of users.
+	if maxPageSize == 0 {
+		return response, nil
+	}
+
+	// Presort keys to force the map iteration order
+	keys := slices.Collect(maps.Keys(s.Users))
+	slices.Sort(keys)
+
+	// Pull out the requested range of users
+	for _, key := range keys[startIndex:] {
+		response.Users = append(response.Users, s.Users[key])
+		if len(response.Users) == maxPageSize {
+			break
+		}
+	}
+	response.StartIndex = int32(startIndex + 1)
+	response.ItemsPerPage = int32(len(response.Users))
+	return response, nil
 }
 
 // CreateGroup creates a new group.
@@ -195,14 +220,38 @@ func (s *ClientMock) DeleteGroup(ctx context.Context, id string) error {
 
 // ListGroups lists all Groups.
 func (s *ClientMock) ListGroups(ctx context.Context, queryOptions ...QueryOption) (*ListGroupResponse, error) {
+	options := parseQueryOptions(queryOptions...)
+
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	var groupList []*Group
-	for _, group := range s.Groups {
-		groupList = append(groupList, group)
+	startIndex, maxPageSize := options.extractRange(len(s.Groups))
+
+	response := &ListGroupResponse{
+		Schemas:      []string{"urn:ietf:params:scim:api:messages:2.0:ListResponse"},
+		TotalResults: int32(len(s.Groups)),
 	}
-	return &ListGroupResponse{Groups: groupList}, nil
+
+	// As per RFC7644 §3.4.2.4, a page size request of 0 should be interpreted
+	// as a query for just the total number of groups.
+	if maxPageSize == 0 {
+		return response, nil
+	}
+
+	// Presort keys to force the map iteration order
+	keys := slices.Collect(maps.Keys(s.Groups))
+	slices.Sort(keys)
+
+	// Pull out the requested range of groups
+	for _, key := range keys[startIndex:] {
+		response.Groups = append(response.Groups, s.Groups[key])
+		if len(response.Groups) == maxPageSize {
+			break
+		}
+	}
+	response.StartIndex = int32(startIndex + 1)
+	response.ItemsPerPage = int32(len(response.Groups))
+	return response, nil
 }
 
 // ReplaceGroupName replaces a group's name.

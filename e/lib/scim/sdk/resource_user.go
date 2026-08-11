@@ -37,6 +37,11 @@ type User struct {
 	Attributes AttributeSet `json:"-"`
 }
 
+// GetID fetches the user's ID
+func (u *User) GetID() string {
+	return u.ID
+}
+
 var knownStructFields = []string{
 	"id", "externalId", "meta", "schemas", "userName", "name", "displayName", "active",
 }
