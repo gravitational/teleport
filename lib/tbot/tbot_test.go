@@ -137,6 +137,8 @@ type defaultBotConfigOpts struct {
 	useAuthServer bool
 	// Makes the bot accept an insecure auth or proxy server
 	insecure bool
+	// Set the bot to scope mode
+	scoped bool
 }
 
 func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
@@ -209,7 +211,7 @@ func defaultBotConfig(
 ) *config.BotConfig {
 	t.Helper()
 
-	var authServer = process.Config.Proxy.WebAddr.String()
+	authServer := process.Config.Proxy.WebAddr.String()
 	if opts.useAuthServer {
 		authServer = process.Config.AuthServerAddresses()[0].String()
 	}
@@ -227,6 +229,7 @@ func defaultBotConfig(
 		Insecure: opts.insecure,
 		Services: serviceConfigs,
 		Testing:  true,
+		Scoped:   opts.scoped,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -1124,7 +1127,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
 	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
-	require.NoError(t, os.Mkdir(tmpDir, 0777))
+	require.NoError(t, os.Mkdir(tmpDir, 0o777))
 	t.Cleanup(func() {
 		assert.NoError(t, os.RemoveAll(tmpDir))
 	})
@@ -1854,6 +1857,212 @@ func TestScopedBotKubernetes(t *testing.T) {
 	})
 }
 
+// TestScopedBotApp tests that a scoped bot can issue app-routed certificates
+// via the application output service. It verifies:
+//   - The TLS certificate contains a RouteToApp with the correct app name
+//   - The certificate carries the correct scope pin
+//   - Usage is set to apps-only
+//   - DisallowReissue is set
+//   - No roles or traits are encoded
+//   - An out-of-scope app (registered by the unscoped main process) is not visible
+func TestScopedBotApp(t *testing.T) {
+	if !scopes.FeaturesFromEnv().AgentPinEnabled {
+		t.Skip("test requires TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+	}
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName        = "/test-scope"
+		scopedRoleName   = "scoped-app-access"
+		botName          = "scoped-app-bot"
+		appName          = "scoped-test-app"
+		scopedAppNameSQN = scopeName + "::" + appName
+	)
+
+	// Start the main Teleport process (auth + proxy).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create a scoped role that grants app access.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				App: scopedaccessv1.ScopedRoleApp_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   "*",
+							Values: []string{"*"},
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+	appTokenResp := createScopedJoinToken(t, process, "app-token", scopeName, types.RoleApp)
+
+	// Start a second Teleport process as an App-only agent, joining with
+	// the scoped token so the app gets scope "/test-scope".
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	appAgentCfg := servicecfg.MakeDefaultConfig()
+	appAgentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
+	appAgentCfg.Hostname = "scoped-app-agent"
+	appAgentCfg.DataDir = t.TempDir()
+	appAgentCfg.SetToken(scopes.QualifiedName{
+		Scope: scopeName,
+		Name:  jointoken.EncodeScopedToken(appTokenResp.GetToken().GetMetadata().GetName(), appTokenResp.GetToken().GetStatus().GetSecret()),
+	}.String())
+	appAgentCfg.SetAuthServerAddress(*proxyAddr)
+	appAgentCfg.InsecureMode = true
+	appAgentCfg.Auth.Enabled = false
+	appAgentCfg.Proxy.Enabled = false
+	appAgentCfg.SSH.Enabled = false
+	appAgentCfg.Apps.Enabled = true
+	appAgentCfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: appName,
+			URI:  "http://127.0.0.1:0", // No real backend needed for cert issuance test.
+		},
+	}
+	appAgentCfg.CachePolicy.Enabled = false
+	appAgentCfg.InstanceMetadataClient = nil
+	appAgentCfg.DebugService.Enabled = false
+	appAgentCfg.Logger = log
+
+	appAgentProcess, err := service.NewTeleport(appAgentCfg)
+	require.NoError(t, err)
+	require.NoError(t, appAgentProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, appAgentProcess.Close())
+		require.NoError(t, appAgentProcess.Wait())
+	})
+
+	// Wait for the app agent to be ready.
+	_, err = appAgentProcess.WaitForEvent(ctx, service.AppsReady)
+	require.NoError(t, err)
+
+	// Wait for the scoped app to be visible.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		servers, err := rootClient.GetApplicationServers(ctx, "default")
+		if !assert.NoError(ct, err) {
+			return
+		}
+		for _, s := range servers {
+			if s.GetApp().GetName() == appName {
+				return
+			}
+		}
+		assert.Fail(ct, "scoped app not yet visible")
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and run tbot with an application output.
+	appOutput := &application.OutputConfig{
+		Destination: &destination.Memory{},
+		AppName:     scopedAppNameSQN,
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			appOutput,
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+			scoped:        true,
+		},
+	)
+	botConfig.Scoped = true
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	t.Run("app certificate has correct attributes", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
+
+		// Verify scope pin is present.
+		require.NotNil(t, tlsIdent.ScopePin, "TLS identity should have a scope pin")
+		require.Equal(t, scopeName, tlsIdent.ScopePin.GetScope())
+
+		// Verify RouteToApp is set correctly.
+		require.Equal(t, appName, tlsIdent.RouteToApp.Name)
+		require.NotEmpty(t, tlsIdent.RouteToApp.PublicAddr)
+		require.NotEmpty(t, tlsIdent.RouteToApp.SessionID)
+
+		// Verify usage is apps-only.
+		require.Equal(t, []string{"usage:apps"}, tlsIdent.Usage)
+
+		// Verify DisallowReissue.
+		require.True(t, tlsIdent.DisallowReissue, "scoped app cert should have DisallowReissue")
+
+		// Verify no roles or traits are encoded.
+		require.Empty(t, tlsIdent.Groups, "scoped app identity should not have groups/roles")
+		require.Empty(t, tlsIdent.Traits, "scoped app identity should not have traits")
+	})
+
+	t.Run("unscoped app is not visible", func(t *testing.T) {
+		// Register an app on the main (unscoped) process.
+		unscopedApp, err := types.NewAppV3(types.Metadata{
+			Name: "unscoped-app",
+		}, types.AppSpecV3{
+			PublicAddr: "unscoped-app.example.com",
+			URI:        "http://unscoped-app.example.com:1234",
+		})
+		require.NoError(t, err)
+		unscopedAppServer, err := types.NewAppServerV3FromApp(unscopedApp, "unscoped-host", "unscoped-host-id")
+		require.NoError(t, err)
+		_, err = rootClient.UpsertApplicationServer(ctx, unscopedAppServer)
+		require.NoError(t, err)
+
+		// Configure tbot to target the unscoped app — this should fail.
+		unscopedAppOutput := &application.OutputConfig{
+			Destination: &destination.Memory{},
+			AppName:     "unscoped-app",
+		}
+		unscopedBotConfig := defaultBotConfig(
+			t, process, botOnboarding,
+			config.ServiceConfigs{
+				unscopedAppOutput,
+			},
+			defaultBotConfigOpts{
+				useAuthServer: true,
+				insecure:      true,
+			},
+		)
+		unscopedBotConfig.Scoped = true
+		unscopedBot := New(unscopedBotConfig, log)
+		err = unscopedBot.Run(ctx)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "app_name: needs to be a scope-qualified name when in scope mode")
+	})
+}
+
 // TestScopedBotWorkloadIdentity tests that a scoped bot can issue X.509 and
 // JWT SVIDs for a scoped WorkloadIdentity addressed by a scope-qualified name
 // selector ("<scope>::<name>"), via the x509/jwt file outputs and the SPIFFE
@@ -2099,7 +2308,7 @@ func createScopedBot(
 	require.NoError(t, err)
 	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
 	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
-	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
+	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0o600))
 
 	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
 		Token: joiningv1.ScopedToken_builder{
