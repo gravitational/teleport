@@ -19,10 +19,12 @@ package v1
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -70,6 +72,7 @@ func TestCopyClientIPRestrictionRoundTrip(t *testing.T) {
 	objectType, ok := schema.AttributeType().(types.ObjectType)
 	require.True(t, ok, "schema attribute type should be an object")
 
+	expires := timestamppb.New(time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC))
 	want := &clientiprestrictionv1.ClientIPRestriction{
 		Kind:    "client_ip_restriction",
 		Version: "v1",
@@ -78,6 +81,8 @@ func TestCopyClientIPRestrictionRoundTrip(t *testing.T) {
 		},
 		Spec: &clientiprestrictionv1.ClientIPRestrictionSpec{
 			AllowedCidrs: []string{"10.0.0.0/8", "192.168.0.0/16"},
+			Mode:         "draft",
+			Expires:      expires,
 		},
 		Status: &clientiprestrictionv1.ClientIPRestrictionStatus{
 			State: "active",
@@ -96,6 +101,13 @@ func TestCopyClientIPRestrictionRoundTrip(t *testing.T) {
 	require.Equal(t, want.GetVersion(), got.GetVersion())
 	require.Equal(t, want.GetMetadata().GetName(), got.GetMetadata().GetName())
 	require.Equal(t, want.GetSpec().GetAllowedCidrs(), got.GetSpec().GetAllowedCidrs())
+	require.Equal(t, want.GetSpec().GetMode(), got.GetSpec().GetMode())
+	// expires is a google.protobuf.Timestamp surfaced to Terraform as an RFC3339
+	// string; compare formatted values to avoid time.Time location/monotonic noise.
+	require.Equal(t,
+		want.GetSpec().GetExpires().AsTime().Format(time.RFC3339),
+		got.GetSpec().GetExpires().AsTime().Format(time.RFC3339),
+	)
 	// status is excluded from the schema, so it is dropped on the round trip.
 	require.Empty(t, got.GetStatus().GetState())
 }
