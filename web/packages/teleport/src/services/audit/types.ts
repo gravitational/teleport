@@ -25,7 +25,6 @@
  *     defines short and long event definitions
  *  3: Define icons for events under `EventTypeCell.tsx` file
  *  4: Add an actual JSON event to the fixtures file in `src/Audit/fixtures/index.ts`.
- *  5: Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx`
  */
 export const eventCodes = {
   ACCESS_REQUEST_CREATED: 'T5000I',
