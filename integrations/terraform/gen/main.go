@@ -383,25 +383,6 @@ var (
 		GetCanReturnNil:        true,
 	}
 
-	deviceTrust = payload{
-		Name:                  "DeviceV1",
-		VarName:               "trustedDevice",
-		TypeName:              "DeviceV1",
-		GetMethod:             "GetDeviceResource",
-		CreateMethod:          "UpsertDeviceResource",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertDeviceResource",
-		DeleteMethod:          "DeleteDeviceResource",
-		Kind:                  "device",
-		ID:                    "trustedDevice.Metadata.Name",
-		HasStaticID:           true,
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1",
-		IsPlainStruct:         true,
-		UUIDMetadataName:      true,
-		TerraformResourceType: "teleport_trusted_device",
-	}
-
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -792,8 +773,6 @@ func genTFSchema() {
 	generateDataSource(sessionRecording, singularDataSource)
 	generateResource(uiConfig, singularResource)
 	generateDataSource(uiConfig, singularDataSource)
-	generateResource(deviceTrust, pluralResource)
-	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(autoUpdateVersion, singularResource)
