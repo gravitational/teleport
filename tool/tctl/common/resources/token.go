@@ -89,6 +89,7 @@ func GetAllTokens(ctx context.Context, clt *authclient.Client) ([]types.Provisio
 	if err != nil {
 		return nil, trace.Wrap(err, "getting static tokens")
 	}
+	tokens := staticTokens.GetStaticTokens()
 
 	provisionTokens, err := stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
@@ -98,7 +99,7 @@ func GetAllTokens(ctx context.Context, clt *authclient.Client) ([]types.Provisio
 	if err != nil {
 		return nil, trace.Wrap(err, "getting provision tokens")
 	}
-	tokens := append(staticTokens.GetStaticTokens(), provisionTokens...)
+	tokens = append(tokens, provisionTokens...)
 
 	userTokens, err := stream.Collect(clientutils.Resources(ctx, clt.ListResetPasswordTokens))
 	if err != nil {

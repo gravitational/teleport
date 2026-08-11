@@ -108,6 +108,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 	if err != nil {
 		return nil, trace.Wrap(err, "getting static tokens")
 	}
+	tokens := staticTokens.GetStaticTokens()
 
 	provisionTokens, err := stream.Collect(clientutils.Resources(r.Context(),
 		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
@@ -117,7 +118,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 	if err != nil {
 		return nil, trace.Wrap(err, "getting provision tokens")
 	}
-	tokens := append(staticTokens.GetStaticTokens(), provisionTokens...)
+	tokens = append(tokens, provisionTokens...)
 
 	userTokens, err := stream.Collect(clientutils.Resources(r.Context(), clt.ListResetPasswordTokens))
 	if err != nil {
