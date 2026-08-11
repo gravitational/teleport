@@ -91,11 +91,6 @@ breaking:
   use:
     - ENUM_VALUE_NO_DELETE
     - WIRE_JSON
-  # TODO(juliaogris): Remove the except once the buf breaking baseline no
-  # longer holds the app_resources reservations. They were never in a
-  # release, so deleting them breaks no released wire or JSON format.
-  except:
-    - RESERVED_MESSAGE_NO_DELETE
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
