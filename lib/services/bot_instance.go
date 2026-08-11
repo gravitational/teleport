@@ -261,9 +261,9 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 // given bot. An empty Scope refers to an unscoped bot.
 //
 // Bots are namespaced by their scope, so a scoped bot's name encodes the scope
-// as well as the bot name, allowing a name to be reused across scopes. The
-// encoded scope ends in a "+" separator, which cannot appear inside a valid
-// scope, so two different scopes cannot yield the same name. Scoped bots are
+// as well as the bot name (bot-<encoded_scope>-<name>), allowing a name to be reused across
+// scopes. An encoded scope only ever contains lowercase alphanumerics, so the "-" separator
+// keeps the two apart and two different scopes cannot yield the same name. Scoped bots are
 // reconstructed from User labels rather than by parsing this name, so it serves
 // only as an identity key.
 func BotResourceName(bot scopes.QualifiedName) (string, error) {
@@ -273,7 +273,7 @@ func BotResourceName(bot scopes.QualifiedName) (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err, "encoding scope for bot resource name")
 		}
-		name = encodedScope + bot.Name
+		name = encodedScope + "-" + bot.Name
 	}
 	return BotUserPrefix + strings.ReplaceAll(name, " ", "-"), nil
 }
