@@ -46,6 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -6045,10 +6046,24 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	t.Run("no extra tokens", func(t *testing.T) {
-		client, err := testSrv.NewClient(authtest.TestUser(privilegedUser.GetName()))
+	// The deprecated GetTokens RPC no longer has an api client wrapper, so
+	// exercise the gRPC stub directly. DELETE IN 21.0.0 alongside the RPC.
+	getTokens := func(t *testing.T, identity authtest.TestIdentity) ([]types.ProvisionToken, error) {
+		clt, err := testSrv.NewClient(identity)
 		require.NoError(t, err)
-		toks, err := client.GetTokens(ctx)
+		resp, err := proto.NewAuthServiceClient(clt.GetConnection()).GetTokens(t.Context(), &emptypb.Empty{}) //nolint:staticcheck // SA1019. Deprecated RPC, kept until v21.
+		if err != nil {
+			return nil, err
+		}
+		tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
+		for i, tok := range resp.ProvisionTokens {
+			tokens[i] = tok
+		}
+		return tokens, nil
+	}
+
+	t.Run("no extra tokens", func(t *testing.T) {
+		toks, err := getTokens(t, authtest.TestUser(privilegedUser.GetName()))
 		require.NoError(t, err)
 		require.Len(t, toks, 1) // only a single static token exists
 	})
@@ -6102,10 +6117,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := testSrv.NewClient(tt.identity)
-			require.NoError(t, err)
-
-			tokens, err := client.GetTokens(ctx)
+			tokens, err := getTokens(t, tt.identity)
 			tt.requireError(t, err)
 
 			if tt.requireResponse {

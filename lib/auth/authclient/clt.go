@@ -1227,11 +1227,6 @@ type IdentityService interface {
 // ProvisioningService is a service in control
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
-	// GetTokens returns a list of active invitation tokens for nodes and users
-	// Deprecated: use [ListProvisionTokens] istead.
-	// TODO(hugoShaka): DELETE IN 19.0.0
-	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
-
 	// GetToken returns provisioning token
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
