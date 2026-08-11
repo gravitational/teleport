@@ -624,6 +624,7 @@ type ReplicateValidatedMFAChallengeRequest struct {
 	xxx_hidden_SourceCluster string                     `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3"`
 	xxx_hidden_TargetCluster string                     `protobuf:"bytes,4,opt,name=target_cluster,json=targetCluster,proto3"`
 	xxx_hidden_Username      string                     `protobuf:"bytes,5,opt,name=username,proto3"`
+	xxx_hidden_DeviceId      string                     `protobuf:"bytes,6,opt,name=device_id,json=deviceId,proto3"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -688,6 +689,13 @@ func (x *ReplicateValidatedMFAChallengeRequest) GetUsername() string {
 	return ""
 }
 
+func (x *ReplicateValidatedMFAChallengeRequest) GetDeviceId() string {
+	if x != nil {
+		return x.xxx_hidden_DeviceId
+	}
+	return ""
+}
+
 func (x *ReplicateValidatedMFAChallengeRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
@@ -706,6 +714,10 @@ func (x *ReplicateValidatedMFAChallengeRequest) SetTargetCluster(v string) {
 
 func (x *ReplicateValidatedMFAChallengeRequest) SetUsername(v string) {
 	x.xxx_hidden_Username = v
+}
+
+func (x *ReplicateValidatedMFAChallengeRequest) SetDeviceId(v string) {
+	x.xxx_hidden_DeviceId = v
 }
 
 func (x *ReplicateValidatedMFAChallengeRequest) HasPayload() bool {
@@ -736,6 +748,9 @@ type ReplicateValidatedMFAChallengeRequest_builder struct {
 	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
 	// login name) and must correspond to a user in the cluster specified by source_cluster.
 	Username string
+	// ID of the MFA device that satisfied the challenge in the source cluster. Must match the device_id of the validated
+	// challenge being replicated so that mfa_device locks are enforced in the target cluster.
+	DeviceId string
 }
 
 func (b0 ReplicateValidatedMFAChallengeRequest_builder) Build() *ReplicateValidatedMFAChallengeRequest {
@@ -747,6 +762,7 @@ func (b0 ReplicateValidatedMFAChallengeRequest_builder) Build() *ReplicateValida
 	x.xxx_hidden_SourceCluster = b.SourceCluster
 	x.xxx_hidden_TargetCluster = b.TargetCluster
 	x.xxx_hidden_Username = b.Username
+	x.xxx_hidden_DeviceId = b.DeviceId
 	return m0
 }
 
@@ -943,9 +959,10 @@ func (b0 VerifyValidatedMFAChallengeRequest_builder) Build() *VerifyValidatedMFA
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
 type VerifyValidatedMFAChallengeResponse struct {
-	state         protoimpl.MessageState `protogen:"opaque.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_DeviceId string                 `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *VerifyValidatedMFAChallengeResponse) Reset() {
@@ -973,15 +990,30 @@ func (x *VerifyValidatedMFAChallengeResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
+func (x *VerifyValidatedMFAChallengeResponse) GetDeviceId() string {
+	if x != nil {
+		return x.xxx_hidden_DeviceId
+	}
+	return ""
+}
+
+func (x *VerifyValidatedMFAChallengeResponse) SetDeviceId(v string) {
+	x.xxx_hidden_DeviceId = v
+}
+
 type VerifyValidatedMFAChallengeResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// ID of the MFA device that satisfied the validated challenge. Callers MUST use this to enforce mfa_device locks for
+	// the session and MUST reject an empty value.
+	DeviceId string
 }
 
 func (b0 VerifyValidatedMFAChallengeResponse_builder) Build() *VerifyValidatedMFAChallengeResponse {
 	m0 := &VerifyValidatedMFAChallengeResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
+	x.xxx_hidden_DeviceId = b.DeviceId
 	return m0
 }
 
@@ -1142,21 +1174,23 @@ const file_teleport_mfa_v2_service_proto_rawDesc = "" +
 	"\x06filter\x18\x03 \x01(\v21.teleport.mfa.v2.ListValidatedMFAChallengesFilterR\x06filter\"\xa7\x01\n" +
 	"\"ListValidatedMFAChallengesResponse\x12Y\n" +
 	"\x14validated_challenges\x18\x01 \x03(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x13validatedChallenges\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xeb\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x88\x02\n" +
 	"%ReplicateValidatedMFAChallengeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
 	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
 	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\x12%\n" +
 	"\x0etarget_cluster\x18\x04 \x01(\tR\rtargetCluster\x12\x1a\n" +
-	"\busername\x18\x05 \x01(\tR\busername\"\x83\x01\n" +
+	"\busername\x18\x05 \x01(\tR\busername\x12\x1b\n" +
+	"\tdevice_id\x18\x06 \x01(\tR\bdeviceId\"\x83\x01\n" +
 	"&ReplicateValidatedMFAChallengeResponse\x12Y\n" +
 	"\x14replicated_challenge\x18\x01 \x01(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x13replicatedChallenge\"\xc1\x01\n" +
 	"\"VerifyValidatedMFAChallengeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
 	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
 	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\"%\n" +
-	"#VerifyValidatedMFAChallengeResponse\"{\n" +
+	"\busername\x18\x04 \x01(\tR\busername\"B\n" +
+	"#VerifyValidatedMFAChallengeResponse\x12\x1b\n" +
+	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\"{\n" +
 	"\"CompleteBrowserMFAChallengeRequest\x12U\n" +
 	"\x14browser_mfa_response\x18\x01 \x01(\v2#.teleport.mfa.v2.BrowserMFAResponseR\x12browserMfaResponse\"O\n" +
 	"#CompleteBrowserMFAChallengeResponse\x12(\n" +

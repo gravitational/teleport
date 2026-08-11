@@ -261,6 +261,7 @@ func newValidatedMFAChallengeWithTargetCluster(name, targetCluster string) *mfav
 			SourceCluster: "root",
 			TargetCluster: targetCluster,
 			Username:      "alice",
+			DeviceId:      "device-id",
 		}.Build(),
 	}.Build()
 }

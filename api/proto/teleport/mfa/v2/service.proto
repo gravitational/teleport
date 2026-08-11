@@ -132,6 +132,9 @@ message ReplicateValidatedMFAChallengeRequest {
   // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
   // login name) and must correspond to a user in the cluster specified by source_cluster.
   string username = 5;
+  // ID of the MFA device that satisfied the challenge in the source cluster. Must match the device_id of the validated
+  // challenge being replicated so that mfa_device locks are enforced in the target cluster.
+  string device_id = 6;
 }
 
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
@@ -159,7 +162,11 @@ message VerifyValidatedMFAChallengeRequest {
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
-message VerifyValidatedMFAChallengeResponse {}
+message VerifyValidatedMFAChallengeResponse {
+  // ID of the MFA device that satisfied the validated challenge. Callers MUST use this to enforce mfa_device locks for
+  // the session and MUST reject an empty value.
+  string device_id = 1;
+}
 
 // CompleteBrowserMFAChallengeRequest is used to complete an MFA response
 // during a browser-based MFA authentication flow.
