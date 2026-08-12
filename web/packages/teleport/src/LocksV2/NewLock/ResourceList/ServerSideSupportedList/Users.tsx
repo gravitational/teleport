@@ -20,9 +20,11 @@ import Table, { Cell, LabelCell } from 'design/DataTable';
 
 import { User } from 'teleport/services/user';
 
-import { renderActionCell, SimpleListProps } from '../common';
+import { renderActionCell, ServerSideListProps } from '../common';
 
-export default function UserList(props: SimpleListProps & { users: User[] }) {
+export default function UserList(
+  props: ServerSideListProps & { users: User[] }
+) {
   const {
     users = [],
     selectedResources,
@@ -37,31 +39,15 @@ export default function UserList(props: SimpleListProps & { users: User[] }) {
         {
           key: 'name',
           headerText: 'Name',
-          isSortable: true,
         },
         {
           key: 'roles',
           headerText: 'Roles',
-          isSortable: true,
-          onSort: (a, b) => {
-            const aStr = a.roles.toString();
-            const bStr = b.roles.toString();
-
-            if (aStr < bStr) {
-              return -1;
-            }
-            if (aStr > bStr) {
-              return 1;
-            }
-
-            return 0;
-          },
           render: ({ roles }) => <LabelCell data={roles} />,
         },
         {
           key: 'authType',
           headerText: 'Type',
-          isSortable: true,
           render: ({ authType }) => (
             <Cell style={{ textTransform: 'capitalize' }}>
               {renderAuthType(authType)}
@@ -77,8 +63,7 @@ export default function UserList(props: SimpleListProps & { users: User[] }) {
         },
       ]}
       emptyText="No Users Found"
-      isSearchable
-      pagination={{ pageSize: props.pageSize }}
+      disableFilter
       fetching={{
         fetchStatus,
       }}

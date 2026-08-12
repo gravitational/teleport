@@ -1287,7 +1287,7 @@ const cfg = {
     return generatePath(cfg.routes.ssoConnector.create, { connectorType });
   },
 
-  // TODO(rudream): DELETE IN V21.0.0
+  // TODO(rudream): DELETE IN v20.0
   getUsersUrl() {
     return cfg.api.usersPath;
   },
