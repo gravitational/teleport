@@ -56,6 +56,7 @@ export const Broadcast = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-broadcast"
+
       {...otherProps}
       ref={ref}
     >

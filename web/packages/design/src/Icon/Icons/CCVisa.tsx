@@ -56,6 +56,7 @@ export const CCVisa = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ccvisa"
+
       {...otherProps}
       ref={ref}
     >

@@ -16,17 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
 import { ITheme } from '@xterm/xterm';
 import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
 } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Flex } from 'design';
 import { getPlatformType } from 'design/platform';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 import XTermCtrl from 'teleport/lib/term/terminal';
@@ -36,8 +42,6 @@ import StyledXterm from '../../StyledXterm';
 
 export interface TerminalProps {
   tty: Tty;
-  fontFamily: string;
-  theme: ITheme;
   // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
   // This is equivalent to replacing each '\n' with '\r\n'.
   convertEol?: boolean;
@@ -45,11 +49,23 @@ export interface TerminalProps {
   terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
   disableCtrlC?: boolean;
   disableAutoFocus?: boolean;
+  // disableCopy blocks copying terminal text to clipboard.
+  disableCopy?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>(undefined);
   const elementRef = useRef<HTMLDivElement>(null);
+  const toastNotifications = useToastNotifications();
+  // Keeps track of the notification id so that we can ensure there is only maximum one copy block notification showing at a time.
+  const copyBlockedToastIdRef = useRef<string>(undefined);
+  const theme = useTheme();
+  const system = useDesignSystemContext();
+
+  const xtermTheme = useMemo<ITheme>(
+    () => resolveColorTokens(system, theme.colors.terminal, theme.type),
+    [system, theme.colors.terminal, theme.type]
+  );
 
   useImperativeHandle(
     ref,
@@ -65,11 +81,28 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
     const termCtrl = new XTermCtrl(props.tty, {
       el: elementRef.current,
-      fontFamily: props.fontFamily,
+      fontFamily: theme.fonts.mono,
       fontSize,
-      theme: props.theme,
+      theme: xtermTheme,
       convertEol: props.convertEol,
+      disableCopy: props.disableCopy,
+      onCopyBlocked: () => {
+        // Remove the previous notification before creating the new one so there's only one showing at at time.
+        if (copyBlockedToastIdRef.current) {
+          toastNotifications.remove(copyBlockedToastIdRef.current);
+        }
+        copyBlockedToastIdRef.current = toastNotifications.add({
+          severity: 'warn',
+          content: {
+            title: 'Copy attempt blocked',
+            description:
+              "Your role doesn't permit you to copy content from the terminal.",
+            isAutoRemovable: true,
+          },
+        });
+      },
     });
+
     termCtrlRef.current = termCtrl;
 
     termCtrl.open();
@@ -96,8 +129,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   }, []);
 
   useEffect(() => {
-    termCtrlRef.current?.updateTheme(props.theme);
-  }, [props.theme]);
+    termCtrlRef.current?.updateTheme(xtermTheme);
+  }, [xtermTheme]);
 
   useEffect(() => {
     if (!props.disableAutoFocus) {
@@ -131,7 +164,8 @@ const TerminalAddonsContainer = styled.div`
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  min-width: 500px;
+  width: 100%;
+  max-width: 500px;
 `;
 
 export interface TerminalRef {

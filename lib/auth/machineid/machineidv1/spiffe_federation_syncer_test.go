@@ -104,20 +104,20 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	caPool.AddCert(testSrv2.Certificate())
 
 	// Create one trust domain prior to startng the syncer
-	created1, err := store.CreateSPIFFEFederation(ctx, &machineidv1pb.SPIFFEFederation{
+	created1, err := store.CreateSPIFFEFederation(ctx, machineidv1pb.SPIFFEFederation_builder{
 		Kind:    types.KindSPIFFEFederation,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "1.example.com",
-		},
-		Spec: &machineidv1pb.SPIFFEFederationSpec{
-			BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-				HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+		}.Build(),
+		Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+			BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+				HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 					BundleEndpointUrl: testSrv1.URL,
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	syncer, err := NewSPIFFEFederationSyncer(SPIFFEFederationSyncerConfig{
@@ -141,41 +141,41 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 
 	// Wait for the initially created SPIFFEFederation to be synced
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		got, err := store.GetSPIFFEFederation(ctx, created1.Metadata.Name)
+		got, err := store.GetSPIFFEFederation(ctx, created1.GetMetadata().GetName())
 		require.NoError(t, err)
 		// Check that some update as occurred (as indicated by the revision)
-		require.NotEqual(t, got.Metadata.Revision, created1.Metadata.Revision)
+		require.NotEqual(t, got.GetMetadata().GetRevision(), created1.GetMetadata().GetRevision())
 
 		// Check that the expected status fields have been set...
-		require.NotNil(t, got.Status)
-		require.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
+		require.NotNil(t, got.GetStatus())
+		require.Equal(t, string(marshaledBundle1), got.GetStatus().GetCurrentBundle())
 	}, time.Second*10, time.Millisecond*200)
 
 	// Create a second SPIFFEFederation and wait for it to be synced
-	created2, err := store.CreateSPIFFEFederation(ctx, &machineidv1pb.SPIFFEFederation{
+	created2, err := store.CreateSPIFFEFederation(ctx, machineidv1pb.SPIFFEFederation_builder{
 		Kind:    types.KindSPIFFEFederation,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "2.example.com",
-		},
-		Spec: &machineidv1pb.SPIFFEFederationSpec{
-			BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-				HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+		}.Build(),
+		Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+			BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+				HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 					BundleEndpointUrl: testSrv2.URL,
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		got, err := store.GetSPIFFEFederation(ctx, created2.Metadata.Name)
+		got, err := store.GetSPIFFEFederation(ctx, created2.GetMetadata().GetName())
 		require.NoError(t, err)
 		// Check that some update as occurred (as indicated by the revision)
-		require.NotEqual(t, got.Metadata.Revision, created2.Metadata.Revision)
+		require.NotEqual(t, got.GetMetadata().GetRevision(), created2.GetMetadata().GetRevision())
 
 		// Check that the expected status fields have been set...
-		require.NotNil(t, got.Status)
-		require.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
+		require.NotNil(t, got.GetStatus())
+		require.Equal(t, string(marshaledBundle2), got.GetStatus().GetCurrentBundle())
 	}, time.Second*10, time.Millisecond*200)
 
 	cancel()
@@ -231,20 +231,20 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("https-web", func(t *testing.T) {
-		in := &machineidv1pb.SPIFFEFederation{
+		in := machineidv1pb.SPIFFEFederation_builder{
 			Kind:    types.KindSPIFFEFederation,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "example.com",
-			},
-			Spec: &machineidv1pb.SPIFFEFederationSpec{
-				BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-					HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+			}.Build(),
+			Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+				BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+					HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 						BundleEndpointUrl: testSrv.URL,
-					},
-				},
-			},
-		}
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build()
 		created, err := store.CreateSPIFFEFederation(ctx, in)
 		require.NoError(t, err)
 
@@ -255,16 +255,16 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		// Require that the persisted resource equals the resource output by syncTrustDomain
 		require.Empty(t, cmp.Diff(got, firstSync, protocmp.Transform()))
 		// Check that some update as occurred (as indicated by the revision)
-		require.NotEqual(t, created.Metadata.Revision, firstSync.Metadata.Revision)
+		require.NotEqual(t, created.GetMetadata().GetRevision(), firstSync.GetMetadata().GetRevision())
 		// Check that the expected status fields have been set...
-		require.NotNil(t, firstSync.Status)
-		wantStatus := &machineidv1pb.SPIFFEFederationStatus{
+		require.NotNil(t, firstSync.GetStatus())
+		wantStatus := machineidv1pb.SPIFFEFederationStatus_builder{
 			CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
-			CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
+			CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).GetSpec().GetBundleSource(),
 			NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
 			CurrentBundle:           string(marshaledBundle),
-		}
-		require.Empty(t, cmp.Diff(firstSync.Status, wantStatus, protocmp.Transform()))
+		}.Build()
+		require.Empty(t, cmp.Diff(firstSync.GetStatus(), wantStatus, protocmp.Transform()))
 
 		// Check that syncing again does nothing.
 		secondSync, err := syncer.syncTrustDomain(ctx, "example.com")
@@ -275,14 +275,14 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		clock.Advance(time.Minute * 15)
 		thirdSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
-		require.NotEqual(t, firstSync.Metadata.Revision, thirdSync.Metadata.Revision)
-		wantStatus = &machineidv1pb.SPIFFEFederationStatus{
+		require.NotEqual(t, firstSync.GetMetadata().GetRevision(), thirdSync.GetMetadata().GetRevision())
+		wantStatus = machineidv1pb.SPIFFEFederationStatus_builder{
 			CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
-			CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
+			CurrentBundleSyncedFrom: proto.Clone(created).(*machineidv1pb.SPIFFEFederation).GetSpec().GetBundleSource(),
 			NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
 			CurrentBundle:           string(marshaledBundle),
-		}
-		require.Empty(t, cmp.Diff(thirdSync.Status, wantStatus, protocmp.Transform()))
+		}.Build()
+		require.Empty(t, cmp.Diff(thirdSync.GetStatus(), wantStatus, protocmp.Transform()))
 
 		// Check that syncing again does nothing.
 		fourthSync, err := syncer.syncTrustDomain(ctx, "example.com")
@@ -290,18 +290,18 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		require.Empty(t, cmp.Diff(fourthSync, thirdSync, protocmp.Transform()))
 
 		// Check that modifying the bundle source triggers a sync.
-		fourthSync.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = fmt.Sprintf("%s/modified", testSrv.URL)
+		fourthSync.GetSpec().GetBundleSource().GetHttpsWeb().SetBundleEndpointUrl(fmt.Sprintf("%s/modified", testSrv.URL))
 		updated, err := store.UpdateSPIFFEFederation(ctx, fourthSync)
 		require.NoError(t, err)
 		fifthSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
-		require.NotEqual(t, updated.Metadata.Revision, fifthSync.Metadata.Revision)
-		wantStatus = &machineidv1pb.SPIFFEFederationStatus{
+		require.NotEqual(t, updated.GetMetadata().GetRevision(), fifthSync.GetMetadata().GetRevision())
+		wantStatus = machineidv1pb.SPIFFEFederationStatus_builder{
 			CurrentBundleSyncedAt:   timestamppb.New(clock.Now().UTC()),
-			CurrentBundleSyncedFrom: proto.Clone(updated).(*machineidv1pb.SPIFFEFederation).Spec.BundleSource,
+			CurrentBundleSyncedFrom: proto.Clone(updated).(*machineidv1pb.SPIFFEFederation).GetSpec().GetBundleSource(),
 			NextSyncAt:              timestamppb.New(clock.Now().UTC().Add(time.Minute * 12)),
 			CurrentBundle:           string(marshaledBundle),
-		}
-		require.Empty(t, cmp.Diff(fifthSync.Status, wantStatus, protocmp.Transform()))
+		}.Build()
+		require.Empty(t, cmp.Diff(fifthSync.GetStatus(), wantStatus, protocmp.Transform()))
 	})
 }

@@ -1,0 +1,98 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.clientiprestriction.v1;
+
+import "teleport/clientiprestriction/v1/clientiprestriction.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1;clientiprestrictionv1";
+
+// ClientIPRestrictionService provides an API to manage the singleton ClientIPRestriction.
+service ClientIPRestrictionService {
+  // GetClientIPRestriction returns the ClientIPRestriction singleton.
+  rpc GetClientIPRestriction(GetClientIPRestrictionRequest) returns (GetClientIPRestrictionResponse);
+
+  // CreateClientIPRestriction creates a new ClientIPRestriction. Fails if one already exists.
+  rpc CreateClientIPRestriction(CreateClientIPRestrictionRequest) returns (CreateClientIPRestrictionResponse);
+
+  // UpdateClientIPRestriction updates an existing ClientIPRestriction using revision-based
+  // optimistic concurrency. Fails if no ClientIPRestriction exists or the revision does not match.
+  rpc UpdateClientIPRestriction(UpdateClientIPRestrictionRequest) returns (UpdateClientIPRestrictionResponse);
+
+  // UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
+  rpc UpsertClientIPRestriction(UpsertClientIPRestrictionRequest) returns (UpsertClientIPRestrictionResponse);
+
+  // DeleteClientIPRestriction deletes the ClientIPRestriction singleton.
+  rpc DeleteClientIPRestriction(DeleteClientIPRestrictionRequest) returns (DeleteClientIPRestrictionResponse);
+}
+
+// Request for GetClientIPRestriction.
+// The name field, if set, must equal MetaNameClientIPRestriction.
+message GetClientIPRestrictionRequest {
+  string name = 1;
+}
+
+// Response for GetClientIPRestriction.
+message GetClientIPRestrictionResponse {
+  // The ClientIPRestriction singleton.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Request for CreateClientIPRestriction.
+message CreateClientIPRestrictionRequest {
+  // The ClientIPRestriction resource to create.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Response for CreateClientIPRestriction.
+message CreateClientIPRestrictionResponse {
+  // The created ClientIPRestriction.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Request for UpdateClientIPRestriction.
+message UpdateClientIPRestrictionRequest {
+  // The ClientIPRestriction resource to update. The metadata.revision field must be
+  // set to the current revision for the update to succeed.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Response for UpdateClientIPRestriction.
+message UpdateClientIPRestrictionResponse {
+  // The updated ClientIPRestriction.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Request for UpsertClientIPRestriction.
+message UpsertClientIPRestrictionRequest {
+  // The ClientIPRestriction resource to create or replace.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Response for UpsertClientIPRestriction.
+message UpsertClientIPRestrictionResponse {
+  // The upserted ClientIPRestriction.
+  ClientIPRestriction client_ip_restriction = 1;
+}
+
+// Request for DeleteClientIPRestriction.
+// The name field, if set, must equal MetaNameClientIPRestriction.
+message DeleteClientIPRestrictionRequest {
+  string name = 1;
+}
+
+// Response for DeleteClientIPRestriction.
+message DeleteClientIPRestrictionResponse {}

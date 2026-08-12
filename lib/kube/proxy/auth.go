@@ -134,7 +134,7 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			types.Metadata{
 				Name: cluster,
 			}, types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(f.cfg.Scope),
+			types.KubeClusterWithScope(f.cfg.GetScope()),
 		)
 		if err != nil {
 			f.log.WarnContext(ctx, "failed to create KubernetesClusterV3 from credentials for cluster",
@@ -167,6 +167,11 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 
 func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log *slog.Logger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	log = log.With("cluster", cluster)
+
+	// Disable client-go's client-side rate limiter (default 5 QPS).
+	// The kube exec path fetches pod metadata through this client,
+	// so the default limit caps exec throughput at ~5 QPS per agent.
+	clientCfg.QPS = -1
 
 	log.DebugContext(ctx, "Checking Kubernetes impersonation permissions")
 	client, err := kubernetes.NewForConfig(clientCfg)

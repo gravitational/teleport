@@ -112,51 +112,51 @@ func TestListUnifiedInstances(t *testing.T) {
 
 	// Create mock bot instances
 	bots := []*machineidv1.BotInstance{
-		{
-			Metadata: &headerv1.Metadata{Name: "bot-1"},
-			Spec: &machineidv1.BotInstanceSpec{
+		machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{Name: "bot-1"}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: "bot-1",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.7.0",
-					},
+					}.Build(),
 				},
-			},
-		},
-		{
-			Metadata: &headerv1.Metadata{Name: "bot-2"},
-			Spec: &machineidv1.BotInstanceSpec{
+			}.Build(),
+		}.Build(),
+		machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{Name: "bot-2"}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-2",
 				InstanceId: "bot-2",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.8.0",
-					},
+					}.Build(),
 				},
-			},
-		},
-		{
-			Metadata: &headerv1.Metadata{Name: "bot-3"},
-			Spec: &machineidv1.BotInstanceSpec{
+			}.Build(),
+		}.Build(),
+		machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{Name: "bot-3"}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-3",
 				InstanceId: "bot-3",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.9.0",
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 	for _, bot := range bots {
 		_, err := env.server.Auth().BotInstance.CreateBotInstance(ctx, bot)

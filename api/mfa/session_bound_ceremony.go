@@ -23,7 +23,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // SessionBoundCeremonyConfig contains configuration for a session-bound ceremony.
@@ -79,11 +81,11 @@ type SessionBoundCeremony struct {
 
 // Run runs the ceremony with a session-bound challenge using the provided binding parameters and returns the name of
 // the challenge that was satisfied.
-func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionIdentifyingPayload, promptOpts ...PromptOpt) (string, error) {
-	createReq := &mfav1.CreateSessionChallengeRequest{
+func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav2.SessionIdentifyingPayload, promptOpts ...PromptOpt) (string, error) {
+	createReq := mfav2.CreateSessionChallengeRequest_builder{
 		Payload:       payload,
 		TargetCluster: c.targetCluster,
-	}
+	}.Build()
 
 	// If a callback ceremony is provided, set the client callback URL in the create challenge request to request an SSO
 	// or Browser challenge in addition to other challenges. The callback ceremony will be used to complete the SSO or
@@ -100,9 +102,9 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 		} else {
 			defer callbackCeremony.Close()
 
-			createReq.SsoClientRedirectUrl = callbackCeremony.GetClientCallbackURL()
-			createReq.BrowserMfaTshRedirectUrl = callbackCeremony.GetClientCallbackURL()
-			createReq.ProxyAddressForSso = callbackCeremony.GetProxyAddress()
+			createReq.SetSsoClientRedirectUrl(callbackCeremony.GetClientCallbackURL())
+			createReq.SetBrowserMfaTshRedirectUrl(callbackCeremony.GetClientCallbackURL())
+			createReq.SetProxyAddressForSso(callbackCeremony.GetProxyAddress())
 
 			promptOpts = append(promptOpts, withSSOMFACeremony(callbackCeremony))
 		}
@@ -113,7 +115,7 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 		return "", trace.Wrap(err)
 	}
 
-	protoAuthChal, err := convertMFAAuthenticateChallengeToClient(createResp.MfaChallenge)
+	protoAuthChal, err := convertMFAAuthenticateChallengeToClient(createResp.GetMfaChallenge())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -123,24 +125,24 @@ func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav1.SessionId
 		return "", trace.Wrap(err)
 	}
 
-	mfaAuthResp, err := convertClientAuthenticateResponseToMFA(protoAuthResp, createResp.MfaChallenge.GetName())
+	mfaAuthResp, err := convertClientAuthenticateResponseToMFA(protoAuthResp, createResp.GetMfaChallenge().GetName())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	if _, err := c.validateSessionChallenge(
 		ctx,
-		&mfav1.ValidateSessionChallengeRequest{
+		mfav2.ValidateSessionChallengeRequest_builder{
 			MfaResponse: mfaAuthResp,
-		},
+		}.Build(),
 	); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return createResp.MfaChallenge.GetName(), nil
+	return createResp.GetMfaChallenge().GetName(), nil
 }
 
-func convertMFAAuthenticateChallengeToClient(mfaAuthChal *mfav1.AuthenticateChallenge) (*proto.MFAAuthenticateChallenge, error) {
+func convertMFAAuthenticateChallengeToClient(mfaAuthChal *mfav2.AuthenticateChallenge) (*proto.MFAAuthenticateChallenge, error) {
 	if mfaAuthChal == nil {
 		return nil, trace.BadParameter("AuthenticateChallenge must not be nil")
 	}
@@ -148,14 +150,14 @@ func convertMFAAuthenticateChallengeToClient(mfaAuthChal *mfav1.AuthenticateChal
 	protoAuthChal := &proto.MFAAuthenticateChallenge{}
 
 	if chal := mfaAuthChal.GetWebauthnChallenge(); chal != nil {
-		protoAuthChal.WebauthnChallenge = chal
+		protoAuthChal.WebauthnChallenge = webauthnpb.CredentialAssertionV2ToV1(chal)
 	}
 
 	if chal := mfaAuthChal.GetSsoChallenge(); chal != nil {
 		protoAuthChal.SSOChallenge = &proto.SSOChallenge{
 			RequestId:   chal.GetRequestId(),
 			RedirectUrl: chal.GetRedirectUrl(),
-			Device:      chal.GetDevice(),
+			Device:      ssoMFADeviceV2ToV1(chal.GetDevice()),
 		}
 	}
 
@@ -168,7 +170,7 @@ func convertMFAAuthenticateChallengeToClient(mfaAuthChal *mfav1.AuthenticateChal
 	return protoAuthChal, nil
 }
 
-func convertClientAuthenticateResponseToMFA(protoResp *proto.MFAAuthenticateResponse, name string) (*mfav1.AuthenticateResponse, error) {
+func convertClientAuthenticateResponseToMFA(protoResp *proto.MFAAuthenticateResponse, name string) (*mfav2.AuthenticateResponse, error) {
 	switch {
 	case protoResp == nil:
 		return nil, trace.BadParameter("MFAAuthenticateResponse must not be nil")
@@ -177,31 +179,29 @@ func convertClientAuthenticateResponseToMFA(protoResp *proto.MFAAuthenticateResp
 		return nil, trace.BadParameter("challenge name must not be empty")
 	}
 
-	mfaAuthResp := &mfav1.AuthenticateResponse{
+	mfaAuthResp := mfav2.AuthenticateResponse_builder{
 		Name: name,
-	}
+	}.Build()
 
 	switch resp := protoResp.GetResponse().(type) {
 	case *proto.MFAAuthenticateResponse_Webauthn:
-		mfaAuthResp.Response = &mfav1.AuthenticateResponse_Webauthn{
-			Webauthn: protoResp.GetWebauthn(),
-		}
+		mfaAuthResp.SetWebauthn(webauthnpb.CredentialAssertionResponseV1ToV2(protoResp.GetWebauthn()))
 
 	case *proto.MFAAuthenticateResponse_SSO:
-		mfaAuthResp.Response = &mfav1.AuthenticateResponse_Sso{
-			Sso: &mfav1.SSOChallengeResponse{
+		mfaAuthResp.SetSso(
+			mfav2.SSOChallengeResponse_builder{
 				RequestId: resp.SSO.GetRequestId(),
 				Token:     resp.SSO.GetToken(),
-			},
-		}
+			}.Build(),
+		)
 
 	case *proto.MFAAuthenticateResponse_Browser:
-		mfaAuthResp.Response = &mfav1.AuthenticateResponse_Browser{
-			Browser: &mfav1.BrowserMFAResponse{
+		mfaAuthResp.SetBrowser(
+			mfav2.BrowserMFAResponse_builder{
 				RequestId:        resp.Browser.GetRequestId(),
-				WebauthnResponse: resp.Browser.GetWebauthnResponse(),
-			},
-		}
+				WebauthnResponse: webauthnpb.CredentialAssertionResponseV1ToV2(resp.Browser.GetWebauthnResponse()),
+			}.Build(),
+		)
 
 	default:
 		return nil, trace.BadParameter(
@@ -211,4 +211,16 @@ func convertClientAuthenticateResponseToMFA(protoResp *proto.MFAAuthenticateResp
 	}
 
 	return mfaAuthResp, nil
+}
+
+func ssoMFADeviceV2ToV1(v2 *mfav2.SSOMFADevice) *types.SSOMFADevice {
+	if v2 == nil {
+		return nil
+	}
+
+	return &types.SSOMFADevice{
+		ConnectorId:   v2.GetConnectorId(),
+		ConnectorType: v2.GetConnectorType(),
+		DisplayName:   v2.GetDisplayName(),
+	}
 }

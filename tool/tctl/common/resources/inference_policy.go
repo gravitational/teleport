@@ -54,9 +54,9 @@ func (c inferencePolicyCollection) WriteText(w io.Writer, verbose bool) error {
 		rows = append(rows, []string{
 			meta.GetName(),
 			meta.GetDescription(),
-			strings.Join(spec.Kinds, ", "),
-			spec.Filter,
-			spec.Model,
+			strings.Join(spec.GetKinds(), ", "),
+			spec.GetFilter(),
+			spec.GetModel(),
 		})
 	}
 	var t asciitable.Table
@@ -95,14 +95,14 @@ func createInferencePolicy(
 
 	sclt := clt.SummarizerServiceClient()
 	if opts.Force {
-		req := &summarizerv1.UpsertInferencePolicyRequest{
+		req := summarizerv1.UpsertInferencePolicyRequest_builder{
 			Policy: policy,
-		}
+		}.Build()
 		_, err = sclt.UpsertInferencePolicy(ctx, req)
 	} else {
-		req := &summarizerv1.CreateInferencePolicyRequest{
+		req := summarizerv1.CreateInferencePolicyRequest_builder{
 			Policy: policy,
-		}
+		}.Build()
 		_, err = sclt.CreateInferencePolicy(ctx, req)
 	}
 	if err != nil {
@@ -121,9 +121,9 @@ func updateInferencePolicy(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req := &summarizerv1.UpdateInferencePolicyRequest{
+	req := summarizerv1.UpdateInferencePolicyRequest_builder{
 		Policy: policy,
-	}
+	}.Build()
 	if _, err := clt.SummarizerServiceClient().UpdateInferencePolicy(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -136,14 +136,14 @@ func getInferencePolicies(
 ) (Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
 	if ref.Name != "" {
-		req := &summarizerv1.GetInferencePolicyRequest{
+		req := summarizerv1.GetInferencePolicyRequest_builder{
 			Name: ref.Name,
-		}
+		}.Build()
 		res, err := ssclt.GetInferencePolicy(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return inferencePolicyCollection{res.Policy}, nil
+		return inferencePolicyCollection{res.GetPolicy()}, nil
 	}
 
 	items, err := stream.Collect(clientutils.Resources(
@@ -153,9 +153,9 @@ func getInferencePolicies(
 		) ([]*summarizerv1.InferencePolicy, string, error) {
 			resp, err := ssclt.ListInferencePolicies(
 				ctx,
-				&summarizerv1.ListInferencePoliciesRequest{
+				summarizerv1.ListInferencePoliciesRequest_builder{
 					PageToken: nextPageToken,
-				})
+				}.Build())
 			return resp.GetPolicies(), resp.GetNextPageToken(), trace.Wrap(err)
 		}))
 	if err != nil {
@@ -167,9 +167,9 @@ func getInferencePolicies(
 func deleteInferencePolicy(
 	ctx context.Context, clt *authclient.Client, ref services.Ref,
 ) error {
-	req := &summarizerv1.DeleteInferencePolicyRequest{
+	req := summarizerv1.DeleteInferencePolicyRequest_builder{
 		Name: ref.Name,
-	}
+	}.Build()
 	if _, err := clt.SummarizerServiceClient().DeleteInferencePolicy(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

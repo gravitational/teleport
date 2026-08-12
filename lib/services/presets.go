@@ -180,6 +180,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindLoginRule, RW()),
@@ -225,14 +226,15 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindClassifier, RW()),
 					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
-					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
 					types.NewRule(types.KindRecordingEncryption, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -288,6 +290,7 @@ func NewPresetAccessRole() types.Role {
 				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
@@ -327,6 +330,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetLinuxDesktopLogins(types.Allow, []string{teleport.TraitInternalLinuxDesktopLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
@@ -491,6 +495,7 @@ func NewPresetDeviceAdminRole(buildType string) types.Role {
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 				},
 			},
 		},
@@ -876,16 +881,17 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindHealthCheckConfig, RW()),
 					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
-					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindClassifier, RW()),
 					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -957,6 +963,7 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					types.NewRule(types.KindBeamsConfig, RO()),
 				},
 			},
 		},
@@ -992,6 +999,7 @@ func NewPresetBeamAdminRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -1054,52 +1062,52 @@ func NewSystemBeamRole(buildType string) types.Role {
 // health checks for all databases resources, and is intended to be used as a
 // virtual default resource. Its name is "default" for historical reasons.
 func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
-	return &healthcheckconfigv1.HealthCheckConfig{
+	return healthcheckconfigv1.HealthCheckConfig_builder{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        teleport.VirtualDefaultHealthCheckConfigDBName,
 			Description: "Enables health checks for all databases by default",
 			// this revision MUST be changed every time we change the contents
 			// of the preset so that conditional updates can check against it
 			Revision: "af391615-1e42-4237-aa2b-155e6abbd41a",
-		},
-		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		}.Build(),
+		Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				// match all databases
-				DbLabels: []*labelv1.Label{{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	}
+				}.Build()},
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
 // health checks for all Kubernetes resources. It's intended to be used as a
 // virtual default resource.
 func VirtualDefaultHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
-	return &healthcheckconfigv1.HealthCheckConfig{
+	return healthcheckconfigv1.HealthCheckConfig_builder{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        teleport.VirtualDefaultHealthCheckConfigKubeName,
 			Description: "Enables health checks for all Kubernetes clusters by default.",
 			// this revision MUST be changed every time we change the contents
 			// of the preset so that conditional updates can check against it
 			Revision: "d796f007-e60c-4747-8dde-f479aff6b743",
-		},
-		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		}.Build(),
+		Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				// match all kubernetes clusters
-				KubernetesLabels: []*labelv1.Label{{
+				KubernetesLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	}
+				}.Build()},
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
@@ -1130,23 +1138,33 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	}
 }
 
-var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName:                    NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:                     NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:                     NewPresetAccessRole().GetRules(types.Allow),
-	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
-	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
-	teleport.PresetAccessPluginWithReviewRoleName:     NewPresetAccessPluginWithReviewRole().GetRules(types.Allow),
-	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
-}
-
 // defaultAllowRules has the Allow rules that should be set as default when
 // they were not explicitly defined. This is used to update the current cluster
 // roles when deploying a new resource. It will also update all existing roles
 // on auth server restart. Rules defined in preset template should be
 // exactly the same rule when added here.
-func defaultAllowRules() map[string][]types.Rule {
-	return defaultAllowRulesMap
+func defaultAllowRules(buildType string) map[string][]types.Rule {
+	roles := []types.Role{
+		NewPresetAuditorRole(),
+		NewPresetEditorRole(),
+		NewPresetAccessRole(),
+		NewPresetTerraformProviderRole(),
+		NewPresetAccessPluginRole(),
+		NewPresetAccessPluginWithReviewRole(),
+		NewPresetListAccessRequestResourcesRole(),
+		NewPresetDeviceAdminRole(buildType),
+		NewPresetBeamUserRole(buildType),
+		NewPresetBeamAdminRole(buildType),
+	}
+
+	allowRules := make(map[string][]types.Rule, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		allowRules[role.GetName()] = role.GetRules(types.Allow)
+	}
+	return allowRules
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
@@ -1297,7 +1315,7 @@ func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (ty
 	}
 
 	// Resource Rules
-	defaultRules, ok := defaultAllowRules()[role.GetName()]
+	defaultRules, ok := defaultAllowRules(buildType)[role.GetName()]
 	if ok {
 		existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 

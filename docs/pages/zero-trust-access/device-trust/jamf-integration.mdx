@@ -11,15 +11,18 @@ tags:
 enterprise: Device Trust
 ---
 
-The Device Trust Jamf Pro integration lets you automatically sync your Jamf Pro computer
-inventory into Teleport.
+The Device Trust Jamf Pro integration lets you automatically sync your Jamf Pro
+device inventory into Teleport. It supports macOS computers and iOS & iPadOS
+mobile devices. By default only macOS computers are synced. See
+[Optional: Customize the sync schedule](#optional-customize-the-sync-schedule)
+for enabling iOS and iPadOS sync.
 
 ## How it works
 
 The Teleport Jamf Pro service is a distinct `teleport` process that periodically
-reads your computer inventory from Jamf Pro and syncs it to Teleport. It performs
+reads your device inventory from Jamf Pro and syncs it to Teleport. It performs
 both incremental (called "partial") and full syncs, as well as removals from
-Teleport if a computer is removed from Jamf Pro.
+Teleport if a device is removed from Jamf Pro.
 
 Syncing devices from Jamf Pro is an **inventory management** step, equivalent to
 automatically running the corresponding `tctl devices add` commands.
@@ -53,7 +56,8 @@ https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/API_Role
 to create a role and an API client. We recommend creating a role and API client
 specific for Teleport.
 
-Make sure that your Jamf role has the "Read Computers" privilege.
+Make sure that your Jamf role has the "Read Computers" privilege. Select "Read
+Mobile Devices" too if you plan to sync iOS and iPadOS devices.
 
 You can test your client credentials using the following Jamf query, replacing
 <Var name="(=jamf.api_endpoint=)" description="Jamf API URL" /> with your Jamf
@@ -138,14 +142,14 @@ Change the following settings, as appropriate:
 - jamf_service.client_id
 
 Finally, write your Jamf client secret to the
-`/var/lib/teleport/jamf_client_secret` file:
+`/var/lib/teleport/jamf_client_secret.txt` file:
 
 ```code
-$ sudo nano /var/lib/teleport/jamf_client_secret # or use your favorite editor
+$ sudo nano /var/lib/teleport/jamf_client_secret.txt # or use your favorite editor
 
 # Only the OS user that runs `teleport` should have access to the secret file.
-$ sudo chmod 400 /var/lib/teleport/jamf_client_secret
-$ sudo chown teleport /var/lib/teleport/jamf_client_secret
+$ sudo chmod 400 /var/lib/teleport/jamf_client_secret.txt
+$ sudo chown teleport /var/lib/teleport/jamf_client_secret.txt
 ```
 
 ## Step 3/4. Create a join token
@@ -192,13 +196,13 @@ devices ls`:
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Source Enroll Status Owner Device ID
------------- ----- ------ ------------- ----- ------------------------------------
-CXXXXXXXXX17 macOS Jamf   not enrolled        20ec6373-9e8e-46e0-8f1c-47ad6b06a768
-CXXXXXXXXX2T macOS Jamf   not enrolled        79755778-7cbe-4e2c-83ec-7eaa3d4d7e36
-CXXXXXXXXX3T macOS Jamf   not enrolled        665e59d5-393a-4894-841d-edad06329717
-CXXXXXXXXX4T macOS Jamf   not enrolled        dd032e90-bfb0-47d5-bce5-e57545f6788f
-CXXXXXXXXX5T macOS Jamf   not enrolled        bf189863-a94a-40dc-9013-d96f8dada2f1
+Asset Tag    OS     Source Enroll Status Owner Device ID
+------------ ------ ------ ------------- ----- ------------------------------------
+CXXXXXXXXX17 macOS  Jamf   not enrolled        20ec6373-9e8e-46e0-8f1c-47ad6b06a768
+CXXXXXXXXX2T macOS  Jamf   not enrolled        79755778-7cbe-4e2c-83ec-7eaa3d4d7e36
+CXXXXXXXXX3T macOS  Jamf   not enrolled        665e59d5-393a-4894-841d-edad06329717
+DXXXXXXXXX01 iPadOS Jamf   not enrolled        dd032e90-bfb0-47d5-bce5-e57545f6788f
+DXXXXXXXXX02 iOS    Jamf   not enrolled        bf189863-a94a-40dc-9013-d96f8dada2f1
 (...)
 ```
 
@@ -211,20 +215,91 @@ by the [Jamf Pro API](
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
 Jamf recommends a full sync no more than once every 24 hours.
 
-The default "inventory" configuration is roughly equivalent to the one below:
+Where you apply the customization depends on how you run Jamf sync. The snippets
+under each option below spell out the default "inventory" configuration which
+the Jamf service and plugin use implicitly. Edit them to customize the sync
+schedule or the set of synced devices.
+
+### In the `jamf_service` configuration file
+
+If you run Jamf sync as a self-hosted `jamf_service`, edit the
+`jamf_service.inventory` list in your `teleport.yaml` and restart the `teleport`
+process:
 
 ```yaml
 jamf_service:
   enabled: true
   # ...
   inventory:
-  - sync_period_partial: 6h
+  - device_type: computers
+    sync_period_partial: 6h
     sync_period_full: 24h
     on_missing: DELETE
     filter_rsql: general.remoteManagement.managed==true
 ```
 
+### On the Jamf plugin resource
+
+If you manage Jamf sync through the hosted Jamf plugin instead, the same
+configuration is stored on the plugin resource. This is the case for Teleport
+Cloud users who set up the plugin through the Web UI. Open it for editing with
+`tctl edit plugins/jamf` and update `spec.Settings.jamf.jamf_spec.inventory`.
+Updating the config restarts the plugin immediately with the changes applied.
+
+```yaml
+kind: plugin
+metadata:
+  name: jamf
+spec:
+  Settings:
+    jamf:
+      jamf_spec:
+        inventory:
+        - device_type: computers
+          sync_period_partial: 6h
+          sync_period_full: 24h
+          on_missing: DELETE
+          filter_rsql: general.remoteManagement.managed==true
+version: v1
+```
+
+Subsequent examples in this section show the `jamf_service` configuration file
+form for brevity. To apply them to the hosted plugin, copy the `inventory`
+entries into `spec.Settings.jamf.jamf_spec.inventory` on the plugin resource.
+
+Each inventory entry syncs a single device type. To also sync iOS and iPadOS
+mobile devices, add a second entry with `device_type: mobile_devices`:
+
+```yaml
+jamf_service:
+  enabled: true
+  # ...
+  inventory:
+  - device_type: computers
+    sync_period_partial: 6h
+    sync_period_full: 24h
+    on_missing: DELETE
+    filter_rsql: general.remoteManagement.managed==true
+  - device_type: mobile_devices
+    sync_period_partial: 6h
+    sync_period_full: 24h
+    on_missing: DELETE
+    filter_rsql: managed==true
+```
+
 Unpacking the configuration, we have the following keys:
+
+### `device_type`
+
+The `device_type` key specifies which Jamf device type the entry syncs. Valid
+values are:
+
+- `computers`: macOS computers (synced via the Jamf Pro computers inventory API).
+- `mobile_devices`: iOS and iPadOS devices (synced via the Jamf Pro mobile
+  devices API).
+
+If `device_type` is not specified, the entry syncs `computers`. To sync more
+than one device type, add additional inventory entries.
 
 ### `sync_period_*`
 
@@ -265,9 +340,12 @@ still in the Jamf inventory, it'll be recreated during the next sync.
 ### `filter_rsql`
 
 The `filter_rsql` key applies a Jamf Pro API filter when querying for devices.
-Refer to
-https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory for the
-possible filter values.
+The set of filterable fields depends on `device_type`:
+
+- For `computers`, refer to
+  https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+- For `mobile_devices`, refer to
+  https://developer.jamf.com/jamf-pro/reference/get_v2-mobile-devices-detail.
 
 ## Optional: Sync multiple sources
 

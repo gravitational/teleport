@@ -19,10 +19,12 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -87,6 +89,7 @@ type ClusterClient interface {
 	ClusterName() string
 	RootClusterName() string
 	SessionSSHKeyRing(ctx context.Context, user string, target client.NodeDetails) (keyRing *client.KeyRing, completedMFA bool, err error)
+	PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (challengeName string, err error)
 }
 
 // RunUserProcess is the entry point called by all VNet client applications
@@ -108,10 +111,23 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(greedy52) VNet config may have a flag like `allow_app_https_tunnel`
+	// to opt-in this feature once browser support is added for app HTTPS
+	// tunnel. Using an unstable env var for testing purpose for now.
+	allowAppHTTPSTunnel, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_VNET_APP_HTTPS_TUNNEL"))
+	if allowAppHTTPSTunnel {
+		log.InfoContext(ctx, "App HTTPS tunnel is enabled")
+	}
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
+		// DB access via VNet is currently only supported by the tbot beams, but
+		// disabled for tsh/Connect by default. flip to true to enable DB access via VNet
+		// for tsh/Connect to validate locally.
+		allowDatabaseAccess: false,
+		allowAppHTTPSTunnel: allowAppHTTPSTunnel,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,

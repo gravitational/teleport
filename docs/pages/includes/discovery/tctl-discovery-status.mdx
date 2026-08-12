@@ -1,0 +1,38 @@
+{{ provider="AWS" cloud="aws" resource="AWS EC2" }}
+
+### Inspect {{ provider }} discovery status
+
+Run `tctl discovery status` to check the state of dynamic Discovery Service
+configurations, when each Discovery Service instance last reported, and the latest
+{{ provider }} enrollment totals:
+
+```code
+$ tctl discovery status --cloud={{ cloud }}
+```
+
+The following example shows a healthy configuration that discovered and enrolled two resources:
+
+```text
+Discovery config example-discovery:
+  Discovery group: production
+  Status: healthy
+  Last run: 1 minute ago
+
+  Service (00000000-0000-0000-0000-000000000000):
+    Poll interval: 5 minutes
+    Last update: 1 minute ago
+    example-integration:
+      {{ resource }}:
+        Previous sync: 1 minute ago (took 12s)
+        Result: 2 found, 2 enrolled, 0 failed
+```
+
+A persistent `error` or `not reporting yet` status, a message that no Discovery
+Service instances are running, or a nonzero `failed` count indicates a discovery
+or enrollment problem.
+
+The command reports dynamic `discovery_config` resources. It does not include
+static discovery matchers configured in `teleport.yaml`.
+
+See [`tctl discovery status`](../../reference/cli/tctl.mdx#tctl-discovery-status)
+for the full flag reference.

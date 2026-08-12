@@ -94,7 +94,7 @@ func (a *Fetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSP
 		eGroup.Go(func() error {
 			for _, policy := range page.Policies {
 				oldPolicy := sliceFilterPickFirst(existing.Policies, func(p *accessgraphv1alpha.AWSPolicyV1) bool {
-					return p.Arn == aws.ToString(policy.Arn) && p.AccountId == a.AccountID
+					return p.GetArn() == aws.ToString(policy.Arn) && p.GetAccountId() == a.AccountID
 				})
 				out, err := iamClient.GetPolicyVersion(ctx, &iam.GetPolicyVersionInput{
 					PolicyArn: policy.Arn,
@@ -123,12 +123,12 @@ func (a *Fetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.AWSP
 func awsPolicyToProtoPolicy(policy iamtypes.Policy, policyDoc []byte, accountID string) *accessgraphv1alpha.AWSPolicyV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(policy.Tags))
 	for _, tag := range policy.Tags {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(tag.Key),
 			Value: strPtrToWrapper(tag.Value),
-		})
+		}.Build())
 	}
-	return &accessgraphv1alpha.AWSPolicyV1{
+	return accessgraphv1alpha.AWSPolicyV1_builder{
 		PolicyName:       aws.ToString(policy.PolicyName),
 		Arn:              aws.ToString(policy.Arn),
 		CreatedAt:        awsTimeToProtoTime(policy.CreateDate),
@@ -141,5 +141,5 @@ func awsPolicyToProtoPolicy(policy iamtypes.Policy, policyDoc []byte, accountID 
 		Tags:             tags,
 		PolicyDocument:   policyDoc,
 		AccountId:        accountID,
-	}
+	}.Build()
 }

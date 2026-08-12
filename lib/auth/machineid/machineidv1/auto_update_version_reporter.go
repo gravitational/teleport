@@ -267,24 +267,24 @@ func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 			// If the bot did not send an ExternalUpdater, it does not properly
 			// support managed updates - so we put it in the no-group ("") group.
 			var groupName string
-			if ui := latest.GetUpdaterInfo(); latest.ExternalUpdater != "" && ui != nil {
+			if ui := latest.GetUpdaterInfo(); latest.GetExternalUpdater() != "" && ui != nil {
 				groupName = ui.UpdateGroup
 			}
 
 			group, ok := groups[groupName]
 			if !ok {
-				group = &autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+				group = autoupdate.AutoUpdateBotInstanceReportSpecGroup_builder{
 					Versions: make(map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion),
-				}
+				}.Build()
 				groups[groupName] = group
 			}
 
-			version, ok := group.Versions[latest.GetVersion()]
+			version, ok := group.GetVersions()[latest.GetVersion()]
 			if !ok {
 				version = &autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{}
-				group.Versions[latest.GetVersion()] = version
+				group.GetVersions()[latest.GetVersion()] = version
 			}
-			version.Count++
+			version.SetCount(version.GetCount() + 1)
 		}
 
 		if nextToken == "" || len(instances) == 0 {
@@ -292,10 +292,10 @@ func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 		}
 	}
 
-	report, err := update.NewAutoUpdateBotInstanceReport(&autoupdate.AutoUpdateBotInstanceReportSpec{
+	report, err := update.NewAutoUpdateBotInstanceReport(autoupdate.AutoUpdateBotInstanceReportSpec_builder{
 		Timestamp: timestamppb.New(r.clock.Now()),
 		Groups:    groups,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "creating report")
 	}
@@ -338,13 +338,13 @@ func EmitInstancesMetric(report *autoupdate.AutoUpdateBotInstanceReport, gauge *
 				gauge.With(prometheus.Labels{
 					teleport.TagVersion:          version,
 					teleport.TagAutomaticUpdates: "false",
-				}).Set(float64(versionMetrics.Count))
+				}).Set(float64(versionMetrics.GetCount()))
 			}
 			continue
 		}
 
 		for version, metrics := range groupMetrics.GetVersions() {
-			byVersion[version] += metrics.Count
+			byVersion[version] += metrics.GetCount()
 		}
 	}
 

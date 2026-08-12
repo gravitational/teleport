@@ -31,6 +31,8 @@ struct data_t {
     u32 args_len;
     // ArgsTruncated is true if the args were truncated.
     bool args_truncated;
+    // FailedToReadArgs is true if the args could not be read.
+    bool failed_to_read_args;
     // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
     // AuditSessionID is the audit session ID that is used to correlate
@@ -50,10 +52,14 @@ const struct data_t *unused __attribute__((unused));
 // this with reliable data from mm->arg_start. On a failed exec, this 
 // is the only argv source.
 struct inflight_exec_t {
-    bool valid;
+    // valid_unsent is true if the filename and argv are set and they 
+    // have not already been added to an event for userland to consume.
+    bool valid_unsent;
+    // filename is the filename of the executable.
     u8 filename[FILENAMESIZE];
+    // argv is a pointer to the argv array. It will only be used if
+    // fexit/bprm_execve isn't called.
     u64 argv;
-    bool emitted;
 };
 
 struct {
@@ -70,6 +76,21 @@ BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
 BPF_RING_BUF(execve_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
+
+void zero_data(struct data_t *data)
+{
+    data->pid = 0;
+    data->ppid = 0;
+    data->command[0] = '\0';
+    data->filename[0] = '\0';
+    data->args[0] = '\0';
+    data->args_len = 0;
+    data->args_truncated = false;
+    data->failed_to_read_args = false;
+    data->cgroup = 0;
+    data->audit_session_id = 0;
+    data->return_code = 0;
+}
 
 // Read the filename and argv from userspace and stash them in task-local
 // storage for exit_execve to use if necessary. The data from userspace
@@ -91,14 +112,13 @@ static int enter_execve(const char *filename, const char *const *argv)
         return 0;
     }
 
-    info->valid = true;
+    info->valid_unsent = true;
     if (bpf_probe_read_user_str(&info->filename, sizeof(info->filename), filename) <= 0) {
         // if reading the filename failed set it to empty to it won't
         // be used in an event
         info->filename[0] = 0;
     }
     info->argv = (u64)argv;
-    info->emitted = false;
 
     return 0;
 }
@@ -140,7 +160,7 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
 
     info = bpf_task_storage_get(&inflight_exec, task, NULL, 0);
     if (ret != 0) {
-        if (info && info->valid) {
+        if (info && info->valid_unsent) {
             // If bprm_execve is called but the return code is non-zero,
             // the argv in task->mm won't be populated, but we can still
             // get the filename. In this case we pass the filename to
@@ -152,12 +172,18 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
         return 0;
     }
 
+    // Mark consumed so exit_execve won't also handle this event.
+    if (info != NULL) {
+        info->valid_unsent = false;
+    }
+
     struct data_t *data = bpf_ringbuf_reserve(&execve_events, sizeof(*data), 0);
     if (!data) {
         INCR_COUNTER(lost);
         bpf_printk("execve_events ring buffer full");
         return 0;
     }
+    zero_data(data);
 
     void *arg_start = (void *)BPF_CORE_READ(task, mm, arg_start);
     void *arg_end = (void *)BPF_CORE_READ(task, mm, arg_end);
@@ -169,9 +195,11 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
         args_len = ARGBUFSIZE;
         data->args_truncated = true;
     }
+    data->failed_to_read_args = false;
     int read_ret = bpf_probe_read_user(&data->args, args_len, arg_start);
     if (read_ret < 0) {
         args_len = 0;
+        data->failed_to_read_args = true;
     }
     data->args_len = args_len;
 
@@ -189,10 +217,6 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
 
     bpf_printk("bprm_execve_exit: emitted event");
     bpf_ringbuf_submit(data, 0);
-
-    if (info && info->valid) {
-        info->emitted = true;
-    }
 
     return 0;
 }
@@ -213,18 +237,22 @@ static int exit_execve(int retCode)
         bpf_printk("exit_execve: no inflight_exec_t found, not emitting event");
         return 0;
     }
-    if (!info->valid || info->emitted) {
-        bpf_printk("execve_exit: not emitting event: valid=%d emitted=%d", info->valid, info->emitted);
-        goto out;
+    if (!info->valid_unsent) {
+        bpf_printk("execve_exit: not emitting event");
+        return 0;
     }
+
+    // Mark consumed so a subsequent open on the same thread doesn't 
+    // pick up stale data.
+    info->valid_unsent = false;
 
     struct data_t *data = bpf_ringbuf_reserve(&execve_events, sizeof(*data), 0);
     if (!data) {
         INCR_COUNTER(lost);
         bpf_printk("execve_events ring buffer full");
-        goto out;
+        return 0;
     }
-    data->args_truncated = false;
+    zero_data(data);
 
     u32 offset = 0;
     const char *const *argv = (const char *const *)info->argv;
@@ -233,7 +261,12 @@ static int exit_execve(int retCode)
     for (; i < MAXARGS; i++) {
         const char *argp = NULL;
         long ret = bpf_probe_read_user(&argp, sizeof(argp), &argv[i]);
-        if (ret < 0 || !argp) {
+        if (ret < 0) {
+            data->failed_to_read_args = true;
+            break;
+        }
+        // We've reached the end of the arguments if argp is NULL.
+        if (!argp) {
             break;
         }
 
@@ -245,6 +278,7 @@ static int exit_execve(int retCode)
 
         ret = bpf_probe_read_user_str(&data->args[offset], MAXARGLEN, argp);
         if (ret < 0) {
+            data->failed_to_read_args = true;
             break;
         }
 
@@ -274,11 +308,6 @@ static int exit_execve(int retCode)
 
     bpf_printk("execve_exit: emitted event");
     bpf_ringbuf_submit(data, 0);
-
-out:
-    // Mark consumed so a subsequent open on the same thread doesn't 
-    // pick up stale data.
-    info->valid = false;
 
     return 0;
 }

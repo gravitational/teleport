@@ -33,7 +33,7 @@ export const WelcomeWrapper = ({ children }) => {
         between WelcomeHeader and chidlren */}
         <Flex flexDirection="column">
           <WelcomeHeader>
-            <LogoHero my="12px" />
+            <LogoHero py="12px" />
           </WelcomeHeader>
           {children}
         </Flex>
@@ -50,8 +50,13 @@ const OnboardWrapper = styled.div`
   top: 0;
   left: 0;
   overflow: hidden;
-  // z-index -2 will place the image behind the black transparent/blur effect
-  z-index: -2;
+  // Create our own stacking context so the negative z-index on ::after is
+  // scoped to this wrapper. Previously this used z-index: -2 to push the
+  // wrapper itself behind page content, but Chakra v3's preflight sets
+  // body { min-height: 100dvh; position: relative }, which makes <body>
+  // a hit-testable rectangle covering the viewport — clicks then resolve
+  // to body before reaching anything at z-index: -2.
+  isolation: isolate;
 
   background: url('${cloudCity}');
   -webkit-background-size: cover;
@@ -67,7 +72,8 @@ const OnboardWrapper = styled.div`
     bottom: 0;
     right: 0;
     position: absolute;
-    // z-index -1 will place the transparent/blur effect behind all other components on the page
+    // z-index -1 places the transparent/blur effect above the wrapper's
+    // background image but behind in-flow children
     z-index: -1;
 
     background-color: black;

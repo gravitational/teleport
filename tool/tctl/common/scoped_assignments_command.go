@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
@@ -101,10 +102,12 @@ func (c *scopedAssignmentsListCommand) TryRun(ctx context.Context, cmd string, c
 
 // list retrieves scoped role assignments matching the configured filters and writes them.
 func (c *scopedAssignmentsListCommand) list(ctx context.Context, client services.ScopedRoleAssignmentReader) error {
-	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
+	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
 		User: c.user,
 		Role: c.role,
-	}))
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 	if err != nil {
 		return trace.Wrap(err, "collecting filtered scoped role assignments")
 	}

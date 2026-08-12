@@ -91,10 +91,6 @@ for connecting to the database.
 
 ### `postgres.replica`
 
-| Type | Default |
-|------|---------|
-| `object` | `{}` |
-
 `postgres.replica` contains the database replica connection settings.
 
 #### `postgres.replica.connectionString`
@@ -104,7 +100,7 @@ for connecting to the database.
 | `string` | `""` |
 
 `postgres.replica.connectionString` is the connection string to the PostgreSQL database.
-It should be used only if you are not using a Kubernetes secret and AWS or Azure auth is enabled.
+Use this only when not using a Kubernetes secret and not using AWS or Azure IAM authentication.
 
 #### `postgres.replica.secretName`
 
@@ -159,96 +155,100 @@ Setting this is required, as Teleport Access Graph always operates via TLS-prote
 `clusterHostCAs` is a list of strings containing PEM-encoded Host CA certificates of Teleport clusters that are allowed to use this instance of TAG.
 Setting this to a non-empty array is required.
 
-## `identity_activity_center`
+## `identityActivityCenter`
 
-`identity_activity_center` contains options for the Identity Activity Center feature.
+| Type | Default |
+|------|---------|
+| `object` | `{"database":"","enabled":false,"maxmindGeoipCityDbPath":"","region":"","s3":"","s3LargeFiles":"","s3Results":"","sqsQueueUrl":"","table":"","workgroup":""}` |
+
+`identityActivityCenter` contains options for the Identity Activity Center feature.
 This feature allows Access Graph to store security events in a central location
 and to query them using Athena, providing a way to analyze and correlate security events across
 multiple Teleport clusters.
 
-### `identity_activity_center.enabled`
+### `identityActivityCenter.enabled`
 
 | Type | Default |
 |------|---------|
 | `bool` | `false` |
 
-`identity_activity_center.enabled` enables the Identity Activity Center feature.
+`identityActivityCenter.enabled` enables the Identity Activity Center feature.
 
-### `identity_activity_center.region`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`identity_activity_center.region` the AWS region where the SQS queue, Athena database and S3 bucket are located.
-
-### `identity_activity_center.database`
+### `identityActivityCenter.region`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.database` the name of the Athena database to use for storing security events.
+`identityActivityCenter.region` the AWS region where the SQS queue, Athena database and S3 bucket are located.
 
-### `identity_activity_center.table`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`identity_activity_center.table` the name of the Athena table to use for storing security events.
-
-### `identity_activity_center.workgroup`
+### `identityActivityCenter.database`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.workgroup` the name of the Athena workgroup to use for executing queries.
+`identityActivityCenter.database` the name of the Athena database to use for storing security events.
 
-### `identity_activity_center.s3`
+### `identityActivityCenter.table`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.s3` the S3 bucket to use for storing security events.
+`identityActivityCenter.table` the name of the Athena table to use for storing security events.
+
+### `identityActivityCenter.workgroup`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identityActivityCenter.workgroup` the name of the Athena workgroup to use for executing queries.
+
+### `identityActivityCenter.s3`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identityActivityCenter.s3` the S3 bucket to use for storing security events.
 Example: s3://bucket-events/data/
 
-### `identity_activity_center.s3_results`
+### `identityActivityCenter.s3Results`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.s3_results` the S3 bucket to use for storing results of Athena queries.
+`identityActivityCenter.s3Results` the S3 bucket to use for storing results of Athena queries.
 Example: s3://bucket-events/results/
 
-### `identity_activity_center.s3_large_files`
+### `identityActivityCenter.s3LargeFiles`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.s3_large_files` the S3 bucket to use for storing large files that cannot be stored in the Athena database.
+`identityActivityCenter.s3LargeFiles` the S3 bucket to use for storing large files that cannot be stored in the Athena database.
 This is used to store large files that cannot be shared via SQS, such as large JSON files.
 Example: s3://bucket-events/s3_large_files
 
-### `identity_activity_center.sqs_queue_url`
+### `identityActivityCenter.sqsQueueUrl`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.sqs_queue_url` the URL of the SQS queue to use for processing security events.
+`identityActivityCenter.sqsQueueUrl` the URL of the SQS queue to use for processing security events.
 
-### `identity_activity_center.maxmind_geoip_city_db_path`
+### `identityActivityCenter.maxmindGeoipCityDbPath`
 
 | Type | Default |
 |------|---------|
 | `string` | `""` |
 
-`identity_activity_center.maxmind_geoip_city_db_path` the path to the MaxMind GeoIP City database file.
+`identityActivityCenter.maxmindGeoipCityDbPath` the path to the MaxMind GeoIP City database file.
 This is used to enrich security events with geolocation information.
 Use this together with the volumeMounts and volumes options to mount the database file into the TAG pod.
 
@@ -271,9 +271,9 @@ volumeMounts:
   mountPath: "/etc/maxmindGeoIP/"
   readOnly: true
 
-identity_activity_center:
+identityActivityCenter:
   ... # other options
-  maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb"
+  maxmindGeoipCityDbPath: "/etc/maxmindGeoIP/GeoLite2-City.mmdb"
 ```
 
 If you do not want to use the MaxMind GeoIP City database, set this to an empty string.
@@ -423,6 +423,24 @@ The default value supports running under the `restricted`
 
 `extraEnv` allows specifying additional environment variables.
 
+## `extraEnvFrom`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraEnvFrom` allows bulk-loading environment variables from Kubernetes Secrets or ConfigMaps
+using the `envFrom` field. Each entry is passed through as-is, so `secretRef`, `configMapRef`,
+and optional `prefix` fields are all supported.
+
+Example:
+  extraEnvFrom:
+    - secretRef:
+        name: my-app-secrets
+    - configMapRef:
+        name: my-app-config
+        optional: true
+
 ## `volumes`
 
 | Type | Default |
@@ -430,6 +448,14 @@ The default value supports running under the `restricted`
 | `array` | `[]` |
 
 `volumes` allows you to define additional volumes on the output Deployment definition.
+
+## `volumeMounts`
+
+| Type | Default |
+|------|---------|
+| `array` | `[]` |
+
+`volumeMounts` allows you to define additional volumeMounts on the output Deployment definition.
 
 ## `nodeSelector`
 

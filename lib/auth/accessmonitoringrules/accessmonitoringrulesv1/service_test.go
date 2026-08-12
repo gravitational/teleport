@@ -49,15 +49,15 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 	ctx, localClient, resourceSvc := initSvc(t, clusterName)
 
 	sampleAccessMonitoringRuleFn := func(name string) *accessmonitoringrulev1.AccessMonitoringRule {
-		return &accessmonitoringrulev1.AccessMonitoringRule{
+		return accessmonitoringrulev1.AccessMonitoringRule_builder{
 			Kind:     types.KindAccessMonitoringRule,
 			Version:  types.V1,
-			Metadata: &v1.Metadata{Name: name},
-			Spec: &accessmonitoringrulev1.AccessMonitoringRuleSpec{
+			Metadata: v1.Metadata_builder{Name: name}.Build(),
+			Spec: accessmonitoringrulev1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{"someSubject"},
 				Condition: "someCondition",
-			},
-		}
+			}.Build(),
+		}.Build()
 	}
 
 	tt := []struct {
@@ -81,9 +81,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.GetAccessMonitoringRule(ctx, &accessmonitoringrulev1.GetAccessMonitoringRuleRequest{
+				_, err := resourceSvc.GetAccessMonitoringRule(ctx, accessmonitoringrulev1.GetAccessMonitoringRuleRequest_builder{
 					Name: amrName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -92,9 +92,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Name: "no access to read AccessMonitoringRules",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.GetAccessMonitoringRule(ctx, &accessmonitoringrulev1.GetAccessMonitoringRuleRequest{
+				_, err := resourceSvc.GetAccessMonitoringRule(ctx, accessmonitoringrulev1.GetAccessMonitoringRuleRequest_builder{
 					Name: amrName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -108,9 +108,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.GetAccessMonitoringRule(ctx, &accessmonitoringrulev1.GetAccessMonitoringRuleRequest{
+				_, err := resourceSvc.GetAccessMonitoringRule(ctx, accessmonitoringrulev1.GetAccessMonitoringRuleRequest_builder{
 					Name: amrName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -132,10 +132,10 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.ListAccessMonitoringRules(ctx, &accessmonitoringrulev1.ListAccessMonitoringRulesRequest{
+				_, err := resourceSvc.ListAccessMonitoringRules(ctx, accessmonitoringrulev1.ListAccessMonitoringRulesRequest_builder{
 					PageSize:  0,
 					PageToken: "",
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -149,10 +149,10 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.ListAccessMonitoringRules(ctx, &accessmonitoringrulev1.ListAccessMonitoringRulesRequest{
+				_, err := resourceSvc.ListAccessMonitoringRules(ctx, accessmonitoringrulev1.ListAccessMonitoringRulesRequest_builder{
 					PageSize:  0,
 					PageToken: "",
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -164,9 +164,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(amrName)
-				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, &accessmonitoringrulev1.CreateAccessMonitoringRuleRequest{
+				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, accessmonitoringrulev1.CreateAccessMonitoringRuleRequest_builder{
 					Rule: amr,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -181,9 +181,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(amrName)
-				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, &accessmonitoringrulev1.CreateAccessMonitoringRuleRequest{
+				_, err := resourceSvc.CreateAccessMonitoringRule(ctx, accessmonitoringrulev1.CreateAccessMonitoringRuleRequest_builder{
 					Rule: amr,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -195,9 +195,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(amrName)
-				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest{
+				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest_builder{
 					Rule: amr,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -216,9 +216,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(amrName)
-				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest{
+				_, err := resourceSvc.UpdateAccessMonitoringRule(ctx, accessmonitoringrulev1.UpdateAccessMonitoringRuleRequest_builder{
 					Rule: amr,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -235,9 +235,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(amrName)
-				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest{
+				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest_builder{
 					Rule: amr,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -253,9 +253,9 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Setup: func(t *testing.T, amrName string) {},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
 				amr := sampleAccessMonitoringRuleFn(amrName)
-				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, &accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest{
+				_, err := resourceSvc.UpsertAccessMonitoringRule(ctx, accessmonitoringrulev1.UpsertAccessMonitoringRuleRequest_builder{
 					Rule: amr,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: require.NoError,
@@ -266,7 +266,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 			Name: "no access to delete AccessMonitoringRule",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.DeleteAccessMonitoringRule(ctx, &accessmonitoringrulev1.DeleteAccessMonitoringRuleRequest{Name: "x"})
+				_, err := resourceSvc.DeleteAccessMonitoringRule(ctx, accessmonitoringrulev1.DeleteAccessMonitoringRuleRequest_builder{Name: "x"}.Build())
 				return err
 			},
 			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
@@ -284,7 +284,7 @@ func TestAccessMonitoringRuleCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, amrName string) error {
-				_, err := resourceSvc.DeleteAccessMonitoringRule(ctx, &accessmonitoringrulev1.DeleteAccessMonitoringRuleRequest{Name: amrName})
+				_, err := resourceSvc.DeleteAccessMonitoringRule(ctx, accessmonitoringrulev1.DeleteAccessMonitoringRuleRequest_builder{Name: amrName}.Build())
 				return err
 			},
 			ErrAssertion: require.NoError,

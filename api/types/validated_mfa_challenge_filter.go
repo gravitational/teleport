@@ -37,13 +37,7 @@ func (f *ValidatedMFAChallengeFilter) FromMap(m map[string]string) {
 	}
 }
 
-// Match checks whether the target cluster matches the filter.
+// Match checks whether the target cluster matches the filter. When the filter is empty, all challenges pass through.
 func (f *ValidatedMFAChallengeFilter) Match(targetCluster string) bool {
-	// If the filter's target cluster is empty or the target cluster is empty, no match. This is a safety measure to
-	// prevent accidentally matching all challenges when the filter or the cluster is not properly set.
-	if f.TargetCluster == "" || targetCluster == "" {
-		return false
-	}
-
-	return f.TargetCluster == targetCluster
+	return f.TargetCluster == "" || f.TargetCluster == targetCluster
 }

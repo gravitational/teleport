@@ -26,6 +26,7 @@ import (
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -84,6 +85,9 @@ type App struct {
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
 
+	// LLM includes LLM inference endpoint specific configuration.
+	LLM *LLM `json:"llm,omitempty"`
+
 	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
 	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
@@ -118,6 +122,16 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `json:"runAsHostUser,omitempty"`
+}
+
+// LLM includes LLM inference endpoint specific configuration.
+type LLM struct {
+	// Format is the inference API format clients use to talk to the endpoint,
+	// e.g. "anthropic" or "openai".
+	Format string `json:"format,omitempty"`
+	// Provider is the inference provider serving the endpoint, e.g.
+	// "anthropic", "openai", or "bedrock".
+	Provider string `json:"provider,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -201,7 +215,12 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	if app.IsAWSConsole() && c.AWSRoles != nil {
-		visibleRoles := aws.FilterAWSRoles(c.AWSRoles.All.Elements(), app.GetAWSAccountID())
+		var visibleRoles []aws.Role
+		if componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, c.SupportedFeatures) {
+			visibleRoles = aws.FilterAWSRoles(c.AWSRoles.All.Elements(), app.GetAWSAccountID())
+		} else {
+			visibleRoles = aws.FilterAWSRoles(c.AWSRoles.Granted.Elements(), app.GetAWSAccountID())
+		}
 		resultApp.AWSRoles = slices.Map(visibleRoles, func(r aws.Role) aws.Role {
 			r.RequiresRequest = !c.AWSRoles.Granted.Contains(r.ARN)
 			return r
@@ -213,6 +232,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			Command:       mcpSpec.Command,
 			Args:          mcpSpec.Args,
 			RunAsHostUser: mcpSpec.RunAsHostUser,
+		}
+	}
+
+	if llmSpec := app.GetLLM(); llmSpec != nil {
+		resultApp.LLM = &LLM{
+			Format:   llmSpec.Format,
+			Provider: llmSpec.Provider,
 		}
 	}
 

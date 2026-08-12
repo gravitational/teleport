@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,6 +46,14 @@ type ProxyGetter interface {
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	// ListSSHServers returns a page of registered nodes with the ability to apply
+	// scope filters.
+	ListSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) ([]types.Server, string, error)
+
+	// RangeSSHServers returns a sequence of nodes filtered by the given
+	// scope filter.
+	RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error]
 }
 
 // DatabaseServersGetter is a service that gets database servers.
@@ -74,17 +83,17 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
 	// NodesGetter gets nodes
 	NodesGetter
 
-	// DeleteAllNodes deletes all nodes in a namespace.
+	// DeleteAllNodes deletes all scoped and unscoped nodes.
 	DeleteAllNodes(ctx context.Context, namespace string) error
 
-	// DeleteNode deletes node in a namespace
-	DeleteNode(ctx context.Context, namespace, name string) error
+	// DeleteNode removes a specific scoped or unscoped node.
+	DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
@@ -107,15 +116,11 @@ type Presence interface {
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
 
-	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(ctx context.Context, server types.Server) error
-
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
-	// DeleteProxy deletes proxy by name
-	DeleteProxy(ctx context.Context, name string) error
+	// DeleteProxyServer deletes proxy by name
+	DeleteProxyServer(ctx context.Context, name string) error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
@@ -148,7 +153,14 @@ type Presence interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-	// DeleteApplicationServer deletes specified application server.
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
+
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 	// DeleteAllApplicationServers removes all registered application servers.
 	DeleteAllApplicationServers(context.Context, string) error
@@ -168,8 +180,8 @@ type Presence interface {
 	// GetKubernetesServers returns a list of registered kubernetes servers.
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// DeleteKubernetesServer deletes a named kubernetes servers.
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+	// DeleteKubeServer deletes a named kubernetes servers.
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
 	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
 	DeleteAllKubernetesServers(context.Context) error
@@ -204,6 +216,11 @@ type PresenceInternal interface {
 	Presence
 	InventoryInternal
 
+	// UpsertProxyServer registers proxy server presence, permanently if ttl is
+	// 0 or for the specified duration with second resolution if it's >= 1
+	// second. It returns the upserted server with its revision populated.
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
+
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
 	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
@@ -215,6 +232,9 @@ type PresenceInternal interface {
 	// same host ID and name exists in storage, no matter its contents (i.e., it
 	// doesn't check the revision of the app_server in storage).
 	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
+
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
 
 	// AppendPutNodeActions adds conditional actions to an atomic write to create
 	// or update a node resource.
@@ -232,4 +252,10 @@ type PresenceInternal interface {
 		name string,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
+
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }

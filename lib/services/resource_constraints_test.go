@@ -210,6 +210,75 @@ func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestBuildResourceConstraintMatchers(t *testing.T) {
+	node, err := types.NewServerWithLabels("node-1", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	sshConstraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Ssh{
+			Ssh: &types.SSHResourceConstraints{
+				Logins: []string{"ubuntu"},
+			},
+		},
+	}
+
+	t.Run("constrained entry matching the resource yields its matcher", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node)
+		require.NoError(t, err)
+		require.Len(t, matchers, 1)
+
+		ok, err := matchers[0].Match(roleAllowingSSHLogins("ubuntu"), types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		ok, err = matchers[0].Match(roleAllowingSSHLogins("root"), types.Allow)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("entries without constraints yield no matchers", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"}},
+		}, node)
+		require.NoError(t, err)
+		require.Empty(t, matchers)
+	})
+
+	t.Run("entries for other resources yield no matchers", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "other-node"},
+				Constraints: sshConstraints,
+			},
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node)
+		require.NoError(t, err)
+		require.Empty(t, matchers)
+	})
+
+	t.Run("invalid constraints return an error", func(t *testing.T) {
+		_, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"},
+				Constraints: &types.ResourceConstraints{
+					Details: &types.ResourceConstraints_Ssh{
+						Ssh: &types.SSHResourceConstraints{Logins: nil},
+					},
+				},
+			},
+		}, node)
+		require.Error(t, err)
+	})
+}
+
 func TestValidateAccessRequest_ConstraintKinds(t *testing.T) {
 	makeRequest := func(kind string, constraints *types.ResourceConstraints) types.AccessRequest {
 		req, err := types.NewAccessRequest(uuid.New().String(), "user", "role")

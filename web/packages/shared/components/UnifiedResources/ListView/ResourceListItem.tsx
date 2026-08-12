@@ -174,7 +174,9 @@ export function ResourceListItem({
             <HoverTooltip tipContent={name} showOnlyOnOverflow>
               <Flex alignItems="center" gap={2}>
                 <Name>{name}</Name>
-                {showResourceSelectedIcon && <ResourceSelectedIcon />}
+                {(typeof showResourceSelectedIcon === 'function'
+                  ? showResourceSelectedIcon(labels)
+                  : showResourceSelectedIcon) && <ResourceSelectedIcon />}
               </Flex>
             </HoverTooltip>
             <HoverTooltip tipContent={description} showOnlyOnOverflow>
@@ -358,6 +360,8 @@ const RowContainer = styled(Box)<{
   &:hover {
     background-color: ${props =>
       props.showHoverState ? props.theme.colors.levels.surface : 'transparent'};
+    box-shadow: ${({ showHoverState, theme }) =>
+      showHoverState ? theme.boxShadow[3] : 'none'};
 
     ${p =>
       p.shouldDisplayWarning &&
@@ -369,23 +373,6 @@ const RowContainer = styled(Box)<{
           action: 'hover',
           viewType: 'list',
         })};
-      `}
-
-    ${p =>
-      p.showHoverState &&
-      css`
-        // We use a pseudo element for the shadow with position: absolute in order to prevent
-        // the shadow from increasing the size of the layout and causing scrollbar flicker.
-        &:after {
-          box-shadow: ${props => props.theme.boxShadow[3]};
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          z-index: -1;
-          width: 100%;
-          height: 100%;
-        }
       `}
   }
 `;

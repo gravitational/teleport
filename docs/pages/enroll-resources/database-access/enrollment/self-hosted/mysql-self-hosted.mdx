@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="MySQL or MariaDB"!)
@@ -29,10 +30,9 @@ tags:
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A self-hosted MySQL or MariaDB instance.
-- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
-  Service.
 - Optional: a certificate authority that issues certificates for
   your self-hosted database.
+- (!docs/pages/includes/database-access/single-node-note.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Create the Teleport Database Token
@@ -197,6 +197,24 @@ $ tsh db connect --db-user=alice --db-name=mysql example-mysql
   The `mysql` or `mariadb` command-line client should be available in `PATH` in order to be
   able to connect. `mariadb` is a default command-line client for MySQL and MariaDB.
 </Admonition>
+
+<details>
+<summary>Using identity files</summary>
+
+If you are using an identity file (`tsh -i identity.pem`) instead of interactive
+`tsh login`, use `tsh proxy db` instead of `tsh db connect`. The `tsh db connect`
+command does not work with identity files because it references certificate paths
+that do not exist on disk.
+
+You must supply `--proxy`, the database name, and the required `--db-user`/`--db-name`
+flags:
+
+```code
+$ tsh -i identity.pem proxy db --tunnel --proxy=<Var name="teleport.example.com:443" /> --db-user=alice --db-name=mysql -p 3307 example-mysql
+```
+
+Then connect your MySQL client to `localhost:3307`.
+</details>
 
 (!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="example-mysql" dbArgs="--db-user=alice --db-name=mysql"!)
 

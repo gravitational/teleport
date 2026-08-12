@@ -1,0 +1,103 @@
+locals {
+  apply_azure_tags               = { origin = "example" }
+  apply_teleport_resource_labels = { origin = "example" }
+}
+
+data "azurerm_client_config" "current" {}
+
+# Resource group for the Azure resources created by the module.
+resource "azurerm_resource_group" "example" {
+  name     = "teleport-discovery"
+  location = "eastus"
+  tags     = local.apply_azure_tags
+}
+
+module "azure_discovery" {
+  source = "../.."
+
+  teleport_discovery_group_name = "cloud-discovery-group"
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
+
+  # Name of an existing Azure Resource Group where Azure resources will be created.
+  azure_resource_group_name = azurerm_resource_group.example.name
+  # Region where Azure managed identity will be created (eastus)
+  azure_managed_identity_location = azurerm_resource_group.example.location
+
+  # Management group ID or tenant ID. Using a Tenant ID will use the Root
+  # management group scope for the managed identity's role.
+  # 
+  # Operations on the root scope will require elevated access.
+  # See https://learn.microsoft.com/en-us/azure/role-based-access-control/elevate-access-global-admin
+  azure_management_group_id = data.azurerm_client_config.current.tenant_id
+
+  # Optionally restrict role assignments to child scopes. The wildcard
+  # subscription matcher will discover subscriptions visible to the
+  # assigned scopes. When set, azure_management_group_id is only used for the
+  # role definition's assignable scope.
+  #
+  # azure_role_assignment_scopes = [
+  #   "/providers/Microsoft.Management/managementGroups/child-mg",
+  #   "/subscriptions/00000000-0000-0000-0000-000000000000",
+  # ]
+
+  # Discover Azure VMs across all subscriptions matching the specified tags.
+  azure_matchers = [
+    {
+      types = ["vm"]
+
+      subscriptions = ["*"]
+
+      tags = {
+        TeleportEnroll = ["true"]
+      }
+    }
+  ]
+
+  # Apply the additional Azure tag "origin=example" to all Azure resources created by this module
+  apply_azure_tags = local.apply_azure_tags
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = local.apply_teleport_resource_labels
+  # Using a custom installer script on discovered VMs instead of the default installer script.
+  teleport_installer_script_name = teleport_installer.example.metadata.name
+}
+
+resource "teleport_installer" "example" {
+  version = "v1"
+  metadata = {
+    name        = "custom-azure-installer-example"
+    description = "Example Teleport Installer"
+    labels      = local.apply_teleport_resource_labels
+  }
+
+  spec = {
+    # This "custom" script is actually the default installer script (you can view the default installer to verify: `$ tctl get installer/default-installer`).
+    # Edit it to customize the commands that the Teleport Discovery Service
+    # configures virtual machines to run to install Teleport on startup.
+    script = <<EOF
+#!/usr/bin/env sh
+set -eu
+
+
+INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
+
+echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
+
+TEMP_INSTALLER_SCRIPT="$(mktemp)"
+curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
+
+chmod +x "$TEMP_INSTALLER_SCRIPT"
+
+sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+rm "$TEMP_INSTALLER_SCRIPT"
+
+
+echo "Configuring the Teleport agent"
+
+set +x
+TELEPORT_BINARY=/usr/local/bin/teleport
+[ -z "$${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/$${TELEPORT_INSTALL_SUFFIX}/bin/teleport
+
+sudo -E "$TELEPORT_BINARY" install autodiscover-node --public-proxy-addr={{.PublicProxyAddr}} --teleport-package={{.TeleportPackage}} --repo-channel={{.RepoChannel}} --auto-upgrade={{.AutomaticUpgrades}} --azure-client-id={{.AzureClientID}} $@
+EOF
+  }
+}

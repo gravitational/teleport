@@ -29,14 +29,14 @@ injected_fields:
 # These fields will be excluded
 exclude_fields:
   - "ScopedRoleAssignment.metadata.id"
+  - "ScopedRoleAssignment.metadata.revision"
+  - "ScopedRoleAssignment.metadata.expires"
   # Usage tracking is server-side only
   - "ScopedRoleAssignment.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
-  - "ScopedRoleAssignment.metadata.expires"
   - "ScopedRoleAssignment.metadata.namespace"
-  - "ScopedRoleAssignment.metadata.revision"
   - "ScopedRoleAssignment.kind"
 
 # These fields will be marked as Required: true
@@ -54,6 +54,8 @@ sensitive_fields:
 plan_modifiers:
   # Force to recreate resource if its name changes
   Metadata.name:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+  ScopedRoleAssignment.scope:
     - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time

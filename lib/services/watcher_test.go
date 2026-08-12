@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -44,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -155,7 +155,8 @@ func TestProxyWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add a proxy server.
 	proxy := newProxyServer(t, "proxy1", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(ctx, proxy))
+	_, err = presence.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	// The first event is always the current list of proxies.
 	select {
@@ -170,7 +171,8 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Add a second proxy.
 	proxy2 := newProxyServer(t, "proxy2", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(ctx, proxy2))
+	_, err = presence.UpsertProxyServer(ctx, proxy2)
+	require.NoError(t, err)
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -183,7 +185,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the first proxy.
-	require.NoError(t, presence.DeleteProxy(ctx, proxy.GetName()))
+	require.NoError(t, presence.DeleteProxyServer(ctx, proxy.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -197,7 +199,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the second proxy.
-	require.NoError(t, presence.DeleteProxy(ctx, proxy2.GetName()))
+	require.NoError(t, presence.DeleteProxyServer(ctx, proxy2.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -1188,7 +1190,10 @@ func TestNodeWatcher(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, filtered, 3)
 
-	require.NoError(t, presence.DeleteNode(ctx, apidefaults.Namespace, nodes[0].GetName()))
+	require.NoError(t, presence.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  nodes[0].GetName(),
+		Scope: nodes[0].GetScope(),
+	}.Build()))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
@@ -1278,7 +1283,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.Len(t, filtered, 1)
 
 	// Test Deleting a kube server.
-	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
+	require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  kubeServers[0].GetScope(),
+		HostId: kubeServers[0].GetHostID(),
+		Name:   kubeServers[0].GetName(),
+	}.Build()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
 		require.NoError(t, err)
@@ -1309,7 +1318,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	for _, server := range filtered {
-		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
+		require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  server.GetScope(),
+			HostId: server.GetHostID(),
+			Name:   server.GetName(),
+		}.Build()))
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1490,221 +1503,6 @@ func newAccessRequest(t *testing.T, name string) types.AccessRequest {
 	return accessRequest
 }
 
-// TestOktaAssignmentWatcher tests that Okta assignment resource watcher properly receives
-// and dispatches updates to Okta assignment resources.
-func TestOktaAssignmentWatcher(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	type client struct {
-		services.OktaAssignments
-		types.Events
-	}
-
-	oktaService, err := local.NewOktaService(bk, clock)
-	require.NoError(t, err)
-	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
-		RWCfg: services.ResourceWatcherConfig{
-			Component:      "test",
-			MaxRetryPeriod: 200 * time.Millisecond,
-			Client: &client{
-				OktaAssignments: oktaService,
-				Events:          local.NewEventsService(bk),
-			},
-		},
-		OktaAssignments:  oktaService,
-		PageSize:         1, // Set page size to 1 to exercise pagination logic.
-		OktaAssignmentsC: make(chan types.OktaAssignments, 10),
-	})
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-
-	// Initially there are no assignments so watcher should send an empty list.
-	select {
-	case changeset := <-w.CollectorChan():
-		require.Empty(t, changeset, "initial assignment list should be empty")
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the initial empty event.")
-	}
-
-	// Add an assignment.
-	a1 := newOktaAssignment(t, uuid.NewString())
-	_, err = oktaService.CreateOktaAssignment(ctx, a1)
-	require.NoError(t, err)
-
-	// The first event is always the current list of assignments.
-	select {
-	case changeset := <-w.CollectorChan():
-		expected := types.OktaAssignments{a1}
-		sortedChangeset := changeset
-		sort.Sort(expected)
-		sort.Sort(sortedChangeset)
-
-		require.Empty(t,
-			cmp.Diff(expected,
-				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
-			"should be no differences in the changeset after adding the first assignment")
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the first event.")
-	}
-
-	// Add a second assignment.
-	a2 := newOktaAssignment(t, uuid.NewString())
-	_, err = oktaService.CreateOktaAssignment(ctx, a2)
-	require.NoError(t, err)
-
-	// Watcher should detect the assignment list change.
-	select {
-	case changeset := <-w.CollectorChan():
-		expected := types.OktaAssignments{a1, a2}
-		sort.Sort(expected)
-		sort.Sort(changeset)
-
-		require.Empty(t,
-			cmp.Diff(
-				expected,
-				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
-			"should be no difference in the changeset after adding the second assignment")
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the second event.")
-	}
-
-	// Change the second assignment.
-	a2.SetExpiry(time.Now().Add(30 * time.Minute))
-	_, err = oktaService.UpdateOktaAssignment(ctx, a2)
-	require.NoError(t, err)
-
-	// Watcher should detect the assignment list change.
-	select {
-	case changeset := <-w.CollectorChan():
-		expected := types.OktaAssignments{a1, a2}
-		sort.Sort(expected)
-		sort.Sort(changeset)
-
-		require.Empty(t,
-			cmp.Diff(
-				expected,
-				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
-			"should be no difference in the changeset after update")
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the updated event.")
-	}
-
-	// Delete the first assignment.
-	require.NoError(t, oktaService.DeleteOktaAssignment(ctx, a1.GetName()))
-
-	// Watcher should detect the Okta assignment list change.
-	select {
-	case changeset := <-w.CollectorChan():
-		expected := types.OktaAssignments{a2}
-		sort.Sort(expected)
-		sort.Sort(changeset)
-
-		require.Empty(t,
-			cmp.Diff(
-				expected,
-				changeset,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
-			"should be no difference in the changeset after deleting the first assignment")
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the delete event.")
-	}
-}
-
-// TestOktaAssignmentWatcherRace ensures there are no races when editing OktaAssignment resources
-// collected from the watcher.
-func TestOktaAssignmentWatcherRace(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	clock := clockwork.NewFakeClock()
-
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	oktaService, err := local.NewOktaService(bk, clock)
-	require.NoError(t, err)
-
-	for range 10 {
-		a1 := newOktaAssignment(t, uuid.NewString())
-		_, err = oktaService.CreateOktaAssignment(ctx, a1)
-		require.NoError(t, err)
-	}
-
-	type client struct {
-		services.OktaAssignments
-		types.Events
-	}
-
-	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
-		RWCfg: services.ResourceWatcherConfig{
-			Component: "test",
-			Client: &client{
-				OktaAssignments: oktaService,
-				Events:          local.NewEventsService(bk),
-			},
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-
-	select {
-	case changeset := <-w.CollectorChan():
-		for _, a := range changeset {
-			a.SetLastTransition(a.GetLastTransition().Add(1))
-			_, _ = oktaService.UpdateOktaAssignment(ctx, a)
-		}
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(30 * time.Second):
-		t.Fatal("Timeout processing the event.")
-	}
-}
-
-func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
-	assignment, err := types.NewOktaAssignment(
-		types.Metadata{
-			Name: name,
-		},
-		types.OktaAssignmentSpecV1{
-			User: "test-user@test.user",
-			Targets: []*types.OktaAssignmentTargetV1{
-				{
-					Type: types.OktaAssignmentTargetV1_APPLICATION,
-					Id:   "123456",
-				},
-			},
-			Status: types.OktaAssignmentSpecV1_PENDING,
-		},
-	)
-	require.NoError(t, err)
-	return assignment
-}
-
 func TestGitServerWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -1840,14 +1638,14 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	c, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
+				}.Build()},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return c
@@ -1929,7 +1727,11 @@ func syncTestAppServerWatcher(t *testing.T) {
 	require.Empty(t, diffAppServers(appServers, current))
 
 	// Delete the first app server, ensure watcher correctly removes the entry
-	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
+	err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServers[0].GetHostID(),
+		Name:   appServers[0].GetName(),
+		Scope:  appServers[0].GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	synctest.Wait()

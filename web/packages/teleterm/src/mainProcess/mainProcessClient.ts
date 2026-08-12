@@ -18,8 +18,6 @@
 
 import { ipcRenderer } from 'electron';
 
-import { ensureError } from 'shared/utils/error';
-
 import Logger from 'teleterm/logger';
 import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
@@ -185,6 +183,7 @@ export default function createMainProcessClient(): MainProcessClient {
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
+      directoryId: number;
     }) {
       return ipcInvoke(MainProcessIpc.SelectDirectoryForDesktopSession, args);
     },
@@ -324,7 +323,7 @@ function startAwaitableSenderListener<T>(
     try {
       await listener(msg.payload as T);
     } catch (e) {
-      ack.error = serializeError(ensureError(e));
+      ack.error = serializeError(e);
     }
 
     try {

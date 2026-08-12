@@ -52,9 +52,9 @@ func (a *Server) validateTerraformCloudToken(
 	// events remain useful.
 	var workloadIDAttrs *workloadidentityv1.JoinAttrs
 	if claims != nil {
-		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
+		workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
 			TerraformCloud: claims.JoinAttrs(),
-		}
+		}.Build()
 	}
 
 	return claims, workloadIDAttrs, trace.Wrap(err)

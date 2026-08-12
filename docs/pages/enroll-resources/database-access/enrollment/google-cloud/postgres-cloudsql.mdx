@@ -8,6 +8,7 @@ tags:
  - zero-trust
  - infrastructure-identity
  - google-cloud
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="PostgreSQL on Google Cloud SQL" dbConfigure="with a service account"!)
@@ -58,7 +59,7 @@ Teleport uses service accounts to connect to Cloud SQL databases.
 Teleport uses [IAM database authentication](https://cloud.google.com/sql/docs/postgres/authentication)
 with Cloud SQL PostgreSQL instances.
 
-(!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="PostgreSQL"!)
+(!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="PostgreSQL" flag="cloudsql.iam_authentication"!)
 
 ### Create a database user
 

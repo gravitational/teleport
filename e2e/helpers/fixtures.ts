@@ -22,6 +22,7 @@ import { test as base } from '@playwright/test';
 
 export type Fixture =
   | 'ssh-node'
+  | 'ssh-node-bpf'
   | 'kube'
   | 'connect';
 

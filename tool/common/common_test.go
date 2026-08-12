@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -254,4 +255,112 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "[\"/cluster/kube:ns:pods/my-kube-cluster/default/nginx\"]", out)
 	})
+}
+
+// The output forms, plus the all-empty input.
+func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "123456 (Jane Garcia) <jane.garcia@example.com>",
+		FormatUserDisplay("Jane Garcia", "jane.garcia@example.com", "123456"))
+	require.Equal(t, "123456 (Jane Garcia)",
+		FormatUserDisplay("Jane Garcia", "", "123456"))
+	require.Equal(t, "123456 <jane.garcia@example.com>",
+		FormatUserDisplay("", "jane.garcia@example.com", "123456"))
+	require.Equal(t, "123456",
+		FormatUserDisplay("", "", "123456"))
+	require.Empty(t, FormatUserDisplay("", "", ""))
+}
+
+// Whitespace handling after terminal controls are stripped.
+func TestFormatUserDisplay_Sanitization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		primary   string
+		secondary string
+		username  string
+		want      string
+	}{
+		{
+			name:     "newline and tab collapsed in primary",
+			primary:  "Jane\n\tAdmin",
+			username: "jgarcia",
+			want:     "jgarcia (Jane Admin)",
+		},
+		{
+			name:      "newline and tab collapsed in secondary",
+			secondary: "team\n\tlead",
+			username:  "jgarcia",
+			want:      "jgarcia <team lead>",
+		},
+		{
+			name:     "surrounding whitespace trimmed",
+			primary:  "  Jane  ",
+			username: "  jgarcia  ",
+			want:     "jgarcia (Jane)",
+		},
+		{
+			name:     "whitespace-only primary treated as absent",
+			primary:  "   ",
+			username: "jgarcia",
+			want:     "jgarcia",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := FormatUserDisplay(tt.primary, tt.secondary, tt.username)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, strings.TrimSpace(got), got,
+				"output must have no leading/trailing whitespace: %q", got)
+		})
+	}
+}
+
+func TestStripTerminalControlSequences(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "csi",
+			in:   "safe\x1b[31mred\x1b[0m text",
+			want: "safered text",
+		},
+		{
+			name: "osc_bel",
+			in:   "safe\x1b]0;owned title\a text",
+			want: "safe text",
+		},
+		{
+			name: "osc_st",
+			in:   "safe\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\ text",
+			want: "safelink text",
+		},
+		{
+			name: "unterminated_osc",
+			in:   "safe\x1b]0;owned title",
+			want: "safe",
+		},
+		{
+			name: "raw_c1_csi",
+			in:   "safe\x9b31mred text",
+			want: "safered text",
+		},
+		{
+			name: "utf8_preserved",
+			in:   "safe caf\xc3\xa9\n\ttext",
+			want: "safe caf\xc3\xa9\n\ttext",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StripTerminalControlSequences(tt.in); got != tt.want {
+				t.Fatalf("StripTerminalControlSequences(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
 }

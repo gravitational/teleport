@@ -35,6 +35,21 @@ default            link#25            UCSIg               utun4
 \`\`\`
 
 ---
+✅ VNet IPv4 DNS reachable on 100.64.0.2:53 (responds to A, AAAA)
+⚠️ VNet IPv6 DNS unreachable on [fdff:fd74:46c0::2]:53: dial udp [fdff:fd74:46c0::2]:53: connect: network unreachable
+
+⚠️ 4 of 5 DNS zones are not routed through VNet.
+
+| Zone | A | AAAA |
+| --- | --- | --- |
+| hijack.zone.test | hijacked (1.2.3.4) | hijacked (2001:db8::1234) |
+| mixed.zone.test | OK | hijacked (2001:db8::1234) |
+| not-registered.zone.test | not registered | not registered |
+| staging.test | timeout | timeout |
+
+
+
+---
 ⚠️ VNet SSH is not configured.
 
   The user's default SSH configuration file does not include VNet's
@@ -47,6 +62,24 @@ default            link#25            UCSIg               utun4
 | VNet SSH config file     | /Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config  |
 
 ~/.ssh/config does not exist
+
+
+"
+`;
+
+exports[`reportToText renders DNS report when both nameservers are unreachable 1`] = `
+"VNet Diagnostic Report
+
+Created at: 2024-11-23 13:27:48 (Sat, 23 Nov 2024 13:27:48 GMT)
+Network interface: utun4
+IPv4 CIDR ranges: 100.64.0.0/10
+IPv6 prefix: fdff:fd74:46c0::
+DNS zones: teleport.example.com, company.test
+
+---
+⚠️ VNet IPv4 DNS unreachable on 100.64.0.2:53: dial udp 100.64.0.2:53: connect: connection refused
+⚠️ VNet IPv6 DNS unreachable on [fdff:fd74:46c0::2]:53: dial udp [fdff:fd74:46c0::2]:53: connect: connection refused
+VNet's DNS is not responding. This might be caused by network routes set up by another program that capture traffic meant for VNet.
 
 
 "

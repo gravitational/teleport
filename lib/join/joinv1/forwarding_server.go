@@ -58,10 +58,10 @@ func (s *forwardingServer) Join(serverStream grpc.BidiStreamingServer[joinv1.Joi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySuppliedParams := &joinv1.ClientInit_ProxySuppliedParams{
+	proxySuppliedParams := joinv1.ClientInit_ProxySuppliedParams_builder{
 		RemoteAddr:    peerInfo.remoteAddr,
 		ClientVersion: peerInfo.clientVersion,
-	}
+	}.Build()
 
 	ctx, cancel := context.WithTimeoutCause(serverStream.Context(), joinRequestTimeout,
 		trace.LimitExceeded(
@@ -131,8 +131,8 @@ func (s *forwardingServer) forwardRequests(
 		}
 		if _, ok := req.Payload.(*joinv1.JoinRequest_ClientInit); ok {
 			clientInit := req.Payload.(*joinv1.JoinRequest_ClientInit).ClientInit
-			clientInit.ForwardedByProxy = true
-			clientInit.ProxySuppliedParameters = proxySuppliedParams
+			clientInit.SetForwardedByProxy(true)
+			clientInit.SetProxySuppliedParameters(proxySuppliedParams)
 		}
 		if err := clientStream.Send(req); err != nil {
 			return trace.Wrap(err)

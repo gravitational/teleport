@@ -262,6 +262,51 @@ func TestUnifiedResourcesListWildcardDatabaseUsers(t *testing.T) {
 	require.True(t, db.WildcardUserAllowed)
 }
 
+// TestUnifiedResourcesGet_DesktopLoginFiltering verifies that the logins
+// returned for Windows/Linux Desktop resources in the unified resources endpoint
+// only include logins from the user's currently-granted roles, not logins
+// from roles reachable via search_as_roles when includedResourceMode=all.
+func TestUnifiedResourcesList_DesktopLoginFiltering(t *testing.T) {
+	ctx := t.Context()
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+
+	desktop, err := types.NewWindowsDesktopV3("test-desktop", nil,
+		types.WindowsDesktopSpecV3{Addr: "1.2.3.4:3389", HostID: "host-1"})
+	require.NoError(t, err)
+
+	// The assigned role grants "granted-login" for desktops.
+	assignedRole, err := types.NewRole("assigned-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"granted-login"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Simulate what the auth layer returns when IncludeRequestable is set:
+	// enriched logins contain the union of granted + requestable logins.
+	mockedResources := []*proto.PaginatedResource{
+		{
+			Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop},
+			Logins:   []string{"granted-login", "requestable-login"},
+		},
+	}
+
+	response, err := List(ctx, cluster, &mockClient{
+		paginatedResources: mockedResources,
+		// Only the assigned role. the requestable role is not held by the user.
+		roles: []types.Role{assignedRole},
+	}, &proto.ListUnifiedResourcesRequest{
+		IncludeRequestable: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.Resources, 1)
+
+	require.ElementsMatch(t, []string{"granted-login"},
+		response.Resources[0].WindowsDesktop.Logins,
+		"desktop logins should only contain granted logins, not requestable ones")
+}
+
 type mockClient struct {
 	paginatedResources []*proto.PaginatedResource
 	nextKey            string

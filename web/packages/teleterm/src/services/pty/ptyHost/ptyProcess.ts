@@ -65,7 +65,7 @@ export function createPtyProcess(
       callback: (reason: {
         exitCode: number;
         signal?: number;
-        lastInput: string;
+        lastInputWasCtrlD: boolean;
       }) => void
     ) {
       return stream.onExit(callback);

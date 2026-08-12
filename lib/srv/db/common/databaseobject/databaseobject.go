@@ -34,16 +34,16 @@ func NewDatabaseObject(name string, spec *dbobjectv1.DatabaseObjectSpec) (*dbobj
 
 // NewDatabaseObjectWithLabels creates a new dbobjectv1.DatabaseObject with specified labels.
 func NewDatabaseObjectWithLabels(name string, labels map[string]string, spec *dbobjectv1.DatabaseObjectSpec) (*dbobjectv1.DatabaseObject, error) {
-	databaseObject := &dbobjectv1.DatabaseObject{
+	databaseObject := dbobjectv1.DatabaseObject_builder{
 		Kind:    types.KindDatabaseObject,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:      name,
 			Namespace: defaults.Namespace,
 			Labels:    labels,
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 
 	err := ValidateDatabaseObject(databaseObject)
 	if err != nil {
@@ -57,22 +57,22 @@ func ValidateDatabaseObject(obj *dbobjectv1.DatabaseObject) error {
 	if obj == nil {
 		return trace.BadParameter("database object must be non-nil")
 	}
-	if obj.Metadata == nil {
+	if !obj.HasMetadata() {
 		return trace.BadParameter("metadata: must be non-nil")
 	}
-	if obj.Metadata.Name == "" {
+	if obj.GetMetadata().GetName() == "" {
 		return trace.BadParameter("metadata.name: must be non-empty")
 	}
-	if obj.Kind != types.KindDatabaseObject {
-		return trace.BadParameter("invalid kind %v, expected %v", obj.Kind, types.KindDatabaseObject)
+	if obj.GetKind() != types.KindDatabaseObject {
+		return trace.BadParameter("invalid kind %v, expected %v", obj.GetKind(), types.KindDatabaseObject)
 	}
-	if obj.Spec == nil {
+	if !obj.HasSpec() {
 		return trace.BadParameter("spec: must be non-empty")
 	}
-	if obj.Spec.Name == "" {
+	if obj.GetSpec().GetName() == "" {
 		return trace.BadParameter("spec.name: must be non-empty")
 	}
-	if obj.Spec.Protocol == "" {
+	if obj.GetSpec().GetProtocol() == "" {
 		return trace.BadParameter("spec.protocol: must be non-empty")
 	}
 	return nil

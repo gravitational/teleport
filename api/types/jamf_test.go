@@ -161,6 +161,47 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				}
 			}),
 		},
+		{
+			name: "inventory valid device_type computers",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "computers",
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory valid device_type mobile_devices",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "mobile_devices",
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory empty device_type",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "",
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory invalid device_type",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType: "banana",
+					},
+				}
+			}),
+			wantErr: "device_type",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

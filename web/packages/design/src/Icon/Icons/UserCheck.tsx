@@ -56,6 +56,7 @@ export const UserCheck = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-usercheck"
+
       {...otherProps}
       ref={ref}
     >

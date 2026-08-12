@@ -210,6 +210,9 @@ type agent struct {
 	drainWG sync.WaitGroup
 	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
+	// smoothedRTT estimates the roundtrip time for keep alive requests using
+	// rolling average weighted towards more recent measurements.
+	smoothedRTT time.Duration
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -247,6 +250,15 @@ func (a *agent) GetProxyID() (string, bool) {
 		return "", false
 	}
 	return proxyIDFromPrincipals(a.client.Principals())
+}
+
+func (a *agent) RTT() (time.Duration, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.smoothedRTT == 0 {
+		return 0, false
+	}
+	return a.smoothedRTT, true
 }
 
 // proxyIDFromPrincipals gets the proxy id from a list of principals.
@@ -538,7 +550,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 
 // handleDrainChannels handles channels that should be stopped when the agent is draining.
 func (a *agent) handleDrainChannels(drainWGDone func()) error {
-	ticker := time.NewTicker(a.keepAlive)
+	ticker := a.clock.NewTicker(a.keepAlive)
 	defer ticker.Stop()
 
 	drainCtxDone := a.drainCtx.Done()
@@ -557,7 +569,7 @@ func (a *agent) handleDrainChannels(drainWGDone func()) error {
 			// for good measure
 			ticker.Stop()
 		// Send ping over heartbeat channel.
-		case <-ticker.C:
+		case <-ticker.Chan():
 			if a.drainCtx.Err() != nil {
 				continue
 			}
@@ -636,17 +648,18 @@ func (a *agent) handleChannels() error {
 // be enabled.
 func (a *agent) sendKeepalives() error {
 	first := true
-	ticker := time.NewTimer(0)
+	ticker := a.clock.NewTimer(0)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-a.ctx.Done():
 			return nil
-		case <-ticker.C:
+		case <-ticker.Chan():
 		}
 
 		const wantReplyTrue = true
+		now := a.clock.Now()
 		_, _, err := a.client.SendRequest(a.ctx, teleport.KeepAliveReqType, wantReplyTrue, nil)
 		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
 		if err != nil {
@@ -662,6 +675,11 @@ func (a *agent) sendKeepalives() error {
 			}
 			return trace.Wrap(err, "failed to send keepalive request")
 		}
+
+		a.mu.Lock()
+		a.smoothedRTT = calculateSmoothedRTT(a.smoothedRTT, a.clock.Since(now))
+		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
+		a.mu.Unlock()
 
 		if !first {
 			continue
@@ -724,6 +742,20 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			a.tracker.TrackExpected(r.TrackProxies()...)
 		}
 	}
+}
+
+// calculateSmoothedRTT computes a weighted average of the previous smoothed
+// round trip time and a new round trip time measurement. The new measurement
+// has a weight of 1/8 to avoid overreacting to temporary network jitter.
+func calculateSmoothedRTT(srtt time.Duration, rtt time.Duration) time.Duration {
+	if srtt == 0 {
+		return rtt
+	}
+	const (
+		newRttWeight    = 1
+		smoothingFactor = 8
+	)
+	return ((smoothingFactor-newRttWeight)*srtt + newRttWeight*rtt) / smoothingFactor
 }
 
 const (

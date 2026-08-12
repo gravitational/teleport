@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize/english"
@@ -35,12 +36,13 @@ import (
 )
 
 const (
-	k8sKindPrefix     = "Teleport"
-	statusPackagePath = "github.com/gravitational/teleport/integrations/operator/apis/resources"
-	statusPackageName = "teleportcr"
-	statusPackage     = statusPackagePath + "/" + statusPackageName
-	statusTypeName    = "Status"
-	scopeFieldName    = "scope"
+	k8sKindPrefix         = "Teleport"
+	statusPackagePath     = "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	statusPackageName     = "teleportcr"
+	statusPackage         = statusPackagePath + "/" + statusPackageName
+	statusTypeName        = "Status"
+	scopeFieldName        = "scope"
+	immutableScopeMessage = "Scope is immutable. To create the resource in a different scope you must delete it first."
 )
 
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
@@ -70,6 +72,7 @@ type RootSchema struct {
 	// different kinds. At some point we will suffix all kinds by the version
 	// and deprecate the old resources.
 	kubernetesKind string
+	scoped         bool
 }
 
 type SchemaVersion struct {
@@ -113,13 +116,13 @@ func NewSchema() *Schema {
 }
 
 type resourceSchemaConfig struct {
-	nameOverride         string
-	versionOverride      string
-	customSpecFields     []string
-	additionalRootFields []string
-	kindWithoutVersion   bool
-	additionalColumns    []apiextv1.CustomResourceColumnDefinition
-	validationRules      apiextv1.ValidationRules
+	nameOverride       string
+	versionOverride    string
+	customSpecFields   []string
+	withScopeRootField bool
+	kindWithoutVersion bool
+	additionalColumns  []apiextv1.CustomResourceColumnDefinition
+	validationRules    apiextv1.ValidationRules
 }
 
 type resourceSchemaOption func(*resourceSchemaConfig)
@@ -155,7 +158,7 @@ func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 // withScope says that the resource is scoped. A scope field will be inserted at the CRD root.
 func withScope() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.additionalRootFields = append(cfg.additionalRootFields, scopeFieldName)
+		cfg.withScopeRootField = true
 		cfg.additionalColumns = append(cfg.additionalColumns, apiextv1.CustomResourceColumnDefinition{
 			Name:        scopeFieldName,
 			Type:        "string",
@@ -166,22 +169,9 @@ func withScope() resourceSchemaOption {
 	}
 }
 
-var ageColumn = apiextv1.CustomResourceColumnDefinition{
-	Name:        "Age",
-	Type:        "date",
-	Description: "The age of this resource",
-	JSONPath:    ".metadata.creationTimestamp",
-}
-
 func withAdditionalColumns(additionalColumns []apiextv1.CustomResourceColumnDefinition) resourceSchemaOption {
-	// We add the age column back (it's removed if we set additional columns for the CRD).
-	// See https://github.com/kubernetes/kubectl/issues/903#issuecomment-669244656.
-	columns := make([]apiextv1.CustomResourceColumnDefinition, len(additionalColumns)+1)
-	copy(columns, additionalColumns)
-	columns[len(additionalColumns)] = ageColumn
-
 	return func(cfg *resourceSchemaConfig) {
-		cfg.additionalColumns = columns
+		cfg.additionalColumns = append(cfg.additionalColumns, additionalColumns...)
 	}
 }
 
@@ -286,20 +276,36 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		kubernetesVersion = "v1"
 	}
 
+	validationRules := cfg.validationRules
+
 	var rootFields map[string]apiextv1.JSONSchemaProps
-	if len(cfg.additionalRootFields) > 0 {
-		rootFields = make(map[string]apiextv1.JSONSchemaProps, len(cfg.additionalRootFields))
-		for _, fieldName := range cfg.additionalRootFields {
-			field, ok := rootMsg.GetField(fieldName)
-			if !ok {
-				return trace.NotFound("root field %q not found", fieldName)
-			}
-			prop, err := generator.prop(field)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			rootFields[fieldName] = prop
+	if cfg.withScopeRootField {
+		rootFields = make(map[string]apiextv1.JSONSchemaProps)
+		field, ok := rootMsg.GetField(scopeFieldName)
+		if !ok {
+			return trace.NotFound("root field %q not found", scopeFieldName)
 		}
+		prop, err := generator.prop(field)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Scopes are immutable. We force the user to delete and re-create the CRD.
+		// This prevents leaving dangling resources in Teleport.
+		prop.XValidations = apiextv1.ValidationRules{
+			{
+				Rule:    "self == oldSelf",
+				Message: immutableScopeMessage,
+			},
+		}
+		rootFields[scopeFieldName] = prop
+		// The validation rule only triggers if the field is set.
+		// To make sure a resource doesn't go from scoped to unscoped we must also make sure that `scope` is not set/unset.
+		validationRules = append(validationRules, apiextv1.ValidationRule{
+			Rule:    "has(self.scope) == has(oldSelf.scope)",
+			Message: immutableScopeMessage,
+		})
+		// One scoped version is enough to mark the whole resource as scoped.
+		root.scoped = true
 	}
 
 	root.versions = append(root.versions, SchemaVersion{
@@ -307,7 +313,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		Schema:               schema,
 		additionalColumns:    cfg.additionalColumns,
 		additionalRootFields: rootFields,
-		validationRules:      cfg.validationRules,
+		validationRules:      validationRules,
 	})
 
 	return nil
@@ -518,9 +524,15 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		// JSON object. We can't know the structure ahead of time and there can
 		// be many levels of nesting within this.
 		prop.Type = "object"
-		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Allows: true,
-		}
+
+		// Structs have no defined schema and may be entirely user-defined /
+		// free-form, so set XPreserveUnknownFields to disable pruning for child
+		// fields to ensure Kubernetes doesn't prune them in the validator.
+		//
+		// Note that AdditionalProperties cannot be set: if it's non-nil, all
+		// child fields get pruned regardless of `XPreserveUnknownFields`, which
+		// in practice means nested structs get pruned or rejected at runtime.
+		prop.XPreserveUnknownFields = new(true)
 	case field.IsMessage():
 		inner := field.TypeMessage()
 		if inner == nil {
@@ -543,6 +555,13 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	return nil
 }
 
+var ageColumn = apiextv1.CustomResourceColumnDefinition{
+	Name:        "Age",
+	Type:        "date",
+	Description: "The age of this resource",
+	JSONPath:    ".metadata.creationTimestamp",
+}
+
 func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefinition, error) {
 	crd := apiextv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
@@ -551,6 +570,11 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("%s.%s", strings.ToLower(k8sKindPrefix+root.pluralName), root.groupName),
+			Annotations: map[string]string{
+				// The scoped annotation is used to mark resources that are scoped so that Helm can select them
+				// when the operator is deployed in scoped mode.
+				"resources.teleport.dev/scoped": strconv.FormatBool(root.scoped),
+			},
 		},
 		Spec: apiextv1.CustomResourceDefinitionSpec{
 			Group: root.groupName,
@@ -595,6 +619,11 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 	}
 
 	for i, schemaVersion := range root.versions {
+		// Restore the age column if some additional columns were set.
+		columns := schemaVersion.additionalColumns
+		if len(columns) > 0 {
+			columns = append(columns, ageColumn)
+		}
 
 		schema := schemaVersion.Schema
 		version := apiextv1.CustomResourceDefinitionVersion{
@@ -624,7 +653,7 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 					},
 				},
 			},
-			AdditionalPrinterColumns: schemaVersion.additionalColumns,
+			AdditionalPrinterColumns: columns,
 		}
 
 		// Add any additional root-level fields as siblings to spec/metadata/status.

@@ -102,7 +102,7 @@ const getOwnPendingText = (request: FileTransferRequest) => {
   if (request.download) {
     return `Pending download: ${request.location}`;
   }
-  return `Pending upload: ${request.filename} to ${request.location}`;
+  return `Pending upload: ${request.location}`;
 };
 
 type RequestFormProps = {
@@ -157,7 +157,7 @@ const getPendingText = (request: FileTransferRequest) => {
   if (request.download) {
     return `${request.requester} wants to download ${request.location}`;
   }
-  return `${request.requester} wants to upload ${request.filename} to ${request.location}`;
+  return `${request.requester} wants to upload to ${request.location}`;
 };
 
 const Container = styled.div<{ backgroundColor?: string }>`

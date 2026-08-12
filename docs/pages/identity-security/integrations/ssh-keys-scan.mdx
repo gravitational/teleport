@@ -7,6 +7,7 @@ tags:
  - identity-security
  - access-risks
 enterprise: Identity Security
+page_type: how-to
 ---
 
 Using Identity Security with Access Graph, you can gain insights on how SSH keys are used within your environment. By scanning
@@ -18,6 +19,9 @@ This functionality gives you insights into the following areas:
 - Which servers have SSH authorized keys that could be used to bypass Teleport?
 - Which users have SSH private keys that grant access to SSH servers?
 - Which laptops have unprotected SSH private keys?
+
+In this guide, you will set up the SSH key integration with Teleport Access
+Graph and analyze SSH access patterns.
 
 (!docs/pages/includes/policy/access-graph.mdx!)
 
@@ -113,7 +117,7 @@ and local users.
 ## Step 2/2. Scan for SSH private keys
 
 On devices enrolled in the Teleport, you can use the `tsh` CLI tool to scan for SSH private keys. Check [Device Trust](../../zero-trust-access/device-trust/device-trust.mdx)
-for details on how to enroll devices in Teleport, specially if you are using Jamf Pro.
+for details on how to enroll devices in Teleport.
 
 To scan for SSH private keys, run the following command from any enrolled device:
 

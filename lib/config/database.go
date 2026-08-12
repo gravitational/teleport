@@ -28,10 +28,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // databaseConfigTemplateFunc list of template functions used on the database
@@ -703,10 +703,10 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 	}
 
 	var err error
-	if f.AWSTags, err = client.ParseLabelSpec(f.AWSRawTags); err != nil {
+	if f.AWSTags, err = parse.LabelSelectorSpec(f.AWSRawTags); err != nil {
 		return trace.Wrap(err)
 	}
-	if f.AzureTags, err = client.ParseLabelSpec(f.AzureRawTags); err != nil {
+	if f.AzureTags, err = parse.LabelSelectorSpec(f.AzureRawTags); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -726,7 +726,7 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 
 	// Labels for "resources" section.
 	for i := range f.DynamicResourcesRawLabels {
-		labels, err := client.ParseLabelSpec(f.DynamicResourcesRawLabels[i])
+		labels, err := parse.LabelSelectorSpec(f.DynamicResourcesRawLabels[i])
 		if err != nil {
 			return trace.Wrap(err)
 		}

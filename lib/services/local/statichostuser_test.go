@@ -135,15 +135,15 @@ func TestUpdateStaticHostUser(t *testing.T) {
 	key := getStaticHostUser(0).GetMetadata().GetName()
 	obj, err := service.GetStaticHostUser(ctx, key)
 	require.NoError(t, err)
-	obj.Metadata.Expires = expiry
+	obj.GetMetadata().SetExpires(expiry)
 
 	objUpdated, err := service.UpdateStaticHostUser(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.Metadata.Expires)
+	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
 
 	objFresh, err := service.GetStaticHostUser(ctx, key)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.Metadata.Expires)
+	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
 }
 
 func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
@@ -156,7 +156,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getStaticHostUser(0)
-	obj.Metadata.Expires = expiry
+	obj.GetMetadata().SetExpires(expiry)
 
 	// Update should be rejected as the revision is missing.
 	_, err := service.UpdateStaticHostUser(ctx, obj)
@@ -264,21 +264,21 @@ func getStaticHostUserService(t *testing.T) services.StaticHostUser {
 
 func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
 	name := fmt.Sprintf("obj%v", index)
-	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+	return userprovisioning.NewStaticHostUser(name, userprovisioningpb.StaticHostUserSpec_builder{
 		Matchers: []*userprovisioningpb.Matcher{
-			{
+			userprovisioningpb.Matcher_builder{
 				NodeLabels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   "foo",
 						Values: []string{"bar"},
-					},
+					}.Build(),
 				},
 				Groups: []string{"foo", "bar"},
 				Uid:    1234,
 				Gid:    5678,
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 }
 
 func prepopulateStaticHostUsers(t *testing.T, service services.StaticHostUser, count int) {

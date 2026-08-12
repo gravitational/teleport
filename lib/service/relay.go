@@ -112,6 +112,7 @@ func (process *TeleportProcess) runRelayService() error {
 		LockWatcher:      lockWatcher,
 		Logger:           sublogger("authorizer"),
 		PermitCaching:    process.Config.CachePolicy.Enabled,
+		ScopesFeatures:   process.scopesFeatures,
 	}
 
 	authorizer, err := authz.NewAuthorizer(authorizerOpts)
@@ -386,31 +387,26 @@ func (process *TeleportProcess) runRelayService() error {
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
-	relayServer.Store(&presencev1.RelayServer{
+	relayServer.Store(presencev1.RelayServer_builder{
 		Kind:    apitypes.KindRelayServer,
 		SubKind: "",
 		Version: apitypes.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: conn.HostUUID(),
-		},
-		Spec: &presencev1.RelayServer_Spec{
+		}.Build(),
+		Spec: presencev1.RelayServer_Spec_builder{
 			Hostname:   process.Config.Hostname,
 			RelayGroup: process.Config.Relay.RelayGroup,
 			PeerAddr:   peerPublicAddr,
 			Nonce:      nonce,
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
 		InventoryHandle: process.inventoryHandle,
 		GetResource: func(context.Context) (*presencev1.RelayServer, error) {
 			return relayServer.Load(), nil
 		},
-
-		// there's no fallback announce mode, the relay service only works with
-		// clusters recent enough to support relay heartbeats through the ICS
-		Announcer: nil,
-
 		OnHeartbeat: process.OnHeartbeat(teleport.ComponentRelay),
 	}, sublogger("heartbeat"))
 	if err != nil {
@@ -432,7 +428,7 @@ func (process *TeleportProcess) runRelayService() error {
 
 	{
 		r := proto.CloneOf(relayServer.Load())
-		r.GetSpec().Terminating = true
+		r.GetSpec().SetTerminating(true)
 		relayServer.Store(r)
 	}
 
@@ -476,6 +472,8 @@ func (process *TeleportProcess) runRelayService() error {
 		return nil
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
+
+	shutdownEmitter(process, asyncEmitter, exitEvent.Payload, log)
 
 	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)

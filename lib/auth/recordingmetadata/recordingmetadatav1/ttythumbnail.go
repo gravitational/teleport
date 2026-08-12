@@ -88,14 +88,14 @@ func (t *ttyThumbnailGenerator) produceThumbnail(_ int) (*pb.SessionRecordingThu
 	cols, rows := t.vt.Size()
 	cursor := t.vt.Cursor()
 
-	return &pb.SessionRecordingThumbnail{
+	return pb.SessionRecordingThumbnail_builder{
 		Svg:           terminal.VtToSvg(t.vt),
 		Cols:          int32(cols),
 		Rows:          int32(rows),
 		CursorX:       int32(cursor.X),
 		CursorY:       int32(cursor.Y),
 		CursorVisible: t.vt.CursorVisible(),
-	}, nil
+	}.Build(), nil
 }
 
 func (t *ttyThumbnailGenerator) release() {

@@ -133,7 +133,18 @@ describe('services/history', () => {
       history.goToLogin({ rememberLocation: true });
 
       const expected =
-        '/web/login?redirect_uri=http://localhost/current-location';
+        '/web/login?redirect_uri=http%3A%2F%2Flocalhost%2Fcurrent-location';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+
+    it('should not attempt to redirect from an unknown path', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/another-location']);
+      location.pathname = '/bogus-location';
+      history.goToLogin({ rememberLocation: true });
+
+      const expected = '/web/login?redirect_uri=http%3A%2F%2Flocalhost%2Fweb';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
 
@@ -144,7 +155,7 @@ describe('services/history', () => {
       location.pathname = '/current-location';
       history.goToLogin({ withAccessChangedMessage: true });
 
-      const expected = '/web/login?access_changed';
+      const expected = '/web/login?access_changed=';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
 
@@ -159,7 +170,7 @@ describe('services/history', () => {
       });
 
       const expected =
-        '/web/login?access_changed&redirect_uri=http://localhost/current-location';
+        '/web/login?access_changed=&redirect_uri=http%3A%2F%2Flocalhost%2Fcurrent-location';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
 
@@ -186,7 +197,7 @@ describe('services/history', () => {
       });
 
       const expected =
-        '/web/login?access_changed&redirect_uri=http://localhost/current-location%3Ftest%3Dvalue';
+        '/web/login?access_changed=&redirect_uri=http%3A%2F%2Flocalhost%2Fcurrent-location%3Ftest%3Dvalue';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
 
@@ -204,10 +215,32 @@ describe('services/history', () => {
       });
 
       const expected =
-        '/web/login?access_changed&redirect_uri=http://localhost/current-location%3Ftest%3Dvalue';
+        '/web/login?access_changed=&redirect_uri=http%3A%2F%2Flocalhost%2Fcurrent-location%3Ftest%3Dvalue';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
 
       window.history.replaceState({}, '', '/');
     });
+  });
+
+  describe('getScopePickerUrl', () => {
+    it('should have a redirection to the current page', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+      location.pathname = '/current-location';
+      expect(history.getScopePickerUrl()).toBe(
+        '/web/scope_picker?redirect_uri=http%3A%2F%2Flocalhost%2Fcurrent-location'
+      );
+    });
+  });
+
+  it('should not attempt to redirect from an unknown path', () => {
+    jest
+      .spyOn(history, 'getRoutes')
+      .mockReturnValue(['/web/login', '/another-location']);
+    location.pathname = '/bogus-location';
+    expect(history.getScopePickerUrl()).toBe(
+      '/web/scope_picker?redirect_uri=http%3A%2F%2Flocalhost%2Fweb'
+    );
   });
 });

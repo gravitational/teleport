@@ -19,6 +19,7 @@
 import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
+import { ContentMinWidth } from 'teleport/Main/Main';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import {
   errorGetUsers,
@@ -35,14 +36,17 @@ export default {
 const users = [
   {
     name: 'cikar@egaposci.me',
+    displayPrimary: 'Cikar Egaposci',
+    displaySecondary: 'cikar@egaposci.me',
     roles: ['admin'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
   },
   {
     name: 'hi@nen.pa',
+    displaySecondary: 'hi@nen.pa',
     roles: ['ruhh', 'admin'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
   },
   {
@@ -66,77 +70,67 @@ const users = [
   {
     name: 'azesotil@jevig.org',
     roles: ['tugu'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
   },
   {
     name: 'bot-little-robot',
     roles: ['bot-little-robot'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
     isBot: true,
   },
 ];
 
 export const Loaded: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [successGetUsers(users)],
-    },
+  beforeEach({ msw }) {
+    msw.use(successGetUsers(users));
   },
+
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers(sample);
   },
 };
 
 export const UsersNotEqualMauNotice: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [successGetUsers(users)],
-    },
+  beforeEach({ msw }) {
+    msw.use(successGetUsers(users));
   },
+
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} showMauInfo={true} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers({ ...sample, showMauInfo: true });
   },
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleGetUsers(async () => await delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(handleGetUsers(async () => await delay('infinite')));
   },
+
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers(sample);
   },
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [errorGetUsers('Something went wrong')],
-    },
+  beforeEach({ msw }) {
+    msw.use(errorGetUsers('Something went wrong'));
   },
+
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers(sample);
   },
 };
+
+function renderUsers(props) {
+  return (
+    <TeleportProviderBasic>
+      <ContentMinWidth>
+        <Users {...props} />
+      </ContentMinWidth>
+    </TeleportProviderBasic>
+  );
+}
 
 const sample = {
   attempt: {

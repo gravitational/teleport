@@ -71,18 +71,18 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdat
 
 	// We always process every group regardless of the order.
 	var errs []error
-	for i, group := range status.Groups {
+	for i, group := range status.GetGroups() {
 		var agentCount, agentUpToDateCount int
-		if i == len(status.Groups)-1 {
+		if i == len(status.GetGroups())-1 {
 			agentCount, agentUpToDateCount = countCatchAll(status, countByGroup, upToDateByGroup)
 		} else {
 			agentCount = countByGroup[group.GetName()]
 			agentUpToDateCount = upToDateByGroup[group.GetName()]
 		}
 
-		group.PresentCount = uint64(agentCount)
-		group.UpToDateCount = uint64(agentUpToDateCount)
-		switch group.State {
+		group.SetPresentCount(uint64(agentCount))
+		group.SetUpToDateCount(uint64(agentUpToDateCount))
+		switch group.GetState() {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 			// We start any group unstarted group in window.
@@ -93,24 +93,24 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdat
 				// In time-based rollouts, groups are not dependent.
 				// Failing to transition a group should affect other groups.
 				// We reflect that something went wrong in the status and go to the next group.
-				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				setGroupState(group, group.GetState(), updateReasonReconcilerError, now)
 				errs = append(errs, err)
 				continue
 			}
 
 			// Check if the rollout got created after the theoretical group start time
-			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime(), windowDuration)
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.GetStartTime().AsTime(), windowDuration)
 			if err != nil {
-				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				setGroupState(group, group.GetState(), updateReasonReconcilerError, now)
 				errs = append(errs, err)
 				continue
 			}
 
 			switch {
 			case !shouldBeActive:
-				setGroupState(group, group.State, updateReasonOutsideWindow, now)
+				setGroupState(group, group.GetState(), updateReasonOutsideWindow, now)
 			case rolloutChangedDuringWindow:
-				setGroupState(group, group.State, updateReasonRolloutChanged, now)
+				setGroupState(group, group.GetState(), updateReasonRolloutChanged, now)
 			default:
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonInWindow, now)
 			}
@@ -125,7 +125,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdat
 				// In time-based rollouts, groups are not dependent.
 				// Failing to transition a group should affect other groups.
 				// We reflect that something went wrong in the status and go to the next group.
-				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				setGroupState(group, group.GetState(), updateReasonReconcilerError, now)
 				errs = append(errs, err)
 				continue
 			}
@@ -136,7 +136,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdat
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE, updateReasonOutsideWindow, now)
 			}
 		default:
-			return trace.BadParameter("unknown autoupdate group state: %v", group.State)
+			return trace.BadParameter("unknown autoupdate group state: %v", group.GetState())
 		}
 	}
 	return trace.NewAggregate(errs...)

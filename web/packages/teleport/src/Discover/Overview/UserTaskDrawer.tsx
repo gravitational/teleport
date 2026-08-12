@@ -197,6 +197,8 @@ function DetailsTab({ task }: { task: UserTaskDetail }) {
       <InfoRow label="Resource Type" value={info.resourceType} />
       <InfoRow label="Region" value={info.region} />
       <InfoRow label="Account" value={info.account} />
+      {info.tenantId && <InfoRow label="Tenant ID" value={info.tenantId} />}
+      {info.clientId && <InfoRow label="Client ID" value={info.clientId} />}
       <InfoRow label="Last updated" value={formatDate(task.lastStateChange)} />
       <Divider />
 
@@ -254,6 +256,8 @@ function getTaskInfo(task: UserTaskDetail): {
   resourceType: string;
   region?: string;
   account?: string;
+  tenantId?: string;
+  clientId?: string;
 } {
   const taskType = (task.taskType || '').toLowerCase();
   if (taskType.includes('ec2')) {
@@ -282,6 +286,8 @@ function getTaskInfo(task: UserTaskDetail): {
       resourceType: 'Azure VM',
       region: task.discoverAzureVm?.region,
       account: task.discoverAzureVm?.subscription_id,
+      tenantId: task.discoverAzureVm?.tenant_id,
+      clientId: task.discoverAzureVm?.client_id,
     };
   }
   return { resourceType: '', region: undefined, account: undefined };

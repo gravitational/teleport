@@ -18,9 +18,9 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
-import "teleport/appauthconfig/v1/appauthconfig.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
 import "teleport/beams/v1/beam.proto";
+import "teleport/beams/v1/beams_config.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -42,6 +42,7 @@ import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/subca/v1/cert_authority_override.proto";
+import "teleport/subca/v1/pending_csr_request.proto";
 import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -69,10 +70,12 @@ message Event {
   reserved 63;
   reserved 68;
   reserved 88;
+  reserved 86;
   reserved "ExternalCloudAudit";
   reserved "StaticHostUser";
   reserved "AutoUpdateAgentPlan";
   reserved "WorkloadCluster";
+  reserved "AppAuthConfig";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -243,8 +246,6 @@ message Event {
     types.PluginV1 plugin = 84;
     // AutoUpdateAgentReport is a resource for counting connected bot instances.
     teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
-    // AppAuthConfig is a resource for defining app auth configs.
-    teleport.appauthconfig.v1.AppAuthConfig AppAuthConfig = 86;
     // LinuxDesktop is a resource for linux desktop.
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
     // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
@@ -263,5 +264,12 @@ message Event {
     teleport.beams.v1.Beam Beam = 95;
     // ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
     teleport.mfa.v2.ValidatedMFAChallenge ValidatedMFAChallengeV2 = 96;
+    // BeamsConfig is the user-provided configuration for Beams.
+    teleport.beams.v1.BeamsConfig BeamsConfig = 97;
+    // Classifier is a resource for defining session summarization classifiers.
+    teleport.summarizer.v1.Classifier Classifier = 98;
+    // PendingCSRRequest allows asynchronous, watcher-based CSR requests to
+    // other Auth server instances.
+    teleport.subca.v1.PendingCSRRequest PendingCSRRequest = 99;
   }
 }

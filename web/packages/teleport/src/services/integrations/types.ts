@@ -118,6 +118,7 @@ export type IntegrationSpecAzureOidc = {
   managedIdentity?: {
     region: string;
     resourceGroup: string;
+    managementGroupId?: string;
   };
 };
 
@@ -174,6 +175,10 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+  organization?: {
+    includeUnits: string[];
+    excludeUnits: string[];
+  };
 };
 
 // IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
@@ -535,8 +540,25 @@ export type PluginEntraIdSpec = {
    * "enabled" state.
    */
   accessGraphEnabled: boolean;
+  /**
+   * syncIntervals is the Entra ID service sync intervals.
+   */
+  syncIntervals?: Partial<PluginEntraIdSyncIntervals>;
 };
 
+/**
+ * PluginEntraIdSyncIntervals defines Entra ID service sync intervals.
+ */
+export type PluginEntraIdSyncIntervals = {
+  /**
+   * Go duration string that configures delta sync interval.
+   */
+  delta: string;
+  /**
+   * Go duration string that configures full sync interval.
+   */
+  full: string;
+};
 /**
  * Filters defines plugin resource import filter input
  * param. Fields must be in sync with the [Inputs]
@@ -568,6 +590,7 @@ export type Filters = {
 export type PluginEntraIDStatusDetails = {
   imported_users?: number;
   imported_groups?: number;
+  sync_mode?: 'full' | 'delta';
 };
 
 export type IntegrationOAuthCredentials = {
@@ -792,6 +815,10 @@ export type DiscoverAzureVm = {
   resource_group: string;
   // region is the Azure Region where Teleport failed to enroll VMs.
   region: string;
+  // tenant_id is the Microsoft Entra tenant ID used by the Azure integration.
+  tenant_id?: string;
+  // client_id is the client ID of the Azure integration's managed identity or service principal.
+  client_id?: string;
 };
 
 // DiscoverAzureVmInstance contains the result of enrolling an Azure VM.
@@ -855,6 +882,12 @@ export type ResourceTypeSummary = {
   resourcesEnrollmentSuccess: number;
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
+  // syncStart is when the current or most recent discovery scan started.
+  syncStart?: string;
+  // syncEnd is when the most recent discovery scan ended.
+  syncEnd?: string;
+  // pollIntervalSeconds is the interval in seconds between discovery scans.
+  pollIntervalSeconds?: number;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
   unresolvedUserTasks?: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.

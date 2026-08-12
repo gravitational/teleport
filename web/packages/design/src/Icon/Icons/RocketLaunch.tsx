@@ -56,6 +56,7 @@ export const RocketLaunch = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-rocketlaunch"
+
       {...otherProps}
       ref={ref}
     >

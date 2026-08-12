@@ -97,14 +97,14 @@ func TestDockerAttestor(t *testing.T) {
 	attrs, err := attestor.Attest(context.Background(), 1234)
 	require.NoError(t, err)
 
-	expected := &workloadidentityv1.WorkloadAttrsDocker{
+	expected := workloadidentityv1.WorkloadAttrsDocker_builder{
 		Attested: true,
-		Container: &workloadidentityv1.WorkloadAttrsDockerContainer{
+		Container: workloadidentityv1.WorkloadAttrsDockerContainer_builder{
 			Name:        "web-server",
 			Image:       "nginx:latest",
 			ImageDigest: "sha256:72297848456d5d37d1262630108ab308d3e9ec7ed1c3286a32fe09856619a782",
 			Labels:      map[string]string{"region": "eu"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.Empty(t, cmp.Diff(expected, attrs, protocmp.Transform()))
 }

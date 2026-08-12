@@ -56,19 +56,19 @@ func (a *Fetcher) pollAWSUsers(ctx context.Context, result, existing *Resources,
 			eG.Go(func() error {
 				userInlinePolicies, err := a.fetchUserInlinePolicies(ctx, user)
 				if err != nil {
-					collectErr(trace.Wrap(err, "failed to fetch user %q inline policies", user.UserName))
+					collectErr(trace.Wrap(err, "failed to fetch user %q inline policies", user.GetUserName()))
 					userInlinePolicies = sliceFilter(existing.UserInlinePolicies, func(inline *accessgraphv1alpha.AWSUserInlinePolicyV1) bool {
-						return inline.User.UserName == user.UserName && inline.AccountId == a.AccountID
+						return inline.GetUser().GetUserName() == user.GetUserName() && inline.GetAccountId() == a.AccountID
 					})
 				}
 
 				userAttachedPolicies, err := a.fetchUserAttachedPolicies(ctx, user)
 				if err != nil {
-					collectErr(trace.Wrap(err, "failed to fetch user %q attached policies", user.UserName))
+					collectErr(trace.Wrap(err, "failed to fetch user %q attached policies", user.GetUserName()))
 					userAttachedPolicies = sliceFilterPickFirst(
 						existing.UserAttachedPolicies,
 						func(attached *accessgraphv1alpha.AWSUserAttachedPolicies) bool {
-							return attached.User.UserName == user.UserName && attached.AccountId == a.AccountID
+							return attached.GetUser().GetUserName() == user.GetUserName() && attached.GetAccountId() == a.AccountID
 						},
 					)
 
@@ -76,9 +76,9 @@ func (a *Fetcher) pollAWSUsers(ctx context.Context, result, existing *Resources,
 
 				userGroups, err := a.fetchGroupsForUser(ctx, user)
 				if err != nil {
-					collectErr(trace.Wrap(err, "failed to fetch user %q groups", user.UserName))
+					collectErr(trace.Wrap(err, "failed to fetch user %q groups", user.GetUserName()))
 					userGroups = sliceFilterPickFirst(existing.UserGroups, func(groups *accessgraphv1alpha.AWSUserGroupsV1) bool {
-						return groups.User.UserName == user.UserName && groups.User.AccountId == a.AccountID
+						return groups.GetUser().GetUserName() == user.GetUserName() && groups.GetUser().GetAccountId() == a.AccountID
 					})
 				}
 
@@ -139,22 +139,22 @@ func (a *Fetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AWSUser
 func awsUserToProtoUser(user iamtypes.User, accountID string) *accessgraphv1alpha.AWSUserV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(user.Tags))
 	for _, tag := range user.Tags {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(tag.Key),
 			Value: strPtrToWrapper(tag.Value),
-		})
+		}.Build())
 	}
 
 	var permissionsBoundary *accessgraphv1alpha.UsersPermissionsBoundaryV1
 
 	if user.PermissionsBoundary != nil {
-		permissionsBoundary = &accessgraphv1alpha.UsersPermissionsBoundaryV1{
+		permissionsBoundary = accessgraphv1alpha.UsersPermissionsBoundaryV1_builder{
 			PermissionsBoundaryArn:  aws.ToString(user.PermissionsBoundary.PermissionsBoundaryArn),
 			PermissionsBoundaryType: accessgraphv1alpha.UsersPermissionsBoundaryType_USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY,
-		}
+		}.Build()
 	}
 
-	return &accessgraphv1alpha.AWSUserV1{
+	return accessgraphv1alpha.AWSUserV1_builder{
 		UserName:            aws.ToString(user.UserName),
 		Arn:                 aws.ToString(user.Arn),
 		Path:                aws.ToString(user.Path),
@@ -164,7 +164,7 @@ func awsUserToProtoUser(user iamtypes.User, accountID string) *accessgraphv1alph
 		PasswordLastUsed:    awsTimeToProtoTime(user.PasswordLastUsed),
 		Tags:                tags,
 		PermissionsBoundary: permissionsBoundary,
-	}
+	}.Build()
 }
 
 func (a *Fetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) ([]*accessgraphv1alpha.AWSUserInlinePolicyV1, error) {
@@ -180,7 +180,7 @@ func (a *Fetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraph
 	pager := iam.NewListUserPoliciesPaginator(
 		iamClient,
 		&iam.ListUserPoliciesInput{
-			UserName: aws.String(user.UserName),
+			UserName: aws.String(user.GetUserName()),
 			MaxItems: aws.Int32(pageSize),
 		},
 		func(opts *iam.ListUserPoliciesPaginatorOptions) {
@@ -200,11 +200,11 @@ func (a *Fetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraph
 		}
 		for _, policyName := range page.PolicyNames {
 			policy, err := iamClient.GetUserPolicy(ctx, &iam.GetUserPolicyInput{
-				UserName:   aws.String(user.UserName),
+				UserName:   aws.String(user.GetUserName()),
 				PolicyName: aws.String(policyName),
 			})
 			if err != nil {
-				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", user.UserName, policyName))
+				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", user.GetUserName(), policyName))
 				continue
 			}
 
@@ -215,12 +215,12 @@ func (a *Fetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgraph
 }
 
 func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, user *accessgraphv1alpha.AWSUserV1, accountID string) *accessgraphv1alpha.AWSUserInlinePolicyV1 {
-	return &accessgraphv1alpha.AWSUserInlinePolicyV1{
+	return accessgraphv1alpha.AWSUserInlinePolicyV1_builder{
 		PolicyName:     aws.ToString(policy.PolicyName),
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		User:           user,
 		AccountId:      accountID,
-	}
+	}.Build()
 }
 
 func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserAttachedPolicies, error) {
@@ -236,7 +236,7 @@ func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgra
 	pager := iam.NewListAttachedUserPoliciesPaginator(
 		iamClient,
 		&iam.ListAttachedUserPoliciesInput{
-			UserName: aws.String(user.UserName),
+			UserName: aws.String(user.GetUserName()),
 			MaxItems: aws.Int32(pageSize),
 		},
 		func(opts *iam.ListAttachedUserPoliciesPaginatorOptions) {
@@ -244,32 +244,32 @@ func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgra
 		},
 	)
 
-	rsp := &accessgraphv1alpha.AWSUserAttachedPolicies{
+	rsp := accessgraphv1alpha.AWSUserAttachedPolicies_builder{
 		User:      user,
 		AccountId: a.AccountID,
-	}
+	}.Build()
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return rsp, trace.Wrap(err)
 		}
 		for _, policy := range page.AttachedPolicies {
-			rsp.Policies = append(
-				rsp.Policies,
-				&accessgraphv1alpha.AttachedPolicyV1{
+			rsp.SetPolicies(append(
+				rsp.GetPolicies(),
+				accessgraphv1alpha.AttachedPolicyV1_builder{
 					Arn:        aws.ToString(policy.PolicyArn),
 					PolicyName: aws.ToString(policy.PolicyName),
-				},
-			)
+				}.Build(),
+			))
 		}
 	}
 	return rsp, trace.Wrap(err)
 }
 
 func (a *Fetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserGroupsV1, error) {
-	userGroups := &accessgraphv1alpha.AWSUserGroupsV1{
+	userGroups := accessgraphv1alpha.AWSUserGroupsV1_builder{
 		User: user,
-	}
+	}.Build()
 
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
@@ -284,7 +284,7 @@ func (a *Fetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alp
 	pager := iam.NewListGroupsForUserPaginator(
 		iamClient,
 		&iam.ListGroupsForUserInput{
-			UserName: aws.String(user.UserName),
+			UserName: aws.String(user.GetUserName()),
 			MaxItems: aws.Int32(pageSize),
 		},
 		func(opts *iam.ListGroupsForUserPaginatorOptions) {
@@ -297,7 +297,7 @@ func (a *Fetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alp
 			return nil, trace.Wrap(err)
 		}
 		for _, group := range page.Groups {
-			userGroups.Groups = append(userGroups.Groups, awsGroupToProtoGroup(group, a.AccountID))
+			userGroups.SetGroups(append(userGroups.GetGroups(), awsGroupToProtoGroup(group, a.AccountID)))
 		}
 	}
 	return userGroups, nil

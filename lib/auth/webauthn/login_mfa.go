@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -98,7 +99,7 @@ type LoginFlow struct {
 type BeginParams struct {
 	User                      string
 	ChallengeExtensions       *mfav1.ChallengeExtensions
-	SessionIdentifyingPayload *mfav1.SessionIdentifyingPayload
+	SessionIdentifyingPayload *mfav2.SessionIdentifyingPayload
 	SourceCluster             string
 	TargetCluster             string
 }

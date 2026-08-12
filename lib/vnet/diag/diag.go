@@ -81,13 +81,13 @@ func GenerateReport(ctx context.Context, rp ReportPrerequisites) (*diagv1.Report
 	}
 
 	report := &diagv1.Report{}
-	report.CreatedAt = timestamppb.New(rp.Clock.Now().UTC())
-	report.NetworkStackAttempt = rp.NetworkStackAttempt
+	report.SetCreatedAt(timestamppb.New(rp.Clock.Now().UTC()))
+	report.SetNetworkStackAttempt(rp.NetworkStackAttempt)
 
 	for _, diagCheck := range rp.DiagChecks {
 		checkAttempt := runCheck(ctx, diagCheck, rp.SkipCommands)
 
-		report.Checks = append(report.Checks, checkAttempt)
+		report.SetChecks(append(report.GetChecks(), checkAttempt))
 	}
 
 	return report, nil
@@ -98,19 +98,19 @@ func runCheck(ctx context.Context, diagCheck DiagCheck, skipCommands bool) *diag
 
 	report, err := diagCheck.Run(ctx)
 	if err != nil {
-		attempt.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR
-		attempt.Error = err.Error()
+		attempt.SetStatus(diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR)
+		attempt.SetError(err.Error())
 		// In case of an error, CheckReport needs to be set to an empty value. Otherwise it'd be
 		// impossible to identify the type of a failed check.
-		attempt.CheckReport = diagCheck.EmptyCheckReport()
+		attempt.SetCheckReport(diagCheck.EmptyCheckReport())
 	} else {
-		attempt.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK
-		attempt.CheckReport = report
+		attempt.SetStatus(diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK)
+		attempt.SetCheckReport(report)
 	}
 
 	if !skipCommands {
 		for _, cmd := range diagCheck.Commands(ctx) {
-			attempt.Commands = append(attempt.Commands, runCommand(cmd))
+			attempt.SetCommands(append(attempt.GetCommands(), runCommand(cmd)))
 		}
 	}
 
@@ -131,25 +131,25 @@ func runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
 			}
 		}
 
-		return &diagv1.CommandAttempt{
+		return diagv1.CommandAttempt_builder{
 			Status:  diagv1.CommandAttemptStatus_COMMAND_ATTEMPT_STATUS_ERROR,
 			Error:   errMessage,
 			Command: command,
-		}
+		}.Build()
 	}
 
 	// A protobuf string must contain valid UTF-8 or 7-bit ASCII text .
 	if !utf8.Valid(output) {
-		return &diagv1.CommandAttempt{
+		return diagv1.CommandAttempt_builder{
 			Status:  diagv1.CommandAttemptStatus_COMMAND_ATTEMPT_STATUS_ERROR,
 			Error:   "command output contains text that is not UTF-8 encoded",
 			Command: command,
-		}
+		}.Build()
 	}
 
-	return &diagv1.CommandAttempt{
+	return diagv1.CommandAttempt_builder{
 		Status:  diagv1.CommandAttemptStatus_COMMAND_ATTEMPT_STATUS_OK,
 		Command: command,
 		Output:  string(output),
-	}
+	}.Build()
 }

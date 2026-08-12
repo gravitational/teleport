@@ -37,9 +37,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
@@ -674,6 +677,69 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 	})
 }
 
+// TestCreateAuthenticateChallenge_errors verifies that CreateAuthenticateChallenge
+// returns the expected sentinel errors and that they survive the gRPC round trip,
+// so mfa.(*Ceremony).Run can detect them on the client.
+func TestCreateAuthenticateChallenge_errors(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// An end user gets past the "only end users" gate, exercising errors that
+	// occur deeper in challenge creation.
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+	endUserClient, err := srv.NewClient(authtest.TestUser(u.username))
+	require.NoError(t, err)
+
+	// A built-in identity (here, the admin role) is not an end user and cannot
+	// perform an MFA ceremony.
+	builtinClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name    string
+		client  *authclient.Client
+		req     *proto.CreateAuthenticateChallengeRequest
+		wantErr error
+	}{
+		{
+			name:   "unknown challenge scope",
+			client: endUserClient,
+			req: &proto.CreateAuthenticateChallengeRequest{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope(99), // out of range, unknown scope
+				},
+			},
+			wantErr: &mfa.ErrUnknownChallengeScope,
+		},
+		{
+			name:    "non-end-user ContextUser challenge",
+			client:  builtinClient,
+			req:     &proto.CreateAuthenticateChallengeRequest{},
+			wantErr: &mfa.ErrMFANotSupportedContextUser,
+		},
+		{
+			name:   "non-end-user MFARequiredCheck",
+			client: builtinClient,
+			// A non-default request type skips the ContextUser gate above, so the
+			// MFARequiredCheck gate is what rejects the non-end-user caller.
+			req: &proto.CreateAuthenticateChallengeRequest{
+				Request:          &proto.CreateAuthenticateChallengeRequest_Passwordless{Passwordless: &proto.Passwordless{}},
+				MFARequiredCheck: &proto.IsMFARequiredRequest{},
+			},
+			wantErr: &mfa.ErrMFANotSupportedMFARequiredCheck,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Requests go over gRPC to ensure the error shapes survive the round trip.
+			_, err := tt.client.CreateAuthenticateChallenge(ctx, tt.req)
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
 func TestCreateRegisterChallenge(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -940,10 +1006,9 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 // TestBasicSSHScopedLogin verifies the basic expected behavior of a scoped login attempt using password-only
 // auth and a rudimentary set of scoped roles.
 func TestBasicSSHScopedLogin(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	authServer := testServer.Auth()
 
 	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
@@ -973,71 +1038,81 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	wildcardLabels := []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   "*",
+			Values: []string{"*"},
+		}.Build(),
+	}
 	// set up some scoped roles
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-a",
-			},
+			}.Build(),
 			Scope: "/aa",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-a"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-b",
-			},
+			}.Build(),
 			Scope: "/aa/bb",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-b"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-c",
-			},
+			}.Build(),
 			Scope: "/aa/bb/cc",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb/cc"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-c"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-x",
-			},
+			}.Build(),
 			Scope: "/xx",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/xx"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-x"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	// Create the roles.
 	for _, role := range scopedRoles {
-		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: role,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1045,26 +1120,26 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	for _, role := range scopedRoles {
 		assignmentID := uuid.NewString()
 		assignmentIDs = append(assignmentIDs, assignmentID)
-		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: assignmentID,
-				},
+				}.Build(),
 				Scope: role.GetScope(),
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
-							Role:  role.GetMetadata().GetName(),
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1072,7 +1147,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	timeout := time.After(30 * time.Second)
 	for {
 		unseen := slices.Clone(assignmentIDs)
-		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build()) {
 			require.NoError(t, err)
 			id := assignment.GetMetadata().GetName()
 			unseen = slices.DeleteFunc(unseen, func(unseenID string) bool { return id == unseenID })
@@ -1095,14 +1172,15 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that the expected scope pin is applied to ssh and tls certificates
-	expectedPin := &scopesv1.Pin{
+	expectedPin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			"/aa":       {"/aa": {"role-a"}},
-			"/aa/bb":    {"/aa/bb": {"role-b"}},
-			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+			"/aa":       {"/aa": {"/aa::role-a"}},
+			"/aa/bb":    {"/aa/bb": {"/aa/bb::role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"/aa/bb/cc::role-c"}},
 		}),
-	}
+	}.Build()
 
 	// parse and examine the ssh cert
 	sshCert, err := sshutils.ParseCertificate(authrsp.Cert)

@@ -181,20 +181,20 @@ func TestMergeUpsertUserTask(t *testing.T) {
 				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
 			},
 			clock.Now().Add(20*time.Minute),
-			&usertasksv1.DiscoverAzureVM{
+			usertasksv1.DiscoverAzureVM_builder{
 				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-					tag: {
+					tag: usertasksv1.DiscoverAzureVMInstance_builder{
 						VmId:            tag,
 						DiscoveryConfig: tag,
 						DiscoveryGroup:  tag,
 						SyncTime:        syncTime,
-					},
+					}.Build(),
 				},
 				// these feed into task name, in addition to the task group above.
 				SubscriptionId: "sub-123",
 				ResourceGroup:  "rg-123",
 				Region:         "westus",
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 		return ut
@@ -236,9 +236,37 @@ func TestMergeUpsertUserTask(t *testing.T) {
 			upsertedTask, err := ap.GetUserTask(s.ctx, tt.newTask.GetMetadata().GetName())
 			require.NoError(t, err)
 			require.NotNil(t, upsertedTask)
-			require.Empty(t, cmp.Diff(tt.newTask.Spec, upsertedTask.Spec, protocmp.Transform()))
+			require.Empty(t, cmp.Diff(tt.newTask.GetSpec(), upsertedTask.GetSpec(), protocmp.Transform()))
 		})
 	}
+}
+
+func TestDiscoveryStatusUpdate(t *testing.T) {
+	const (
+		discoveryConfigName = "dc-1"
+		integrationName     = "integration-1"
+	)
+	key := discoveryGroupStatusKey{
+		discoveryConfigName: discoveryConfigName,
+		integration:         integrationName,
+	}
+	statuses := newStatusMap(types.AzureMatcherVM, time.Now())
+	statuses.add(key)
+
+	statuses.updateConcurrently(key, discoveryGroupStatus{
+		found:    4,
+		enrolled: 1,
+		failed:   1,
+	})
+	statuses.updateConcurrently(key, discoveryGroupStatus{
+		found: 1,
+	})
+
+	status := statuses.mergeIntoGlobalStatus(discoveryConfigName, discoveryconfig.Status{})
+	summary := status.IntegrationDiscoveredResources[integrationName].GetAzureVms()
+	require.Equal(t, uint64(5), summary.GetFound())
+	require.Equal(t, uint64(1), summary.GetEnrolled())
+	require.Equal(t, uint64(1), summary.GetFailed())
 }
 
 type mocktaskUpdaterAccessPoint struct {
@@ -311,6 +339,219 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 	return manager, ap
 }
 
+func TestUpsertAzureSubscriptionListTask(t *testing.T) {
+	t.Parallel()
+
+	updater, ap := newTaskUpdater(t)
+	require.NoError(t, updater.upsertAzureSubscriptionListTask(
+		"azure-integration",
+		usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
+		"azure-tenant-id",
+		"azure-client-id",
+	))
+	require.Len(t, ap.tasks, 1)
+
+	for _, task := range ap.tasks {
+		require.Equal(t, usertasks.TaskTypeDiscoverAzureVM, task.GetSpec().GetTaskType())
+		require.Equal(t, usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied, task.GetSpec().GetIssueType())
+		require.Equal(t, "azure-integration", task.GetSpec().GetIntegration())
+		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetSubscriptionId())
+		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetInstances())
+		require.Equal(t, "azure-tenant-id", task.GetSpec().GetDiscoverAzureVm().GetTenantId())
+		require.Equal(t, "azure-client-id", task.GetSpec().GetDiscoverAzureVm().GetClientId())
+		require.True(t, updater.clock.Now().Add(2*updater.PollInterval).Equal(task.GetMetadata().GetExpires().AsTime()))
+	}
+}
+
+func TestUpsertAzureSubscriptionListTaskPreservesIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		integration = "azure-integration"
+		issueType   = usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied
+		tenantID    = "azure-tenant-id"
+		clientID    = "azure-client-id"
+	)
+
+	existingTask, err := usertasks.NewDiscoverAzureVMUserTask(
+		usertasks.TaskGroup{
+			Integration: integration,
+			IssueType:   issueType,
+		},
+		time.Now().Add(time.Hour),
+		usertasksv1.DiscoverAzureVM_builder{
+			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			TenantId:  tenantID,
+			ClientId:  clientID,
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	updater, ap := newTaskUpdater(t, existingTask)
+	require.NoError(t, updater.upsertAzureSubscriptionListTask(integration, issueType, "", ""))
+
+	task, err := ap.GetUserTask(t.Context(), existingTask.GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Equal(t, tenantID, task.GetSpec().GetDiscoverAzureVm().GetTenantId())
+	require.Equal(t, clientID, task.GetSpec().GetDiscoverAzureVm().GetClientId())
+}
+
+func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {
+	t.Parallel()
+
+	permissionKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+	installKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(tasks *awsEC2Tasks)
+		expected map[awsEC2TaskKey]*usertasksv1.DiscoverEC2
+		queued   map[awsEC2TaskKey]struct{}
+	}{
+		{
+			name: "empty integration is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedPermissionEnrollment(awsEC2TaskKey{
+					issueType: usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+					accountID: "123456789012",
+					region:    "us-east-1",
+				})
+			},
+		},
+		{
+			name: "non permission issue with nil instance is queued",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(installKey, nil)
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				installKey: usertasksv1.DiscoverEC2_builder{
+					AccountId: installKey.accountID,
+					Region:    installKey.region,
+					Instances: map[string]*usertasksv1.DiscoverEC2Instance{},
+				}.Build(),
+			},
+			queued: map[awsEC2TaskKey]struct{}{
+				installKey: {},
+			},
+		},
+		{
+			name: "permission issue with nil instance is queued",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedPermissionEnrollment(permissionKey)
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				permissionKey: usertasksv1.DiscoverEC2_builder{
+					AccountId: permissionKey.accountID,
+					Region:    permissionKey.region,
+					Instances: map[string]*usertasksv1.DiscoverEC2Instance{},
+				}.Build(),
+			},
+			queued: map[awsEC2TaskKey]struct{}{
+				permissionKey: {},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := &awsEC2Tasks{}
+			tt.mutate(tasks)
+			require.Empty(t, cmp.Diff(tt.expected, tasks.instancesIssues, protocmp.Transform()))
+			require.Equal(t, tt.queued, tasks.issuesSyncQueue)
+		})
+	}
+}
+
+func TestMergeUpsertDiscoverEC2Task(t *testing.T) {
+	t.Parallel()
+
+	permissionKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+	installKey := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+		accountID:   "123456789012",
+		region:      "us-east-1",
+	}
+
+	emptyEC2Data := func(key awsEC2TaskKey) *usertasksv1.DiscoverEC2 {
+		return usertasksv1.DiscoverEC2_builder{
+			AccountId:       key.accountID,
+			Region:          key.region,
+			SsmDocument:     key.ssmDocument,
+			InstallerScript: key.installerScript,
+			Instances:       map[string]*usertasksv1.DiscoverEC2Instance{},
+		}.Build()
+	}
+	existingPermissionTask := func(t *testing.T) *usertasksv1.UserTask {
+		task, err := usertasks.NewDiscoverEC2UserTask(
+			usertasksv1.UserTaskSpec_builder{
+				Integration: permissionKey.integration,
+				TaskType:    usertasks.TaskTypeDiscoverEC2,
+				IssueType:   permissionKey.issueType,
+				State:       usertasks.TaskStateOpen,
+				DiscoverEc2: usertasksv1.DiscoverEC2_builder{
+					AccountId: permissionKey.accountID,
+					Region:    permissionKey.region,
+					Instances: map[string]*usertasksv1.DiscoverEC2Instance{},
+				}.Build(),
+			}.Build(),
+		)
+		require.NoError(t, err)
+		return task
+	}
+
+	t.Run("permission issue with empty instances is upserted", func(t *testing.T) {
+		s, ap := newTaskUpdater(t)
+
+		require.NoError(t, s.mergeUpsertDiscoverEC2Task(permissionKey, emptyEC2Data(permissionKey)))
+
+		require.Len(t, ap.tasks, 1)
+		taskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+			Integration: permissionKey.integration,
+			IssueType:   permissionKey.issueType,
+			AccountID:   permissionKey.accountID,
+			Region:      permissionKey.region,
+		})
+		upsertedTask, err := ap.GetUserTask(s.ctx, taskName)
+		require.NoError(t, err)
+		require.Empty(t, upsertedTask.GetSpec().GetDiscoverEc2().GetInstances())
+	})
+
+	t.Run("non permission issue with empty instances returns validation error", func(t *testing.T) {
+		s, ap := newTaskUpdater(t)
+
+		err := s.mergeUpsertDiscoverEC2Task(installKey, emptyEC2Data(installKey))
+		require.ErrorContains(t, err, "at least one instance is required")
+		require.Empty(t, ap.tasks)
+	})
+
+	t.Run("permission issue updates existing task with empty instances", func(t *testing.T) {
+		existingTask := existingPermissionTask(t)
+		s, ap := newTaskUpdater(t, existingTask)
+
+		require.NoError(t, s.mergeUpsertDiscoverEC2Task(permissionKey, emptyEC2Data(permissionKey)))
+
+		upsertedTask, err := ap.GetUserTask(s.ctx, existingTask.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Empty(t, upsertedTask.GetSpec().GetDiscoverEc2().GetInstances())
+	})
+}
+
 func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	t.Parallel()
 
@@ -322,23 +563,23 @@ func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	syncTime := timestamppb.New(time.Now())
 
 	vm := func(tag string) *usertasksv1.DiscoverAzureVMInstance {
-		return &usertasksv1.DiscoverAzureVMInstance{
+		return usertasksv1.DiscoverAzureVMInstance_builder{
 			VmId:            tag,
 			DiscoveryConfig: "dc-01",
 			DiscoveryGroup:  "group-1",
 			SyncTime:        syncTime,
-		}
+		}.Build()
 	}
 
 	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
-		data := &usertasksv1.DiscoverAzureVM{
+		data := usertasksv1.DiscoverAzureVM_builder{
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
-		}
+		}.Build()
 		for _, instance := range instances {
-			data.Instances[instance] = vm(instance)
+			data.GetInstances()[instance] = vm(instance)
 		}
 		return data
 	}
@@ -430,19 +671,19 @@ func TestAzureVMTasks_UpsertAll(t *testing.T) {
 	var testAzureKeyAlt = azureVMTaskKey{subscriptionID: "sub-2", resourceGroup: "rg-2", region: "eastus"}
 
 	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
-		data := &usertasksv1.DiscoverAzureVM{
+		data := usertasksv1.DiscoverAzureVM_builder{
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
-		}
+		}.Build()
 		for _, instance := range instances {
-			data.Instances[instance] = &usertasksv1.DiscoverAzureVMInstance{
+			data.GetInstances()[instance] = usertasksv1.DiscoverAzureVMInstance_builder{
 				VmId:            instance,
 				DiscoveryConfig: "dc-01",
 				DiscoveryGroup:  "group-1",
 				SyncTime:        timestamppb.New(time.Now()),
-			}
+			}.Build()
 		}
 		return data
 	}

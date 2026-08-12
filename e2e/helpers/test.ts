@@ -58,6 +58,14 @@ export interface UserDefinition {
   loginAs?: boolean;
 }
 
+/**
+ * TeleportOption lets a test declare a custom Teleport cluster config to use.
+ **/
+export interface TeleportOption {
+  config: Record<string, unknown>;
+  env?: Record<string, string>;
+}
+
 const e2eDir =
   process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 const authDir = join(e2eDir, '.auth');
@@ -71,10 +79,14 @@ const tryLoadRecordingMapping = cachedJSONLoader<
 
 const defaultUser: UserDefinition = { roles: ['access', 'editor'] };
 
+type Browser = 'chromium' | 'firefox' | 'webkit';
+
 interface E2EFixtures {
   recordings: string[];
   user: UserDefinition;
   users: UserDefinition[];
+  teleport: TeleportOption;
+  browsers: Browser[];
   username: string;
   loginAs: (index: number) => Promise<LoginAsResult>;
   recordingIds: Record<string, string>;
@@ -95,6 +107,8 @@ export const test = base.extend<E2EFixtures>({
   recordings: [[], { option: true }],
   user: [undefined as unknown as UserDefinition, { option: true }],
   users: [[], { option: true }],
+  teleport: [undefined as unknown as TeleportOption, { option: true }],
+  browsers: [[], { option: true }],
   username: async ({ user, users }, use, testInfo) => {
     const mapping = tryLoadUserMapping() ?? {};
 
@@ -199,9 +213,14 @@ export const test = base.extend<E2EFixtures>({
     await use(page);
   },
   storageState: async ({ username }, use, testInfo) => {
-    // Connect tests drive login through the Electron app and don't have a
-    // setup project that writes shared storage state files, so leave it unset.
-    if (!username || testInfo.project.name === 'connect') {
+    // Connect tests drive login through the Electron app, and unauthenticated
+    // tests intentionally start without a session, so neither has a storage
+    // state file to load even when the test declares a user.
+    if (
+      !username ||
+      testInfo.project.name === 'connect' ||
+      testInfo.project.name.endsWith(':unauthenticated')
+    ) {
       await use(undefined as unknown as string);
       return;
     }
@@ -231,6 +250,7 @@ export const test = base.extend<E2EFixtures>({
 });
 
 export { expect } from '@playwright/test';
+export type { Locator, Page } from '@playwright/test';
 
 function pickLoginDefinition(
   user: UserDefinition | undefined,

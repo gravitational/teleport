@@ -19,19 +19,24 @@
 import { useCallback, useState } from 'react';
 
 import Logger from 'shared/libs/logger';
+import { getErrorMessage } from 'shared/utils/error';
 
 const logger = Logger.create('shared/hooks/useAttempt');
 
-// This is the next version of existing useAttempt hook
+/**
+ * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
+ *
+ * This was the next version of the existing useAttempt hook.
+ */
 export default function useAttemptNext(status = '' as Attempt['status']) {
   const [attempt, setAttempt] = useState<Attempt>(() => ({
     status,
     statusText: '',
   }));
 
-  const handleError = useCallback((err: Error) => {
+  const handleError = useCallback((err: unknown) => {
     logger.error('attempt', err);
-    setAttempt({ status: 'failed', statusText: err.message });
+    setAttempt({ status: 'failed', statusText: getErrorMessage(err) });
   }, []);
 
   const run = useCallback((fn: Callback) => {

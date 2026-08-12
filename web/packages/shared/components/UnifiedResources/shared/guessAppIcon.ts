@@ -86,6 +86,8 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   }
   if (match('microsoft', app)) {
     if (match('active', app)) return 'microsoftactivedirectory';
+    if (match('ads', app)) return 'microsoftadvertising';
+    if (match('advertising', app)) return 'microsoftadvertising';
     if (match('ad', app)) return 'microsoftactivedirectory';
     if (match('code', app)) return 'microsoftvisualstudiocode';
     if (match('excel', app)) return 'microsoftexcel';

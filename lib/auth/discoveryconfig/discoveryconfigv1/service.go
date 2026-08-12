@@ -149,10 +149,10 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 		dcs[i] = conv.ToProto(downgraded)
 	}
 
-	return &discoveryconfigv1.ListDiscoveryConfigsResponse{
+	return discoveryconfigv1.ListDiscoveryConfigsResponse_builder{
 		DiscoveryConfigs: dcs,
 		NextKey:          nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
@@ -166,7 +166,7 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := s.backend.GetDiscoveryConfig(ctx, req.Name)
+	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,7 +347,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {

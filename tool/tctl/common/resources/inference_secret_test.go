@@ -25,9 +25,9 @@ import (
 )
 
 func makeInferenceSecret(name string) *summarizerv1.InferenceSecret {
-	return summarizer.NewInferenceSecret(name, &summarizerv1.InferenceSecretSpec{
+	return summarizer.NewInferenceSecret(name, summarizerv1.InferenceSecretSpec_builder{
 		Value: "some-value",
-	})
+	}.Build())
 }
 
 func TestInferenceSecretCollection_writeText(t *testing.T) {

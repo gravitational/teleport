@@ -34,11 +34,11 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
-var inferencePolicySpec = &summarizerv1.InferencePolicySpec{
+var inferencePolicySpec = summarizerv1.InferencePolicySpec_builder{
 	Kinds:  []string{"ssh", "k8s"},
 	Model:  "test-model",
 	Filter: "resource.metadata.labels[\"env\"] == \"production\"",
-}
+}.Build()
 
 type inferencePolicyTestingPrimitives struct {
 	setup *TestSetup
@@ -56,20 +56,20 @@ func (p *inferencePolicyTestingPrimitives) SetupTeleportFixtures(ctx context.Con
 func (p *inferencePolicyTestingPrimitives) CreateTeleportResource(
 	ctx context.Context, name string,
 ) error {
-	policy := &summarizerv1.InferencePolicy{
+	policy := summarizerv1.InferencePolicy_builder{
 		Kind:    types.KindInferencePolicy,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Spec: inferencePolicySpec,
-	}
+	}.Build()
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		CreateInferencePolicy(ctx, &summarizerv1.CreateInferencePolicyRequest{Policy: policy})
+		CreateInferencePolicy(ctx, summarizerv1.CreateInferencePolicyRequest_builder{Policy: policy}.Build())
 	return trace.Wrap(err)
 }
 
@@ -78,11 +78,11 @@ func (p *inferencePolicyTestingPrimitives) GetTeleportResource(
 ) (*summarizerv1.InferencePolicy, error) {
 	resp, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		GetInferencePolicy(ctx, &summarizerv1.GetInferencePolicyRequest{Name: name})
+		GetInferencePolicy(ctx, summarizerv1.GetInferencePolicyRequest_builder{Name: name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.Policy, nil
+	return resp.GetPolicy(), nil
 }
 
 func (p *inferencePolicyTestingPrimitives) DeleteTeleportResource(
@@ -90,7 +90,7 @@ func (p *inferencePolicyTestingPrimitives) DeleteTeleportResource(
 ) error {
 	_, err := p.setup.TeleportClient.
 		SummarizerServiceClient().
-		DeleteInferencePolicy(ctx, &summarizerv1.DeleteInferencePolicyRequest{Name: name})
+		DeleteInferencePolicy(ctx, summarizerv1.DeleteInferencePolicyRequest_builder{Name: name}.Build())
 	return trace.Wrap(err)
 }
 

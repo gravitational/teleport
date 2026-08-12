@@ -5,6 +5,7 @@ description: How to issue short-lived certs on behalf of Teleport users using im
 tags:
  - how-to
  - zero-trust
+page_type: how-to
 ---
 
 Sometimes users need to create short-lived certificates for non-interactive
@@ -12,8 +13,8 @@ users, for example, CI/CD systems. Your programs interacting with Teleport may
 need to create their own authentication as well. Teleport's impersonation allows
 users and robots to create short-lived certs for other users and roles.
 
-Let's explore how interactive user Alice can create credentials for a
-non-interactive CI/CD user Jenkins and a security scanner.
+In this guide, you will set up Teleport so user Alice can create credentials for
+a non-interactive CI/CD user Jenkins and a security scanner.
 
 ## How it works
 

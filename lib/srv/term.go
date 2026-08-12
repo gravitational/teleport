@@ -244,7 +244,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 		defer stderrR.Close()
 
 		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
-			DecisionContext: t.serverContext.Identity.AccessPermit.DecisionContext,
+			DecisionContext: t.serverContext.Identity.AccessPermit.GetDecisionContext(),
 			Login:           t.serverContext.Identity.Login,
 		})
 		if err != nil {

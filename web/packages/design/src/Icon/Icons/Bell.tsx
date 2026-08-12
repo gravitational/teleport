@@ -56,6 +56,7 @@ export const Bell = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-bell"
+
       {...otherProps}
       ref={ref}
     >

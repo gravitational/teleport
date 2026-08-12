@@ -86,18 +86,18 @@ func TestPodmanAttestor(t *testing.T) {
 	attrs, err := attestor.Attest(context.Background(), 1234)
 	require.NoError(t, err)
 
-	expected := &workloadidentityv1.WorkloadAttrsPodman{
+	expected := workloadidentityv1.WorkloadAttrsPodman_builder{
 		Attested: true,
-		Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+		Container: workloadidentityv1.WorkloadAttrsPodmanContainer_builder{
 			Name:        "web-server",
 			Image:       "nginx:latest",
 			Labels:      map[string]string{"region": "eu"},
 			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
-		},
-		Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
+		}.Build(),
+		Pod: workloadidentityv1.WorkloadAttrsPodmanPod_builder{
 			Name:   "billing-system",
 			Labels: map[string]string{"department": "marketing"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.Empty(t, cmp.Diff(expected, attrs, protocmp.Transform()))
 }

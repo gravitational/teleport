@@ -119,7 +119,7 @@ export enum NavTitle {
   // Beams
   BeamsQuickstart = 'Quickstart',
   BeamsFeedback = 'Feedback',
-  BeamsList = 'My Beams',
+  BeamsList = 'Beams',
 }
 
 export interface TeleportFeatureRoute {
@@ -134,7 +134,17 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   /** standalone is whether this feature has no subsections */
   standalone?: boolean;
+  /**
+   * hasAccess returns whether the user has RBAC access to this feature.
+   */
   hasAccess(flags: FeatureFlags): boolean;
+  /**
+   * discoverable, when true, keeps this feature visible in the navigation (and
+   * routable) even if the user doesn't have access to it. This is ignored when feature
+   * hiding is enabled (or on dashboard tenants), where inaccessible features are
+   * always hidden. Defaults to false.
+   */
+  discoverable?: boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
   // The features that use this are supposed to be "full page" features where navigation
   // is either blocked, or done explicitly through the page (such as device trust authorize)
@@ -164,6 +174,11 @@ export interface TeleportFeature {
   showInDashboard?: boolean;
   /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
   isHyperLink?: boolean;
+  /**
+   * supportsScopes indicates whether this feature should be enabled in scoped
+   * sessions.
+   */
+  supportsScopes?: boolean;
 }
 
 export type StickyCluster = {
@@ -214,6 +229,9 @@ export interface FeatureFlags {
   createTokens: boolean;
   listTokens: boolean;
   accessMonitoring: boolean;
+  accessAutomations: boolean;
+  accessLists: boolean;
+  addAccessList: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;

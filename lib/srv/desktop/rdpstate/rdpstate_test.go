@@ -109,10 +109,10 @@ func TestMouseMove_Legacy(t *testing.T) {
 	evt, err := rdpstatetest.LegacyMouseMove(123, 456)
 	require.NoError(t, err)
 
+	// Position updates flow into the decoder via SetCursorPosition; this build uses the nop
+	// decoder so we just verify the message parses and dispatches without error. End-to-end
+	// position propagation is covered by the Rust FFI tests.
 	require.NoError(t, s.HandleMessage(evt))
-	require.True(t, s.hasMouse)
-	require.Equal(t, uint16(123), s.mouseX)
-	require.Equal(t, uint16(456), s.mouseY)
 }
 
 func TestMouseMove_LegacyTruncated(t *testing.T) {
@@ -161,9 +161,9 @@ func TestUnknownMessage_Ignored(t *testing.T) {
 	s := New()
 
 	// Encode a SyncKeys message (not handled by RDPState) as a TDPB envelope.
-	body, err := proto.Marshal(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SyncKeys{SyncKeys: &tdpbv1.SyncKeys{}},
-	})
+	body, err := proto.Marshal(tdpbv1.Envelope_builder{
+		SyncKeys: &tdpbv1.SyncKeys{},
+	}.Build())
 	require.NoError(t, err)
 	data := make([]byte, 4+len(body))
 	binary.BigEndian.PutUint32(data[:4], uint32(len(body)))

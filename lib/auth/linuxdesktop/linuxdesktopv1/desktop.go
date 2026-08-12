@@ -25,15 +25,15 @@ import (
 )
 
 func NewLinuxDesktop(name string, spec *linuxdesktopv1pb.LinuxDesktopSpec) (*linuxdesktopv1pb.LinuxDesktop, error) {
-	return &linuxdesktopv1pb.LinuxDesktop{
+	return linuxdesktopv1pb.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
+		}.Build(),
 		Spec: spec,
-	}, nil
+	}.Build(), nil
 }
 
 func ValidateLinuxDesktop(desktop *linuxdesktopv1pb.LinuxDesktop) error {
@@ -50,6 +50,8 @@ func ValidateLinuxDesktop(desktop *linuxdesktopv1pb.LinuxDesktop) error {
 		return trace.BadParameter("spec.addr is required")
 	case desktop.GetSpec().GetHostname() == "":
 		return trace.BadParameter("spec.hostname is required")
+	case desktop.GetKind() != types.KindLinuxDesktop:
+		return trace.BadParameter("kind must be %q", types.KindLinuxDesktop)
 	}
 	return nil
 }

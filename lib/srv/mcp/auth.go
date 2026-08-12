@@ -45,7 +45,7 @@ const maxTokenDuration = time.Minute * 10
 // sessionAuth handles generating auth tokens for an MCP session.
 type sessionAuth struct {
 	*SessionCtx
-	authClient appcommon.AppTokenGenerator
+	authClient AuthClient
 	clock      clockwork.Clock
 
 	mu            sync.Mutex

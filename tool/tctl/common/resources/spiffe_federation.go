@@ -53,7 +53,7 @@ func (c *spiffeFederationCollection) WriteText(w io.Writer, verbose bool) error 
 			lastSynced = t.Format(time.RFC3339)
 		}
 		rows = append(rows, []string{
-			item.Metadata.Name,
+			item.GetMetadata().GetName(),
 			lastSynced,
 		})
 	}
@@ -85,9 +85,9 @@ func getSPIFFEFederation(
 ) (Collection, error) {
 	c := client.SPIFFEFederationServiceClient()
 	if ref.Name != "" {
-		resource, err := c.GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+		resource, err := c.GetSPIFFEFederation(ctx, machineidv1pb.GetSPIFFEFederationRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -97,19 +97,19 @@ func getSPIFFEFederation(
 	var resources []*machineidv1pb.SPIFFEFederation
 	pageToken := ""
 	for {
-		resp, err := c.ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+		resp, err := c.ListSPIFFEFederations(ctx, machineidv1pb.ListSPIFFEFederationsRequest_builder{
 			PageToken: pageToken,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		resources = append(resources, resp.SpiffeFederations...)
+		resources = append(resources, resp.GetSpiffeFederations()...)
 
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		pageToken = resp.NextPageToken
+		pageToken = resp.GetNextPageToken()
 	}
 
 	return &spiffeFederationCollection{items: resources}, nil
@@ -127,9 +127,9 @@ func createSPIFFEFederation(
 	}
 
 	c := client.SPIFFEFederationServiceClient()
-	_, err = c.CreateSPIFFEFederation(ctx, &machineidv1pb.CreateSPIFFEFederationRequest{
+	_, err = c.CreateSPIFFEFederation(ctx, machineidv1pb.CreateSPIFFEFederationRequest_builder{
 		SpiffeFederation: in,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,9 +144,9 @@ func deleteSPIFFEFederation(
 ) error {
 	c := client.SPIFFEFederationServiceClient()
 	_, err := c.DeleteSPIFFEFederation(
-		ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
+		ctx, machineidv1pb.DeleteSPIFFEFederationRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

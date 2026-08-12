@@ -88,14 +88,14 @@ func createInferenceSecret(ctx context.Context, clt *authclient.Client, raw serv
 
 	sclt := clt.SummarizerServiceClient()
 	if opts.Force {
-		req := &summarizerv1.UpsertInferenceSecretRequest{
+		req := summarizerv1.UpsertInferenceSecretRequest_builder{
 			Secret: secret,
-		}
+		}.Build()
 		_, err = sclt.UpsertInferenceSecret(ctx, req)
 	} else {
-		req := &summarizerv1.CreateInferenceSecretRequest{
+		req := summarizerv1.CreateInferenceSecretRequest_builder{
 			Secret: secret,
-		}
+		}.Build()
 		_, err = sclt.CreateInferenceSecret(ctx, req)
 	}
 	if err != nil {
@@ -112,9 +112,9 @@ func updateInferenceSecret(ctx context.Context, clt *authclient.Client, raw serv
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req := &summarizerv1.UpdateInferenceSecretRequest{
+	req := summarizerv1.UpdateInferenceSecretRequest_builder{
 		Secret: secret,
-	}
+	}.Build()
 	if _, err := clt.SummarizerServiceClient().UpdateInferenceSecret(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,14 +125,14 @@ func updateInferenceSecret(ctx context.Context, clt *authclient.Client, raw serv
 func getInferenceSecret(ctx context.Context, clt *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
 	if ref.Name != "" {
-		req := &summarizerv1.GetInferenceSecretRequest{
+		req := summarizerv1.GetInferenceSecretRequest_builder{
 			Name: ref.Name,
-		}
+		}.Build()
 		res, err := ssclt.GetInferenceSecret(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return inferenceSecretCollection{res.Secret}, nil
+		return inferenceSecretCollection{res.GetSecret()}, nil
 	}
 
 	items, err := stream.Collect(clientutils.Resources(
@@ -142,9 +142,9 @@ func getInferenceSecret(ctx context.Context, clt *authclient.Client, ref service
 		) ([]*summarizerv1.InferenceSecret, string, error) {
 			resp, err := ssclt.ListInferenceSecrets(
 				ctx,
-				&summarizerv1.ListInferenceSecretsRequest{
+				summarizerv1.ListInferenceSecretsRequest_builder{
 					PageToken: nextPageToken,
-				})
+				}.Build())
 			return resp.GetSecrets(), resp.GetNextPageToken(), trace.Wrap(err)
 		}))
 	if err != nil {
@@ -154,9 +154,9 @@ func getInferenceSecret(ctx context.Context, clt *authclient.Client, ref service
 }
 
 func deleteInferenceSecret(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
-	req := &summarizerv1.DeleteInferenceSecretRequest{
+	req := summarizerv1.DeleteInferenceSecretRequest_builder{
 		Name: ref.Name,
-	}
+	}.Build()
 	if _, err := clt.SummarizerServiceClient().DeleteInferenceSecret(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

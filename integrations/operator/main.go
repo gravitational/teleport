@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	kubernetes "k8s.io/client-go/kubernetes"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -39,7 +40,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/state"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -86,6 +90,50 @@ func main() {
 		os.Exit(1)
 	}
 
+	kubeClientConfig := ctrl.GetConfigOrDie()
+	directKubeClient, err := kubernetes.NewForConfig(kubeClientConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes client")
+		os.Exit(1)
+	}
+
+	// To prevent conflicts and ownership issues in scoped mode,
+	// the operator annotates created resources with its metadata.
+	// For backward compatibility, this only happens when running in scoped mode.
+	var operatorID, tokenName string
+	if config.scope != "" {
+		setupLog.Info("running in scoped mode, gathering operator metadata")
+
+		bk, err := state.New(ctx, directKubeClient)
+		if err != nil {
+			setupLog.Error(err, "unable to create kube state")
+			os.Exit(1)
+		}
+		id, err := bk.OperatorID(ctx)
+		if err != nil {
+			setupLog.Error(err, "unable to get operator id")
+			os.Exit(1)
+		}
+		operatorID = id.String()
+
+		rawToken, err := botConfig.Onboarding.Token()
+		if err != nil {
+			setupLog.Error(err, "unable to get token")
+			os.Exit(1)
+		}
+		tokenName, _, _ = joining.DecodeScopedToken(rawToken)
+		setupLog.Info("operator metadata", "operator-id", operatorID, "scope", config.scope, "token-name", tokenName)
+	}
+
+	operatorMetadata := reconcilers.OperatorMetadata{
+		Namespace: config.namespace,
+		ID:        operatorID,
+		TokenName: tokenName,
+		Scope:     config.scope,
+		Owner:     config.ownerEmail,
+	}
+
+	botConfig.Scoped = config.scope != ""
 	bot, err := embeddedtbot.New(botConfig, slogLogger.With(teleport.ComponentLabel, "embedded-tbot"))
 	if err != nil {
 		setupLog.Error(err, "unable to build tbot")
@@ -103,7 +151,7 @@ func main() {
 		setupLog.Error(err, "error waiting the teleport client")
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	mgr, err := ctrl.NewManager(kubeClientConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: config.metricsAddr,
@@ -132,7 +180,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures); err != nil {
+	if err = resources.SetupAllControllers(
+		resources.Config{
+			Log:              setupLog,
+			TeleportClient:   client,
+			KubeClient:       mgr.GetClient(),
+			Scoped:           config.scope != "",
+			Features:         pong.ServerFeatures,
+			OperatorMetadata: operatorMetadata,
+		}, mgr, directKubeClient.Discovery()); err != nil {
 		setupLog.Error(err, "failed to setup controllers")
 		os.Exit(1)
 	}

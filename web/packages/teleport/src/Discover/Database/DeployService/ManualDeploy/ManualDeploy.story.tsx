@@ -36,14 +36,12 @@ export const Init = () => {
     </Provider>
   );
 };
-Init.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () =>
-        HttpResponse.json(rawJoinToken)
-      ),
-    ],
-  },
+Init.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () =>
+      HttpResponse.json(rawJoinToken)
+    )
+  );
 };
 
 export const InitWithLabels = () => {
@@ -60,14 +58,12 @@ export const InitWithLabels = () => {
     </Provider>
   );
 };
-InitWithLabels.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryJoinToken.createV2, () =>
-        HttpResponse.json(rawJoinToken)
-      ),
-    ],
-  },
+InitWithLabels.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.discoveryJoinToken.createV2, () =>
+      HttpResponse.json(rawJoinToken)
+    )
+  );
 };
 
 const Provider = props => {

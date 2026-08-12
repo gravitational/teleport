@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -452,8 +454,9 @@ func TestJoinEC2(t *testing.T) {
 
 			testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 				Auth: authtest.AuthServerConfig{
-					Dir:   t.TempDir(),
-					Clock: tc.clock,
+					Dir:            t.TempDir(),
+					Clock:          tc.clock,
+					ScopesFeatures: scopes.Features{Enabled: true},
 				},
 			})
 			require.NoError(t, err)
@@ -470,6 +473,21 @@ func TestJoinEC2(t *testing.T) {
 			_, err = testServer.Auth().UpsertNode(t.Context(), node)
 			require.NoError(t, err)
 
+			// Introduction of ssh server namespacing means that
+			// 2 identical names ins different scopes is valid.
+			// We should only collide when the duplicate's scope also matches.
+			scopedNode := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      instance2.account + "-" + instance2.instanceID,
+					Namespace: defaults.Namespace,
+				},
+				Scope: "/test/one",
+			}
+			_, err = testServer.Auth().UpsertNode(t.Context(), scopedNode)
+			require.NoError(t, err)
+
 			nopClient, err := testServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
@@ -482,26 +500,27 @@ func TestJoinEC2(t *testing.T) {
 			err = testServer.Auth().UpsertToken(t.Context(), token)
 			require.NoError(t, err)
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
-				Metadata: &headerv1.Metadata{
-					Name: "scoped_" + token.GetName(),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				Metadata: headerv1.Metadata_builder{
+					Name: token.GetName(),
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
-			_, err = testServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			_, err = testServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: scopedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := testServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
-					Name: scopedToken.GetMetadata().GetName(),
-				})
+				_, err := testServer.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
+					Name:  scopedToken.GetMetadata().GetName(),
+					Scope: scopedToken.GetScope(),
+				}.Build())
 				require.NoError(t, err)
 			})
 
@@ -551,7 +570,8 @@ func TestJoinEC2(t *testing.T) {
 					t.Skip()
 				}
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token: scopedToken.GetMetadata().GetName(),
+					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
 						NodeName: "testnode",
@@ -574,8 +594,9 @@ func TestJoinEC2(t *testing.T) {
 func TestHostUniqueCheck(t *testing.T) {
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClockAt(instance1.pendingTime),
+			Dir:            t.TempDir(),
+			Clock:          clockwork.NewFakeClockAt(instance1.pendingTime),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -628,7 +649,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteNode(t.Context(), defaults.Namespace, hostID))
+				require.NoError(t, a.DeleteSSHServer(t.Context(), presencev1.DeleteSSHServerRequest_builder{Name: hostID}.Build()))
 			},
 		},
 		{
@@ -642,11 +663,11 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(context.Background(), proxy)
+				_, err := a.UpsertProxyServer(context.Background(), proxy)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteProxy(t.Context(), hostID))
+				require.NoError(t, a.DeleteProxyServer(t.Context(), hostID))
 			},
 		},
 		{
@@ -672,7 +693,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteKubernetesServer(t.Context(), hostID, "test-kube-cluster"))
+				require.NoError(t, a.DeleteKubeServer(t.Context(), presencev1.DeleteKubeServerRequest_builder{
+					HostId: hostID,
+					Name:   "test-kube-cluster",
+				}.Build()))
 			},
 		},
 		{
@@ -718,7 +742,11 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-app"))
+				require.NoError(t, a.DeleteAppServer(t.Context(),
+					presencev1.DeleteAppServerRequest_builder{
+						HostId: hostID,
+						Name:   "test-app",
+					}.Build()))
 			},
 		},
 		{
@@ -765,7 +793,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-okta-app"))
+				require.NoError(t, a.DeleteAppServer(t.Context(), presencev1.DeleteAppServerRequest_builder{
+					HostId: hostID,
+					Name:   "test-okta-app",
+				}.Build()))
 			},
 		},
 	}

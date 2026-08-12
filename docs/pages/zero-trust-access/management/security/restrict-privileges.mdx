@@ -6,12 +6,15 @@ tags:
  - conceptual
  - zero-trust
  - privileged-access
+page_type: conceptual
 ---
 
 As an administrator, you need to make informed decisions about when and how to grant
 privileged access to the resources in your infrastructure, including the Teleport services
 that protect those resources. You also need to manage access to the cluster storage backend
-and determine whether to apply network-level restrictions.
+and determine whether to apply network-level restrictions. This page describes
+the precautions you must take to restrict access to resources by
+privileged accounts on Teleport-protected infrastructure.
 
 ## Labels and label expressions
 
@@ -57,7 +60,7 @@ following guidelines:
 - Avoid allowing `sudo` in production environments unless it's necessary.
 - Secure all Teleport executables so that they can't be modified or replaced.
 - Secure Teleport configuration files so that they can't be modified or replaced.
-- Ensure the users' client `~/.tsh` directory is secure and should not be copied. If a user's `tsh` client 
+- Ensure the user's client `~/.tsh` directory is secure and should not be copied. If a user's `tsh` client 
   is compromised, it could result in a compromise of that user.
 
 ## Prevent access to storage

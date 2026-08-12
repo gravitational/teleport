@@ -141,7 +141,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 	if err == nil {
 		pong, err := client.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
 		if err == nil {
-			return nil, trace.AlreadyExists("another agent instance is already running; PID: %d", pong.Pid)
+			return nil, trace.AlreadyExists("another agent instance is already running; PID: %d", pong.GetPid())
 		}
 	}
 

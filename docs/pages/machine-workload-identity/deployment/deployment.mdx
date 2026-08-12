@@ -5,12 +5,16 @@ tags:
  - conceptual
  - mwi
  - infrastructure-identity
+page_type: conceptual
 ---
 
 The first step to set up Machine & Workload Identity is to deploy the `tbot`
 agent and join it as a Bot to your Teleport cluster. You can run the `tbot`
 binary on a number of platforms, from AWS and GitHub Actions to a generic Linux
 server or Kubernetes cluster.
+
+This page describes how to choose a method of deploying `tbot` and helps you
+choose the appropriate guide to completing your deployment.
 
 ## Choosing a deployment method
 
@@ -128,6 +132,11 @@ and [Architecture](../../reference/architecture/machine-id-architecture.mdx) to 
       icon: <Icon name="lock" size="xl" />,
       to: "../../reference/machine-workload-identity/bound-keypair/getting-started",
       name: "Bound Keypair Joining",
+    },
+    {
+      icon: <Icon name="integrations" size="xl" />,
+      to: "./generic-oidc",
+      name: "Generic OIDC",
     }
   ]}
 />
@@ -171,18 +180,23 @@ and continuous deployment platform.
     },
     {
       icon: <Icon name="spacelift" size="xl" />,
-      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      to: "../../configuration/terraform-provider/spacelift",
       name: "Spacelift",
     },
     {
       icon: <Icon name="terraform" size="xl" />,
-      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud",
+      to: "../../configuration/terraform-provider/terraform-cloud",
       name: "Terraform Cloud",
     },
     {
       icon: <Icon name="lock" size="xl" />,
       to: "../../reference/machine-workload-identity/bound-keypair/static-keys",
       name: "Bound Keypair static keys (Generic)",
+    },
+    {
+      icon: <Icon name="integrations" size="xl" />,
+      to: "./generic-oidc",
+      name: "Generic OIDC",
     }
   ]}
 />
@@ -191,7 +205,11 @@ and continuous deployment platform.
 
 <Admonition type="tip" title="Unsupported Provider?">
 If your CI/CD provider does not have a dedicated join method listed above,
-consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+consider using the [Generic OIDC join method](./generic-oidc.mdx) if it can
+issue workflows OIDC identities, or consider using
+[Bound Keypair static keys][bound-keypair-static] as a fallback if it cannot.
+
+
 </Admonition>
 
 [bound-keypair-static]: ../../reference/machine-workload-identity/bound-keypair/static-keys.mdx

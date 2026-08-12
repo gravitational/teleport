@@ -1,10 +1,10 @@
 apiVersion: resources.teleport.dev/v1
 kind: TeleportScopedRoleAssignmentV1
 scope: /foo
-sub_kind: dynamic
 spec:
   user: "test"
   assignments:
     - role: some-role
       scope: /foo/bar
-version: v1
+# note: the operator adds version and sub_kind so they don't need to be set here
+# (and would be pruned anyway, since they aren't declared.)

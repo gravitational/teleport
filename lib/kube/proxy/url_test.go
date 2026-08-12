@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -78,8 +79,9 @@ func TestExtractResourceNameFromPostRequest_Replayable(t *testing.T) {
 
 func TestParseResourcePath(t *testing.T) {
 	tests := []struct {
-		path string
-		want apiResource
+		path    string
+		want    apiResource
+		wantErr bool
 	}{
 		{path: "", want: apiResource{}},
 		{path: "/", want: apiResource{}},
@@ -108,11 +110,56 @@ func TestParseResourcePath(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "kube-system", resourceKind: "pods/exec", resourceName: "foo"}},
 		{path: "/apis/apiregistration.k8s.io/v1/apiservices/foo/status", want: apiResource{apiGroup: "apiregistration.k8s.io", apiGroupVersion: "v1", resourceKind: "apiservices/status", resourceName: "foo"}},
 		{path: "/api/v1/nodes/foo/proxy/bar", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/bar", resourceName: "foo"}},
+		// Parser retains every trailing segment for proxy subresources.
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/8080", resourceName: "foo"}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/nodes/node-1/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
+		// Proxy subresources accept the [scheme:]name[:port] format for the name segment.
+		// We strip it down to the bare name so RBAC rules scoped to a specific name still match.
+		{path: "/api/v1/namespaces/default/services/svc:443/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/https:svc:443/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/https:svc:/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/healthz", resourceName: "foo"}},
+		{path: "/api/v1/nodes/https:node-1:10250/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
+		// The "special verb" form puts the verb ahead of the resource path.
+		// The verb segment is consumed and the remainder parses like any other resource path.
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/teleportroles/telerole-1", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1/extra/path", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/api/v1/proxy/namespaces/default/pods/foo", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods", resourceName: "foo", isProxyVerb: true}},
+		// The core API's proxyable kinds accept [scheme:]name[:port] here too,
+		// so the name is reduced the same way as in the subresource form above.
+		{path: "/api/v1/proxy/namespaces/default/services/https:admin:443/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services", resourceName: "admin", isProxyVerb: true}},
+		{path: "/api/v1/proxy/nodes/https:node-1:10250/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes", resourceName: "node-1", isProxyVerb: true}},
+		// Only those kinds: an aggregated API server gets the name segment verbatim,
+		// so reducing it would match a name the API server never sees.
+		{path: "/api/v1/proxy/namespaces/default/configmaps/https:admin:443", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "configmaps", resourceName: "https:admin:443", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/https:admin:443", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", resourceName: "https:admin:443", isProxyVerb: true}},
+		// A bare verb segment carries no resource path.
+		// The API server rejects it, so keep it as a kind the cluster doesn't serve rather than a resource-less request.
+		{path: "/apis/resources.teleport.dev/v6/proxy", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", resourceKind: "proxy"}},
+		// Cleaning resolves dot segments, but the raw path is what gets forwarded.
+		// Under the proxy verb the API server resolves "denied" while the cleaned path names "allowed",
+		// so reject rather than authorize a name it never resolves.
+		{wantErr: true, path: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/./allowed"},
+		{wantErr: true, path: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/../allowed"},
+		{wantErr: true, path: "/api/v1/namespaces/default/pods/denied/../allowed"},
+		{wantErr: true, path: "/api/v1/namespaces/default/pods/./foo"},
+		// Trailing and doubled slashes are normalized too,
+		// but they name the same resource either way, so they stay allowed.
+		{path: "/api/v1/pods/", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "pods"}},
+		{path: "/api/v1//pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "pods"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got := parseResourcePath(tt.path)
+			got, err := parseResourcePath(tt.path)
+			if tt.wantErr {
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+				return
+			}
+			require.NoError(t, err)
 			diff := cmp.Diff(got, tt.want, cmp.AllowUnexported(apiResource{}))
 			require.Empty(t, diff, "parsing path %q", tt.path)
 		})
@@ -192,6 +239,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
@@ -220,11 +268,17 @@ func Test_getResourceFromRequest(t *testing.T) {
 
 		// Nodes
 		{path: "/api/v1/nodes", want: &types.KubernetesResource{Kind: "nodes", Verbs: []string{"list"}, APIGroup: ""}},
-		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
+		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/nodes/node-1/proxy/pods", want: &types.KubernetesResource{Kind: "nodes", Name: "node-1", Verbs: []string{"proxy"}, APIGroup: ""}},
 		// Services
 		{path: "/api/v1/services", want: &types.KubernetesResource{Kind: "services", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		// [scheme:]name[:port] format on proxy paths must reduce to the bare name so name-scoped RBAC rules still match.
+		{path: "/api/v1/namespaces/default/services/svc:443/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services/https:svc:443/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
@@ -253,6 +307,13 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1beta2/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1beta2"), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
+		// The "special verb" form resolves to the kind the path targets and takes its
+		// verb from the path, not from the HTTP method.
+		{path: "/apis/apps/v1/proxy/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: "apps"}},
+		{path: "/apis/apps/v1/proxy/namespaces/default/deployments/foo/extra/path", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: "apps"}},
+		// A bare verb segment names no kind the cluster serves, so no RBAC resource
+		// is built and the forwarder denies the request.
+		{path: "/apis/apps/v1/proxy", want: nil},
 
 		// Statefulsets
 		{path: "/apis/apps/v1/statefulsets", want: &types.KubernetesResource{Kind: "statefulsets", Verbs: []string{"list"}, APIGroup: "apps"}},
@@ -351,6 +412,48 @@ func Test_getResourceFromRequest(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got.rbacResource(), "parsing path %q", tt.path)
+		})
+	}
+}
+
+// TestGetResourceFromRequest_SpecialVerbProxyPath covers the two properties of the
+// proxy special-verb form that RBAC relies on:
+//
+//   - The verb comes from the path, not the HTTP method, so every method maps to KubeVerbProxy.
+//   - A name-less path is still a single resource, not a list. Lists bypass KubernetesResourceMatcher
+//     and are enforced by filtering the response instead, but a proxied response carries no list to filter.
+func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
+	t.Parallel()
+	details := &kubeDetails{kubeCodecs: &globalKubeCodecs, rbacSupportedTypes: getRBACSupportedTypes(t)}
+
+	const (
+		nameless = "/apis/apps/v1/proxy/namespaces/default/deployments"
+		named    = "/apis/apps/v1/proxy/namespaces/default/deployments/foo"
+		trailing = "/apis/apps/v1/proxy/namespaces/default/deployments/foo/extra/path"
+	)
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: named},
+		{method: http.MethodPost, path: named},
+		{method: http.MethodPut, path: named},
+		{method: http.MethodPatch, path: named},
+		{method: http.MethodDelete, path: named},
+		{method: http.MethodGet, path: nameless},
+		{method: http.MethodDelete, path: nameless},
+		{method: http.MethodGet, path: trailing},
+		{method: http.MethodPost, path: trailing},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			got, err := getResourceFromRequest(&http.Request{Method: tt.method, URL: &url.URL{Path: tt.path}}, details)
+			require.NoError(t, err)
+			require.False(t, got.unsupportedResource)
+			require.False(t, got.isList)
+			require.Equal(t, types.KubeVerbProxy, got.verb)
+			require.Equal(t, "deployments", got.requestedResource.resourceKind)
 		})
 	}
 }

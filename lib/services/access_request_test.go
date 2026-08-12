@@ -2251,6 +2251,242 @@ func TestGetRequestableRoles(t *testing.T) {
 	}
 }
 
+// TestCalculateAccessCapabilities_WithResourceAccessIDs verifies CalculateAccessCapabilities
+// correctly filters roles when ResourceAccessIDs carry constraints.
+func TestCalculateAccessCapabilities_WithResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clusterName := "my-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: clusterName,
+	}
+
+	// Create node
+	node, err := types.NewServerWithLabels("node-1", types.KindNode, types.ServerSpecV2{}, map[string]string{"env": "prod"})
+	require.NoError(t, err)
+	g.nodes["node-1"] = node
+
+	// Create an AWS console app
+	awsApp, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: map[string]string{"env": "prod"},
+	}, types.AppSpecV3{
+		URI: "https://console.aws.amazon.com",
+	})
+	require.NoError(t, err)
+	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, "aws-host", "aws-host")
+	require.NoError(t, err)
+	g.appServers[awsApp.GetName()] = awsAppServer
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						"aws-readonly",
+						"aws-admin",
+						"ssh-basic",
+						"ssh-root",
+					},
+				},
+			},
+		},
+		"aws-readonly": {
+			Allow: types.RoleConditions{
+				AppLabels:   types.Labels{"env": {"prod"}},
+				AWSRoleARNs: []string{"arn:aws:iam::111111111111:role/readonly"},
+			},
+		},
+		"aws-admin": {
+			Allow: types.RoleConditions{
+				AppLabels:   types.Labels{"env": {"prod"}},
+				AWSRoleARNs: []string{"arn:aws:iam::111111111111:role/readonly", "arn:aws:iam::111111111111:role/admin"},
+			},
+		},
+		"ssh-basic": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{"env": {"prod"}},
+				Logins:     []string{"{{internal.logins}}"},
+			},
+		},
+		"ssh-root": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{"env": {"prod"}},
+				Logins:     []string{"{{internal.logins}}", "root"},
+			},
+		},
+	}
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	user := g.user(t, "requester")
+	g.userStates[user].Spec.Traits = map[string][]string{
+		"logins": {"ubuntu"},
+	}
+
+	tests := []struct {
+		name              string
+		resourceIDs       []types.ResourceID
+		resourceAccessIDs []types.ResourceAccessID
+		expectedRoles     []string
+	}{
+		{
+			name: "unconstrained ResourceIDs only (backwards-compat)",
+			resourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+			},
+			expectedRoles: []string{"aws-readonly", "aws-admin"},
+		},
+		{
+			name: "constrained ResourceAccessIDs filters to matching ARN",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+							},
+						},
+					},
+				},
+			},
+			// Only aws-admin has the admin ARN.
+			expectedRoles: []string{"aws-admin"},
+		},
+		{
+			name: "constrained SSH login filters to matching role",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindNode, Name: "node-1"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"root"},
+							},
+						},
+					},
+				},
+			},
+			// ssh-basic only has {{internal.logins}} = "ubuntu", not "root".
+			expectedRoles: []string{"ssh-root"},
+		},
+		{
+			name: "mixed: unconstrained ResourceIDs + constrained ResourceAccessIDs",
+			resourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "node-1"},
+			},
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+							},
+						},
+					},
+				},
+			},
+			// ssh-basic and ssh-root for the unconstrained node, aws-admin for the constrained app.
+			expectedRoles: []string{"ssh-basic", "ssh-root", "aws-admin"},
+		},
+		{
+			name: "unconstrained ResourceAccessIDs behave like ResourceIDs",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+				},
+			},
+			expectedRoles: []string{"aws-readonly", "aws-admin"},
+		},
+		{
+			name: "multi-principal constraint: both ARNs from different roles are covered",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{
+									"arn:aws:iam::111111111111:role/readonly",
+									"arn:aws:iam::111111111111:role/admin",
+								},
+							},
+						},
+					},
+				},
+			},
+			// aws-readonly matches "readonly", aws-admin matches both.
+			// The union of suggested roles covers all requested ARNs.
+			expectedRoles: []string{"aws-readonly", "aws-admin"},
+		},
+		{
+			name: "multi-principal constraint: both logins from different roles are covered",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindNode, Name: "node-1"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"ubuntu", "root"},
+							},
+						},
+					},
+				},
+			},
+			// ssh-basic has "ubuntu" only, ssh-root has both. Both match via AnyOf,
+			// and their union covers all requested logins.
+			expectedRoles: []string{"ssh-basic", "ssh-root"},
+		},
+		{
+			name: "backwards-compat: new proxy sends both fields, new auth deduplicates",
+			resourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+			},
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+							},
+						},
+					},
+				},
+			},
+			// Constrained version wins dedup, results in only aws-admin.
+			expectedRoles: []string{"aws-admin"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessCaps, err := CalculateAccessCapabilities(ctx, clockwork.NewFakeClock(), g,
+				tlsca.Identity{},
+				types.AccessCapabilitiesRequest{
+					User:              user,
+					ResourceIDs:       tc.resourceIDs,
+					ResourceAccessIds: tc.resourceAccessIDs,
+				})
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedRoles, accessCaps.ApplicableRolesForResources)
+		})
+	}
+}
+
 // TestCalculatePendingRequestTTL verifies that the TTL for the Access Request is capped to the
 // request's access expiry or capped to the default const requestTTL, whichever is smaller.
 func TestCalculatePendingRequestTTL(t *testing.T) {
@@ -3268,6 +3504,65 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			require.Equal(t, now.Add(tt.expectedPendingTTL), req.Expiry())
 		})
 	}
+}
+
+// TestAccessRequestStorageToleratesUnenforceableConstraints verifies the
+// storage codec against a request written by a newer Auth: reads keep
+// working with the unknown constraint content zeroed to nil Details,
+// while writes and creation stay strict.
+func TestAccessRequestStorageToleratesUnenforceableConstraints(t *testing.T) {
+	t.Parallel()
+
+	req, err := types.NewAccessRequestWithResources(
+		uuid.New().String(), "some-user", nil, /* roles */
+		[]types.ResourceAccessID{
+			{
+				Id: types.ResourceID{ClusterName: "root", Kind: types.KindNode, Name: "n1"},
+			},
+			{
+				Id: types.ResourceID{ClusterName: "root", Kind: types.KindApp, Name: "aws-console"},
+				Constraints: &types.ResourceConstraints{
+					Version: "v1",
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123:role/Allowed"}},
+					},
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	stored, err := MarshalAccessRequest(req)
+	require.NoError(t, err)
+
+	// Simulate the same request written by a newer Auth.
+	require.Contains(t, string(stored), `"aws_console"`)
+	fromNewer := []byte(strings.Replace(string(stored), `"aws_console"`, `"some_future_kind"`, 1))
+
+	decoded, err := UnmarshalAccessRequest(fromNewer)
+	require.NoError(t, err)
+	// The unconstrained node is unwrapped into RequestedResourceIDs at
+	// construction; only the constrained entry carries access IDs.
+	accessIDs := decoded.GetRequestedResourceAccessIDs()
+	require.Len(t, accessIDs, 1)
+	rc := accessIDs[0].GetConstraints()
+	require.NotNil(t, rc, "constraints must survive decoding")
+	require.Nil(t, rc.Details)
+	require.Equal(t, "v1", rc.Version)
+
+	// Creation stays strict.
+	require.Error(t, ValidateAccessRequest(decoded))
+
+	// Writes stay strict; re-persisting would overwrite the newer content.
+	_, err = MarshalAccessRequest(decoded)
+	require.Error(t, err)
+
+	// The stored request still reads.
+	roundTripped, err := UnmarshalAccessRequest(fromNewer)
+	require.NoError(t, err)
+	rt := roundTripped.GetRequestedResourceAccessIDs()[0].GetConstraints()
+	require.NotNil(t, rt)
+	require.Nil(t, rt.Details)
+	require.Equal(t, "v1", rt.Version)
 }
 
 func TestValidateAccessRequest_ExpandsUserNameAnnotations(t *testing.T) {

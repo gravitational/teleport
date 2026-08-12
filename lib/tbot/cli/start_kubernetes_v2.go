@@ -25,9 +25,9 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // KubernetesV2Command implements `tbot start kubernetes` and
@@ -81,7 +81,7 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 	}
 
 	for _, s := range c.KubernetesClusterLabels {
-		labels, err := client.ParseLabelSpec(s)
+		labels, err := parse.LabelSelectorSpec(s)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -39,7 +39,7 @@ variable "teleport_proxy_public_addr" {
 }
 
 variable "azure_matchers" {
-  description = "Azure resource discovery matchers. Valid values for azure_matchers.types are: vm."
+  description = "Azure resource discovery matchers. Valid values for azure_matchers.types are: vm. A wildcard ('*') subscription matcher may be used when `azure_management_group_id` or `azure_role_assignment_scopes` is set."
   type = list(object({
     types           = list(string)
     subscriptions   = list(string)
@@ -141,9 +141,16 @@ variable "azure_managed_identity_use_name_prefix" {
   nullable    = false
 }
 
+variable "azure_management_group_id" {
+  description = "ID of an Azure management group or Tenant to derive the role assignment scope. Has no effect if `azure_role_assignment_scopes` is set. When neither is set, the subscription scopes will be derived from `azure_matchers`."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "azure_role_assignment_scopes" {
   default     = []
-  description = "The scopes at which the Azure discovery role will be assigned. For wildcard ('*') Azure subscription discovery, a management group scope can be used (e.g. `/providers/Microsoft.Management/managementGroups/<name>`). By default, scopes are derived from the subscriptions configured in `azure_matchers`."
+  description = "The scopes at which the Azure discovery role will be assigned. By default, scopes are derived from  the management group set in `azure_management_group_id` or subscriptions configured in `azure_matchers`."
   nullable    = false
   type        = list(string)
 }
@@ -219,7 +226,7 @@ variable "teleport_integration_use_name_prefix" {
 }
 
 variable "teleport_provision_token_allow_rules" {
-  description = "Custom allow rules for the Teleport provision token. Required when using a wildcard (`*`) subscription matcher."
+  description = "Custom allow rules for the Teleport provision token. When using a wildcard (`*`) subscription matcher and `create_azure_managed_identity` is `true`, defaults to a tenant-based allow rule using the Azure tenant ID. Required when `create_azure_managed_identity` is `false` and a wildcard subscription matcher is used."
   type = list(object({
     subscription    = optional(string)
     resource_groups = optional(list(string))

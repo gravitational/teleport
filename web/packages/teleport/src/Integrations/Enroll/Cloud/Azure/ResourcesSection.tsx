@@ -43,6 +43,9 @@ import { AzureTag, VmConfig } from './types';
 const subscriptionRule =
   (allowWildcard: boolean) => (values: string[]) => () => {
     if (values.length === 0) {
+      if (allowWildcard) {
+        return { valid: true, results: [] };
+      }
       return {
         valid: false,
         results: [
@@ -121,13 +124,14 @@ function AzureService({
         size="small"
         label={label}
         checked={config.enabled}
+        onChange={() => {}}
       />
       {config.enabled && (
         <Box ml={4}>
           <Box mb={3} maxWidth={432}>
             <FieldMultiInput
               label="Match subscriptions"
-              required
+              required={!allowWildcardSubscriptions}
               value={config.subscriptions}
               placeholder="11111111-2222-3333-4444-555555555555"
               onChange={subscriptions => onUpdate({ subscriptions })}

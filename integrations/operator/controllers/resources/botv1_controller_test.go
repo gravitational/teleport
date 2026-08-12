@@ -40,22 +40,24 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-var botSpec = &machineidv1.BotSpec{
+var botSpec = machineidv1.BotSpec_builder{
 	Roles: []string{"roleA", "roleB"},
 	Traits: []*machineidv1.Trait{
-		{
+		machineidv1.Trait_builder{
 			Name:   "traitA",
 			Values: []string{"valueA", "valueB"},
-		},
-		{
+		}.Build(),
+		machineidv1.Trait_builder{
 			Name:   "traitB",
 			Values: []string{"valueC", "valueD"},
-		},
+		}.Build(),
 	},
 	// Note: The server-side resource will have the default value filled in, so
 	// we need to explicitly set it to ensure comparisons succeed.
 	MaxSessionTtl: durationpb.New(defaults.DefaultBotMaxSessionTTL),
-}
+}.Build()
+
+var scopedBotSpec = &machineidv1.BotSpec{}
 
 type botTestingPrimitives struct {
 	setup *testSetup
@@ -71,27 +73,41 @@ func (g *botTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error 
 }
 
 func (g *botTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	bot := &machineidv1.Bot{
+	var spec *machineidv1.BotSpec
+	if scope := g.setup.OperatorMetadata().Scope; scope != "" {
+		spec = scopedBotSpec
+	} else {
+		spec = botSpec
+	}
+	labels := map[string]string{
+		types.OriginLabel: types.OriginKubernetes,
+	}
+	if g.setup.OperatorMetadata().Scope != "" {
+		labels[reconcilers.OperatorIDLabel] = g.setup.OperatorMetadata().ID
+	}
+	bot := machineidv1.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-			Labels: map[string]string{
-				types.OriginLabel: types.OriginKubernetes,
-			},
-		},
-		Spec: botSpec,
-	}
+		Metadata: headerv1.Metadata_builder{
+			Name:   name,
+			Labels: labels,
+		}.Build(),
+		Spec:  spec,
+		Scope: g.setup.OperatorMetadata().Scope,
+	}.Build()
 	_, err := g.setup.TeleportClient.
 		BotServiceClient().
-		CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
+		CreateBot(ctx, machineidv1.CreateBotRequest_builder{Bot: bot}.Build())
 	return trace.Wrap(err)
 }
 
 func (g *botTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*machineidv1.Bot, error) {
 	resp, err := g.setup.TeleportClient.
 		BotServiceClient().
-		GetBot(ctx, &machineidv1.GetBotRequest{BotName: name})
+		GetBot(ctx, machineidv1.GetBotRequest_builder{
+			BotName: name,
+			Scope:   g.setup.OperatorMetadata().Scope,
+		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -101,7 +117,10 @@ func (g *botTestingPrimitives) GetTeleportResource(ctx context.Context, name str
 func (g *botTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	_, err := g.setup.TeleportClient.
 		BotServiceClient().
-		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: name})
+		DeleteBot(ctx, machineidv1.DeleteBotRequest_builder{
+			BotName: name,
+			Scope:   g.setup.OperatorMetadata().Scope,
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,12 +128,19 @@ func (g *botTestingPrimitives) DeleteTeleportResource(ctx context.Context, name 
 }
 
 func (g *botTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
+	var spec *machineidv1.BotSpec
+	if scope := g.setup.OperatorMetadata().Scope; scope != "" {
+		spec = scopedBotSpec
+	} else {
+		spec = botSpec
+	}
 	bot := &resourcesv1.TeleportBotV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: (*resourcesv1.TeleportBotV1Spec)(botSpec),
+		Spec:  (*resourcesv1.TeleportBotV1Spec)(spec),
+		Scope: g.setup.OperatorMetadata().Scope,
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, bot))
 }
@@ -140,6 +166,7 @@ func (g *botTestingPrimitives) GetKubernetesResource(ctx context.Context, name s
 }
 
 func (g *botTestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
+	// Note: scoped bots hold no data, there's nothing to modify.
 	bot, err := g.GetKubernetesResource(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,7 +183,7 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 		testlib.ProtoCompareOptions(
 			protocmp.IgnoreFields(&machineidv1.Bot{}, "status"),
 			protocmp.SortRepeated(func(a, b *machineidv1.Trait) bool {
-				return strings.Compare(a.Name, b.Name) == -1
+				return strings.Compare(a.GetName(), b.GetName()) == -1
 			}),
 		)...,
 	)
@@ -165,20 +192,51 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestBotCreation(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test)
 }
 
 func TestBotDeletion(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceDeletionSynchronousTest[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test)
 }
 
 func TestBotDeletionDrift(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test)
 }
 
 func TestBotUpdate(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test)
 }
+
+func TestScopedBotCreation(t *testing.T) {
+	test := &botTestingPrimitives{}
+	testlib.ResourceCreationSynchronousTest[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test, testlib.WithScope(testScope))
+}
+
+func TestScopedBotDeletion(t *testing.T) {
+	test := &botTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test, testlib.WithScope(testScope))
+}
+
+func TestScopedBotDeletionDrift(t *testing.T) {
+	test := &botTestingPrimitives{}
+	testlib.ResourceDeletionDriftSynchronousTest[
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
+	](t, resources.NewBotV1Reconciler, test, testlib.WithScope(testScope))
+}
+
+// Note: scoped bots hold no data, there's nothing to update, hence no update tests.

@@ -58,10 +58,10 @@ func (p *dbProvider) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseI
 
 func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (*rpcSigner, error) {
 	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
-		return p.clt.SignForDB(context.TODO(), &vnetv1.SignForDBRequest{
+		return p.clt.SignForDB(context.TODO(), vnetv1.SignForDBRequest_builder{
 			DatabaseKey: dbInfo.GetDatabaseKey(),
 			Sign:        req,
-		})
+		}.Build())
 	})
 }
 

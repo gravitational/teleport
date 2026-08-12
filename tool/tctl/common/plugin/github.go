@@ -114,13 +114,13 @@ func (p *PluginsCommand) InstallGithub(ctx context.Context, args pluginServices)
 
 	creds := buildPrvKeyCredentials(settings.orgName, settings.privateKeyData)
 
-	createPluginRequest := &pluginspb.CreatePluginRequest{
+	createPluginRequest := pluginspb.CreatePluginRequest_builder{
 		Plugin:                plugin,
 		StaticCredentialsList: []*types.PluginStaticCredentialsV1{creds},
 		CredentialLabels: map[string]string{
 			"github": plugin.GetName(),
 		},
-	}
+	}.Build()
 
 	if _, err = args.plugins.CreatePlugin(ctx, createPluginRequest); err != nil {
 		return trace.Wrap(err, "failed to create Github plugin")

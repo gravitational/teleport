@@ -54,8 +54,6 @@ func NewDatabaseTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction
 	cmd.Flag("username", "The database user name.").Required().StringVar(&c.Username)
 	cmd.Flag("database", "The name of the database available in the requested database service.").Required().StringVar(&c.Database)
 
-	// Note: excluding roles from the CLI; will default to all available.
-
 	return c
 }
 

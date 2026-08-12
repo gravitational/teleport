@@ -56,6 +56,7 @@ export const AmazonAws = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-amazonaws"
+
       {...otherProps}
       ref={ref}
     >

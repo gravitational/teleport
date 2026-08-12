@@ -32,6 +32,7 @@ import (
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -100,15 +101,15 @@ func (s *Service) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigReques
 
 // CreateVnetConfig creates a VnetConfig resource.
 func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConfigRequest) (*vnet.VnetConfig, error) {
-	if err := s.authorizeWrite(ctx, types.VerbCreate); err != nil {
+	if err := s.authorizeWrite(ctx, scopedaccess.Create); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if req.GetVnetConfig() == nil {
-		req.VnetConfig = &vnet.VnetConfig{}
+		req.SetVnetConfig(&vnet.VnetConfig{})
 	}
-	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
-	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.VnetConfig)
+	typesvnet.SetDefaultsVnetConfig(req.GetVnetConfig())
+	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.GetVnetConfig())
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newCreateAuditEvent(ctx, status))
 	if err != nil {
@@ -119,15 +120,15 @@ func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConf
 
 // UpdateVnetConfig updates a VnetConfig resource.
 func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConfigRequest) (*vnet.VnetConfig, error) {
-	if err := s.authorizeWrite(ctx, types.VerbUpdate); err != nil {
+	if err := s.authorizeWrite(ctx, scopedaccess.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if req.GetVnetConfig() == nil {
-		req.VnetConfig = &vnet.VnetConfig{}
+		req.SetVnetConfig(&vnet.VnetConfig{})
 	}
-	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
-	vnetConfig, err := s.storage.UpdateVnetConfig(ctx, req.VnetConfig)
+	typesvnet.SetDefaultsVnetConfig(req.GetVnetConfig())
+	vnetConfig, err := s.storage.UpdateVnetConfig(ctx, req.GetVnetConfig())
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newUpdateAuditEvent(ctx, status))
 	if err != nil {
@@ -138,15 +139,15 @@ func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConf
 
 // UpsertVnetConfig does basic validation and upserts a VnetConfig resource.
 func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConfigRequest) (*vnet.VnetConfig, error) {
-	if err := s.authorizeWrite(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := s.authorizeWrite(ctx, scopedaccess.Create, scopedaccess.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if req.GetVnetConfig() == nil {
-		req.VnetConfig = &vnet.VnetConfig{}
+		req.SetVnetConfig(&vnet.VnetConfig{})
 	}
-	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
-	vnetConfig, err := s.storage.UpsertVnetConfig(ctx, req.VnetConfig)
+	typesvnet.SetDefaultsVnetConfig(req.GetVnetConfig())
+	vnetConfig, err := s.storage.UpsertVnetConfig(ctx, req.GetVnetConfig())
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newCreateAuditEvent(ctx, status))
 	if err != nil {
@@ -157,7 +158,7 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 
 // DeleteVnetConfig deletes the singleton VnetConfig resource.
 func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfigRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeWrite(ctx, types.VerbDelete); err != nil {
+	if err := s.authorizeWrite(ctx, scopedaccess.Delete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -170,7 +171,7 @@ func (s *Service) DeleteVnetConfig(ctx context.Context, _ *vnet.DeleteVnetConfig
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Service) authorizeWrite(ctx context.Context, verbs ...string) error {
+func (s *Service) authorizeWrite(ctx context.Context, verbs ...scopedaccess.Verb) error {
 	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return trace.Wrap(err)

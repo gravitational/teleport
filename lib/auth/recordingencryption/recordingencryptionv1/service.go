@@ -114,30 +114,30 @@ type Service struct {
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
-	return &recordingencryptionv1.Upload{
+	return recordingencryptionv1.Upload_builder{
 		UploadId:    upload.ID,
 		SessionId:   upload.SessionID.String(),
 		InitiatedAt: timestamppb.New(upload.Initiated),
-	}
+	}.Build()
 }
 
 func protoAsStreamUpload(upload *recordingencryptionv1.Upload) (events.StreamUpload, error) {
-	sessionID, err := session.ParseID(upload.SessionId)
+	sessionID, err := session.ParseID(upload.GetSessionId())
 	if err != nil {
 		return events.StreamUpload{}, trace.Wrap(err)
 	}
 
 	return events.StreamUpload{
-		ID:        upload.UploadId,
+		ID:        upload.GetUploadId(),
 		SessionID: *sessionID,
-		Initiated: upload.InitiatedAt.AsTime(),
+		Initiated: upload.GetInitiatedAt().AsTime(),
 	}, nil
 }
 
 func protoAsStreamPart(part *recordingencryptionv1.Part) events.StreamPart {
 	return events.StreamPart{
-		Number:       part.PartNumber,
-		ETag:         part.Etag,
+		Number:       part.GetPartNumber(),
+		ETag:         part.GetEtag(),
 		LastModified: time.Now(),
 	}
 }
@@ -148,8 +148,8 @@ func (s *Service) CreateUpload(ctx context.Context, req *recordingencryptionv1.C
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	s.logger.DebugContext(ctx, "creating encrypted session upload", "session_id", req.SessionId)
-	sessionID, err := session.ParseID(req.SessionId)
+	s.logger.DebugContext(ctx, "creating encrypted session upload", "session_id", req.GetSessionId())
+	sessionID, err := session.ParseID(req.GetSessionId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,14 +159,14 @@ func (s *Service) CreateUpload(ctx context.Context, req *recordingencryptionv1.C
 		return nil, trace.Wrap(err, "creating encrypted recording upload")
 	}
 
-	return &recordingencryptionv1.CreateUploadResponse{
+	return recordingencryptionv1.CreateUploadResponse_builder{
 		Upload: streamUploadAsProto(*upload),
-	}, nil
+	}.Build(), nil
 }
 
 // UploadPart uploads an encrypted session recording part to the given upload ID.
 func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.UploadPartRequest) (*recordingencryptionv1.UploadPartResponse, error) {
-	if err := validateUpload(req.Upload); err != nil {
+	if err := validateUpload(req.GetUpload()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -174,39 +174,39 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	s.logger.DebugContext(ctx, "uploading encrypted session part", "upload_id", req.Upload.UploadId, "session_id", req.Upload.SessionId, "part_number", req.PartNumber)
-	upload, err := protoAsStreamUpload(req.Upload)
+	s.logger.DebugContext(ctx, "uploading encrypted session part", "upload_id", req.GetUpload().GetUploadId(), "session_id", req.GetUpload().GetSessionId(), "part_number", req.GetPartNumber())
+	upload, err := protoAsStreamUpload(req.GetUpload())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.uploader.ReserveUploadPart(ctx, upload, req.PartNumber); err != nil {
+	if err := s.uploader.ReserveUploadPart(ctx, upload, req.GetPartNumber()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// If upload part is not at least the minimum upload part size, append an empty part
 	// to pad up to the minimum upload size.
-	part := req.Part
-	if !req.IsLast && len(part) < events.MinUploadPartSizeBytes {
+	part := req.GetPart()
+	if !req.GetIsLast() && len(part) < events.MinUploadPartSizeBytes {
 		part = events.PadUploadPart(part, events.MinUploadPartSizeBytes)
 	}
 
-	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))
+	streamPart, err := s.uploader.UploadPart(ctx, upload, req.GetPartNumber(), bytes.NewReader(part))
 	if err != nil {
 		return nil, trace.Wrap(err, "uploading encrypted recording part")
 	}
 
-	return &recordingencryptionv1.UploadPartResponse{
-		Part: &recordingencryptionv1.Part{
+	return recordingencryptionv1.UploadPartResponse_builder{
+		Part: recordingencryptionv1.Part_builder{
 			PartNumber: streamPart.Number,
 			Etag:       streamPart.ETag,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // CompleteUpload marks a given encrypted session upload as complete.
 func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1.CompleteUploadRequest) (*recordingencryptionv1.CompleteUploadResponse, error) {
-	if err := validateUpload(req.Upload); err != nil {
+	if err := validateUpload(req.GetUpload()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -214,14 +214,14 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	s.logger.DebugContext(ctx, "completing encrypted session upload", "upload_id", req.Upload.UploadId, "session_id", req.Upload.SessionId, "parts", len(req.Parts))
-	upload, err := protoAsStreamUpload(req.Upload)
+	s.logger.DebugContext(ctx, "completing encrypted session upload", "upload_id", req.GetUpload().GetUploadId(), "session_id", req.GetUpload().GetSessionId(), "parts", len(req.GetParts()))
+	upload, err := protoAsStreamUpload(req.GetUpload())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	parts := make([]events.StreamPart, len(req.Parts))
-	for idx, part := range req.Parts {
+	parts := make([]events.StreamPart, len(req.GetParts()))
+	for idx, part := range req.GetParts() {
 		parts[idx] = protoAsStreamPart(part)
 	}
 
@@ -319,18 +319,18 @@ func (s *Service) GetRotationState(ctx context.Context, req *recordingencryption
 		return nil, trace.Wrap(err)
 	}
 
-	return &recordingencryptionv1.GetRotationStateResponse{
+	return recordingencryptionv1.GetRotationStateResponse_builder{
 		KeyPairStates: states,
-	}, nil
+	}.Build(), nil
 }
 
 func validateUpload(upload *recordingencryptionv1.Upload) error {
 	switch {
 	case upload == nil:
 		return trace.BadParameter("upload is required")
-	case upload.UploadId == "":
+	case upload.GetUploadId() == "":
 		return trace.BadParameter("upload.upload_id is required")
-	case upload.SessionId == "":
+	case upload.GetSessionId() == "":
 		return trace.BadParameter("upload.session_id is required")
 	}
 	return nil

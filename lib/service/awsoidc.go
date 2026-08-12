@@ -87,6 +87,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
 		UpgradeChannel:         upgradeChannel,
+		TeleportBuildType:      process.Config.Modules.BuildType(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -136,6 +137,8 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 	TeleportClusterVersion string
 	// UpgradeChannel is the channel that serves the version used by the updater.
 	UpgradeChannel *automaticupgrades.Channel
+	// TeleportBuildType specifies the type of teleport build in use.
+	TeleportBuildType string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -154,6 +157,10 @@ func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 
 	if cfg.TeleportClusterVersion == "" {
 		return trace.BadParameter("teleport cluster version required")
+	}
+
+	if cfg.TeleportBuildType == "" {
+		return trace.BadParameter("teleport build type required")
 	}
 
 	if cfg.UpgradeChannel == nil {
@@ -349,6 +356,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		"new_version", teleportVersion,
 	)
 	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, updater.Log, awsoidc.UpdateServiceRequest{
+		TeleportBuildType:   updater.TeleportBuildType,
 		TeleportClusterName: updater.TeleportClusterName,
 		TeleportVersionTag:  teleportVersion.String(),
 		OwnershipTags:       ownershipTags,

@@ -152,6 +152,7 @@ func (s *KeyAgentService) Run(ctx context.Context) error {
 	// 	   and permissions to restrict access to it - this is the same as the
 	// 	   internal.CreateListener method's behavior.
 	if dir.ACLsEnabled() {
+		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err := botfs.ConfigureACL(filepath.Join(dir.Path, libhwk.CertFileName), dir.Readers); err != nil {
 			return trace.Wrap(err)
 		}
@@ -215,9 +216,7 @@ func (s *KeyAgentService) renewIdentity(ctx context.Context, privKey crypto.Sign
 		generateOpts = append(generateOpts, identity.WithPrivateKey(privKey))
 	}
 
-	if s.cfg.DelegationSessionID == "" {
-		generateOpts = append(generateOpts, identity.WithRoles(s.cfg.Roles))
-	} else {
+	if s.cfg.DelegationSessionID != "" {
 		generateOpts = append(generateOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 
@@ -301,9 +300,4 @@ func (*hardwareKeyService) NewPrivateKey(context.Context, hardwarekey.PrivateKey
 	// This method shouldn't be called because tsh explicitly bypasses the
 	// Hardware Key Agent during login.
 	return nil, trace.NotImplemented("generating new private keys is not supported")
-}
-
-func (*hardwareKeyService) GetFullKeyRef(uint32, hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
-	// This method is marked for deletion in v19.
-	return nil, trace.NotImplemented("GetFullKeyRef is not implemented")
 }

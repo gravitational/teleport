@@ -140,7 +140,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		defer stderrR.Close()
 
 		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
-			DecisionContext: s.serverCtx.Identity.AccessPermit.DecisionContext,
+			DecisionContext: s.serverCtx.Identity.AccessPermit.GetDecisionContext(),
 			Login:           s.serverCtx.Identity.Login,
 		})
 		if err != nil {

@@ -960,12 +960,12 @@ func Test_newKubeListRequest(t *testing.T) {
 				site:         "site1",
 				resourceKind: "kind1",
 			},
-			want: &kubeproto.ListKubernetesResourcesRequest{
+			want: kubeproto.ListKubernetesResourcesRequest_builder{
 				TeleportCluster: "site1",
 				ResourceType:    "kind1",
 				SortBy:          &types.SortBy{},
 				Limit:           defaults.MaxIterationLimit,
-			},
+			}.Build(),
 		},
 		{
 			name: "list resources with sort and query",
@@ -974,7 +974,7 @@ func Test_newKubeListRequest(t *testing.T) {
 				site:         "site1",
 				resourceKind: "kind1",
 			},
-			want: &kubeproto.ListKubernetesResourcesRequest{
+			want: kubeproto.ListKubernetesResourcesRequest_builder{
 				TeleportCluster:     "site1",
 				ResourceType:        "kind1",
 				PredicateExpression: "foo",
@@ -983,7 +983,7 @@ func Test_newKubeListRequest(t *testing.T) {
 					IsDesc: true,
 				},
 				Limit: 10,
-			},
+			}.Build(),
 		},
 		{
 			name: "list resources with search as roles",
@@ -992,7 +992,7 @@ func Test_newKubeListRequest(t *testing.T) {
 				site:         "site1",
 				resourceKind: "kind1",
 			},
-			want: &kubeproto.ListKubernetesResourcesRequest{
+			want: kubeproto.ListKubernetesResourcesRequest_builder{
 				StartKey:            "startK1",
 				KubernetesCluster:   "cluster",
 				KubernetesNamespace: "namespace",
@@ -1005,7 +1005,7 @@ func Test_newKubeListRequest(t *testing.T) {
 				},
 				UseSearchAsRoles: true,
 				Limit:            10,
-			},
+			}.Build(),
 		},
 	}
 	for _, tt := range tests {

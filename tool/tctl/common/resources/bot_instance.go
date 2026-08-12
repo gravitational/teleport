@@ -19,6 +19,7 @@ package resources
 import (
 	"context"
 	"io"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,7 +52,11 @@ func (c *botInstanceCollection) WriteText(w io.Writer, verbose bool) error {
 	// last heartbeat, last auth, etc.
 	var rows [][]string
 	for _, item := range c.items {
-		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
+		botName := scopes.QualifiedName{
+			Scope: item.GetScope(),
+			Name:  item.GetSpec().GetBotName(),
+		}.String()
+		rows = append(rows, []string{botName, item.GetSpec().GetInstanceId()})
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
@@ -76,12 +82,21 @@ func getBotInstance(
 	opts GetOpts,
 ) (Collection, error) {
 	c := client.BotInstanceServiceClient()
-	if ref.Name != "" && ref.SubKind != "" {
-		// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
-		bi, err := c.GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
-			BotName:    ref.SubKind,
-			InstanceId: ref.Name,
-		})
+
+	// services.ParseRef splits the bot name into SubKind only for the one-argument
+	// form 'bot_instance/<bot>/<id>'; the two-argument form leaves it in Name.
+	botName, instanceID := ref.SubKind, ref.Name
+	if botName == "" {
+		if bot, id, ok := strings.Cut(ref.Name, "/"); ok {
+			botName, instanceID = bot, id
+		}
+	}
+
+	if botName != "" && instanceID != "" {
+		bi, err := c.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
+			BotName:    botName,
+			InstanceId: instanceID,
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -92,13 +107,88 @@ func getBotInstance(
 	instances, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
 		//nolint:staticcheck // SA1019
-		resp, err := c.ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+		resp, err := c.ListBotInstances(ctx, machineidv1pb.ListBotInstancesRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: pageToken,
 
 			// Note: empty filter lists all bot instances
 			FilterBotName: ref.Name,
-		})
+		}.Build())
+
+		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &botInstanceCollection{items: instances}, nil
+}
+
+// botInstanceScopedHandler returns a [ScopedHandler] for instances of scoped
+// bots. Bot instances support both classic (unscoped) and scope-qualified
+// access, so this is registered alongside the classic handler in
+// ScopedHandlers().
+func botInstanceScopedHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:  getBotInstanceScoped,
+		description: "A single instance of the tbot agent running in Teleport.",
+	}
+}
+
+func getBotInstanceScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn *scopes.QualifiedName,
+	opts GetOpts,
+) (Collection, error) {
+	if subKind != "" {
+		// The generic rejectSubKind hint would suggest '<scope>::<subKind>',
+		// which is not how bot instances are addressed, so use a
+		// bot_instance-specific message.
+		return nil, trace.BadParameter(
+			"resource type %q does not support sub-kinds (got %q)\n"+
+				"hint: address an instance of a scoped bot with a scope-qualified name:\n"+
+				"  tctl get %s <scope>::<bot_name>/<instance_id>",
+			types.KindBotInstance, subKind, types.KindBotInstance,
+		)
+	}
+	if sqn == nil {
+		// No SQN was provided, so this is a list-all. The classic handler
+		// normally serves list-all (bot_instance is registered in both maps),
+		// but fall back to it here for safety.
+		return getBotInstance(ctx, client, services.Ref{Kind: types.KindBotInstance}, opts)
+	}
+
+	c := client.BotInstanceServiceClient()
+
+	// The name component is either <bot_name>/<instance_id>, addressing a
+	// single instance, or a bare <bot_name>, listing the scoped bot's
+	// instances. The scope travels in the request: the server resolves it
+	// against scope-qualified storage, so a wrong-scope read is a not-found
+	// and no client-side scope comparison is needed.
+	if botName, instanceID, ok := strings.Cut(sqn.Name, "/"); ok {
+		bi, err := c.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
+			BotName:    botName,
+			InstanceId: instanceID,
+			BotScope:   sqn.Scope,
+		}.Build())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &botInstanceCollection{items: []*machineidv1pb.BotInstance{bi}}, nil
+	}
+
+	instances, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+		resp, err := c.ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
+			PageSize:  int32(limit),
+			PageToken: pageToken,
+			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
+				BotName:  sqn.Name,
+				BotScope: sqn.Scope,
+			}.Build(),
+		}.Build())
 
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))

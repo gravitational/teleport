@@ -19,23 +19,31 @@
 package common
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/spinner"
 	"github.com/gravitational/teleport/tool/common"
 )
 
 type beamsAddCommand struct {
 	*kingpin.CmdClause
-	console bool
-	format  string
+	console             bool
+	format              string
+	region              string
+	isTerminalOverwrite func(io.Writer) bool
 }
 
 func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
@@ -43,10 +51,12 @@ func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
 		CmdClause: parent.Command("add", "Start a new beam, and optionally connect to it via SSH."),
 	}
 	cmd.Flag("console", "Connect to the beam via SSH after creation.").Default("true").BoolVar(&cmd.console)
+	cmd.Flag("region", "Region where the beam should live. If not specified, the closest region is selected.").StringVar(&cmd.region)
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
 		Short('f').
 		Default(teleport.Text).
 		EnumVar(&cmd.format, defaults.DefaultFormats...)
+	cmd.Alias(beamsAddHelp)
 	return cmd
 }
 
@@ -54,6 +64,10 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	ctx := cf.Context
 
 	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	proxyRegion, err := c.discoverProxyRegion(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,6 +80,12 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		}
 		defer clusterClient.Close()
 
+		// Show spinner after successful connection to avoid spinning during re-login.
+		if c.shouldShowSpinner(cf.Stdout(), c.format) {
+			creatingBeamSpinner := spinner.New(cf.Stdout(), "Creating beam...")
+			defer creatingBeamSpinner.Stop()
+		}
+
 		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -75,9 +95,11 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		// Create the beam.
 		rsp, err := rootClient.
 			BeamServiceClient().
-			CreateBeam(ctx, &beamsv1.CreateBeamRequest{
-				Egress: beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
-			})
+			CreateBeam(ctx, beamsv1.CreateBeamRequest_builder{
+				Egress:         beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
+				ProxyRegion:    proxyRegion,
+				OverrideRegion: c.region,
+			}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -99,19 +121,66 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	case teleport.YAML:
 		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	default:
-		if _, err := fmt.Fprintf(
-			cf.Stdout(),
-			"Beam %q created.\n",
-			beam.GetStatus().GetAlias(),
-		); err != nil {
+		if err := c.printCreatedMessage(cf.Stdout(), beam, c.region); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Connect to the beam via SSH.
 		if c.console {
-			return trace.Wrap(sshBeam(cf, tc, beam, nil))
+			if err := sshBeam(cf, tc, beam, nil); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(c.printReconnectMessage(cf.Stdout(), beam.GetStatus().GetAlias()))
 		}
 	}
 
 	return nil
+}
+
+func (c *beamsAddCommand) discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
+	resp, err := webclient.Find(&webclient.Config{
+		Context:      ctx,
+		ProxyAddr:    tc.WebProxyAddr,
+		Insecure:     tc.InsecureSkipVerify,
+		ExtraHeaders: tc.ExtraProxyHeaders,
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "discovering proxy region")
+	}
+	return resp.Proxy.GroupID, nil
+}
+
+func (c *beamsAddCommand) printCreatedMessage(w io.Writer, beam *beamsv1.Beam, overrideRegion string) error {
+	region := beam.GetStatus().GetRegion()
+	alias := beam.GetStatus().GetAlias()
+
+	switch {
+	case overrideRegion != "" && region != "" && overrideRegion != region:
+		_, err := fmt.Fprintf(w, "Region %s not supported. Beam %q created in %s.\n", overrideRegion, alias, region)
+		return trace.Wrap(err)
+	case region != "":
+		_, err := fmt.Fprintf(w, "Beam %q created in %s.\n", alias, region)
+		return trace.Wrap(err)
+	default:
+		_, err := fmt.Fprintf(w, "Beam %q created.\n", alias)
+		return trace.Wrap(err)
+	}
+}
+
+func (c *beamsAddCommand) printReconnectMessage(w io.Writer, alias string) error {
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	_, err := fmt.Fprintln(w, gray.Render(fmt.Sprintf("\nTo reconnect to this beam, run:\n    tsh beams ssh %s", alias)))
+	return trace.Wrap(err)
+}
+
+func (c *beamsAddCommand) shouldShowSpinner(w io.Writer, format string) bool {
+	switch strings.ToLower(format) {
+	case teleport.JSON, teleport.YAML:
+		return false
+	default:
+		if c.isTerminalOverwrite != nil {
+			return c.isTerminalOverwrite(w)
+		}
+		return utils.IsTerminal(w)
+	}
 }

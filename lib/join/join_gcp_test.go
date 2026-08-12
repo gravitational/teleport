@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -75,7 +76,8 @@ func TestJoinGCP(t *testing.T) {
 
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -226,26 +228,27 @@ func TestJoinGCP(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tc.request.Token = tc.name
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
-				Metadata: &headerv1.Metadata{
-					Name: "scoped_" + token.GetName(),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				Metadata: headerv1.Metadata_builder{
+					Name: token.GetName(),
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
-			_, err = auth.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			_, err = auth.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: scopedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := auth.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
-					Name: scopedToken.GetMetadata().GetName(),
-				})
+				_, err := auth.DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
+					Name:  scopedToken.GetMetadata().GetName(),
+					Scope: scopedToken.GetScope(),
+				}.Build())
 				require.NoError(t, err)
 			})
 
@@ -294,8 +297,9 @@ func TestJoinGCP(t *testing.T) {
 
 			t.Run("scoped", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:      "scoped_" + tc.request.Token,
-					JoinMethod: types.JoinMethodGCP,
+					Token:       tc.request.Token,
+					TokenSecret: scopedToken.GetStatus().GetSecret(),
+					JoinMethod:  types.JoinMethodGCP,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
 						NodeName: "testnode",

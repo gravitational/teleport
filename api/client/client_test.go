@@ -749,6 +749,17 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
 					Logins:   []string{"alice", "bob"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{
+							PrincipalType: types.PrincipalTypeLogins,
+							Granted:       []string{"alice"},
+							Requestable:   []string{"bob"},
+							ByRole: []*proto.RolePrincipalValues{
+								{Role: "access", Values: []string{"alice"}},
+								{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+							},
+						},
+					},
 				},
 				{
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
@@ -757,6 +768,9 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
 					Logins:   []string{"llama"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{PrincipalType: types.PrincipalTypeRoleARNs, Granted: []string{"llama"}},
+					},
 				},
 			},
 		},
@@ -776,13 +790,57 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 	for _, enriched := range resources {
 		switch enriched.ResourceWithLabels.(type) {
 		case *types.ServerV2:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+			assert.Equal(t, clt.resp.Resources[0].Logins, enriched.Logins)
+			assert.Equal(t, []types.ResourcePrincipalSet{{
+				PrincipalType: types.PrincipalTypeLogins,
+				Granted:       []string{"alice"},
+				Requestable:   []string{"bob"},
+				ByRole: []types.RolePrincipalValues{
+					{Role: "access", Values: []string{"alice"}},
+					{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+				},
+			}}, enriched.Principals)
 		case *types.WindowsDesktopV3:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+			assert.Equal(t, clt.resp.Resources[1].Logins, enriched.Logins)
+			assert.Empty(t, enriched.Principals)
 		case *types.AppServerV3:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
+			assert.Equal(t, clt.resp.Resources[2].Logins, enriched.Logins)
+			assert.Equal(t, []types.ResourcePrincipalSet{{
+				PrincipalType: types.PrincipalTypeRoleARNs,
+				Granted:       []string{"llama"},
+			}}, enriched.Principals)
 		}
 	}
+}
+
+// TestConvertResourcePrincipalSets validates the conversion of proto principal
+// sets to their api/types form, including per-role attribution and nil entries.
+func TestConvertResourcePrincipalSets(t *testing.T) {
+	require.Nil(t, convertResourcePrincipalSets(nil))
+	require.Nil(t, convertResourcePrincipalSets([]*proto.ResourcePrincipalSet{}))
+
+	converted := convertResourcePrincipalSets([]*proto.ResourcePrincipalSet{
+		nil,
+		{
+			PrincipalType: types.PrincipalTypeLogins,
+			Granted:       []string{"alice"},
+			Requestable:   []string{"bob"},
+			ByRole: []*proto.RolePrincipalValues{
+				nil,
+				{Role: "access", Values: []string{"alice"}},
+				{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+			},
+		},
+	})
+	require.Equal(t, []types.ResourcePrincipalSet{{
+		PrincipalType: types.PrincipalTypeLogins,
+		Granted:       []string{"alice"},
+		Requestable:   []string{"bob"},
+		ByRole: []types.RolePrincipalValues{
+			{Role: "access", Values: []string{"alice"}},
+			{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+		},
+	}}, converted)
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
@@ -984,6 +1042,86 @@ type preparedSessionEvent struct {
 
 func (p preparedSessionEvent) GetAuditEvent() events.AuditEvent {
 	return p.event
+}
+
+func TestListAccessRequestsIncludesUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	reqA := clientAccessRequest("request-a", "alice")
+	service := &accessRequestListService{
+		pages: []*proto.ListAccessRequestsResponse{
+			{
+				AccessRequests: []*types.AccessRequestV3{reqA},
+				UserDisplays: map[string]*proto.UserDisplay{
+					"alice": {
+						Primary:   "Alice",
+						Secondary: "alice@example.com",
+					},
+					"plain": nil,
+				},
+			},
+		},
+	}
+
+	srv := startMockServer(t, mockServices{auth: service})
+	clt, err := New(t.Context(), srv.clientCfg())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	rsp, err := clt.ListAccessRequests(t.Context(), &proto.ListAccessRequestsRequest{
+		Limit: 1,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []*types.AccessRequestV3{reqA}, rsp.AccessRequests)
+	require.Equal(t, map[string]*proto.UserDisplay{
+		"alice": {
+			Primary:   "Alice",
+			Secondary: "alice@example.com",
+		},
+		"plain": nil,
+	}, rsp.UserDisplays)
+	require.Equal(t, []string{""}, service.startKeys)
+}
+
+type accessRequestListService struct {
+	proto.UnimplementedAuthServiceServer
+
+	pages          []*proto.ListAccessRequestsResponse
+	startKeys      []string
+	listErr        error
+	compatRequests []*types.AccessRequestV3
+}
+
+func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	if s.listErr != nil {
+		return nil, trail.ToGRPC(s.listErr)
+	}
+
+	s.startKeys = append(s.startKeys, req.StartKey)
+	pageIndex := len(s.startKeys) - 1
+	if pageIndex >= len(s.pages) {
+		return nil, trail.ToGRPC(trace.NotFound("page %d not found", pageIndex))
+	}
+	return s.pages[pageIndex], nil
+}
+
+func (s *accessRequestListService) GetAccessRequestsV2(filter *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
+	for _, req := range s.compatRequests {
+		if err := stream.Send(req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func clientAccessRequest(name, user string) *types.AccessRequestV3 {
+	return &types.AccessRequestV3{
+		Metadata: types.Metadata{Name: name},
+		Spec: types.AccessRequestSpecV3{
+			User: user,
+		},
+	}
 }
 
 func TestWindowsCAFallback(t *testing.T) {

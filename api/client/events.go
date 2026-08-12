@@ -19,7 +19,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -30,7 +29,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -99,6 +98,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*beamsv1.Beam]:
 		out.Resource = &proto.Event_Beam{
 			Beam: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:
+		out.Resource = &proto.Event_BeamsConfig{
+			BeamsConfig: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 		out.Resource = &proto.Event_BotInstance{
@@ -188,10 +191,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_RelayServer{
 			RelayServer: r.UnwrapT(),
 		}
-	case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
-		out.Resource = &proto.Event_AppAuthConfig{
-			AppAuthConfig: r.UnwrapT(),
-		}
 	case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 		out.Resource = &proto.Event_InferenceModel{
 			InferenceModel: r.UnwrapT(),
@@ -204,6 +203,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_InferencePolicy{
 			InferencePolicy: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*summaryv1.Classifier]:
+		out.Resource = &proto.Event_Classifier{
+			Classifier: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 		out.Resource = &proto.Event_RetrievalModel{
 			RetrievalModel: r.UnwrapT(),
@@ -212,9 +215,13 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_CertAuthorityOverride{
 			CertAuthorityOverride: r.UnwrapT(),
 		}
-	case validatedMFAChallengeUnwrapper:
-		out.Resource = &proto.Event_ValidatedMFAChallenge{
-			ValidatedMFAChallenge: r.UnwrapT(),
+	case types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]:
+		out.Resource = &proto.Event_PendingCSRRequest{
+			PendingCSRRequest: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
+		out.Resource = &proto.Event_ValidatedMFAChallengeV2{
+			ValidatedMFAChallengeV2: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -659,6 +666,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetBeam(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetBeamsConfig(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
@@ -728,9 +738,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetPlugin(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetAppAuthConfig(); r != nil {
-		out.Resource = types.ProtoResource153ToLegacy(r)
-		return &out, nil
 	} else if r := in.GetLinuxDesktop(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
@@ -743,17 +750,20 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetInferencePolicy(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetClassifier(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetRetrievalModel(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetCertAuthorityOverride(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetValidatedMFAChallenge(); r != nil { //nolint:staticcheck // TODO(cthach): Convert to mfav2.ValidatedMFAChallenge.
-		out.Resource = &validatedMFAChallengeResourceWrapper{
-			Resource: types.LegacyMetadataToResource(r),
-			inner:    r,
-		}
+	} else if r := in.GetPendingCSRRequest(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetValidatedMFAChallengeV2(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
@@ -772,32 +782,4 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	default:
 		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type validatedMFAChallengeUnwrapper interface {
-	UnwrapT() *mfav1.ValidatedMFAChallenge
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type validatedMFAChallengeResourceWrapper struct {
-	types.Resource
-
-	inner *mfav1.ValidatedMFAChallenge
-}
-
-func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
-	if r.inner == nil || r.inner.GetSpec() == nil {
-		return ""
-	}
-
-	return r.inner.GetSpec().GetTargetCluster()
-}
-
-func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	if r == nil {
-		return nil
-	}
-
-	return r.inner
 }

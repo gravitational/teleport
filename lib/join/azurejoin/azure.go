@@ -409,13 +409,13 @@ func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzur
 			// require at least tenant or subscription is set to restrict joins.
 			continue
 		}
-		if rule.Tenant != "" && rule.Tenant != attrs.Tenant {
+		if rule.Tenant != "" && rule.Tenant != attrs.GetTenant() {
 			continue
 		}
-		if rule.Subscription != "" && rule.Subscription != attrs.Subscription {
+		if rule.Subscription != "" && rule.Subscription != attrs.GetSubscription() {
 			continue
 		}
-		if !azureResourceGroupIsAllowed(rule.ResourceGroups, attrs.ResourceGroup) {
+		if !azureResourceGroupIsAllowed(rule.ResourceGroups, attrs.GetResourceGroup()) {
 			continue
 		}
 		return nil
@@ -443,11 +443,11 @@ func azureResourceGroupIsAllowed(allowedResourceGroups []string, vmResourceGroup
 }
 
 func azureJoinToAttrs(tenantID, subscriptionID, resourceGroupID string) *workloadidentityv1pb.JoinAttrsAzure {
-	return &workloadidentityv1pb.JoinAttrsAzure{
+	return workloadidentityv1pb.JoinAttrsAzure_builder{
 		Tenant:        tenantID,
 		Subscription:  subscriptionID,
 		ResourceGroup: resourceGroupID,
-	}
+	}.Build()
 }
 
 // CheckAzureRequestParams holds all parameters for [CheckAzureRequest].

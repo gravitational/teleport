@@ -92,6 +92,25 @@ func WithPerInstanceHookFn[Instances InstanceGroup](callback func(groups []Insta
 	}
 }
 
+// WithFetchErrorHookFn sets a callback for errors returned by fetchers.
+// The callback returns whether the error was handled and should not be logged by
+// the watcher.
+func WithFetchErrorHookFn[Instances InstanceGroup](callback func(error) bool) Option[Instances] {
+	return func(w *Watcher[Instances]) {
+		if callback == nil {
+			return
+		}
+
+		defaultFetchErrorHookFn := w.fetchErrorHookFn
+		w.fetchErrorHookFn = func(err error) bool {
+			if callback(err) {
+				return true
+			}
+			return defaultFetchErrorHookFn(err)
+		}
+	}
+}
+
 // WithPostFetchHookFn sets an optional callback to be called after the fetch round is finished.
 func WithPostFetchHookFn[Instances InstanceGroup](f func()) Option[Instances] {
 	return func(w *Watcher[Instances]) {
@@ -137,6 +156,7 @@ type Watcher[Instances InstanceGroup] struct {
 	postFetchHookFn    func()
 	triggerFetchHookFn func()
 	perInstanceHookFn  func(instances []Instances)
+	fetchErrorHookFn   func(error) bool
 }
 
 // NewWatcher initializes a new instance of Watcher.
@@ -165,6 +185,13 @@ func NewWatcher[Instances InstanceGroup](ctx context.Context, logger *slog.Logge
 			}
 		}
 	}
+	watcher.fetchErrorHookFn = func(err error) bool {
+		if trace.IsNotFound(err) {
+			return false
+		}
+		watcher.logger.ErrorContext(watcher.ctx, "Failed to fetch instances", "error", err)
+		return false
+	}
 
 	for _, opt := range opts {
 		opt(&watcher)
@@ -187,14 +214,11 @@ func (w *Watcher[Instances]) ReplaceFetchers(replaceMap map[string][]Fetcher[Ins
 	w.fetcherMap.Set(replaceMap)
 }
 
-func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, err error) {
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return
-		}
-		w.logger.ErrorContext(w.ctx, "Failed to fetch instances", "error", err)
+func (w *Watcher[Instances]) handleFetchResult(instancesColl []Instances, err error) {
+	if err != nil && !w.fetchErrorHookFn(err) {
 		return
 	}
+
 	w.logger.DebugContext(w.ctx, "Processing instance groups", "total_groups", len(instancesColl))
 	w.perInstanceHookFn(instancesColl)
 }
@@ -222,7 +246,7 @@ func (w *Watcher[Instances]) fetchAndSubmit() {
 			"current_fetcher", i+1,
 			"total_fetchers", len(fetchers),
 		)
-		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
+		w.handleFetchResult(fetcher.GetInstances(w.ctx, false))
 	}
 
 	if w.postFetchHookFn != nil {
@@ -247,7 +271,7 @@ func (w *Watcher[Instances]) Run() {
 			fetchers := slices.Concat(slices.Collect(maps.Values(cloned))...)
 
 			for _, fetcher := range fetchers {
-				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(w.ctx, insts, true))
+				w.handleFetchResult(fetcher.GetMatchingInstances(w.ctx, insts, true))
 			}
 
 		case <-pollTimer.Chan():

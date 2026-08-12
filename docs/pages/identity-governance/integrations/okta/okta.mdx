@@ -8,6 +8,7 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
 The Teleport Okta integration can import and grant access to resources from an
@@ -16,7 +17,19 @@ provision user accounts based Okta users, Okta applications can be accessed
 through Teleport's application access UI, and access to these applications along
 with user groups can be managed by Teleport's RBAC along with Access Requests.
 
-This guide shows you how to set up the Teleport Okta integration.
+In this guide, you will set up the Teleport Okta integration.
+
+<Admonition type="tip" title="Review access to Okta resources">
+Once Teleport imports your Okta applications, groups and users, you can use Teleport
+Identity Security to review which identities can access them. See
+[Review Identity Access from the
+CLI](../../../identity-security/cli/access-review.mdx) (`tctl access-review`).
+For example, to see which identities can reach the `Salesforce` app:
+
+```code
+$ tctl access-review --query "SELECT * FROM access_path WHERE resource = 'Salesforce'"
+```
+</Admonition>
 
 ## How it works
 

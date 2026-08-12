@@ -567,7 +567,7 @@ func (s *localCluster) skipDirectDial(params reversetunnelclient.DialParams) (bo
 	// Connections to application and database servers should never occur
 	// over a direct dial.
 	switch params.ConnType {
-	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
+	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel, types.LinuxDesktopTunnel:
 	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
 		return true, nil
 	default:
@@ -887,6 +887,7 @@ func (s *localCluster) removeRemoteConn(rconn *remoteConn) {
 	key := connKey{
 		uuid:     rconn.nodeID,
 		connType: types.TunnelType(rconn.tunnelType),
+		scope:    scopes.NormalizeForEquality(rconn.scope),
 	}
 
 	conns := s.remoteConns[key]
