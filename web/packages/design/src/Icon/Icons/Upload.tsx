@@ -56,6 +56,7 @@ export const Upload = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-upload"
+
       {...otherProps}
       ref={ref}
     >

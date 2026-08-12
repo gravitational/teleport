@@ -56,6 +56,7 @@ export const PaperPlane = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-paperplane"
+
       {...otherProps}
       ref={ref}
     >

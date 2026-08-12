@@ -78,14 +78,12 @@ export function LoadedTimeBased() {
     </StoryContainer>
   );
 }
-LoadedTimeBased.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesTimeBased);
-      }),
-    ],
-  },
+LoadedTimeBased.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesTimeBased);
+    })
+  );
 };
 
 export function LoadedHaltOnError() {
@@ -95,14 +93,12 @@ export function LoadedHaltOnError() {
     </StoryContainer>
   );
 }
-LoadedHaltOnError.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesHaltOnError);
-      }),
-    ],
-  },
+LoadedHaltOnError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesHaltOnError);
+    })
+  );
 };
 
 export function LoadedAgentsDropped() {
@@ -112,14 +108,12 @@ export function LoadedAgentsDropped() {
     </StoryContainer>
   );
 }
-LoadedAgentsDropped.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesAgentsDropped);
-      }),
-    ],
-  },
+LoadedAgentsDropped.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesAgentsDropped);
+    })
+  );
 };
 
 export function WithOrphanedAgents() {
@@ -129,14 +123,12 @@ export function WithOrphanedAgents() {
     </StoryContainer>
   );
 }
-WithOrphanedAgents.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesWithOrphaned);
-      }),
-    ],
-  },
+WithOrphanedAgents.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesWithOrphaned);
+    })
+  );
 };
 
 export function ImmediateSchedule() {
@@ -146,14 +138,12 @@ export function ImmediateSchedule() {
     </StoryContainer>
   );
 }
-ImmediateSchedule.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesImmediate);
-      }),
-    ],
-  },
+ImmediateSchedule.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesImmediate);
+    })
+  );
 };
 
 export function NotConfigured() {
@@ -163,14 +153,12 @@ export function NotConfigured() {
     </StoryContainer>
   );
 }
-NotConfigured.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesNotConfigured);
-      }),
-    ],
-  },
+NotConfigured.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesNotConfigured);
+    })
+  );
 };
 
 export function Loading() {
@@ -180,15 +168,13 @@ export function Loading() {
     </StoryContainer>
   );
 }
-Loading.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), async () => {
-        await delay('infinite');
-        return HttpResponse.json({});
-      }),
-    ],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), async () => {
+      await delay('infinite');
+      return HttpResponse.json({});
+    })
+  );
 };
 
 export function Error() {
@@ -198,14 +184,12 @@ export function Error() {
     </StoryContainer>
   );
 }
-Error.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json({ message: 'some error' }, { status: 500 });
-      }),
-    ],
-  },
+Error.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json({ message: 'some error' }, { status: 500 });
+    })
+  );
 };
 
 export function ActionLoading() {
@@ -215,21 +199,19 @@ export function ActionLoading() {
     </StoryContainer>
   );
 }
-ActionLoading.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesHaltOnError);
-      }),
-      http.post(
-        '/v1/webapi/managedupdates/groups/:groupName/:action',
-        async () => {
-          await delay('infinite');
-          return HttpResponse.json({});
-        }
-      ),
-    ],
-  },
+ActionLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesHaltOnError);
+    }),
+    http.post(
+      '/v1/webapi/managedupdates/groups/:groupName/:action',
+      async () => {
+        await delay('infinite');
+        return HttpResponse.json({});
+      }
+    )
+  );
 };
 
 export function ActionError() {
@@ -239,20 +221,18 @@ export function ActionError() {
     </StoryContainer>
   );
 }
-ActionError.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesHaltOnError);
-      }),
-      http.post('/v1/webapi/managedupdates/groups/:groupName/:action', () => {
-        return HttpResponse.json(
-          { message: 'error performing group action' },
-          { status: 403 }
-        );
-      }),
-    ],
-  },
+ActionError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesHaltOnError);
+    }),
+    http.post('/v1/webapi/managedupdates/groups/:groupName/:action', () => {
+      return HttpResponse.json(
+        { message: 'error performing group action' },
+        { status: 403 }
+      );
+    })
+  );
 };
 
 const noPermissionsAcl = makeAcl({
@@ -268,14 +248,12 @@ export function NoPermissions() {
     </StoryContainer>
   );
 }
-NoPermissions.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesTimeBased);
-      }),
-    ],
-  },
+NoPermissions.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesTimeBased);
+    })
+  );
 };
 
 const toolsOnlyAcl = makeAcl({
@@ -291,14 +269,12 @@ export function ToolsPermissionsOnly() {
     </StoryContainer>
   );
 }
-ToolsPermissionsOnly.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesTimeBased);
-      }),
-    ],
-  },
+ToolsPermissionsOnly.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesTimeBased);
+    })
+  );
 };
 
 const rolloutOnlyAcl = makeAcl({
@@ -314,12 +290,10 @@ export function RolloutPermissionsOnly() {
     </StoryContainer>
   );
 }
-RolloutPermissionsOnly.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getManagedUpdatesUrl(), () => {
-        return HttpResponse.json(mockManagedUpdatesTimeBased);
-      }),
-    ],
-  },
+RolloutPermissionsOnly.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getManagedUpdatesUrl(), () => {
+      return HttpResponse.json(mockManagedUpdatesTimeBased);
+    })
+  );
 };

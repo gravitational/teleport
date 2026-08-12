@@ -56,6 +56,7 @@ export const KeyHole = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-keyhole"
+
       {...otherProps}
       ref={ref}
     >

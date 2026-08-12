@@ -80,7 +80,7 @@ export const Support = ({
           css={`
             grid-column: auto;
             @media screen and (min-width: ${props =>
-                props.theme.breakpoints.small}) {
+              props.theme.breakpoints.small}) {
               grid-column: span 2;
             }
           `}
@@ -362,7 +362,8 @@ const StyledSupportLink = styled.a.attrs({
   transition: all 0.3s;
 
   ${props => props.theme.typography.body2}
-  &:hover, &:focus {
+  &:hover,
+  &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
