@@ -56,6 +56,7 @@ export const NewTab = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-newtab"
+
       {...otherProps}
       ref={ref}
     >

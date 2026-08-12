@@ -56,6 +56,7 @@ export const Wand = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-wand"
+
       {...otherProps}
       ref={ref}
     >

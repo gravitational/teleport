@@ -56,6 +56,7 @@ export const FingerprintSimple = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-fingerprintsimple"
+
       {...otherProps}
       ref={ref}
     >

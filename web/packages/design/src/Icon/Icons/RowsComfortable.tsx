@@ -56,6 +56,7 @@ export const RowsComfortable = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-rowscomfortable"
+
       {...otherProps}
       ref={ref}
     >

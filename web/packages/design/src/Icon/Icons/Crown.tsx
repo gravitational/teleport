@@ -56,6 +56,7 @@ export const Crown = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-crown"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Linux = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-linux"
+
       {...otherProps}
       ref={ref}
     >

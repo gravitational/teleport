@@ -56,6 +56,7 @@ export const Kubernetes = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-kubernetes"
+
       {...otherProps}
       ref={ref}
     >
