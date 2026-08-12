@@ -1269,6 +1269,22 @@ test.describe('two', () => {
 			content: `test.use({ teleport: { foo: 1 } });`,
 			wantErr: true,
 		},
+		{
+			name: "env alongside config",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 }, env: { FOO: 'bar' } } });
+});`,
+			want: []scopedTeleportConfig{
+				{raw: `{ a: 1 }`, line: 1, env: map[string]string{"FOO": "bar"}},
+			},
+		},
+		{
+			name: "malformed env errors",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 }, env: { FOO: { nested: 1 } } } });
+});`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1284,6 +1300,7 @@ test.describe('two', () => {
 			for i := range tt.want {
 				require.Equal(t, tt.want[i].raw, got[i].raw)
 				require.Equal(t, tt.want[i].line, got[i].line)
+				require.Equal(t, tt.want[i].env, got[i].env)
 			}
 		})
 	}
@@ -1309,6 +1326,19 @@ test.describe('other', () => {
 	require.Equal(t, []string{"tests/x.spec.ts"}, defaultSelectors("tests/x.spec.ts", content, nil, 0))
 }
 
+func TestNormalizeEnvText(t *testing.T) {
+	require.Empty(t, normalizeEnvText(nil))
+	require.Empty(t, normalizeEnvText(map[string]string{}))
+
+	// Same content, different key order, normalizes the same
+	a := normalizeEnvText(map[string]string{"A": "1", "B": "2"})
+	b := normalizeEnvText(map[string]string{"B": "2", "A": "1"})
+	require.Equal(t, a, b)
+
+	c := normalizeEnvText(map[string]string{"A": "1", "B": "3"})
+	require.NotEqual(t, a, c)
+}
+
 func TestNormalizeConfigText(t *testing.T) {
 	// Differently-formatted but identical configs normalize the same (so they can be deduped).
 	a := normalizeConfigText("{ auth_service: { license_file: 'x.pem' } }")
@@ -1317,6 +1347,46 @@ func TestNormalizeConfigText(t *testing.T) {
 
 	c := normalizeConfigText("{ auth_service: { license_file: 'y.pem' } }")
 	require.NotEqual(t, a, c)
+}
+
+func TestScanTeleportConfigsDedupesByConfigAndEnv(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "a.spec.ts", `
+test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 }, env: { FOO: 'bar' } } });
+  test('t', () => {});
+});
+`)
+	writeFile(t, dir, "b.spec.ts", `
+test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 }, env: { FOO: 'bar' } } });
+  test('t', () => {});
+});
+`)
+	writeFile(t, dir, "c.spec.ts", `
+test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 }, env: { FOO: 'different' } } });
+  test('t', () => {});
+});
+`)
+
+	targets := []scanTarget{
+		{path: filepath.Join(dir, "a.spec.ts"), sourceFile: "a.spec.ts"},
+		{path: filepath.Join(dir, "b.spec.ts"), sourceFile: "b.spec.ts"},
+		{path: filepath.Join(dir, "c.spec.ts"), sourceFile: "c.spec.ts"},
+	}
+
+	configs, _, err := scanTeleportConfigs(targets)
+	require.NoError(t, err)
+	require.Len(t, configs, 2, "same config+env should merge into one batch, different env should stay separate")
+
+	byEnv := make(map[string][]string)
+	for _, c := range configs {
+		byEnv[c.env["FOO"]] = c.files
+	}
+
+	require.ElementsMatch(t, []string{"a.spec.ts:2", "b.spec.ts:2"}, byEnv["bar"])
+	require.ElementsMatch(t, []string{"c.spec.ts:2"}, byEnv["different"])
 }
 
 func TestScanTeleportConfigsRejectsHelperConfig(t *testing.T) {

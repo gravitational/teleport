@@ -1331,6 +1331,101 @@ func TestPrintNodesAsText(t *testing.T) {
 	}
 }
 
+// TestPrintNodesWithClusters verifies the expected behavior of recursive node listings.
+func TestPrintNodesWithClusters(t *testing.T) {
+	t.Parallel()
+
+	unscoped := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "unscoped-uuid",
+			Labels: map[string]string{
+				"env": "production",
+			},
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "1.2.3.4:22",
+			Hostname: "unscoped-host",
+		},
+		Version: types.V2,
+	}
+
+	scoped := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "scoped-uuid",
+			Labels: map[string]string{
+				"env": "staging",
+			},
+		},
+		Scope: "/west",
+		Spec: types.ServerSpecV2{
+			Addr:     "5.6.7.8:22",
+			Hostname: "scoped-host",
+		},
+		Version: types.V2,
+	}
+
+	unscopedListing := nodeListing{
+		Proxy:   "proxy.example.com:443",
+		Cluster: "root",
+		Node:    unscoped,
+	}
+	scopedListing := nodeListing{
+		Proxy:   "proxy.example.com:443",
+		Cluster: "leaf",
+		Node:    scoped,
+	}
+	mixedListings := []nodeListing{unscopedListing, scopedListing}
+
+	tests := []struct {
+		name    string
+		nodes   []nodeListing
+		verbose bool
+	}{
+		{
+			name:  "non-verbose unscoped",
+			nodes: []nodeListing{unscopedListing},
+		},
+		{
+			name:  "non-verbose scoped",
+			nodes: []nodeListing{scopedListing},
+		},
+		{
+			name:  "non-verbose mixed scopes",
+			nodes: mixedListings,
+		},
+		{
+			name:    "verbose unscoped",
+			nodes:   []nodeListing{unscopedListing},
+			verbose: true,
+		},
+		{
+			name:    "verbose scoped",
+			nodes:   []nodeListing{scopedListing},
+			verbose: true,
+		},
+		{
+			name:    "verbose mixed scopes",
+			nodes:   mixedListings,
+			verbose: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			require.NoError(t, printNodesWithClusters(tt.nodes, tt.verbose, &buf))
+
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+
+			require.Equal(t, string(golden.Get(t)), buf.String())
+		})
+	}
+}
+
 func TestMakeClient(t *testing.T) {
 	t.Parallel()
 
