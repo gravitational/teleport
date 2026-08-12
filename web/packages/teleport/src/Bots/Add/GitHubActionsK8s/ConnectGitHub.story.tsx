@@ -49,38 +49,32 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        genWizardCiCdSuccess({ prettyFormat: true }),
-        fetchUnifiedResourcesSuccess(),
-        userEventCaptureSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      genWizardCiCdSuccess({ prettyFormat: true }),
+      fetchUnifiedResourcesSuccess(),
+      userEventCaptureSuccess()
+    );
   },
 };
 
 export const TemplateFetchFailed: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        genWizardCiCdError(500, 'something went wrong'),
-        fetchUnifiedResourcesSuccess(),
-        userEventCaptureSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      genWizardCiCdError(500, 'something went wrong'),
+      fetchUnifiedResourcesSuccess(),
+      userEventCaptureSuccess()
+    );
   },
 };
 
 export const TemplateFetching: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        genWizardCiCdForever(),
-        fetchUnifiedResourcesSuccess(),
-        userEventCaptureSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      genWizardCiCdForever(),
+      fetchUnifiedResourcesSuccess(),
+      userEventCaptureSuccess()
+    );
   },
 };
 
