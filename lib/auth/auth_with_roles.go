@@ -1360,6 +1360,18 @@ func unscopedWatchKindException(kind string) (ura services.UnpinnedReadAuthoriza
 		return services.UnpinnedReadCertAuthority, true
 	case types.KindSPIFFEFederation:
 		return services.UnpinnedReadSPIFFEFederation, true
+	case types.KindLock:
+		return services.UnpinnedReadLock, true
+	case types.KindClusterName:
+		return services.UnpinnedReadClusterName, true
+	case types.KindClusterNetworkingConfig:
+		return services.UnpinnedReadClusterNetworkingConfig, true
+	case types.KindClusterAuthPreference:
+		return services.UnpinnedReadAuthPreference, true
+	case types.KindClusterAuditConfig:
+		return services.UnpinnedReadClusterAuditConfig, true
+	case types.KindSessionRecordingConfig:
+		return services.UnpinnedReadSessionRecordingConfig, true
 	default:
 		return services.UnpinnedReadAuthorization{}, false
 	}
@@ -6051,9 +6063,14 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 }
 
 // GetClusterAuditConfig gets cluster audit configuration.
-func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
-	if err := a.authorizeAction(types.KindClusterAuditConfig, types.VerbRead); err != nil {
-		if err2 := a.authorizeAction(types.KindClusterConfig, types.VerbRead); err2 != nil {
+func (a *ScopedServerWithRoles) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterAuditConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7417,24 +7434,27 @@ func (a *ServerWithRoles) SearchSessionEvents(ctx context.Context, req events.Se
 }
 
 // GetLock gets a lock by name.
-func (a *ServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock, error) {
-	if err := a.authorizeAction(types.KindLock, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadLock, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetLock(ctx, name)
 }
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
-func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAndListLock, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // ListLocks returns a page of locks
-func (a *ServerWithRoles) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
-	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAndListLock, &ruleCtx); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
