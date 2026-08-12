@@ -362,7 +362,10 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 	var reader io.Reader
 	if rc.filename == "" {
-		stat, _ := os.Stdin.Stat()
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		if (stat.Mode() & os.ModeCharDevice) != 0 {
 			return trace.BadParameter("no file specified or input via stdin")
 		}
