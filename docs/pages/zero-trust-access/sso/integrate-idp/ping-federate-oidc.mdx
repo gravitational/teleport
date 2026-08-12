@@ -153,11 +153,9 @@ spec:
 ```
 
 This example grants the `ubuntu` and `ec2-user` logins to anyone with the
-`developer` role. If you'd rather grant a login that matches each user's own
-Teleport username instead of a fixed list, newer Teleport versions support
-adding `{{user.metadata.name}}` to the `logins` list. Check your cluster's
-release notes to confirm this variable is supported before using it, since
-it isn't available in all v18 releases.
+`developer` role.If you'd rather grant a login that matches each user's own 
+Teleport username instead of a fixed list, you can add `{{user.metadata.name}}`
+to the logins list. This variable requires Teleport v18.7.6 or later.
 
 Apply the role:
 
