@@ -16,8 +16,9 @@ Note: When using a fully qualified domain name as your `clusterName`, you will a
 need to configure the DNS provider for this domain to point to the external
 load balancer address of your Teleport cluster. If you're using this proxy-only
 chart, this typically means adding the external IP of this proxy's load-balancer
-to your geography-aware DNS service or putting it behind the load balancer for the Anycast
-VIP used by your existing Teleport cluster.
+to your geography-aware DNS service. We do not recommend using a load balancer
+with an Anycast VIP because Teleport clients maintain long-live persistent
+connections that may be disrupted during Anycast routing changes.
 
 ## `authServer`
 
