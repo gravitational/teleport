@@ -12,7 +12,7 @@ state: draft
 
 ## What
 
-Introduce an opt-in scheduled timing mode for Access Requests. This mode allows a user to request a fixed access window that starts at an arbitrary future time without counting the delay before that window against `request.max_duration`.
+Introduce an opt-in scheduled timing mode for Access Requests. This mode allows a user to request a fixed access window that starts up to 30 days in the future without counting the delay before that window against `request.max_duration`.
 
 ## Why
 
@@ -99,13 +99,13 @@ This RFD retains the current workflow for backward compatibility and adds one ne
 
 For fixed scheduled mode:
 
-- The requester supplies an absolute start and a requested duration.
+- The requester supplies an absolute start, no more than 30 days after request creation, and a requested duration.
 - The delay between request creation and the scheduled start does not count against the access duration.
 - The effective duration is constrained by applicable role `request.max_duration` limits and the global maximum access duration.
 - The fixed end is the scheduled start plus the effective duration.
 - Approval never moves the start or end.
 - Approval before the start preserves the complete window.
-- Approval after the start but before the end leaves only the remainder of the window (or as another option the start of the window can be implicit approval deadline).
+- Approval after the start but before the end leaves only the remainder of the window.
 - Approval at or after the end is rejected.
 - Session TTL calculation and credential issuance remain unchanged, with credentials still capped by the fixed access end.
 - An approved request remains reusable within the fixed window, matching current Access Request behavior.
@@ -187,7 +187,7 @@ max_duration = end
 expires = end
 ```
 
-The server must reject non-positive durations, timestamp overflow, conflicting client-provided legacy fields, and a computed end that is not after the start. The existing seven-day `assume_start_time` boundary does not apply to scheduled timing because the delay before the start is independent of the access duration.
+The server must reject non-positive durations, conflicting client-provided legacy fields, a start more than 30 days after request creation, and a computed end that is not after the start. A start in the past is accepted only while the fixed end remains in the future, leaving the requester the remainder of the window. The existing seven-day `assume_start_time` boundary does not apply to scheduled timing because scheduled timing has its own 30-day start limit and the delay before the start is independent of the access duration.
 
 While the request is pending, the existing resource expiry remains its review deadline. On approval, resource expiry is moved to the fixed end. Approval must fail if either the pending request has expired or the fixed end has passed.
 
@@ -203,7 +203,7 @@ Assumption continues to load the request by ID and revalidate its approved state
 
 #### Scheduling window and retention
 
-Scheduled timing does not introduce a product-level limit on how far in the future the fixed window may start. Timestamps must still be valid protocol values, and start-plus-duration arithmetic must be checked for overflow.
+The fixed window may start no more than 30 days after request creation. Timestamps must still be valid protocol values.
 
 A pending request remains subject to the existing review deadline. Once approved, the request is retained until the fixed end, which may be substantially later than its creation time. This increases backend, cache, and listing retention for far-future requests. Existing request quotas and pagination continue to apply, and assumption-time role revalidation prevents a stale approval from bypassing later role-policy changes. Administrators can delete a scheduled request before its window if the approval is no longer appropriate.
 
@@ -355,7 +355,7 @@ Before the start, an approved request should show when it becomes available and 
 - Require timezone-aware input to avoid daylight-saving ambiguity.
 - Show the computed fixed end before submission and review.
 - Keep the pending approval deadline separate from access-window duration and credential session TTL.
-- Do not apply the legacy seven-day start-date limit to scheduled timing.
+- Apply the scheduled timing 30-day start limit instead of the legacy seven-day `assume_start_time` limit.
 - Obtain effective duration limits through scheduled dry-run validation rather than deriving them from a creation-relative expiry.
 - Hide scheduled timing when the cluster does not advertise support, omit the timing context, and continue offering the existing legacy request workflow.
 
@@ -376,7 +376,6 @@ Single activation is orthogonal to scheduled timing and is intentionally deferre
 Approval-relative floating windows are also deferred. They require a separate timing mode and an authoritative server-owned approval timestamp; `assume_start_time` must not be reused as the approval timestamp.
 
 ### Open questions
-- Grant the remainder after late approval, or require approval before the start?
 - Feature flag is local to the Auth instance or cluster-wide? There are possible caviats in case of the former (see compatiblity section for details).
 
 ## References

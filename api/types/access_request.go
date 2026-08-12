@@ -188,36 +188,6 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 	return &req, nil
 }
 
-// Equal instructs derive how to compare AccessRequestTiming correctly.
-func (t *AccessRequestTiming) Equal(other *AccessRequestTiming) bool {
-	return t.IsEqual(other)
-}
-
-// IsEqual checks if provided AccessRequestTiming equal to the current one.
-func (t *AccessRequestTiming) IsEqual(other *AccessRequestTiming) bool {
-	if t == nil || other == nil {
-		return t == other
-	}
-
-	switch timing := t.Mode.(type) {
-	case *AccessRequestTiming_Scheduled:
-		otherTiming, ok := other.Mode.(*AccessRequestTiming_Scheduled)
-		if !ok {
-			return false
-		}
-		if timing == nil || otherTiming == nil {
-			return timing == otherTiming
-		}
-		if timing.Scheduled == nil || otherTiming.Scheduled == nil {
-			return timing.Scheduled == otherTiming.Scheduled
-		}
-		return timing.Scheduled.Start.Equal(otherTiming.Scheduled.Start) &&
-			timing.Scheduled.Duration == otherTiming.Scheduled.Duration
-	default:
-		return t.Mode == nil && other.Mode == nil
-	}
-}
-
 // IsEqual determines if two access requests are equivalent to one another.
 // The Revision field is ignored during comparison.
 func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
@@ -573,6 +543,11 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	}
 	if len(r.GetRoles()) == 0 && len(r.GetAllRequestedResourceIDs()) == 0 {
 		return trace.BadParameter("access request does not specify any roles or resources")
+	}
+	if r.Spec.Timing != nil {
+		if err := r.Spec.Timing.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// dedupe and sort roles to simplify comparing role lists
@@ -1202,6 +1177,70 @@ func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, 
 	if maxAssumableStartTime.Before(accessExpiry) && assumeStartTime.After(maxAssumableStartTime) {
 		return trace.BadParameter("assume start time is too far in the future, latest time allowed is %v",
 			maxAssumableStartTime.Format(time.RFC3339))
+	}
+
+	return nil
+}
+
+// Equal instructs derive how to compare AccessRequestTiming correctly.
+func (t *AccessRequestTiming) Equal(other *AccessRequestTiming) bool {
+	return t.IsEqual(other)
+}
+
+// IsEqual checks if provided AccessRequestTiming equal to the current one.
+func (t *AccessRequestTiming) IsEqual(other *AccessRequestTiming) bool {
+	if t == nil || other == nil {
+		return t == other
+	}
+
+	switch timing := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		otherTiming, ok := other.Mode.(*AccessRequestTiming_Scheduled)
+		if !ok {
+			return false
+		}
+		if timing == nil || otherTiming == nil {
+			return timing == otherTiming
+		}
+		if timing.Scheduled == nil || otherTiming.Scheduled == nil {
+			return timing.Scheduled == otherTiming.Scheduled
+		}
+		return timing.Scheduled.Start.Equal(otherTiming.Scheduled.Start) &&
+			timing.Scheduled.Duration == otherTiming.Scheduled.Duration
+	default:
+		return t.Mode == nil && other.Mode == nil
+	}
+}
+
+func (t *AccessRequestTiming) CheckAndSetDefaults() error {
+	if t == nil {
+		return trace.BadParameter("missing timing")
+	}
+	if t.Mode == nil {
+		return trace.BadParameter("missing timing mode")
+	}
+
+	switch timing := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		if timing == nil {
+			return trace.BadParameter("invalid timing mode")
+		}
+		scheduled := timing.Scheduled
+
+		if scheduled == nil {
+			return trace.BadParameter("missing scheduled timing")
+		}
+
+		if scheduled.Duration <= 0 {
+			return trace.BadParameter("invalid or missing scheduled duration")
+		}
+
+		if scheduled.Start.IsZero() {
+			return trace.BadParameter("missing scheduled start time")
+		}
+
+	default:
+		return trace.BadParameter("invalid timing mode requested: %v", timing)
 	}
 
 	return nil

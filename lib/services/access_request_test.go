@@ -3506,6 +3506,209 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 	}
 }
 
+func TestValidate_ScheduledTiming(t *testing.T) {
+	roleDesc := roleTestSet{
+		"requestedRole": {},
+		"defaultRole": {
+			condition: types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"requestedRole"}}},
+		},
+		"limitedRole": {
+			condition: types.RoleConditions{Request: &types.AccessRequestConditions{
+				Roles:       []string{"requestedRole"},
+				MaxDuration: types.Duration(2 * time.Hour),
+			}},
+		},
+	}
+	userDesc := map[string][]string{
+		"alice": {"defaultRole"},
+		"bob":   {"limitedRole"},
+	}
+	getter := getMockGetter(t, roleDesc, userDesc)
+	clock := clockwork.NewFakeClockAt(time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC))
+
+	tests := []struct {
+		name           string
+		user           string
+		startOffset    time.Duration
+		requested      time.Duration
+		wantDuration   time.Duration
+		wantSessionTTL time.Duration
+		wantPendingTTL time.Duration
+		mutate         func(types.AccessRequest)
+		wantErr        string
+	}{
+		{
+			name:           "requested duration preserved at maximum start delay",
+			user:           "alice",
+			startOffset:    MaxScheduledStartDelay,
+			requested:      4 * time.Hour,
+			wantDuration:   4 * time.Hour,
+			wantSessionTTL: 8 * time.Hour,
+			wantPendingTTL: requestTTL,
+		},
+		{
+			name:           "role max duration truncates window",
+			user:           "bob",
+			startOffset:    day,
+			requested:      4 * time.Hour,
+			wantDuration:   2 * time.Hour,
+			wantSessionTTL: 8 * time.Hour,
+			wantPendingTTL: day + 2*time.Hour,
+		},
+		{
+			name:           "global max duration truncates window",
+			user:           "alice",
+			startOffset:    day,
+			requested:      MaxAccessDuration + time.Hour,
+			wantDuration:   MaxAccessDuration,
+			wantSessionTTL: 8 * time.Hour,
+			wantPendingTTL: requestTTL,
+		},
+		{
+			name:           "past start grants remaining window",
+			user:           "alice",
+			startOffset:    -2 * time.Hour,
+			requested:      4 * time.Hour,
+			wantDuration:   4 * time.Hour,
+			wantSessionTTL: 2 * time.Hour,
+			wantPendingTTL: 2 * time.Hour,
+		},
+		{
+			name:        "start beyond maximum delay",
+			user:        "alice",
+			startOffset: MaxScheduledStartDelay + time.Second,
+			requested:   time.Hour,
+			wantErr:     "scheduled start must be no more than 720h0m0s in the future",
+		},
+		{
+			name:        "window already ended",
+			user:        "alice",
+			startOffset: -2 * time.Hour,
+			requested:   time.Hour,
+			wantErr:     "scheduled access window has already ended",
+		},
+		{
+			name:        "assume start conflict",
+			user:        "alice",
+			startOffset: day,
+			requested:   time.Hour,
+			mutate: func(req types.AccessRequest) {
+				req.SetAssumeStartTime(req.GetTiming().GetScheduled().Start)
+			},
+			wantErr: "assume_start_time cannot be set with scheduled timing",
+		},
+		{
+			name:        "max duration conflict",
+			user:        "alice",
+			startOffset: day,
+			requested:   time.Hour,
+			mutate: func(req types.AccessRequest) {
+				req.SetMaxDuration(req.GetTiming().GetScheduled().Start.Add(time.Hour))
+			},
+			wantErr: "max_duration cannot be set with scheduled timing",
+		},
+		{
+			name:        "access expiry conflict",
+			user:        "alice",
+			startOffset: day,
+			requested:   time.Hour,
+			mutate: func(req types.AccessRequest) {
+				req.SetAccessExpiry(req.GetTiming().GetScheduled().Start.Add(time.Hour))
+			},
+			wantErr: "access_expiry cannot be set with scheduled timing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start := clock.Now().Add(tt.startOffset)
+			req, err := types.NewAccessRequest("some-id", tt.user, "requestedRole")
+			require.NoError(t, err)
+			req.SetCreationTime(clock.Now())
+			req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+				Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: tt.requested},
+			}})
+			if tt.mutate != nil {
+				tt.mutate(req)
+			}
+
+			validator, err := NewRequestValidator(t.Context(), clock, getter, tt.user, WithExpandVars(true))
+			require.NoError(t, err)
+			err = validator.validate(t.Context(), req, tlsca.Identity{Expires: clock.Now().Add(8 * time.Hour)})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			scheduled := req.GetTiming().GetScheduled()
+			require.Equal(t, tt.wantDuration, scheduled.Duration)
+			wantEnd := start.Add(tt.wantDuration)
+			require.Equal(t, start, *req.GetAssumeStartTime())
+			require.Equal(t, wantEnd, req.GetMaxDuration())
+			require.Equal(t, wantEnd, req.GetAccessExpiry())
+			require.Equal(t, clock.Now().Add(tt.wantSessionTTL), req.GetSessionTLL())
+			require.Equal(t, clock.Now().Add(tt.wantPendingTTL), req.Expiry())
+
+			revalidator, err := NewRequestValidator(t.Context(), clock, getter, tt.user)
+			require.NoError(t, err)
+			require.NoError(t, revalidator.validate(t.Context(), req, tlsca.Identity{Expires: clock.Now().Add(8 * time.Hour)}))
+		})
+	}
+}
+
+func TestValidate_ScheduledTimingValues(t *testing.T) {
+	roleDesc := roleTestSet{
+		"requestedRole": {},
+		"defaultRole": {
+			condition: types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"requestedRole"}}},
+		},
+	}
+	getter := getMockGetter(t, roleDesc, map[string][]string{"alice": {"defaultRole"}})
+	clock := clockwork.NewFakeClockAt(time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC))
+	start := clock.Now().Add(day)
+	end := start.Add(4 * time.Hour)
+
+	newRequest := func(t *testing.T) types.AccessRequest {
+		t.Helper()
+		req, err := types.NewAccessRequest("some-id", "alice", "requestedRole")
+		require.NoError(t, err)
+		req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+			Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: 4 * time.Hour},
+		}})
+		req.SetAssumeStartTime(start)
+		req.SetMaxDuration(end)
+		req.SetAccessExpiry(end)
+		return req
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(types.AccessRequest)
+	}{
+		{name: "valid", mutate: func(types.AccessRequest) {}},
+		{name: "missing start projection", mutate: func(req types.AccessRequest) { req.(*types.AccessRequestV3).Spec.AssumeStartTime = nil }},
+		{name: "different start projection", mutate: func(req types.AccessRequest) { req.SetAssumeStartTime(start.Add(time.Minute)) }},
+		{name: "different max duration projection", mutate: func(req types.AccessRequest) { req.SetMaxDuration(end.Add(time.Minute)) }},
+		{name: "different access expiry projection", mutate: func(req types.AccessRequest) { req.SetAccessExpiry(end.Add(time.Minute)) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := newRequest(t)
+			tt.mutate(req)
+			validator, err := NewRequestValidator(t.Context(), clock, getter, "alice")
+			require.NoError(t, err)
+			err = validator.validate(t.Context(), req, tlsca.Identity{Expires: clock.Now().Add(8 * time.Hour)})
+			if tt.name == "valid" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
 // TestAccessRequestStorageToleratesUnenforceableConstraints verifies the
 // storage codec against a request written by a newer Auth: reads keep
 // working with the unknown constraint content zeroed to nil Details,

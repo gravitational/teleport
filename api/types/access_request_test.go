@@ -238,6 +238,68 @@ func TestAccessRequestTimingIsEqual(t *testing.T) {
 	}
 }
 
+func TestAccessRequestTimingCheckAndSetDefaults(t *testing.T) {
+	validStart := time.Date(2030, time.January, 2, 3, 4, 5, 0, time.UTC)
+	tests := []struct {
+		name   string
+		timing *AccessRequestTiming
+		wantOK bool
+	}{
+		{name: "nil timing"},
+		{name: "missing mode", timing: &AccessRequestTiming{}},
+		{name: "typed nil scheduled mode", timing: &AccessRequestTiming{Mode: (*AccessRequestTiming_Scheduled)(nil)}},
+		{name: "missing scheduled timing", timing: &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{}}},
+		{
+			name: "missing start",
+			timing: &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{
+				Scheduled: &AccessRequestScheduledTiming{Duration: time.Hour},
+			}},
+		},
+		{
+			name: "zero duration",
+			timing: &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{
+				Scheduled: &AccessRequestScheduledTiming{Start: validStart},
+			}},
+		},
+		{
+			name: "negative duration",
+			timing: &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{
+				Scheduled: &AccessRequestScheduledTiming{Start: validStart, Duration: -time.Hour},
+			}},
+		},
+		{
+			name: "valid",
+			timing: &AccessRequestTiming{Mode: &AccessRequestTiming_Scheduled{
+				Scheduled: &AccessRequestScheduledTiming{Start: validStart, Duration: time.Hour},
+			}},
+			wantOK: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.timing.CheckAndSetDefaults()
+			if tt.wantOK {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestAccessRequestCheckAndSetDefaultsValidatesTiming(t *testing.T) {
+	req := &AccessRequestV3{
+		Metadata: Metadata{Name: "request"},
+		Spec: AccessRequestSpecV3{
+			User:   "alice",
+			Roles:  []string{"role"},
+			Timing: &AccessRequestTiming{},
+		},
+	}
+	require.Error(t, req.CheckAndSetDefaults())
+}
+
 func TestAccessRequestV3IsEqual(t *testing.T) {
 	newReq := func(t *testing.T) *AccessRequestV3 {
 		t.Helper()
