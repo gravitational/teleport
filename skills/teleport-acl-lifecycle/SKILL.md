@@ -5,13 +5,15 @@ description: Use for Teleport access list work with tctl; listing available reso
 
 # Teleport Access List Lifecycle
 
-Use `tctl` to list resources, create access lists, update existing access
-lists, and delete access lists. Route first, then read only the referenced leaf
-files for that route.
+Use this skill to give users access to specific Teleport resources. Browse
+available servers, databases, applications, Kubernetes clusters, and more,
+choose which ones and how users connect to them, then create, update, or retire
+the access list that grants that access.
 
 ## Route First
 
-Choose exactly one route before running commands:
+Choose exactly one route before running commands, then read only the files
+referenced for that route:
 
 | User intent | Examples | Do this |
 | --- | --- | --- |

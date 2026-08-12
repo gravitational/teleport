@@ -1753,7 +1753,13 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
+    - [ ] Verify that an Okta-originated Access List cannot be deleted while Access List sync is enabled.
+    - [ ] Verify that an Okta-originated Access List can be deleted while Access List sync is disabled.
+  - [ ] Verify that when a user is Suspended/Deactivated in Okta:
+    - [ ] The user is locked/removed from Teleport.
+    - [ ] Cleanup assignments are processed and Provision assignments are not processed.
+  - [ ] Verify that when a user is Removed in Okta:
+    - [ ] Cleanup assignments are processed and Provision assignments are removed.
   - [ ] Verify access to Okta apps granted by access_list/access_request.
 
 ## Teleport SAML Identity Provider
