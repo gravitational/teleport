@@ -278,10 +278,28 @@ extension RotatingFileWriter {
 
 extension RotatingFileWriter {
 	struct Configuration {
+		/// We need a minimum file size that's at least as large as the smallest token we record in the file, which is
+		/// our truncation marker  "… [truncated]"
+		static let minimumFileSize = 16
+
 		static let live = Configuration(
 			maximumFileSize: 4 * 1024 * 1024,
 			maximumArchiveCount: 3,
 		)
+
+		init(maximumFileSize: Int, maximumArchiveCount: Int) {
+			precondition(
+				maximumFileSize >= Self.minimumFileSize,
+				"Maximum file size must be at least \(Self.minimumFileSize) bytes",
+			)
+			precondition(
+				maximumArchiveCount >= 1,
+				"Maximum archive count must be at least 1",
+			)
+
+			self.maximumFileSize = maximumFileSize
+			self.maximumArchiveCount = maximumArchiveCount
+		}
 
 		/// The maximum size any individual file is allowed to be, in number of bytes
 		let maximumFileSize: Int

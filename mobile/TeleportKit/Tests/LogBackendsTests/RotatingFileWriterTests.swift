@@ -28,12 +28,12 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "first\n")
-			writer.enqueue(logMessage: "second\n")
+			writer.enqueue(logMessage: "first")
+			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "first\nsecond\n")
+			#expect(contents == "firstsecond")
 		}
 	}
 
@@ -43,14 +43,14 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "first\n")
+			writer.enqueue(logMessage: "first")
 			try await writer.flush()
 
-			writer.enqueue(logMessage: "second\n")
+			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "first\nsecond\n")
+			#expect(contents == "firstsecond")
 		}
 	}
 
@@ -60,11 +60,11 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "nested/logs/events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "record\n")
+			writer.enqueue(logMessage: "record")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "record\n")
+			#expect(contents == "record")
 		}
 	}
 
@@ -72,14 +72,14 @@ struct RotatingFileWriterTests {
 	func `writing appends to an existing active file`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
-			try Data("existing\n".utf8).write(to: fileURL)
+			try Data("existing".utf8).write(to: fileURL)
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "new\n")
+			writer.enqueue(logMessage: "new")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "existing\nnew\n")
+			#expect(contents == "existingnew")
 		}
 	}
 
@@ -88,14 +88,14 @@ struct RotatingFileWriterTests {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
 			let archiveURL = directoryURL.appending(path: "events.1.log")
-			try Data("123\n".utf8).write(to: fileURL)
-			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
+			try Data("123456789012".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 
-			writer.enqueue(logMessage: "45\n")
+			writer.enqueue(logMessage: "3456")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "123\n45\n")
+			#expect(contents == "1234567890123456")
 			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
 		}
 	}
@@ -105,16 +105,16 @@ struct RotatingFileWriterTests {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
 			let archiveURL = directoryURL.appending(path: "events.1.log")
-			try Data("123\n".utf8).write(to: fileURL)
-			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
+			try Data("123456789012".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 
-			writer.enqueue(logMessage: "456\n")
+			writer.enqueue(logMessage: "34567")
 			try await writer.flush()
 
 			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
 			let archiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
-			#expect(activeContents == "456\n")
-			#expect(archiveContents == "123\n")
+			#expect(activeContents == "34567")
+			#expect(archiveContents == "123456789012")
 		}
 	}
 
@@ -125,23 +125,23 @@ struct RotatingFileWriterTests {
 			let firstArchiveURL = directoryURL.appending(path: "events.1.log")
 			let secondArchiveURL = directoryURL.appending(path: "events.2.log")
 			let thirdArchiveURL = directoryURL.appending(path: "events.3.log")
-			try Data("active\n".utf8).write(to: fileURL)
-			try Data("first archive\n".utf8).write(to: firstArchiveURL)
-			try Data("second archive\n".utf8).write(to: secondArchiveURL)
-			try Data("third archive\n".utf8).write(to: thirdArchiveURL)
-			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 8)
+			try Data("active-record".utf8).write(to: fileURL)
+			try Data("first archive".utf8).write(to: firstArchiveURL)
+			try Data("second archive".utf8).write(to: secondArchiveURL)
+			try Data("third archive".utf8).write(to: thirdArchiveURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 
-			writer.enqueue(logMessage: "new\n")
+			writer.enqueue(logMessage: "next")
 			try await writer.flush()
 
 			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
 			let firstArchiveContents = try? String(contentsOf: firstArchiveURL, encoding: .utf8)
 			let secondArchiveContents = try? String(contentsOf: secondArchiveURL, encoding: .utf8)
 			let thirdArchiveContents = try? String(contentsOf: thirdArchiveURL, encoding: .utf8)
-			#expect(activeContents == "new\n")
-			#expect(firstArchiveContents == "active\n")
-			#expect(secondArchiveContents == "first archive\n")
-			#expect(thirdArchiveContents == "second archive\n")
+			#expect(activeContents == "next")
+			#expect(firstArchiveContents == "active-record")
+			#expect(secondArchiveContents == "first archive")
+			#expect(thirdArchiveContents == "second archive")
 		}
 	}
 
