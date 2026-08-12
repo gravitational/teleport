@@ -3724,7 +3724,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 								},
 								"methods": {
 									Computed:      true,
-									Description:   "Methods narrows the rule to the listed HTTP methods, matched case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.",
+									Description:   "Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
@@ -3751,7 +3751,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"app_resources_expressions": {
 							Computed:      true,
-							Description:   "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Each expression is a desugared AppResource rule and can also express certain rules AppResource cannot.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Description:   "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
@@ -4505,7 +4505,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"app_resources_expressions": {
 							Computed:      true,
-							Description:   "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Each expression is a desugared AppResource rule and can also express certain rules AppResource cannot.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Description:   "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},

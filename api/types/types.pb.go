@@ -11075,9 +11075,8 @@ type RoleConditions struct {
 	AppResources []AppResource `protobuf:"bytes,52,rep,name=AppResources,proto3" json:"app_resources,omitempty"`
 	// AppResourcesExpressions is a list of predicates controlling access to
 	// an app's resources on each HTTP request. It is valid only in role
-	// version v9 and above, and only under allow. Each expression is a
-	// desugared AppResource rule and can also express certain rules
-	// AppResource cannot.
+	// version v9 and above, and only under allow. Every AppResource rule can
+	// be written as an expression, but not the reverse.
 	//
 	// This version does not implement app_resources_expressions and rejects
 	// a role that sets it. The field is declared so that version skew or a
@@ -11138,7 +11137,7 @@ type AppResource struct {
 	//
 	// This version declares the field but rejects a rule that sets it.
 	Paths []string `protobuf:"bytes,1,rep,name=Paths,proto3" json:"paths,omitempty"`
-	// Methods narrows the rule to the listed HTTP methods, matched
+	// Methods are the HTTP methods the rule matches, compared
 	// case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH,
 	// DELETE, OPTIONS, and TRACE. An empty list matches any of them.
 	//
