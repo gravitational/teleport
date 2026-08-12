@@ -262,9 +262,8 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-const noEnd = "\x00"
-
-// RangeEnd returns end of the range for given key.
+// RangeEnd returns end of the range for given key. It returns a zero
+// key if no end exists which backends will reject as invalid.
 func RangeEnd(key Key) Key {
 	end := make([]byte, len(key.s))
 	copy(end, key.s)
@@ -276,7 +275,7 @@ func RangeEnd(key Key) Key {
 		}
 	}
 	// next key does not exist (e.g., 0xffff);
-	return Key{noEnd: true}
+	return Key{}
 }
 
 // HostID is a derivation of a KeyedItem that allows the host id
