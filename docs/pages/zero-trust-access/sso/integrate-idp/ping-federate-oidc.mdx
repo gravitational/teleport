@@ -153,7 +153,7 @@ spec:
 ```
 
 This example grants the `ubuntu` and `ec2-user` logins to anyone with the
-`developer` role.If you'd rather grant a login that matches each user's own 
+`developer` role. If you'd rather grant a login that matches each user's own 
 Teleport username instead of a fixed list, you can add `{{user.metadata.name}}`
 to the logins list. This variable requires Teleport v18.7.6 or later.
 
