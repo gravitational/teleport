@@ -1,4 +1,4 @@
-.version: &version "18.10.0"
+.version: &version "18.0.0-dev.gzdunek.17"
 
 name: tbot-spiffe-daemon-set
 apiVersion: v2
