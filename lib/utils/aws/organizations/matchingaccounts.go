@@ -25,9 +25,14 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/gravitational/trace"
+
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
@@ -50,6 +55,9 @@ type OrganizationsClient interface {
 	organizations.ListRootsAPIClient
 	organizations.ListAccountsForParentAPIClient
 }
+
+// ClientGetter gets an AWS Organizations client built from the given AWS config options.
+type ClientGetter func(ctx context.Context, opts ...awsconfig.OptionsFn) (OrganizationsClient, error)
 
 type awsOrgItem struct {
 	id                  string
@@ -93,22 +101,51 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 	return nil
 }
 
-// MatchingAccounts returns the list of account IDs that are part of the organization and match the filter.
-// Every OU in ExcludeOUs is excluded from the results, including its children OUs.
-func MatchingAccounts(ctx context.Context, log *slog.Logger, orgsClient OrganizationsClient, filter MatchingAccountsFilter) ([]string, error) {
-	if err := filter.checkAndSetDefaults(); err != nil {
+// MatchedAccounts holds the accounts of an AWS Organization that match a filter.
+type MatchedAccounts struct {
+	// Partition is the AWS partition the organization lives in, read from the ARN
+	// of its root.
+	Partition string
+
+	// AccountIDs are the active accounts that match the filter.
+	AccountIDs []string
+}
+
+// AssumeRoleARNs returns the ARN of the IAM role named roleName in each matched
+// account. Account discovery resolves these ARNs before any region is known, so
+// the partition comes from the organization rather than from a region.
+func (m MatchedAccounts) AssumeRoleARNs(roleName string) ([]string, error) {
+	if err := awsapiutils.IsValidIAMRoleName(roleName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	orgTree, err := buildOrgTree(ctx, orgsClient, filter)
+	roleARNs := make([]string, 0, len(m.AccountIDs))
+	for _, accountID := range m.AccountIDs {
+		roleARNs = append(roleARNs, awsutils.RoleARN(m.Partition, accountID, roleName))
+	}
+
+	return roleARNs, nil
+}
+
+// MatchingAccounts returns the accounts that are part of the organization and match the filter.
+// Every OU in ExcludeOUs is excluded from the results, including its children OUs.
+func MatchingAccounts(ctx context.Context, log *slog.Logger, orgsClient OrganizationsClient, filter MatchingAccountsFilter) (MatchedAccounts, error) {
+	if err := filter.checkAndSetDefaults(); err != nil {
+		return MatchedAccounts{}, trace.Wrap(err)
+	}
+
+	orgTree, partition, err := buildOrgTree(ctx, orgsClient, filter)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return MatchedAccounts{}, trace.Wrap(err)
 	}
 
 	includedActiveAccounts, includedNotActiveAccounts := collectIncludedAccounts(orgTree, filter, nil)
 	logNotActiveAccountsAreIgnored(ctx, log, filter.OrganizationID, includedNotActiveAccounts)
 
-	return includedActiveAccounts, nil
+	return MatchedAccounts{
+		Partition:  partition,
+		AccountIDs: includedActiveAccounts,
+	}, nil
 }
 
 func collectIncludedAccounts(orgItem *awsOrgItem, filter MatchingAccountsFilter, accountOUAncestors []string) (activeAccounts []string, notActiveAccounts []string) {
@@ -153,13 +190,15 @@ func logNotActiveAccountsAreIgnored(ctx context.Context, log *slog.Logger, organ
 // Max OU depth is 5 levels.
 // At most there will be 2000 OUs in an AWS Organization.
 // At most there will be 10 accounts, but that's configurable.
-func buildOrgTree(ctx context.Context, orgsClient OrganizationsClient, filter MatchingAccountsFilter) (*awsOrgItem, error) {
+// buildOrgTree returns the organization's OU tree and the AWS partition the
+// organization lives in.
+func buildOrgTree(ctx context.Context, orgsClient OrganizationsClient, filter MatchingAccountsFilter) (*awsOrgItem, string, error) {
 	paginator := organizations.NewListRootsPaginator(orgsClient, &organizations.ListRootsInput{})
 	var roots []organizationstypes.Root
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 		roots = append(roots, page.Roots...)
 	}
@@ -167,24 +206,29 @@ func buildOrgTree(ctx context.Context, orgsClient OrganizationsClient, filter Ma
 	// AWS Docs state that:
 	// > You can have only one root. AWS Organizations automatically creates the root for you when you create an organization.
 	if len(roots) != 1 {
-		return nil, trace.BadParameter("expected exactly one root organizational unit, got %d", len(roots))
+		return nil, "", trace.BadParameter("expected exactly one root organizational unit, got %d", len(roots))
 	}
 	root := roots[0]
 
-	rootsOrganization, err := organizationIDFromRootOUARN(aws.ToString(root.Arn))
+	rootARN, err := arn.Parse(aws.ToString(root.Arn))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
+	}
+
+	rootsOrganization, err := organizationIDFromARN(rootARN, "root")
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 	if rootsOrganization != filter.OrganizationID {
-		return nil, trace.BadParameter("the AWS Organizations client is not part of the expected Organization %s", filter.OrganizationID)
+		return nil, "", trace.BadParameter("the AWS Organizations client is not part of the expected Organization %s", filter.OrganizationID)
 	}
 
 	rootOU, err := organizationalUnitDetails(ctx, orgsClient, aws.ToString(root.Id), filter.ExcludeOUs)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	return rootOU, nil
+	return rootOU, rootARN.Partition, nil
 }
 
 func organizationalUnitDetails(ctx context.Context, orgsClient OrganizationsClient, ouID string, excludedOUs []string) (*awsOrgItem, error) {
