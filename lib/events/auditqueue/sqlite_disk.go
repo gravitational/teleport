@@ -46,6 +46,7 @@ const (
 	tmpDirSuffix              = ".tmp"
 	defaultSoftLimit          = 100 * 1024 * 1024 // 100 MiB
 	softLimitCheckInterval    = time.Minute
+	defaultStatsInterval      = 15 * time.Second
 
 	initQueueDirMaxAttempts = 10
 	initQueueDirRetryDelay  = 50 * time.Millisecond
@@ -146,6 +147,7 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 
 	q.wg.Go(q.softLimitLoop)
 	q.wg.Go(q.vacuumLoop)
+	q.wg.Go(q.statsLoop)
 
 	return q, nil
 }
@@ -559,8 +561,8 @@ func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name stri
 
 func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
 	return q.migrateOrphanTable(ctx, orphan, name, auditQueueTable,
-		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
-		"INSERT INTO audit_queue (payload, attempts) VALUES (?, ?)",
+		"SELECT id, payload, attempts, enqueued_at FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_queue (payload, attempts, enqueued_at) VALUES (?, ?, ?)",
 	)
 }
 
@@ -709,6 +711,10 @@ func (q *sqliteQueue) Close() error {
 	q.closeOnce.Do(func() {
 		q.cancel()
 		q.wg.Wait()
+
+		label := filepath.Base(q.path)
+		queuePending.DeleteLabelValues(label)
+		queueDeadLetter.DeleteLabelValues(label)
 
 		// Flush the WAL file.
 		if _, err := q.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
