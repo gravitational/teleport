@@ -650,6 +650,18 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 				traceErrCheck: trace.IsBadParameter,
 				errMsg:        "app.name: is required",
 			},
+			"missing scope rejected": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					TlsPublicKey: tlsPubKeyPEM,
+					Ttl:          durationpb.New(requestedTTL),
+					App: issuancev1pb.UsageApp_builder{
+						Name:  "test-app",
+						Scope: "",
+					}.Build(),
+				}.Build(),
+				traceErrCheck: trace.IsBadParameter,
+				errMsg:        "app.scope",
+			},
 			"invalid scope rejected": {
 				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
 					TlsPublicKey: tlsPubKeyPEM,
