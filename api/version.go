@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.7.26"
+const Version = "17.7.26-dev-aadc.signbckprt.1"
 
 const VersionMajor = 17
 const VersionMinor = 7
 const VersionPatch = 26
-const VersionPreRelease = ""
+const VersionPreRelease = "dev-aadc.signbckprt.1"
 const VersionMetadata = ""
