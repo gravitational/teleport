@@ -499,3 +499,49 @@ func goldenTest(t *testing.T, resource tfgen.Resource, opts ...tfgen.GenerateOpt
 		),
 	)
 }
+
+func TestGenerate_AccessListWithScope(t *testing.T) {
+	t.Parallel()
+
+	al, err := accesslist.NewAccessListWithScope(
+		header.Metadata{Name: "some-access-list"},
+		accesslist.Spec{
+			Title:       "My Access List",
+			Description: "An example scoped access list",
+			Owners: []accesslist.Owner{
+				{Name: "llama", Description: "some description"},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
+				Recurrence: accesslist.Recurrence{
+					Frequency:  accesslist.ThreeMonths,
+					DayOfMonth: accesslist.FirstDayOfMonth,
+				},
+			},
+		},
+		"/some/scope",
+	)
+	require.NoError(t, err)
+
+	alProto := tfgen.WrapHeaderResource(accesslistconv.ToProto(al))
+	goldenTest(t, alProto)
+}
+
+func TestGenerate_AccessListMemberWithScope(t *testing.T) {
+	t.Parallel()
+
+	member, err := accesslist.NewAccessListMemberWithScope(
+		header.Metadata{Name: "some-member"},
+		accesslist.AccessListMemberSpec{
+			AccessList: "some-id",
+			Name:       "some-member",
+			Reason:     "some reason",
+			AddedBy:    "admin",
+		},
+		"/some/member-scope",
+	)
+	require.NoError(t, err)
+
+	memProto := tfgen.WrapHeaderResource(accesslistconv.ToMemberProto(member))
+	goldenTest(t, memProto)
+}

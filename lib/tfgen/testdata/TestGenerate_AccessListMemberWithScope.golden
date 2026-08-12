@@ -1,0 +1,19 @@
+resource "teleport_access_list_member" "some-member" {
+  scope = "/some/member-scope"
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "some-member"
+    }
+  }
+
+  spec = {
+    access_list       = "some-id"
+    name              = "some-member"
+    reason            = "some reason"
+    added_by          = "admin"
+    ineligible_status = "0"
+    membership_kind   = "1"
+  }
+}
