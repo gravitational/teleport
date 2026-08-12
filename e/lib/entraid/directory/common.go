@@ -9,6 +9,14 @@ import (
 // entraUniqueID is the Entra ID resource object ID.
 type entraUniqueID string
 
+// accessListName is the resource name of the Access List.
+type accessListName string
+
+// String returns the string representation of accessListName.
+func (n accessListName) String() string {
+	return string(n)
+}
+
 // FriendlySyncMode converts [mdmsync.SyncMode] to `full` and `delta` string literals.
 func FriendlySyncMode(mode mdmsync.SyncMode) string {
 	switch mode {

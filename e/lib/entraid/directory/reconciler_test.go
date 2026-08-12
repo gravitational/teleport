@@ -7,6 +7,7 @@ import (
 	"iter"
 	"net/http"
 	"net/url"
+	"path"
 	"sort"
 	"strconv"
 	"sync"
@@ -222,7 +223,10 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamCEntra := newEntraGroup(t, uuid.NewString(), "Team C")
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
-	_, teamCTeleport, err := convertGroup(teamCEntra, env.cfg.TenantID, env.cfg.DefaultOwners)
+	nameResolver := aclNameResolver{
+		namesByID: make(aclNamesByGroupID), // fresh map to force new acl names.
+	}
+	_, teamCTeleport, err := convertGroup(teamCEntra, env.cfg.TenantID, env.cfg.DefaultOwners, nameResolver)
 	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 
@@ -333,7 +337,8 @@ func TestDirectoryReconciler(t *testing.T) {
 		require.Equal(t, aliceUPN, aliceMember.GetName())
 		require.Equal(t, accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(), aliceMember.Spec.MembershipKind)
 
-		require.Equal(t, accessListName(*subgroup.DisplayName, *subgroup.ID), subGroupMember.GetName())
+		subgroupAccessList := requireAccessListForEntraGroupExists(t, env.aclSvc, subgroup)
+		require.Equal(t, subgroupAccessList.GetName(), subGroupMember.GetName())
 		require.Equal(t, accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), subGroupMember.Spec.MembershipKind)
 	})
 
@@ -1726,6 +1731,7 @@ func TestUnknownFilter(t *testing.T) {
 
 	requireAccessListCount(t, env.aclSvc, 4)
 	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+	g1ACLName := al1.GetName()
 	al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
 	al3 := requireAccessListForEntraGroupExists(t, env.aclSvc, g3)
 	_ = requireAccessListForEntraGroupExists(t, env.aclSvc, g4)
@@ -1740,9 +1746,9 @@ func TestUnknownFilter(t *testing.T) {
 	// that are already synced to Teleport before the
 	// introduction of an "unknown" filter.
 
-	// Of the 4 test groups we started with, mock that
-	// group g2 is deleted, but two new groups g5 and g6
-	// are added in Entra ID.
+	// Of the 4 test groups we started with, mock that group g1 display is
+	// updated, g2 is deleted, but two new groups g5 and g6 are added in Entra ID.
+	g1.DisplayName = to.Ptr("g1-renamed")
 	g5 := newEntraGroup(t, "g5", "drum")
 	g6 := newEntraGroup(t, "g6", "eagle")
 	newGroup := []*models.Group{g1, g3, g4, g5, g6}
@@ -1775,6 +1781,10 @@ func TestUnknownFilter(t *testing.T) {
 	al1 = requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
 	al3 = requireAccessListForEntraGroupExists(t, env.aclSvc, g3)
 	_ = requireAccessListForEntraGroupExists(t, env.aclSvc, g4)
+
+	// g1 display name updated but the ACL name remains the same and should be matched.
+	require.Equal(t, g1ACLName, al1.GetName())
+	require.Equal(t, "g1-renamed", al1.Spec.Title)
 
 	requireMembersCount(t, env.aclSvc, 3)
 	requireMemberExists(t, env.aclSvc, al1, "alice@example.com")
@@ -2286,4 +2296,282 @@ func TestUserReconcilerGoroutineLimit(t *testing.T) {
 			)
 		})
 	})
+}
+
+// TestDirectoryReconciler_AccessListName exercises the following
+// test cases:
+//   - Access List names are unique and cannot collide.
+//   - Updating group display names have no effect on Access List resoruce names.
+//   - Rolling out the patch with genAccessListName does not churn resource names
+//     of existing Entra Access Lists.
+//
+// Subtests share the same state and is not expected to run independently.
+func TestDirectoryReconciler_AccessListName(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	const (
+		// legacyGroup1 and legacyGroup2 mimics existing Entra ID Access Lists
+		// that are created by using now deleted Access List name function.
+		// The older method used immutable group ID with mutable display name
+		// value, and joined the values using path.Join. That caused unnecessary
+		// resource name change when display name is updated and was also
+		// vulnerable to create collision prone names.
+		// The test below should prove that this existing resource name must be
+		// preserved in a subsequent full or delta sync, even when display name
+		// is updated.
+		legacyGroup1ID      = "ac43ee82-ecfc-4c4d-ad62-c69f1e7b888f"
+		legacyGroup1Display = "legacyGroup1Display"
+		legacyGroup2ID      = "37829c52-ff61-4a13-b159-0a4dbbe65a72"
+		legacyGroup2Display = "legacyGroup2Display"
+	)
+
+	legacyGroup1ACLName := deprecatedAccessListName(legacyGroup1Display, legacyGroup1ID)
+	legacyGroup2ACLName := deprecatedAccessListName(legacyGroup2Display, legacyGroup2ID)
+	// simulate legacy name collision with spoofed display name, legacyGroup2 -> legacyGroup1
+	spoofedLegacy2Display := fmt.Sprintf("../%s/%s", legacyGroup1ID, legacyGroup1Display)
+	require.Equal(t, legacyGroup1ACLName, deprecatedAccessListName(spoofedLegacy2Display, legacyGroup2ID))
+
+	// group1 mimics group that is created using the new accessListName function
+	// that uses immutable tenant ID and group ID as the seed of the UUID
+	// function, which is more stable to create collision free names.
+	const (
+		group1ID          = "2ff863b1-3b12-4118-a98d-8ec135fb0496"
+		group1DisplayName = "group1DisplayName"
+	)
+	group1ACLName := genAccessListName(tenantID, group1ID).String()
+
+	for _, mode := range []mdmsync.SyncMode{mdmsync.SyncModeFull, mdmsync.SyncModePartial} {
+		t.Run(FriendlySyncMode(mode), func(t *testing.T) {
+			// Shared fixtures defined in msgraphtest server.
+			defaultFakeUsers := msgraphtest.NewDefaultStorage().Users
+			alice := defaultFakeUsers[msgraphtest.AliceID]
+			bob := defaultFakeUsers[msgraphtest.BobID]
+			carol := defaultFakeUsers[msgraphtest.CarolID]
+
+			// Entra groups.
+			legacyGroup1 := msgraphtest.NewEntraGroup(legacyGroup1ID, legacyGroup1Display)
+			legacyGroup2 := msgraphtest.NewEntraGroup(legacyGroup2ID, legacyGroup2Display)
+			group1 := msgraphtest.NewEntraGroup(group1ID, group1DisplayName)
+
+			// Build fake Graph API storage.
+			storage := msgraphtest.NewStorage()
+			storage.Applications = msgraphtest.NewDefaultStorage().Applications
+			storage.Users = defaultFakeUsers
+
+			storage.Groups[legacyGroup1ID] = legacyGroup1
+			storage.GroupMembers[legacyGroup1ID] = []models.GroupMember{alice}
+
+			storage.Groups[legacyGroup2ID] = legacyGroup2
+			storage.GroupMembers[legacyGroup2ID] = []models.GroupMember{carol}
+
+			storage.Groups[group1ID] = group1
+			storage.GroupMembers[group1ID] = []models.GroupMember{bob}
+
+			// Test env.
+			env := newFakeEnv(t, withFakeEnvStorage(storage))
+			if mode == mdmsync.SyncModePartial {
+				env.cfg.DeltaSyncEnabled = true
+			}
+
+			expectACL := func(t *testing.T, group *models.Group, groupID, groupDisplay, aclName string, member *models.User) {
+				t.Helper()
+
+				accessList := requireAccessListForEntraGroupExists(t, env.aclSvc, group)
+				require.Equal(t, aclName, accessList.GetName())
+				require.Equal(t, groupID, accessList.GetAllLabels()[types.EntraUniqueIDLabel])
+				require.Equal(t, groupDisplay, accessList.Spec.Title)
+				require.Equal(t, []string{groupID}, accessList.Spec.Grants.Traits[eteleport.EntraMemberOfGroupTrait])
+
+				requireMemberExists(t, env.aclSvc, accessList, *member.Mail)
+			}
+
+			// Manually create Access List for legacy group to create its name
+			// using older deprecatedAccessListName function.
+
+			nameResolver := aclNameResolver{
+				namesByID: aclNamesByGroupID{
+					entraUniqueID(legacyGroup1ID): accessListName(legacyGroup1ACLName),
+					entraUniqueID(legacyGroup2ID): accessListName(legacyGroup2ACLName),
+				},
+			}
+			_, legacyGroup1ACL, err := convertGroup(legacyGroup1, tenantID, env.cfg.DefaultOwners, nameResolver)
+			require.NoError(t, err)
+			_, err = env.aclSvc.UpsertAccessList(ctx, legacyGroup1ACL)
+			require.NoError(t, err)
+
+			_, legacyGroup2ACL, err := convertGroup(legacyGroup2, tenantID, env.cfg.DefaultOwners, nameResolver)
+			require.NoError(t, err)
+			_, err = env.aclSvc.UpsertAccessList(ctx, legacyGroup2ACL)
+			require.NoError(t, err)
+
+			// New directory reconciler.
+			reconciler, err := New(env.cfg)
+			require.NoError(t, err)
+
+			// First sync, is always full sync.
+			result, err := reconciler.Reconcile(ctx, mdmsync.SyncModeFull)
+			require.NoError(t, err)
+			require.NoError(t, result.ErrSkippedResources)
+			require.Equal(t, 3, result.ImportedGroups)
+
+			// Expect legacyGroup1,legacyGroup2 and group1 ACL to have been reconciled.
+			requireAccessListCount(t, env.aclSvc, 3)
+			requireMembersCount(t, env.aclSvc, 3)
+			expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1Display, legacyGroup1ACLName, alice) // legacy name preserved
+			expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol) // legacy name preserved
+			expectACL(t, group1, group1ID, group1DisplayName, group1ACLName, bob)
+
+			// Subsequent sync.
+
+			const group1UpdatedDisplay = "group1-display-updated"
+
+			// group1UpdatedDisplay := new(string)
+
+			t.Run("in-cache group with new name, preserves acl name on display update", func(t *testing.T) {
+				// group1.DisplayName = new(string)
+				*group1.DisplayName = group1UpdatedDisplay
+				// *group1.DisplayName = group1UpdatedDisplay
+				env.fakeGraphServer.SetGroups([]*models.Group{group1})
+
+				result, err := reconciler.Reconcile(ctx, mode)
+				require.NoError(t, err)
+				require.NoError(t, result.ErrSkippedResources)
+				require.Equal(t, 3, result.ImportedGroups)
+
+				requireAccessListCount(t, env.aclSvc, 3)
+				requireMembersCount(t, env.aclSvc, 3)
+
+				// legacyGroup1 and legacyGroup2 should remain unchanged.
+				expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1Display, legacyGroup1ACLName, alice)
+				expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol)
+				expectACL(t, group1, group1ID, group1UpdatedDisplay, group1ACLName, bob)
+			})
+
+			// Subsequent sync with updated legacyGroup1's display.
+			const legacyGroup1UpdatedDisplayName = "legacy-abc-updated"
+
+			t.Run("in-cache group with deprecatedAccessListName, preserves acl name on display update", func(t *testing.T) {
+				legacyGroup1.DisplayName = to.Ptr(legacyGroup1UpdatedDisplayName)
+				env.fakeGraphServer.SetGroups([]*models.Group{legacyGroup1})
+
+				result, err := reconciler.Reconcile(ctx, mode)
+				require.NoError(t, err)
+				require.NoError(t, result.ErrSkippedResources)
+				require.Equal(t, 3, result.ImportedGroups)
+
+				requireAccessListCount(t, env.aclSvc, 3)
+				requireMembersCount(t, env.aclSvc, 3)
+
+				// legacyGroup1 display updated. legacyGroup2 and group1 remains unchanged.
+				expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1UpdatedDisplayName, legacyGroup1ACLName, alice)
+				expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol)
+				expectACL(t, group1, group1ID, group1UpdatedDisplay, group1ACLName, bob)
+			})
+
+			// Check for name collision legacyGroup1 -> legacyGroup2.
+			const legacyGroup1SpoofedDisplayName = "../" + legacyGroup2ID + "/" + legacyGroup2Display
+
+			t.Run("in-cache with deprecatedAccessListName, spoofing group with deprecatedAccessListName", func(t *testing.T) {
+				legacyGroup1.DisplayName = to.Ptr(legacyGroup1SpoofedDisplayName)
+				env.fakeGraphServer.SetGroups([]*models.Group{legacyGroup1})
+
+				result, err := reconciler.Reconcile(ctx, mode)
+				require.NoError(t, err)
+				require.NoError(t, result.ErrSkippedResources)
+				require.Equal(t, 3, result.ImportedGroups)
+
+				requireAccessListCount(t, env.aclSvc, 3)
+				requireMembersCount(t, env.aclSvc, 3)
+
+				// Only legacyGroup1 title is updated, acl resource names of both legacyGroup1 and legacyGroup2 remains the same.
+				expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1SpoofedDisplayName, legacyGroup1ACLName, alice)
+				expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol)
+				expectACL(t, group1, group1ID, group1UpdatedDisplay, group1ACLName, bob)
+			})
+
+			// Check for name collision group1 -> legacyGroup2
+			const group1SpoofedDisplayName = "../" + legacyGroup2ID + "/" + legacyGroup2Display
+
+			t.Run("in-cache with group with new name spoofing legacy name", func(t *testing.T) {
+				group1.DisplayName = to.Ptr(group1SpoofedDisplayName)
+				env.fakeGraphServer.SetGroups([]*models.Group{group1})
+
+				result, err := reconciler.Reconcile(ctx, mode)
+				require.NoError(t, err)
+				require.NoError(t, result.ErrSkippedResources)
+				require.Equal(t, 3, result.ImportedGroups)
+
+				requireAccessListCount(t, env.aclSvc, 3)
+				requireMembersCount(t, env.aclSvc, 3)
+
+				// Only group1 title is updated, acl resource names of both group1 and legacyGroup2 remains the same.
+				expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1SpoofedDisplayName, legacyGroup1ACLName, alice)
+				expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol)
+				expectACL(t, group1, group1ID, group1SpoofedDisplayName, group1ACLName, bob)
+			})
+
+			// Check for name collision new fresh group group2 -> legacyGroup2
+			const (
+				group2ID          = "de6bac54-84bd-4848-b9ba-24e2fe46a0a2"
+				group2DisplayName = "../" + legacyGroup2ID + "/" + legacyGroup2Display
+			)
+			group2ACLName := genAccessListName(tenantID, group2ID).String()
+			group2 := msgraphtest.NewEntraGroup(group2ID, group2DisplayName)
+
+			t.Run("new group spoofing group id and display (target legacy naming)", func(t *testing.T) {
+				// Sanity check that the payload would otherwise collide.
+				require.Equal(t, legacyGroup2ACLName, deprecatedAccessListName(group2DisplayName, group2ID))
+
+				env.fakeGraphServer.SetGroups([]*models.Group{group2})
+				env.fakeGraphServer.SetGroupMembers(group2ID, []models.GroupMember{alice})
+
+				result, err := reconciler.Reconcile(ctx, mode)
+				require.NoError(t, err)
+				require.NoError(t, result.ErrSkippedResources)
+				require.Equal(t, 4, result.ImportedGroups)
+
+				requireAccessListCount(t, env.aclSvc, 4)
+				requireMembersCount(t, env.aclSvc, 4)
+
+				// group2 should be created, existing Access Lists should remain intact.
+				expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1SpoofedDisplayName, legacyGroup1ACLName, alice)
+				expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol)
+				expectACL(t, group1, group1ID, group1SpoofedDisplayName, group1ACLName, bob)
+				expectACL(t, group2, group2ID, group2DisplayName, group2ACLName, alice)
+			})
+
+			// Check for name collision new fresh group group3 -> group1ID spoofing new format.
+			const (
+				group3ID          = "c910a899-0665-4a9b-829e-5a9984263e5a"
+				group3DisplayName = "../" + tenantID + "/" + group1ID // v2 seed syntax.
+			)
+
+			t.Run("new group spoofing tenant and group id (target newer naming)", func(t *testing.T) {
+				// Sanity check that the payload would otherwise collide.
+				require.Equal(t, tenantID+"/"+group1ID, path.Join(group3ID, group3DisplayName))
+
+				group3ACLName := genAccessListName(tenantID, group3ID).String()
+				group3 := msgraphtest.NewEntraGroup(group3ID, group3DisplayName)
+				env.fakeGraphServer.SetGroups([]*models.Group{group3})
+				env.fakeGraphServer.SetGroupMembers(group3ID, []models.GroupMember{carol})
+
+				result, err := reconciler.Reconcile(ctx, mode)
+				require.NoError(t, err)
+				require.NoError(t, result.ErrSkippedResources)
+				require.Equal(t, 5, result.ImportedGroups)
+
+				requireAccessListCount(t, env.aclSvc, 5)
+				requireMembersCount(t, env.aclSvc, 5)
+
+				// group3 should be created, existing Access Lists should remain intact.
+				expectACL(t, legacyGroup1, legacyGroup1ID, legacyGroup1SpoofedDisplayName, legacyGroup1ACLName, alice)
+				expectACL(t, legacyGroup2, legacyGroup2ID, legacyGroup2Display, legacyGroup2ACLName, carol)
+				expectACL(t, group1, group1ID, group1SpoofedDisplayName, group1ACLName, bob)
+				expectACL(t, group2, group2ID, group2DisplayName, group2ACLName, alice)
+				expectACL(t, group3, group3ID, group3DisplayName, group3ACLName, carol)
+			})
+		})
+	}
 }

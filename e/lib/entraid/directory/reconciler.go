@@ -294,7 +294,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	}
 
 	start := r.clock.Now()
-	entraGroupResp, err := r.getEntraGroupsAndMembers(ctx, syncMode, teleportState)
+	aclNamesByID := genACLNamesByGroupID(ctx, r.logger, teleportAccessListsWithMembersMap)
+	entraGroupMatcher, err := r.buildGroupFilterMatcher(ctx, aclNamesByID)
+	if err != nil {
+		return result, trace.Wrap(err)
+	}
+
+	entraGroupResp, err := r.getEntraGroupsAndMembers(ctx, syncMode, teleportState, entraGroupMatcher)
 	r.errSkippedResources.groups = append(r.errSkippedResources.groups, entraGroupResp.errSkippedGroups...)
 	if err != nil {
 		return result, trace.Wrap(err)
@@ -307,6 +313,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	entraGroups := entraGroups{
 		groupsMap:       entraGroupResp.groupsMap,
 		groupMembersMap: entraGroupResp.groupMembersMap,
+	}
+	if syncMode == mdmsync.SyncModeFull {
+		r.reportLegacyCollisions(ctx, entraGroupResp.groupsMap)
 	}
 
 	start = r.clock.Now()
@@ -339,7 +348,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 		defaultOwners: r.defaultOwners,
 		source:        r.accessListOwnersSource,
 	}
-	entraAccessListsWithMembersMap, errSkipped := entraGroups.toAccessListsWithMembers(ctx, r.tenantID, usersByEntraID, aclOwnersCfg)
+	entraAccessListsWithMembersMap, errSkipped := entraGroups.toAccessListsWithMembers(ctx, r.tenantID, usersByEntraID, aclOwnersCfg, aclNamesByID)
 	r.errSkippedResources.groups = slices.Concat(r.errSkippedResources.groups, errSkipped.groups)
 	r.errSkippedResources.groupMembers = slices.Concat(r.errSkippedResources.groupMembers, errSkipped.groupMembers)
 	if err := r.reconcileAccessLists(ctx,
@@ -371,12 +380,9 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	ctx context.Context,
 	syncMode mdmsync.SyncMode,
 	teleportState teleportEntraDirectoryState,
+	entraGroupMatcher func(g *models.Group) bool,
 ) (listEntraGroupsAndMembersResponse, error) {
 	var out listEntraGroupsAndMembersResponse
-	entraGroupMatcher, err := r.buildGroupFilterMatcher(ctx, teleportState.accessListsMap)
-	if err != nil {
-		return out, trace.Wrap(err)
-	}
 
 	if syncMode == mdmsync.SyncModePartial {
 		start := r.clock.Now()
@@ -788,7 +794,7 @@ func getGroupNameBuilderFunc(app *models.Application) (bool, func(*models.Group)
 
 func (r *Reconciler) buildGroupFilterMatcher(
 	ctx context.Context,
-	accessListMap map[string]*accessListWithMembers,
+	aclNamesByID aclNamesByGroupID,
 ) (func(g *models.Group) bool, error) {
 	useLocalGroupMatcher := false
 	groupFilterMatcher := groupFilterMatcher(r.groupsFilter)
@@ -810,7 +816,7 @@ func (r *Reconciler) buildGroupFilterMatcher(
 	}
 
 	if useLocalGroupMatcher {
-		groupFilterMatcher = groupLocalMatcher(accessListMap)
+		groupFilterMatcher = groupLocalMatcher(aclNamesByID)
 	}
 
 	return groupFilterMatcher, nil
@@ -832,11 +838,10 @@ func groupFilterMatcher(
 // groupLocalMatcher matches group with an existing
 // Entra ID Access List in Teleport.
 func groupLocalMatcher(
-	inACLMap map[string]*accessListWithMembers,
+	aclNamesByID aclNamesByGroupID,
 ) func(g *models.Group) bool {
 	return func(g *models.Group) bool {
-		aclName := accessListName(*g.DisplayName, *g.ID)
-		_, ok := inACLMap[aclName]
+		_, ok := aclNamesByID[entraUniqueID(*g.ID)]
 		return ok
 	}
 }
@@ -901,4 +906,22 @@ func userReconcilerGoroutineLimit(numEntraUsers, numTeleportUsers int, shouldBeS
 	// Updating 20k users with [maxReconcilerGoroutineLimit] goroutine
 	// takes less than two minutes.
 	return maxReconcilerGoroutineLimit
+}
+
+// reportLegacyCollisions checks for legacy Access List name collisions and
+// logs Access List and group IDs if collision is found. This only detects
+// collisions on the active groups currently discovered in the Entra ID.
+// TODO(sshah): Report generated warnings via plugin status UI.
+func (r *Reconciler) reportLegacyCollisions(ctx context.Context, groups groupsByID) {
+	collisions := detectLegacyCollisions(groups)
+	if len(collisions) == 0 {
+		return
+	}
+	for aclName, groups := range collisions {
+		r.logger.WarnContext(ctx,
+			"Potential legacy Entra ID Access List name collision detected, review for incident response",
+			"access_list_name", aclName,
+			"entra_group_ids", groups,
+		)
+	}
 }

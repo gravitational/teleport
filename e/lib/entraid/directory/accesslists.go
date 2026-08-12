@@ -59,15 +59,19 @@ func (g entraGroups) toAccessListsWithMembers(
 	tenantID string,
 	usersByEntraID map[entraUniqueID]types.User,
 	aclOwnersCfg aclOwnersConfig,
+	aclNamesByEntraID aclNamesByGroupID,
 ) (map[string]*accessListWithMembers, errSkippedResources) {
 	var errSkippedResources errSkippedResources
 	aclsWithMembersMap := make(map[string]*accessListWithMembers)
 	accessListsById := make(map[entraUniqueID]*accesslist.AccessList)
 	var errGroups, errGroupMembers error
 
+	nameResolver := aclNameResolver{
+		namesByID: aclNamesByEntraID,
+	}
 	for _, group := range g.groupsMap {
 		owners := aclOwnersCfg.getOwners(ctx, group, usersByEntraID)
-		entraUniqueID, al, err := convertGroup(group, tenantID, owners)
+		entraUniqueID, al, err := convertGroup(group, tenantID, owners, nameResolver)
 		if err != nil {
 			errGroups = errors.Join(errGroups, trace.Wrap(err))
 			continue
@@ -113,7 +117,7 @@ func (g entraGroups) toAccessListsWithMembers(
 	return aclsWithMembersMap, errSkippedResources
 }
 
-func convertGroup(in *models.Group, tenantID string, owners []accesslist.Owner) (entraUniqueID, *accesslist.AccessList, error) {
+func convertGroup(in *models.Group, tenantID string, owners []accesslist.Owner, nameResolver aclNameResolver) (entraUniqueID, *accesslist.AccessList, error) {
 	if err := validateGroup(in); err != nil {
 		return "", nil, trace.Wrap(err)
 	}
@@ -122,7 +126,7 @@ func convertGroup(in *models.Group, tenantID string, owners []accesslist.Owner) 
 
 	out, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: accessListName(displayName, id),
+			Name: nameResolver.resolve(tenantID, entraUniqueID(id)).String(),
 		},
 		accesslist.Spec{
 			Title:  displayName,
@@ -302,17 +306,60 @@ func (cfg aclOwnersConfig) getOwners(ctx context.Context, group *models.Group, u
 	}
 }
 
-// uuidNamespace is the namespace used for generating UUIDs for access lists.
-// It is a UUID derived from the string "entraid".
-var uuidNamespace = uuid.NewSHA1(uuid.Nil, []byte("entraid"))
+type aclNameResolver struct {
+	namesByID aclNamesByGroupID
+}
 
-func accessListName(displayName string, id string) string {
-	p := path.Join(id, displayName)
-	// generate a UUID from the path to ensure uniqueness
+// resolve resolves Access List name of the Entra ID group.
+func (r aclNameResolver) resolve(tenantID string, groupID entraUniqueID) accessListName {
+	if name, ok := r.namesByID[groupID]; ok {
+		// Return current name for existing Entra ID Access Lists.
+		return name
+	}
+
+	// New Access List, needs a new name.
+	return genAccessListName(tenantID, string(groupID))
+}
+
+// aclNamesByGroupID is a map of Access Lists where map key is the Entra ID
+// group's ID and the value is its Access List's resource name counterpart.
+type aclNamesByGroupID map[entraUniqueID]accessListName
+
+// genACLNamesByGroupID returns Access Lists names keyed by Entra group ID.
+func genACLNamesByGroupID(ctx context.Context, logger *slog.Logger, in map[string]*accessListWithMembers) aclNamesByGroupID {
+	out := make(aclNamesByGroupID, len(in))
+
+	for name, acl := range in {
+		groupID, ok := acl.AccessList.GetLabel(types.EntraUniqueIDLabel)
+		if !ok || groupID == "" {
+			// Empty ID shouldn't happen unless the user manually deletes the label.
+			logger.WarnContext(ctx,
+				"Entra ID Access List missing group ID label, a new Access List will be generated if the corresponding group still exist in Entra ID",
+				"access_list", name,
+			)
+			continue
+		}
+
+		out[entraUniqueID(groupID)] = accessListName(name)
+	}
+
+	return out
+}
+
+// uuidNamespace is the namespace used for generating UUIDs for access lists.
+// It is a UUID derived from the string "entraid-v2".
+// "v2" because this supersedes older namespace of "entraid"
+var uuidNamespace = uuid.NewSHA1(uuid.Nil, []byte("entraid-v2"))
+
+// genAccessListName generates a unique Access List resource name
+// derived from immutable Entra ID tenant ID and group ID.
+func genAccessListName(tenantID, groupID string) accessListName {
+	seed := tenantID + "/" + groupID
+	// Generate a UUID from the seed to ensure uniqueness
 	// and to avoid collisions with other access lists.
 	// This is necessary because access list names are used as keys in the backend
 	// and must be unique and deterministic.
-	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
+	return accessListName(uuid.NewSHA1(uuidNamespace, []byte(seed)).String())
 }
 
 func unwindGroupMembership(in entraGroups) map[string][]string {
@@ -713,4 +760,33 @@ func (s nestedEdgeSet) contains(acl, member string) bool {
 		member:     member,
 	}]
 	return ok
+}
+
+// detectLegacyCollisions returns groups whose Access List names are collided
+// in the legacy Access List name settings.
+func detectLegacyCollisions(groups groupsByID) map[string][]entraUniqueID {
+	collisions := make(map[string][]entraUniqueID)
+	aclNamesCandidates := make(map[string]entraUniqueID)
+	for groupID, group := range groups {
+		legacyName := deprecatedAccessListName(*group.DisplayName, string(groupID))
+		firstGroupID, ok := aclNamesCandidates[legacyName]
+		if !ok {
+			aclNamesCandidates[legacyName] = groupID
+			continue
+		}
+		if collisions[legacyName] == nil {
+			collisions[legacyName] = []entraUniqueID{firstGroupID}
+		}
+		collisions[legacyName] = append(collisions[legacyName], groupID)
+	}
+	return collisions
+}
+
+// deprecatedAccessListName is the exact replica of the older acessListName function.
+// Warning: this is unsafe function and use only where matching Access List of the
+// older naming format is necessary.
+func deprecatedAccessListName(displayName string, id string) string {
+	uuidNamespace := uuid.NewSHA1(uuid.Nil, []byte("entraid"))
+	p := path.Join(id, displayName)
+	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
 }

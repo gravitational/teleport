@@ -408,7 +408,7 @@ func TestProcessGroupDelta(t *testing.T) {
 			// Convert Entra user, group and members to Teleport access list.
 			// This mimics existing Entra resource already synced to Teleport,
 			// i.e. after a first full sync.
-			teleportALMMap, _ := entraGroupMaps.toAccessListsWithMembers(ctx, tenantID, entraUsers, ownerConfig)
+			teleportALMMap, _ := entraGroupMaps.toAccessListsWithMembers(ctx, tenantID, entraUsers, ownerConfig, nil /* generate a new acl name */)
 			teleportUsers := make(map[string]types.User)
 			for _, v := range entraUsers {
 				teleportUsers[v.GetName()] = v

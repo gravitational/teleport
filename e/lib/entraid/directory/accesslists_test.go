@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -315,11 +316,11 @@ func valToPTR[T any](v T) *T {
 
 // Test_accessListName tests the accessListName function
 // to ensure that it generates a consistent name for an access list
-// based on the display name and ID.
+// based on the tenant ID and group ID.
 func Test_accessListName(t *testing.T) {
 	type args struct {
-		displayName string
-		id          string
+		tenantID string
+		groupID  string
 	}
 	tests := []struct {
 		name string
@@ -327,33 +328,25 @@ func Test_accessListName(t *testing.T) {
 		want string
 	}{
 		{
-			name: "valid display name",
+			name: "tenant and group id",
 			args: args{
-				displayName: "test",
-				id:          "123",
+				tenantID: "df8ac2aa-2e0b-5fcf-b2cb-f5e210c994a3",
+				groupID:  "a76a00bd-bc8e-51f5-afbd-81cf8ee5632f",
 			},
-			want: "a76a00bd-bc8e-51f5-afbd-81cf8ee5632f",
+			want: "9de9d997-5878-5ceb-8fab-352d7dc3c77c",
 		},
 		{
-			name: "invalid display name",
+			name: "empty", // not possible in production
 			args: args{
-				displayName: "test[]^!#$",
-				id:          "123",
+				tenantID: "",
+				groupID:  "",
 			},
-			want: "df8ac2aa-2e0b-5fcf-b2cb-f5e210c994a3",
-		},
-		{
-			name: "empty",
-			args: args{
-				displayName: "",
-				id:          "",
-			},
-			want: "1f81d2df-49d5-53d5-b54a-cb9680d84e1e",
+			want: "cc71007b-7c2c-5bca-8466-a062e67c64f7",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := accessListName(tt.args.displayName, tt.args.id)
+			got := genAccessListName(tt.args.tenantID, tt.args.groupID).String()
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -709,4 +702,79 @@ func newAccessListWithMembers(name string, memberNames []string) *accessListWith
 		AccessList: al,
 		Members:    members,
 	}
+}
+
+// New accessListName prevents name collision. But before this patch goes out,
+// it is possible to create group display with the payload "../victimTenantID/victimGroupID",
+// trying to pre seed acl name that may collide even with the new name.
+// The test below proves that such collision cannot happen because of updated
+// UUID namespace.
+func TestAccessListNamespace(t *testing.T) {
+	const (
+		tenantID        = "1684dd44-e722-4103-9d58-d50cd82a3b05"
+		victimGroupID   = "a54a910f-0009-41f9-a339-a983d27b62c9"
+		attackerGroupID = "0017cc3f-8f7e-4aa8-9d65-bc89ebd7b2bb"
+	)
+
+	attackerDisplayName := "../" + tenantID + "/" + victimGroupID
+
+	require.NotEqual(
+		t,
+		deprecatedAccessListName(attackerDisplayName, attackerGroupID),
+		genAccessListName(tenantID, victimGroupID),
+	)
+}
+
+func TestDetectLegacyCollisions(t *testing.T) {
+	const (
+		victimID      = "30e89208-e4db-421d-b275-a315b021dae3"
+		victimDisplay = "groupA"
+
+		// Two attacker groups targeting one victim.
+		attackerID       = "0bc5cbc0-2cbf-4e30-bacb-f275c766d83c"
+		attackerDisplay  = "../" + victimID + "/" + victimDisplay
+		attacker2ID      = "94a64392-5cb0-4fa0-89b8-c6e2ade2d1f9"
+		attacker2Display = "../" + victimID + "/" + victimDisplay
+
+		otherID      = "5810cf99-e247-4224-9513-82e2307acc82"
+		otherDisplay = "other-group"
+	)
+
+	groups := groupsByID{
+		entraUniqueID(victimID): {
+			DirectoryObject: models.DirectoryObject{
+				ID:          to.Ptr(victimID),
+				DisplayName: to.Ptr(victimDisplay),
+			},
+		},
+		entraUniqueID(attackerID): {
+			DirectoryObject: models.DirectoryObject{
+				ID:          to.Ptr(attackerID),
+				DisplayName: to.Ptr(attackerDisplay),
+			},
+		},
+		entraUniqueID(attacker2ID): {
+			DirectoryObject: models.DirectoryObject{
+				ID:          to.Ptr(attacker2ID),
+				DisplayName: to.Ptr(attacker2Display),
+			},
+		},
+		entraUniqueID(otherID): {
+			DirectoryObject: models.DirectoryObject{
+				ID:          to.Ptr(otherID),
+				DisplayName: to.Ptr(otherDisplay),
+			},
+		},
+	}
+
+	aclName := deprecatedAccessListName(victimDisplay, victimID)
+	collisions := detectLegacyCollisions(groups)
+
+	require.Len(t, collisions, 1)
+	expectedGroups := []entraUniqueID{
+		entraUniqueID(victimID),
+		entraUniqueID(attackerID),
+		entraUniqueID(attacker2ID),
+	}
+	require.ElementsMatch(t, expectedGroups, collisions[aclName])
 }
