@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -1106,6 +1108,61 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 }
 
+type mockUsageReporter struct {
+	changedEvents []*usagereporter.DiscoveryConfigChangedEvent
+}
+
+func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	for _, e := range events {
+		if changed, ok := e.(*usagereporter.DiscoveryConfigChangedEvent); ok {
+			m.changedEvents = append(m.changedEvents, changed)
+		}
+	}
+}
+
+func TestIntegrationDeleteEmitsConfigChange(t *testing.T) {
+	t.Parallel()
+	clusterName := "test-cluster"
+
+	ca := newCertAuthority(t, types.HostCA, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, "127.0.0.1.nip.io")
+	reporter := resourceSvc.usageReporter.(*mockUsageReporter)
+
+	igName := uuid.NewString()
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: igName},
+		&types.AWSOIDCIntegrationSpecV1{RoleARN: "arn:aws:iam::123456789012:role/OpsTeam"},
+	)
+	require.NoError(t, err)
+	_, err = localClient.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+	require.NoError(t, err)
+
+	adminCtx := authorizerForAdminUser(t, ctx, cascadeDeleteRole, localClient)
+
+	_, err = resourceSvc.DeleteIntegration(adminCtx, integrationpb.DeleteIntegrationRequest_builder{
+		Name:                      igName,
+		DeleteAssociatedResources: true,
+	}.Build())
+	require.NoError(t, err)
+
+	require.Equal(t, []*usagereporter.DiscoveryConfigChangedEvent{{
+		DiscoveryConfigName: igName,
+		DiscoveryGroup:      igName,
+		IntegrationNames:    []string{igName},
+		Action:              prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE,
+		MatcherTypes: []prehogv1a.DiscoveryMatcherType{
+			prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_EC2,
+		},
+		MatcherProviders: []prehogv1a.CloudProvider{
+			prehogv1a.CloudProvider_CLOUD_PROVIDER_AWS,
+		},
+		ClientKind: prehogv1a.ClientKind_CLIENT_KIND_UNKNOWN,
+	}}, reporter.changedEvents)
+}
+
 // authorizerForDummyUser creates a user context without admin MFA verification.
 func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
 	t.Helper()
@@ -1342,6 +1399,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
 		Modules:         modulestest.EnterpriseModules(),
+		UsageReporter:   &mockUsageReporter{},
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{
 				Version:         1,

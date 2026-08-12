@@ -32,11 +32,14 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -108,7 +111,7 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 
 	// Delete discovery_configs created by this integration
 	var configsRequireCleanup []string
-	var configsToDelete []string
+	var configsToDelete []*discoveryconfig.DiscoveryConfig
 
 	for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
 		if err != nil {
@@ -127,7 +130,7 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 			_, err := uuid.Parse(config.GetName())
 
 			if err == nil {
-				configsToDelete = append(configsToDelete, config.GetName())
+				configsToDelete = append(configsToDelete, config)
 				continue
 			}
 		}
@@ -142,16 +145,22 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 			ig.GetName(), strings.Join(configsRequireCleanup, ", "))
 	}
 
-	for _, configName := range configsToDelete {
+	for _, config := range configsToDelete {
 		s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
-			"discovery_config", configName,
+			"discovery_config", config.GetName(),
 			"integration", ig.GetName())
 
-		err := s.backend.DeleteDiscoveryConfig(ctx, configName)
+		err := s.backend.DeleteDiscoveryConfig(ctx, config.GetName())
 
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			continue
 		}
+
+		s.usageReporter.AnonymizeAndSubmit(usagereporter.NewDiscoveryConfigChangedEvent(ctx, config,
+			prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE))
 	}
 
 	// Delete AWS access app_server associated with this integration

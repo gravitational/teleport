@@ -39,6 +39,7 @@ import (
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -220,6 +221,7 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	}
 
 	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+	s.emitConfigChangedUsageEvent(ctx, resp, prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_CREATE)
 
 	return conv.ToProto(resp), nil
 }
@@ -268,6 +270,7 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	}
 
 	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_UPDATE)
+	s.emitConfigChangedUsageEvent(ctx, resp, prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_UPDATE)
 
 	return conv.ToProto(resp), nil
 }
@@ -313,6 +316,7 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	}
 
 	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+	s.emitConfigChangedUsageEvent(ctx, resp, prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_UPSERT)
 
 	return conv.ToProto(resp), nil
 }
@@ -356,6 +360,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	if dc != nil {
 		s.emitUsageEvent(dc, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_DELETE)
+		s.emitConfigChangedUsageEvent(ctx, dc, prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -372,9 +377,15 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 		return nil, trace.Wrap(err)
 	}
 
+	// The backend delete does not report which configs it removed, so the events
+	// are built first. Config changes during the deletion are missed.
+	usageEvents := s.buildDeleteUsageEvents(ctx)
+
 	if err := s.backend.DeleteAllDiscoveryConfigs(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.usageReporter.AnonymizeAndSubmit(usageEvents...)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigDeleteAll{
 		Metadata: apievents.Metadata{
@@ -421,6 +432,27 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 
 		return conv.ToProto(resp), nil
 	}
+}
+
+// buildDeleteUsageEvents builds a delete event per DiscoveryConfig.
+func (s *Service) buildDeleteUsageEvents(ctx context.Context) []usagereporter.Anonymizable {
+	var usageEvents []usagereporter.Anonymizable
+	for dc, err := range clientutils.Resources(ctx, s.backend.ListDiscoveryConfigs) {
+		if err != nil {
+			s.log.WarnContext(ctx, "Failed to list discovery configs, delete usage events will be missing for the remaining configs.",
+				"error", err)
+			break
+		}
+
+		usageEvents = append(usageEvents, usagereporter.NewDiscoveryConfigChangedEvent(ctx, dc,
+			prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE))
+	}
+
+	return usageEvents
+}
+
+func (s *Service) emitConfigChangedUsageEvent(ctx context.Context, dc *discoveryconfig.DiscoveryConfig, action prehogv1a.DiscoveryConfigChangeAction) {
+	s.usageReporter.AnonymizeAndSubmit(usagereporter.NewDiscoveryConfigChangedEvent(ctx, dc, action))
 }
 
 // emitUsageEvent emits a DiscoveryConfigEvent usage event.
