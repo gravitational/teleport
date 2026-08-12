@@ -121,7 +121,7 @@ extension RotatingFileWriter {
 	/// Appends the record to the currently active file.
 	/// - Parameter record: The record to write to disk.
 	private func append(record: String) throws {
-		let record = truncateRecordIfNeeded(Data(record.utf8))
+		let record = truncateRecordIfNeeded(Data("\(record)\n".utf8))
 		try openActiveFileIfNeeded()
 		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 

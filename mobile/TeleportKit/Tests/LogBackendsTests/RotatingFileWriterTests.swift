@@ -28,12 +28,26 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "first\n")
-			writer.enqueue(logMessage: "second\n")
+			writer.enqueue(logMessage: "first")
+			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
 			#expect(contents == "first\nsecond\n")
+		}
+	}
+
+	@Test
+	func `writer appends a newline even if log message already ends in a newline`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let writer = makeWriter(fileURL: fileURL)
+
+			writer.enqueue(logMessage: "message\n")
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == "message\n\n")
 		}
 	}
 
@@ -43,10 +57,10 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "first\n")
+			writer.enqueue(logMessage: "first")
 			try await writer.flush()
 
-			writer.enqueue(logMessage: "second\n")
+			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
@@ -60,7 +74,7 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "nested/logs/events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "record\n")
+			writer.enqueue(logMessage: "record")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
@@ -75,7 +89,7 @@ struct RotatingFileWriterTests {
 			try Data("existing\n".utf8).write(to: fileURL)
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "new\n")
+			writer.enqueue(logMessage: "new")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
@@ -91,7 +105,7 @@ struct RotatingFileWriterTests {
 			try Data("123\n".utf8).write(to: fileURL)
 			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
 
-			writer.enqueue(logMessage: "45\n")
+			writer.enqueue(logMessage: "45")
 			try await writer.flush()
 
 			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
@@ -108,7 +122,7 @@ struct RotatingFileWriterTests {
 			try Data("123\n".utf8).write(to: fileURL)
 			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
 
-			writer.enqueue(logMessage: "456\n")
+			writer.enqueue(logMessage: "456")
 			try await writer.flush()
 
 			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
@@ -131,7 +145,7 @@ struct RotatingFileWriterTests {
 			try Data("third archive\n".utf8).write(to: thirdArchiveURL)
 			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 8)
 
-			writer.enqueue(logMessage: "new\n")
+			writer.enqueue(logMessage: "new")
 			try await writer.flush()
 
 			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
