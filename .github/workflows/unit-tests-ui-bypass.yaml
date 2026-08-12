@@ -25,6 +25,7 @@ on:
       - 'tsconfig.json'
       - 'tsconfig.node.json'
       - 'jest.config.js'
+      - 'vitest.config.mts'
   merge_group:
     paths-ignore:
       - '.github/workflows/unit-tests-ui.yaml'
@@ -38,6 +39,7 @@ on:
       - 'tsconfig.json'
       - 'tsconfig.node.json'
       - 'jest.config.js'
+      - 'vitest.config.mts'
 
 jobs:
   lint:
