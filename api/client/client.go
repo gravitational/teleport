@@ -2667,22 +2667,6 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 	return resp, nil
 }
 
-// GetTokens returns a list of active provision tokens for nodes and users.
-// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-// TODO(hugoShaka): DELETE IN 19.0.0
-func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{}) //nolint:staticcheck // Provides backward compatibility, will be removed later.
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
-	for i, token := range resp.ProvisionTokens {
-		tokens[i] = token
-	}
-	return tokens, nil
-}
-
 // GetStaticTokens returns the cluster static tokens.
 func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
 	tokens, err := c.grpc.GetStaticTokens(ctx, &emptypb.Empty{})
