@@ -532,7 +532,8 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		// Note that AdditionalProperties cannot be set: if it's non-nil, all
 		// child fields get pruned regardless of `XPreserveUnknownFields`, which
 		// in practice means nested structs get pruned or rejected at runtime.
-		prop.XPreserveUnknownFields = new(true)
+		v := true
+		prop.XPreserveUnknownFields = &v
 	case field.IsMessage():
 		inner := field.TypeMessage()
 		if inner == nil {
