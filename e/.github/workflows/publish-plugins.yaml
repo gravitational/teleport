@@ -24,6 +24,21 @@ on:
         type: string
         default: stage/publish
 
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      teleport-version:
+        type: string
+      environment:
+        type: string
+        default: stage/publish
+
 jobs:
   publish:
     # Larger runner is used for additional disk space, see

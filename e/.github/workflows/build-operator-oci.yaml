@@ -34,12 +34,32 @@ on:
           `stage/build` or `prod/build`.
         type: string
         default: stage/build
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: "gravitational/teleport"
+      oss-teleport-ref:
+        required: true
+        type: string
+      teleport-version:
+        type: string
+      architectures:
+        type: string
+        default: "amd64 arm64 arm"
+      environment:
+        type: string
+        default: stage/build
 
 jobs:
   build-image:
     name: Build OCI Images
     runs-on: ubuntu-22.04-16core
     environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master

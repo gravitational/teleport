@@ -22,6 +22,22 @@ on:
         description: "Environment to build and upload the package to"
         type: string
         required: true
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        required: false
+        default: "gravitational/teleport"
+        type: string
+      oss-teleport-ref:
+        required: true
+        type: string
+      artifact-version:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: true
 
 jobs:
   build:

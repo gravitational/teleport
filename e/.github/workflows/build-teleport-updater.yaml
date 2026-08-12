@@ -16,6 +16,16 @@ on:
           `stage/build` or `prod/build`.
         type: string
         default: stage/build
+  
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      updater-version:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: stage/build
 env:
   DEBIAN_FRONTEND: noninteractive
   VERSION_CHANNEL: cloud

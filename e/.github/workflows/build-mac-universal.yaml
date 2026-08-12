@@ -41,6 +41,29 @@ on:
           `stage/build` or `prod/build`.
         type: string
         default: stage/build
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        required: false
+        default: "gravitational/teleport"
+        type: string
+      oss-teleport-ref:
+        required: true
+        type: string
+      release:
+        required: true
+        type: string
+      release-version:
+        type: string
+        default: ""
+      build-packages:
+        required: false
+        type: boolean
+        default: false
+      environment:
+        type: string
+        default: stage/build
 
 jobs:
   build-release-artifacts:
