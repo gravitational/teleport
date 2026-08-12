@@ -362,6 +362,10 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 	var reader io.Reader
 	if rc.filename == "" {
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			return trace.BadParameter("no file specified or input via stdin")
+		}
 		reader = os.Stdin
 	} else {
 		f, err := utils.OpenFileAllowingUnsafeLinks(rc.filename)
