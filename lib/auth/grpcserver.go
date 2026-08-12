@@ -2358,7 +2358,8 @@ func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clie
 	role.Version = types.V8
 
 	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
-	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) {
+	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) ||
+		len(role.Spec.Allow.AppResourcesExpressions) > 0 || len(role.Spec.Deny.AppResourcesExpressions) > 0 {
 		if denyDowngradedAppAccess(role) {
 			slog.WarnContext(ctx,
 				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
@@ -2368,6 +2369,8 @@ func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clie
 	}
 	role.Spec.Allow.AppResources = nil
 	role.Spec.Deny.AppResources = nil
+	role.Spec.Allow.AppResourcesExpressions = nil
+	role.Spec.Deny.AppResourcesExpressions = nil
 
 	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
 	if role.Metadata.Labels == nil {
