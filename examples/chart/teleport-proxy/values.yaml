@@ -2,10 +2,13 @@
 # Values that must always be provided by the user.
 ##################################################
 
-# clusterName(string) -- controls the name used to refer to the Teleport cluster, along with
-# the externally-facing public address to use to access it. In most setups this must
-# be a fully-qualified domain name (e.g. `teleport.example.com`) as this value is
-# used as the cluster's public address by default.
+# clusterName(string) -- MUST match the clusterName used by the Teleport Auth
+# service ([clusterName in the teleport-cluster chart](../../reference/helm-reference/teleport-cluster.mxd#clustername)
+# / [auth_service.cluster_name in the Auth Service config](../../reference/deployment/config/#auth-service))
+# It controls the name this proxy will use to refer to the Teleport cluster,
+# along with the externally-facing public address to use to access it. In most
+# setups this must be a fully-qualified domain name (e.g. `teleport.example.com`)
+# as this value is used as the cluster's public address by default.
 #
 # Note: When using a fully qualified domain name as your `clusterName`, you will also
 # need to configure the DNS provider for this domain to point to the external
