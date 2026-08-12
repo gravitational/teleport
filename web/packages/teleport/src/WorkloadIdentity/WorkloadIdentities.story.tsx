@@ -70,9 +70,7 @@ export const NoListPermission: Story = {
   args: { hasListPermission: false },
   parameters: {
     msw: {
-      handlers: [
-        /* should never make a call */
-      ],
+      handlers: [/* should never make a call */],
     },
   },
 };

@@ -56,6 +56,7 @@ export const Keyboard = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-keyboard"
+
       {...otherProps}
       ref={ref}
     >

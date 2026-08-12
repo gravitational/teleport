@@ -56,6 +56,7 @@ export const BroadcastSlash = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-broadcastslash"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Warning = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-warning"
+
       {...otherProps}
       ref={ref}
     >

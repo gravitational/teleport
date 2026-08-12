@@ -56,6 +56,7 @@ export const SquaresFour = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-squaresfour"
+
       {...otherProps}
       ref={ref}
     >

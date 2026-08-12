@@ -56,6 +56,7 @@ export const Clock = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-clock"
+
       {...otherProps}
       ref={ref}
     >
