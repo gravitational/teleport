@@ -16,10 +16,10 @@
 
 import Dependencies
 import Foundation
+@testable import LogBackends
 import Logging
 import SystemClients
 import Testing
-@testable import LogBackends
 
 struct RotatingFileWriterTests {
 	@Test
@@ -136,6 +136,31 @@ struct RotatingFileWriterTests {
 	}
 
 	@Test
+	func `truncation preserves valid UTF-8`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 18)
+
+			// The letter `é` (U+00E9) encodes as two UTF-8 bytes (0xC3 0xA9). Only three bytes fit before the
+			// truncation marker, so if we implemented truncation as a raw byte prefix, we would keep only `12` and only
+			// the first byte of `é`. While 0xC3 is a valid leading byte, it's invalid UTF-8 on its own. So this test
+			// ensures that our truncation code is UTF-8 aware.
+			let record = "12é345678901234567"
+			let truncatedRecord = "12… [truncated]"
+
+			// These expectations are self-evident but I kept them here for clarity
+			#expect(record.utf8.count == 19)
+			#expect(truncatedRecord.utf8.count == 17)
+
+			writer.enqueue(logMessage: record)
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == truncatedRecord)
+		}
+	}
+
+	@Test
 	func `an append exceeding the size limit rotates the active file first`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
@@ -211,7 +236,7 @@ struct RotatingFileWriterTests {
 private func makeWriter(
 	fileURL: URL,
 	maximumFileSize: Int = 4 * 1024 * 1024,
-	maximumArchiveCount: Int = 3
+	maximumArchiveCount: Int = 3,
 ) -> RotatingFileWriter {
 	withDependencies {
 		$0.fileSystemClient = FileSystemClient.liveValue
@@ -220,8 +245,8 @@ private func makeWriter(
 			fileURL: fileURL,
 			configuration: .init(
 				maximumFileSize: maximumFileSize,
-				maximumArchiveCount: maximumArchiveCount
-			)
+				maximumArchiveCount: maximumArchiveCount,
+			),
 		)
 	}
 }
