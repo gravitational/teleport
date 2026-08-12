@@ -472,7 +472,9 @@ func TestWatchers(t *testing.T) {
 							SourceCluster: "root.example.com",
 							TargetCluster: "leaf.example.com",
 							Username:      "alice",
-							DeviceId:      "device-id",
+							MfaDevice: mfav2.MFADevice_builder{
+								Id: "device-id",
+							}.Build(),
 						}.Build(),
 					}.Build(),
 				)
@@ -508,7 +510,9 @@ func TestWatchers(t *testing.T) {
 						SourceCluster: "root.example.com",
 						TargetCluster: "leaf.example.com",
 						Username:      "alice",
-						DeviceId:      "device-id",
+						MfaDevice: mfav2.MFADevice_builder{
+							Id: "device-id",
+						}.Build(),
 					}.Build(),
 				}.Build())
 				require.NoError(subtestT, err)

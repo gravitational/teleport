@@ -1203,7 +1203,7 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 				SourceCluster: challenge.GetSpec().GetSourceCluster(),
 				TargetCluster: challenge.GetSpec().GetTargetCluster(),
 				Username:      challenge.GetSpec().GetUsername(),
-				DeviceId:      challenge.GetSpec().GetDeviceId(),
+				MfaDevice:     challenge.GetSpec().GetMfaDevice(),
 			}.Build(),
 		); err != nil && !trace.IsAlreadyExists(err) {
 			log.ErrorContext(

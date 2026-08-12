@@ -487,7 +487,7 @@ func replicateValidatedMFAChallengeRequest(
 		SourceCluster: chal.GetSpec().GetSourceCluster(),
 		TargetCluster: chal.GetSpec().GetTargetCluster(),
 		Username:      chal.GetSpec().GetUsername(),
-		DeviceId:      chal.GetSpec().GetDeviceId(),
+		MfaDevice:     chal.GetSpec().GetMfaDevice(),
 	}.Build()
 }
 
@@ -508,7 +508,9 @@ func newValidatedMFAChallenge(name string) *mfav2.ValidatedMFAChallenge {
 			SourceCluster: "root.example.com",
 			TargetCluster: "leaf.example.com",
 			Username:      "alice",
-			DeviceId:      "test-device-id",
+			MfaDevice: mfav2.MFADevice_builder{
+				Id: "test-device-id",
+			}.Build(),
 		}.Build(),
 	}.Build()
 }
