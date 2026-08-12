@@ -69,6 +69,56 @@ struct RotatingFileWriterTests {
 	}
 
 	@Test
+	func `writing appends to an existing active file`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			try Data("existing\n".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL)
+
+			writer.enqueue(logMessage: "new\n")
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == "existing\nnew\n")
+		}
+	}
+
+	@Test
+	func `an append reaching the exact size limit remains in the active file`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			try Data("123\n".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
+
+			writer.enqueue(logMessage: "45\n")
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == "123\n45\n")
+			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
+		}
+	}
+
+	@Test
+	func `an append exceeding the size limit rotates the active file first`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			try Data("123\n".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
+
+			writer.enqueue(logMessage: "456\n")
+			try await writer.flush()
+
+			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			let archiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
+			#expect(activeContents == "456\n")
+			#expect(archiveContents == "123\n")
+		}
+	}
+
+	@Test
 	func `handler sends its formatted record to the shared writer`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
@@ -96,10 +146,20 @@ struct RotatingFileWriterTests {
 	}
 }
 
-private func makeWriter(fileURL: URL) -> RotatingFileWriter {
+private func makeWriter(
+	fileURL: URL,
+	maximumFileSize: Int = 4 * 1024 * 1024,
+	maximumArchiveCount: Int = 3
+) -> RotatingFileWriter {
 	withDependencies {
 		$0.fileSystemClient = FileSystemClient.liveValue
 	} operation: {
-		RotatingFileWriter(fileURL: fileURL)
+		RotatingFileWriter(
+			fileURL: fileURL,
+			configuration: .init(
+				maximumFileSize: maximumFileSize,
+				maximumArchiveCount: maximumArchiveCount
+			)
+		)
 	}
 }

@@ -126,7 +126,10 @@ extension RotatingFileWriter {
 		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 
 		try fileState.withLock { fileState in
-			guard let fileClient = fileState.fileClient else { return }
+			guard let fileClient = fileState.fileClient else {
+				assertionFailure("Active file should be open before appending")
+				return
+			}
 			_ = try fileClient.seekToEnd()
 			try fileClient.write(data: record)
 		}
@@ -166,7 +169,57 @@ extension RotatingFileWriter {
 	/// maximum capacity.
 	/// - Parameter byteCount: The number of bytes we intend to append to the log file.
 	private func rotateActiveFileIfNeeded(forAppendingByteCount byteCount: Int) throws {
-		// TODO: Implement rotation
+		try fileState.withLock { fileState in
+			guard let fileClient = fileState.fileClient else {
+				assertionFailure("Active file should be open before checking whether to rotate")
+				return
+			}
+
+			let activeFileSize = try fileClient.seekToEnd()
+			let maximumFileSize = UInt64(configuration.maximumFileSize)
+			let appendingByteCount = UInt64(byteCount)
+
+			// Rotation should only proceed if the file is somehow already too large, or if appending the bytes would
+			// make the active file too big
+			let activeFileIsTooBig = activeFileSize > maximumFileSize
+			let appendingBytesWouldMakeTheFileTooBig = appendingByteCount > maximumFileSize - activeFileSize
+			guard activeFileIsTooBig || appendingBytesWouldMakeTheFileTooBig else {
+				return
+			}
+
+			// Rotation comes in N steps.
+
+			// 1. Ensure the file is written to disk
+			//
+			// Once written to disk, the we no longer need the file handle and can discard it.
+			try fileClient.synchronize()
+			try fileClient.close()
+			fileState.fileClient = nil
+
+			// 2. Rotate the older archived files, deleting the oldest one.
+			// TODO: Implement rotating older archived files.
+
+			// 3. Rename the file to archive it.
+			//
+			// Archives have the format: "\(originalFileName).\(ageCounter).\(originalExtension)" where `ageCounter`
+			// is an incrementing counter beginning at 1 and going to N, where N is the max number of archive files.
+			// The archive with ageCounter=1 is the newest archive, and where the active file gets rotated to.
+			let archiveFileName = [
+				activeFileURL.deletingPathExtension().lastPathComponent,
+				"1",
+				activeFileURL.pathExtension,
+			]
+			.filter { !$0.isEmpty }
+			.joined(separator: ".")
+			let archiveFileURL = activeFileURL
+				.deletingLastPathComponent()
+				.appending(path: archiveFileName)
+			try fileSystemClient.moveItem(activeFileURL, archiveFileURL)
+
+			// 4. Create a new active file, and retain the handle to it.
+			try fileSystemClient.createFile(activeFileURL, nil)
+			fileState.fileClient = try fileSystemClient.openFileForWriting(activeFileURL)
+		}
 	}
 
 	/// Flushes all pending writes to disk via the file handle, ensuring all records are persisted.
