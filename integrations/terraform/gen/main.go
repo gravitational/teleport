@@ -350,22 +350,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	sessionRecording = payload{
-		Name:                   "SessionRecordingConfig",
-		TypeName:               "SessionRecordingConfigV2",
-		VarName:                "sessionRecordingConfig",
-		GetMethod:              "GetSessionRecordingConfig",
-		CreateMethod:           "UpsertSessionRecordingConfig",
-		UpdateMethod:           "UpsertSessionRecordingConfig",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "ResetSessionRecordingConfig",
-		ID:                     `"session_recording_config"`,
-		Kind:                   "session_recording_config",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_session_recording_config",
-		HasCheckAndSetDefaults: true,
-	}
-
 	uiConfig = payload{
 		Name:                   "UIConfig",
 		TypeName:               "UIConfigV1",
@@ -743,8 +727,6 @@ func genTFSchema() {
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
-	generateResource(sessionRecording, singularResource)
-	generateDataSource(sessionRecording, singularDataSource)
 	generateResource(uiConfig, singularResource)
 	generateDataSource(uiConfig, singularDataSource)
 	generateResource(server, pluralResource)
