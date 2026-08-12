@@ -29,9 +29,7 @@ const Status = styled.div`
 `;
 
 const StyledButtonSecondary = styled(Button)`
-  background: ${p =>
-    p.theme.colors.interactive.tonal
-      .neutral[0]}; // when using as={Link}, a lot of the styles are overridden for some reason
+  background: ${p => p.theme.colors.interactive.tonal.neutral[0]}; // when using as={Link}, a lot of the styles are overridden for some reason
   font-weight: 500;
   font-size: 12px;
   height: 35px;

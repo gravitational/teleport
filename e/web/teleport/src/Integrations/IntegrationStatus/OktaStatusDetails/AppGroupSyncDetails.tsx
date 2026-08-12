@@ -105,7 +105,7 @@ export function AppGroupSyncDetails({
             <span
               css={`
                 @media screen and (max-width: ${p =>
-                    p.theme.breakpoints.tablet}) {
+                  p.theme.breakpoints.tablet}) {
                   border-left: none;
                   border-top: 1px solid ${p => p.theme.colors.spotBackground[2]};
                   width: 100%;
