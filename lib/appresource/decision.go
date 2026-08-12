@@ -77,9 +77,7 @@ type DenyDetails struct {
 	Hints []Hint
 }
 
-// decisionJSON is the flat wire form of a Decision: the Allow and Deny
-// details become top-level keys, matching the payload the audit event
-// and the tctl evaluate output carry.
+// decisionJSON is the flat wire form of a Decision.
 type decisionJSON struct {
 	Allowed        bool              `json:"allowed"`
 	EvaluatedRoles []string          `json:"evaluated_roles,omitempty"`

@@ -28,7 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-// validMethods are the HTTP methods a where clause evaluation accepts.
+// validMethods are the HTTP methods app access authorizes, in upper case:
+// the methods a rule may name and the methods an evaluation accepts on a
+// request. They are the request methods of RFC 9110 plus PATCH (RFC 5789)
+// and less CONNECT. A CONNECT request targets an authority rather than a
+// slash-path, so the tokenizer rejects it and a rule naming it could only
+// ever be a dead rule.
 var validMethods = []string{
 	http.MethodGet,
 	http.MethodHead,
@@ -233,15 +238,10 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 	return p
 }
 
-// predicate is a parsed, type-checked app-access predicate ready to
-// evaluate. A rule lowers to one predicate, and an
-// app_resources_expressions entry compiles to one directly.
-type predicate = typical.Expression[Env, bool]
-
 // compilePredicate parses and type-checks a predicate, and runs the
 // compile-time audit code validation. Unlike CompileWhere it accepts the
 // full predicate language, including the audit wrappers.
-func compilePredicate(expr string) (predicate, error) {
+func compilePredicate(expr string) (typical.Expression[Env, bool], error) {
 	pred, err := whereParser.Parse(expr)
 	if err != nil {
 		return nil, trace.BadParameter("compiling predicate %q: %v", expr, err)

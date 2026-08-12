@@ -37,59 +37,59 @@ func TestRuleValidate(t *testing.T) {
 		{
 			name:    "empty rule",
 			rule:    Rule{},
-			wantErr: "must set paths or unsafe_allow_all",
+			wantErr: "must set paths or allow_all",
 		},
 		{
 			name:    "present but empty paths",
 			rule:    Rule{Paths: []string{}},
-			wantErr: "must set paths or unsafe_allow_all",
+			wantErr: "must set paths or allow_all",
 		},
 		{
 			name: "paths alone",
 			rule: Rule{Paths: []string{"/api/**"}},
 		},
 		{
-			name: "unsafe_allow_all alone",
-			rule: Rule{UnsafeAllowAll: true},
+			name: "allow_all alone",
+			rule: Rule{AllowAll: true},
 		},
 		{
-			name:    "unsafe_allow_all with paths",
-			rule:    Rule{UnsafeAllowAll: true, Paths: []string{"/api/**"}},
+			name:    "allow_all with paths",
+			rule:    Rule{AllowAll: true, Paths: []string{"/api/**"}},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with methods",
-			rule:    Rule{UnsafeAllowAll: true, Methods: []string{"GET"}},
+			name:    "allow_all with methods",
+			rule:    Rule{AllowAll: true, Methods: []string{"GET"}},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with where",
-			rule:    Rule{UnsafeAllowAll: true, Where: "true"},
+			name:    "allow_all with where",
+			rule:    Rule{AllowAll: true, Where: "true"},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with allow_encoded",
-			rule:    Rule{UnsafeAllowAll: true, AllowEncoded: []string{"/"}},
+			name:    "allow_all with allow_encoded",
+			rule:    Rule{AllowAll: true, AllowEncoded: []string{"/"}},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with allow_code",
-			rule:    Rule{UnsafeAllowAll: true, AllowCode: "all"},
+			name:    "allow_all with allow_code",
+			rule:    Rule{AllowAll: true, AllowCode: "all"},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with allow_reason",
-			rule:    Rule{UnsafeAllowAll: true, AllowReason: "all"},
+			name:    "allow_all with allow_reason",
+			rule:    Rule{AllowAll: true, AllowReason: "all"},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with deny_code_hint",
-			rule:    Rule{UnsafeAllowAll: true, DenyCodeHint: "no"},
+			name:    "allow_all with deny_code_hint",
+			rule:    Rule{AllowAll: true, DenyCodeHint: "no"},
 			wantErr: "cannot be combined",
 		},
 		{
-			name:    "unsafe_allow_all with deny_reason_hint",
-			rule:    Rule{UnsafeAllowAll: true, DenyReasonHint: "no"},
+			name:    "allow_all with deny_reason_hint",
+			rule:    Rule{AllowAll: true, DenyReasonHint: "no"},
 			wantErr: "cannot be combined",
 		},
 		{
@@ -103,17 +103,17 @@ func TestRuleValidate(t *testing.T) {
 		{
 			name:    "typoed method",
 			rule:    Rule{Paths: []string{"/api/**"}, Methods: []string{"GTE"}},
-			wantErr: "not a standard HTTP method",
+			wantErr: "is not one of",
 		},
 		{
 			name:    "connect method",
 			rule:    Rule{Paths: []string{"/api/**"}, Methods: []string{"CONNECT"}},
-			wantErr: "not a standard HTTP method",
+			wantErr: "is not one of",
 		},
 		{
 			name:    "empty method name",
 			rule:    Rule{Paths: []string{"/api/**"}, Methods: []string{""}},
-			wantErr: "not a standard HTTP method",
+			wantErr: "is not one of",
 		},
 		{
 			name: "allow code and reason",
@@ -228,8 +228,8 @@ deny_reason_hint: "Project is not in the caller's allowlist"
 	require.NoError(t, r.validate())
 
 	var unsafeRule Rule
-	require.NoError(t, yaml.Unmarshal([]byte(`unsafe_allow_all: true`), &unsafeRule))
-	require.Equal(t, Rule{UnsafeAllowAll: true}, unsafeRule)
+	require.NoError(t, yaml.Unmarshal([]byte(`allow_all: true`), &unsafeRule))
+	require.Equal(t, Rule{AllowAll: true}, unsafeRule)
 	require.NoError(t, unsafeRule.validate())
 }
 

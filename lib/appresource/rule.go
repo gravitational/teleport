@@ -21,11 +21,14 @@ package appresource
 import (
 	"fmt"
 	"go/ast"
-	goparser "go/parser"
+	"go/parser"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // maxWhereBytes caps a sugared rule's where clause. The where compiles to
@@ -44,38 +47,27 @@ const maxExpressionBytes = 4 << 10 // 4 KiB
 // on every matching audit event, so the cap bounds the per-event payload.
 const maxReasonBytes = 1 << 10 // 1 KiB
 
-// Rule is one app_resources entry, the sugared declarative authoring
-// surface. It reads compactly for the common HTTP case and lowers to one
-// predicate: Paths matches the request path, Methods the request method,
-// and Where the caller identity and request. Where holds conditions over
-// the caller identity, the request, and the rule's captures, and may not
-// call path.match, so all path matching flows through Paths. A full
-// predicate that needs the matcher language directly is the separate
-// app_resources_expressions field, a list of predicate strings.
-//
-// AllowCode and AllowReason lower to an allow_code call wrapping the
-// rule, and DenyCodeHint and DenyReasonHint to a deny_hint call wrapping
-// the where, so each sugared field and its expression primitive share one
-// representation. A deny hint explains a near-miss, when the rule's path
-// and method matched but it did not allow.
+// Rule is one app_resources entry, the sugared authoring surface for
+// allowing HTTP requests to an app. A request matches a rule when its
+// path matches Paths, its method matches Methods, and Where holds. A rule
+// that needs the predicate language itself belongs in the separate
+// app_resources_expressions field.
 type Rule struct {
 	// Paths are declarative path patterns, OR-ed. A request matches on
 	// path if any pattern matches. A rule must set either Paths or
-	// UnsafeAllowAll, since a rule that scopes nothing by path would
-	// grant unrestricted access by accident. UnsafeAllowAll is the
-	// explicit way to ask for that.
+	// AllowAll, since a rule that scopes nothing by path would grant
+	// unrestricted access by accident. AllowAll is the explicit way to ask
+	// for that.
 	Paths []string `yaml:"paths,omitempty"`
 	// Methods are HTTP methods that further scope a Paths rule, OR-ed. If
 	// Methods is empty, any method is permitted. Otherwise the request
 	// method must appear in the list, matched case-insensitively: both the
 	// listed names and the request method are folded to upper case before
 	// the membership test, so a request sent as "get" matches a rule
-	// listing "GET". Names are validated against the standard HTTP methods
-	// (GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE). An unknown
-	// method is a load error, so a typo fails loudly rather than silently
-	// never matching. CONNECT is not a member: a CONNECT request targets
-	// an authority, not a slash-path, so the tokenizer rejects it and a
-	// rule listing CONNECT could never match.
+	// listing "GET". Names are validated against validMethods (GET, HEAD,
+	// POST, PUT, PATCH, DELETE, OPTIONS, TRACE). A name outside that list is
+	// a load error, so a typo fails loudly rather than silently never
+	// matching.
 	Methods []string `yaml:"methods,omitempty"`
 	// Where is a condition over the caller identity, the request, and this
 	// rule's captures. It does not match paths and may not call path.match.
@@ -100,7 +92,7 @@ type Rule struct {
 	// DenyReasonHint is the human-readable explanation emitted alongside
 	// DenyCodeHint.
 	DenyReasonHint string `yaml:"deny_reason_hint,omitempty"`
-	// UnsafeAllowAll grants unrestricted access to every path and method,
+	// AllowAll grants unrestricted access to every path and method,
 	// restoring the pre-v9 behavior where a role that granted an app
 	// granted all of it. It is the deliberate opt-out for when the safe
 	// path surface is too restrictive, such as traffic that carries
@@ -109,7 +101,7 @@ type Rule struct {
 	// would be rejected as malformed or unsafe is forwarded as-is. Because
 	// it is all-or-nothing, it cannot be combined with any other field.
 	// Setting it alongside one is a load error.
-	UnsafeAllowAll bool `yaml:"unsafe_allow_all,omitempty"`
+	AllowAll bool `yaml:"allow_all,omitempty"`
 }
 
 // validate checks a rule's structural constraints, the ones that decide
@@ -118,14 +110,14 @@ type Rule struct {
 // Value-level checks that the lowered predicate would itself reject, such
 // as a malformed path pattern, are left to compilation.
 func (r Rule) validate() error {
-	if r.UnsafeAllowAll {
-		return r.validateUnsafeAllowAllStandsAlone()
+	if r.AllowAll {
+		return r.validateAllowAllStandsAlone()
 	}
 	if len(r.Paths) == 0 {
 		// A present-but-empty list (paths: []) is treated as unset rather
 		// than silently allowed, so an author who clears the list gets a
 		// load error instead of an accidental unrestricted grant.
-		return trace.BadParameter("a rule must set paths or unsafe_allow_all")
+		return trace.BadParameter("a rule must set paths or allow_all")
 	}
 	if err := validateMethods(r.Methods); err != nil {
 		return trace.Wrap(err)
@@ -172,43 +164,28 @@ func (r Rule) validate() error {
 	return nil
 }
 
-// validateUnsafeAllowAllStandsAlone rejects an unsafe_allow_all rule that
-// also sets another field. unsafe_allow_all grants everything, so any
-// companion field is either redundant or a contradiction, and silently
-// ignoring it would hide an authoring mistake.
-func (r Rule) validateUnsafeAllowAllStandsAlone() error {
+// validateAllowAllStandsAlone rejects an allow_all rule that also sets
+// another field. allow_all grants everything, so any companion field is
+// either redundant or a contradiction, and silently ignoring it would hide
+// an authoring mistake.
+func (r Rule) validateAllowAllStandsAlone() error {
 	if len(r.Paths) > 0 || len(r.Methods) > 0 || r.Where != "" ||
 		len(r.AllowEncoded) > 0 || r.AllowCode != "" || r.AllowReason != "" ||
 		r.DenyCodeHint != "" || r.DenyReasonHint != "" {
-		return trace.BadParameter("unsafe_allow_all cannot be combined with any other field")
+		return trace.BadParameter("allow_all cannot be combined with any other field")
 	}
 	return nil
 }
 
-// standardMethods is the set of HTTP methods a rule may name, the request
-// methods defined by RFC 9110 less CONNECT. CONNECT is excluded
-// deliberately: it targets an authority rather than a slash-path, so the
-// tokenizer rejects a CONNECT request and a rule listing it could only
-// ever be a dead rule.
-var standardMethods = map[string]struct{}{
-	"GET":     {},
-	"HEAD":    {},
-	"POST":    {},
-	"PUT":     {},
-	"PATCH":   {},
-	"DELETE":  {},
-	"OPTIONS": {},
-	"TRACE":   {},
-}
-
-// validateMethods rejects a method that is not a standard HTTP method.
-// The comparison folds to upper case, matching methodClause, so "get" and
-// "GET" are the same method and a typo such as "GTE" fails at load rather
-// than compiling a rule that never matches.
+// validateMethods rejects a method a request can never carry, checked
+// against the same validMethods an evaluation accepts. The comparison
+// folds to upper case, matching methodClause, so "get" and "GET" are the
+// same method and a typo such as "GTE" fails at load rather than
+// compiling a rule that never matches.
 func validateMethods(methods []string) error {
 	for _, m := range methods {
-		if _, ok := standardMethods[strings.ToUpper(m)]; !ok {
-			return trace.BadParameter("method %q is not a standard HTTP method (GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE)", m)
+		if !slices.Contains(validMethods, strings.ToUpper(m)) {
+			return trace.BadParameter("method %q is not one of %s", m, strings.Join(validMethods, ", "))
 		}
 	}
 	return nil
@@ -236,12 +213,12 @@ func (r Rule) methodClause() string {
 // the clause parses as one self-contained expression, and that it does
 // not call path.match.
 //
-// The where uses the same Go expression syntax the engine parses, so this
-// reuses go/parser to walk the AST. A clause that does not parse on its
-// own is rejected rather than left to the engine, because the lowering
-// splices the clause into a larger predicate string, and an unbalanced
-// fragment that fails alone can parse inside the composite and change the
-// rule's structure.
+// The engine parses a predicate with go/parser, through typical and
+// vulcand/predicate, so the walk here reads the same AST from the same
+// parser. A clause that does not parse on its own is rejected rather than
+// left to the engine, because the lowering splices the clause into a
+// larger predicate string, and an unbalanced fragment that fails alone can
+// parse inside the composite and change the rule's structure.
 //
 // Path matching in the sugared form flows through paths, so the where
 // holds identity, request, and capture conditions only. A predicate that
@@ -254,7 +231,7 @@ func validateWhere(where string) error {
 	if len(where) > maxWhereBytes {
 		return trace.BadParameter("where clause is %d bytes, over the %d byte cap", len(where), maxWhereBytes)
 	}
-	parsed, err := goparser.ParseExpr(where)
+	parsed, err := parser.ParseExpr(where)
 	if err != nil {
 		return trace.BadParameter("where clause does not parse: %v", err)
 	}
@@ -288,7 +265,7 @@ func isPathMatch(call *ast.CallExpr) bool {
 // in deny_hint to contribute a near-miss hint, the same primitive the
 // sugared deny_code_hint lowers to, so an expression rule and a sugared
 // rule share one deny mechanism.
-func compileExpression(expr string) (predicate, error) {
+func compileExpression(expr string) (typical.Expression[Env, bool], error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, trace.BadParameter("an app_resources_expressions entry cannot be empty")
 	}

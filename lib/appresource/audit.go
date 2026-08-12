@@ -20,7 +20,7 @@ package appresource
 
 import (
 	"go/ast"
-	goparser "go/parser"
+	"go/parser"
 	"go/token"
 	"strconv"
 	"strings"
@@ -28,10 +28,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Hint is a near-miss reason recorded by deny_hint: the code and
-// reason of a wrapped condition that was reached and evaluated to
-// false. Under &&, that is the near-miss where the checks to its left
-// passed but this one did not.
+// Hint conveys why a request to an HTTP application was denied. A rule
+// records one through deny_hint, carrying the code and reason of a
+// condition that was reached and evaluated to false.
 type Hint struct {
 	Code   string
 	Reason string
@@ -69,11 +68,12 @@ func validateAuditCode(code string) error {
 // allow_reason and deny_reason_hint fields do. A dynamic reason is not
 // length-checked.
 //
-// The predicate uses the same Go expression syntax the engine parses,
-// so this reuses go/parser to walk the AST. An expression that does
-// not parse is left to the engine, which reports the parse error.
+// The engine parses a predicate with go/parser, through typical and
+// vulcand/predicate, so the walk here reads the same AST from the same
+// parser. An expression that does not parse is left to the engine, which
+// reports the parse error.
 func validateAuditCodes(expr string) error {
-	parsed, err := goparser.ParseExpr(expr)
+	parsed, err := parser.ParseExpr(expr)
 	if err != nil {
 		return nil
 	}
