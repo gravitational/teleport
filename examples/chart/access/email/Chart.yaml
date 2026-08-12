@@ -1,4 +1,4 @@
-.version: &version "18.10.2-dev.pki-domain-db.3"
+.version: &version "18.10.2-dev.pki-domain-db.4"
 
 apiVersion: v2
 name: teleport-plugin-email
