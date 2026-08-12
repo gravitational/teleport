@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Dependencies
+import DequeModule
 public import Foundation
 import Synchronization
 import SystemClients
@@ -204,7 +205,7 @@ extension RotatingFileWriter {
 	}
 
 	private struct Inbox {
-		var pendingItems: [PendingItem] = []
+		var pendingItems: Deque<PendingItem> = []
 		var processingState = ProcessingState.idle
 
 		/// Appends an item to the pendingItems queue and marks the inbox as scheduled for processing

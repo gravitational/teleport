@@ -13,6 +13,7 @@ let package = Package(
 		.package(url: "https://github.com/pointfreeco/swift-dependencies", .upToNextMajor(from: "1.14.0")),
 		.package(url: "https://github.com/pointfreeco/swift-sharing", .upToNextMajor(from: "2.9.1")),
 		.package(url: "https://github.com/apple/swift-log", .upToNextMajor(from: "1.14.0")),
+		.package(url: "https://github.com/apple/swift-collections", .upToNextMajor(from: "1.6.0")),
 	],
 	targets: [
 		.target(
@@ -26,6 +27,7 @@ let package = Package(
 		.target(
 			name: "LogBackends",
 			dependencies: [
+				.collections,
 				.logging,
 				.dependencies,
 				"SystemClients",
@@ -62,6 +64,10 @@ extension Target.Dependency {
 	fileprivate static let logging: Self = .product(
 		name: "Logging",
 		package: "swift-log",
+	)
+	fileprivate static let collections: Self = .product(
+		name: "Collections",
+		package: "swift-collections",
 	)
 }
 

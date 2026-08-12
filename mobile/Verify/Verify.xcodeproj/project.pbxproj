@@ -27,6 +27,8 @@
 		CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB12FFD55CC00E6CA87 /* GRDB */; };
 		CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */; };
 		CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */; };
+		CDEA38EA302CD5630004B164 /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = CDEA38E9302CD5630004B164 /* Collections */; };
+		CDEA38EC302CD5770004B164 /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = CDEA38EB302CD5770004B164 /* Collections */; };
 		CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7043022A9D4002E6773 /* LogBackends */; };
 		CDFCE7073022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7063022A9D4002E6773 /* LogBackends */; };
 /* End PBXBuildFile section */
@@ -112,6 +114,7 @@
 				CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */,
 				CD67F9B5302A76000043D017 /* DependenciesMacros in Frameworks */,
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
+				CDEA38EA302CD5630004B164 /* Collections in Frameworks */,
 				CD67F9B3302A76000043D017 /* Dependencies in Frameworks */,
 				CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */,
 				CD65C8012FF711CE002FB1CD /* IdentifiedCollections in Frameworks */,
@@ -124,6 +127,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDEA38EC302CD5770004B164 /* Collections in Frameworks */,
 				CD67F9B1302A74BD0043D017 /* Logging in Frameworks */,
 				CDFCE7073022A9D4002E6773 /* LogBackends in Frameworks */,
 				CD9AEFAE3022782900E2FC14 /* SystemClients in Frameworks */,
@@ -220,6 +224,7 @@
 				CD67F9AE302A74B20043D017 /* Logging */,
 				CD67F9B2302A76000043D017 /* Dependencies */,
 				CD67F9B4302A76000043D017 /* DependenciesMacros */,
+				CDEA38E9302CD5630004B164 /* Collections */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -250,6 +255,7 @@
 				CD9AEFAD3022782900E2FC14 /* SystemClients */,
 				CDFCE7063022A9D4002E6773 /* LogBackends */,
 				CD67F9B0302A74BD0043D017 /* Logging */,
+				CDEA38EB302CD5770004B164 /* Collections */,
 			);
 			productName = Core;
 			productReference = CD79991B2FE33AE000133048 /* Core.framework */;
@@ -323,6 +329,7 @@
 				CD920CEE301D13500027C579 /* XCRemoteSwiftPackageReference "swift-sharing" */,
 				CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */,
 				CD67F9AD302A74B20043D017 /* XCRemoteSwiftPackageReference "swift-log" */,
+				CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -949,6 +956,14 @@
 				minimumVersion = 0.63.3;
 			};
 		};
+		CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1041,6 +1056,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
 			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		CDEA38E9302CD5630004B164 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
+		};
+		CDEA38EB302CD5770004B164 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
 		};
 		CDFCE7043022A9D4002E6773 /* LogBackends */ = {
 			isa = XCSwiftPackageProductDependency;
