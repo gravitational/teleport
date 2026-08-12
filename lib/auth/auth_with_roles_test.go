@@ -14410,7 +14410,11 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	client, err := srv.NewClient(ident)
 	require.NoError(t, err)
 
-	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	const (
+		kubeClusterName = "kube-cluster"
+		kubeHostName    = "kube-host"
+	)
+	createKubeServer(t, srv.Auth(), []string{kubeClusterName}, kubeHostName, scope)
 
 	scopedApp, err := types.NewAppV3(types.Metadata{
 		Name:   "test-app",
@@ -14425,6 +14429,17 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
 	require.NoError(t, err)
 
+	// wait for kube server to appear in the unified resource cache, otherwise tests can be flaky
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for ks, err := range srv.Auth().UnifiedResourceCache.KubernetesServers(t.Context(), services.UnifiedResourcesIterateParams{}) {
+			require.NoError(collectT, err)
+			if ks.GetCluster().GetName() == kubeClusterName && ks.GetHostID() == kubeHostName && ks.GetScope() == scope {
+				return
+			}
+		}
+		require.Fail(collectT, "kube cluster not found")
+	}, time.Second*10, time.Millisecond*10, "kube cluster %s.%s was never found in unified resource cache", kubeHostName, kubeClusterName)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -14438,7 +14453,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 			},
 		},
@@ -14450,7 +14465,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour * 24 * 7),
 			},
 			assertCert: func(t *testing.T, cert *x509.Certificate) {
@@ -14471,7 +14486,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          "some-other-user",
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 			},
 			assertErr: func(t *testing.T, err error) {
@@ -14487,7 +14502,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 				UseRoleRequests:   true,
 				RoleRequests:      []string{role.GetName()},
