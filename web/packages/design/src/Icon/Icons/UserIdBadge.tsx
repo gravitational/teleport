@@ -56,6 +56,7 @@ export const UserIdBadge = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-useridbadge"
+
       {...otherProps}
       ref={ref}
     >

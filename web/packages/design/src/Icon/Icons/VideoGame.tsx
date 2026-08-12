@@ -56,6 +56,7 @@ export const VideoGame = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-videogame"
+
       {...otherProps}
       ref={ref}
     >

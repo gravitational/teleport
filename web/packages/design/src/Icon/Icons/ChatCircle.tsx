@@ -56,6 +56,7 @@ export const ChatCircle = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-chatcircle"
+
       {...otherProps}
       ref={ref}
     >

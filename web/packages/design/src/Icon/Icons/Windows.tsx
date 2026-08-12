@@ -56,6 +56,7 @@ export const Windows = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-windows"
+
       {...otherProps}
       ref={ref}
     >

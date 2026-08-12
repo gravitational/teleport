@@ -56,6 +56,7 @@ export const WarningCircle = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-warningcircle"
+
       {...otherProps}
       ref={ref}
     >

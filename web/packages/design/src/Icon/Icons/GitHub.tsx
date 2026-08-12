@@ -56,6 +56,7 @@ export const GitHub = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-github"
+
       {...otherProps}
       ref={ref}
     >

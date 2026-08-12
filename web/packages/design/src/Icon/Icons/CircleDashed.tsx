@@ -56,6 +56,7 @@ export const CircleDashed = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-circledashed"
+
       {...otherProps}
       ref={ref}
     >

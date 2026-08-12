@@ -56,6 +56,7 @@ export const ListThin = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-listthin"
+
       {...otherProps}
       ref={ref}
     >
