@@ -119,6 +119,33 @@ struct RotatingFileWriterTests {
 	}
 
 	@Test
+	func `rotation ages archives and removes the oldest archive`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let firstArchiveURL = directoryURL.appending(path: "events.1.log")
+			let secondArchiveURL = directoryURL.appending(path: "events.2.log")
+			let thirdArchiveURL = directoryURL.appending(path: "events.3.log")
+			try Data("active\n".utf8).write(to: fileURL)
+			try Data("first archive\n".utf8).write(to: firstArchiveURL)
+			try Data("second archive\n".utf8).write(to: secondArchiveURL)
+			try Data("third archive\n".utf8).write(to: thirdArchiveURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 8)
+
+			writer.enqueue(logMessage: "new\n")
+			try await writer.flush()
+
+			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			let firstArchiveContents = try? String(contentsOf: firstArchiveURL, encoding: .utf8)
+			let secondArchiveContents = try? String(contentsOf: secondArchiveURL, encoding: .utf8)
+			let thirdArchiveContents = try? String(contentsOf: thirdArchiveURL, encoding: .utf8)
+			#expect(activeContents == "new\n")
+			#expect(firstArchiveContents == "active\n")
+			#expect(secondArchiveContents == "first archive\n")
+			#expect(thirdArchiveContents == "second archive\n")
+		}
+	}
+
+	@Test
 	func `handler sends its formatted record to the shared writer`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
