@@ -21,6 +21,7 @@ package organizations
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,32 +57,45 @@ func TestOrganizationIDFromAccountARN(t *testing.T) {
 	}
 }
 
-func TestOrganizationIDFromRootOUARN(t *testing.T) {
+func errContains(substr string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.ErrorContains(t, err, substr, msgAndArgs...)
+	}
+}
+
+func TestOrganizationIDFromARN(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		accountARN  string
-		expectedOrg string
-		errCheck    require.ErrorAssertionFunc
+		name         string
+		orgARN       string
+		resourceType string
+		expectedOrg  string
+		errCheck     require.ErrorAssertionFunc
 	}{
 		{
-			name:        "valid account ARN",
-			accountARN:  "arn:aws:organizations::123456789012:root/o-exampleorgid/111111111111",
-			expectedOrg: "o-exampleorgid",
-			errCheck:    require.NoError,
+			name:         "root ARN",
+			orgARN:       "arn:aws:organizations::123456789012:root/o-exampleorgid/r-exampleroot",
+			resourceType: "root",
+			expectedOrg:  "o-exampleorgid",
+			errCheck:     require.NoError,
 		},
 		{
-			name:       "invalid ARN format",
-			accountARN: "invalid-arn-format",
-			errCheck:   require.Error,
+			name:         "too few resource parts",
+			orgARN:       "arn:aws:organizations::123456789012:root/o-exampleorgid",
+			resourceType: "root",
+			errCheck:     errContains("unexpected resource received"),
 		},
 		{
-			name:       "wrong resource type",
-			accountARN: "arn:aws:organizations::123456789012:account/o-exampleorgid/111111111111",
-			errCheck:   require.Error,
+			name:         "wrong resource type",
+			orgARN:       "arn:aws:organizations::123456789012:account/o-exampleorgid/111111111111",
+			resourceType: "root",
+			errCheck:     errContains("expected resource type root"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOrg, err := organizationIDFromRootOUARN(tt.accountARN)
+			parsed, err := arn.Parse(tt.orgARN)
+			require.NoError(t, err)
+
+			gotOrg, err := organizationIDFromARN(parsed, tt.resourceType)
 			tt.errCheck(t, err)
 			require.Equal(t, tt.expectedOrg, gotOrg)
 		})

@@ -19,15 +19,19 @@
 package organizations
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/gravitational/trace"
+
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 const (
@@ -49,13 +53,6 @@ type OrganizationsClient interface {
 	organizations.ListChildrenAPIClient
 	organizations.ListRootsAPIClient
 	organizations.ListAccountsForParentAPIClient
-}
-
-type awsOrgItem struct {
-	id                  string
-	organizationalUnits []*awsOrgItem
-	accounts            []string
-	notActiveAccounts   []string
 }
 
 // MatchingAccountsFilter defines the filter to apply when retrieving matching accounts from an AWS Organization.
@@ -93,73 +90,67 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 	return nil
 }
 
-// MatchingAccounts returns the list of account IDs that are part of the organization and match the filter.
+// Accounts holds the accounts of an AWS Organization that match a filter.
+type Accounts struct {
+	// Partition is the AWS partition of the organization, such as aws, aws-us-gov
+	// or aws-cn.
+	Partition string
+
+	// IDs are the IDs of the active accounts that match the filter.
+	IDs []string
+}
+
+// MatchingAccounts returns the accounts that are part of the organization and match the filter.
 // Every OU in ExcludeOUs is excluded from the results, including its children OUs.
-func MatchingAccounts(ctx context.Context, log *slog.Logger, orgsClient OrganizationsClient, filter MatchingAccountsFilter) ([]string, error) {
+func MatchingAccounts(ctx context.Context, log *slog.Logger, orgsClient OrganizationsClient, filter MatchingAccountsFilter) (*Accounts, error) {
 	if err := filter.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	orgTree, err := buildOrgTree(ctx, orgsClient, filter)
+	rootOUID, partition, err := organizationRoot(ctx, orgsClient, filter.OrganizationID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	includedActiveAccounts, includedNotActiveAccounts := collectIncludedAccounts(orgTree, filter, nil)
-	logNotActiveAccountsAreIgnored(ctx, log, filter.OrganizationID, includedNotActiveAccounts)
+	activeAccounts, inactiveAccounts, err := includedAccounts(ctx, orgsClient, rootOUID, nil, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	logInactiveAccountsAreIgnored(ctx, log, filter.OrganizationID, inactiveAccounts)
 
-	return includedActiveAccounts, nil
+	return &Accounts{
+		Partition: partition,
+		IDs:       activeAccounts,
+	}, nil
 }
 
-func collectIncludedAccounts(orgItem *awsOrgItem, filter MatchingAccountsFilter, accountOUAncestors []string) (activeAccounts []string, notActiveAccounts []string) {
-	accountOrganizationalUnits := append(slices.Clone(accountOUAncestors), orgItem.id)
-
-	if OrganizationalUnitsMatch(filter, accountOrganizationalUnits) {
-		activeAccounts = append(activeAccounts, orgItem.accounts...)
-		notActiveAccounts = append(notActiveAccounts, orgItem.notActiveAccounts...)
-	}
-
-	for _, orgUnit := range orgItem.organizationalUnits {
-		childAccountIDs, childnotActiveAccounts := collectIncludedAccounts(orgUnit, filter, accountOrganizationalUnits)
-
-		activeAccounts = append(activeAccounts, childAccountIDs...)
-		notActiveAccounts = append(notActiveAccounts, childnotActiveAccounts...)
-	}
-
-	return activeAccounts, notActiveAccounts
-}
-
-func logNotActiveAccountsAreIgnored(ctx context.Context, log *slog.Logger, organizationID string, notActiveAccountIDs []string) {
-	if len(notActiveAccountIDs) == 0 {
+func logInactiveAccountsAreIgnored(ctx context.Context, log *slog.Logger, organizationID string, inactiveAccountIDs []string) {
+	if len(inactiveAccountIDs) == 0 {
 		return
 	}
 
-	// Log only the first 10 non-active accounts to avoid log flooding.
-	if len(notActiveAccountIDs) > 10 {
-		notActiveAccountIDs = notActiveAccountIDs[:10]
+	// Log only the first 10 inactive accounts to avoid log flooding.
+	loggedAccountIDs := inactiveAccountIDs
+	if len(loggedAccountIDs) > 10 {
+		loggedAccountIDs = loggedAccountIDs[:10]
 	}
-	notActiveAccounts := strings.Join(notActiveAccountIDs, ", ")
 
-	log.DebugContext(ctx, "non-active accounts under organization were ignored",
+	log.DebugContext(ctx, "inactive accounts under organization were ignored",
 		"organization_id", organizationID,
-		"total_not_active", len(notActiveAccountIDs),
-		"not_active_accounts", notActiveAccounts,
+		"total_inactive", len(inactiveAccountIDs),
+		"inactive_accounts", strings.Join(loggedAccountIDs, ", "),
 	)
 }
 
-// Limits of AWS Organizations:
-// https://docs.aws.amazon.com/organizations/latest/userguide/orgs_reference_limits.html
-// Most relevant limits:
-// Max OU depth is 5 levels.
-// At most there will be 2000 OUs in an AWS Organization.
-// At most there will be 10 accounts, but that's configurable.
-func buildOrgTree(ctx context.Context, orgsClient OrganizationsClient, filter MatchingAccountsFilter) (*awsOrgItem, error) {
+// organizationRoot returns the ID of the root organizational unit of
+// organizationID and the AWS partition the organization lives in.
+func organizationRoot(ctx context.Context, orgsClient OrganizationsClient, organizationID string) (rootOUID string, partition string, err error) {
 	paginator := organizations.NewListRootsPaginator(orgsClient, &organizations.ListRootsInput{})
 	var roots []organizationstypes.Root
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return "", "", trace.Wrap(err)
 		}
 		roots = append(roots, page.Roots...)
 	}
@@ -167,58 +158,67 @@ func buildOrgTree(ctx context.Context, orgsClient OrganizationsClient, filter Ma
 	// AWS Docs state that:
 	// > You can have only one root. AWS Organizations automatically creates the root for you when you create an organization.
 	if len(roots) != 1 {
-		return nil, trace.BadParameter("expected exactly one root organizational unit, got %d", len(roots))
+		return "", "", trace.BadParameter("expected exactly one root organizational unit, got %d", len(roots))
 	}
 	root := roots[0]
 
-	rootsOrganization, err := organizationIDFromRootOUARN(aws.ToString(root.Arn))
+	rootARN, err := arn.Parse(aws.ToString(root.Arn))
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if rootsOrganization != filter.OrganizationID {
-		return nil, trace.BadParameter("the AWS Organizations client is not part of the expected Organization %s", filter.OrganizationID)
+		return "", "", trace.Wrap(err)
 	}
 
-	rootOU, err := organizationalUnitDetails(ctx, orgsClient, aws.ToString(root.Id), filter.ExcludeOUs)
+	rootsOrganization, err := organizationIDFromARN(rootARN, "root")
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", "", trace.Wrap(err)
+	}
+	if rootsOrganization != organizationID {
+		return "", "", trace.BadParameter("the AWS Organizations client is not part of the expected Organization %s", organizationID)
 	}
 
-	return rootOU, nil
+	return aws.ToString(root.Id), cmp.Or(rootARN.Partition, awsutils.StandardPartition), nil
 }
 
-func organizationalUnitDetails(ctx context.Context, orgsClient OrganizationsClient, ouID string, excludedOUs []string) (*awsOrgItem, error) {
-	ret := &awsOrgItem{
-		id: ouID,
-	}
-
+// includedAccounts returns the accounts of the OU ouID and of every OU below it
+// that the filter includes, split by account state.
+//
+// Limits of AWS Organizations:
+// https://docs.aws.amazon.com/organizations/latest/userguide/orgs_reference_limits.html
+// Most relevant limits:
+// Max OU depth is 5 levels.
+// At most there will be 2000 OUs in an AWS Organization.
+// At most there will be 10 accounts, but that's configurable.
+func includedAccounts(ctx context.Context, orgsClient OrganizationsClient, ouID string, ancestorOUs []string, filter MatchingAccountsFilter) (activeAccounts []string, inactiveAccounts []string, err error) {
 	// Everything under an excluded OU is not considered.
-	if slices.Contains(excludedOUs, ouID) {
-		return ret, nil
+	if slices.Contains(filter.ExcludeOUs, ouID) {
+		return nil, nil, nil
 	}
 
-	activeAccountIDs, notActiveAccountIDs, err := accountsInOrganizationalUnit(ctx, orgsClient, ouID)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Cloned so that sibling OUs do not share the backing array.
+	ouChain := append(slices.Clone(ancestorOUs), ouID)
+
+	if OrganizationalUnitsMatch(filter, ouChain) {
+		activeAccounts, inactiveAccounts, err = accountsInOrganizationalUnit(ctx, orgsClient, ouID)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
-	ret.accounts = activeAccountIDs
-	ret.notActiveAccounts = notActiveAccountIDs
 
 	childrenOUIDs, err := childrenOUs(ctx, orgsClient, ouID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	for _, childOUID := range childrenOUIDs {
-		childOU, err := organizationalUnitDetails(ctx, orgsClient, childOUID, excludedOUs)
+		childActive, childInactive, err := includedAccounts(ctx, orgsClient, childOUID, ouChain, filter)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
-		ret.organizationalUnits = append(ret.organizationalUnits, childOU)
+		activeAccounts = append(activeAccounts, childActive...)
+		inactiveAccounts = append(inactiveAccounts, childInactive...)
 	}
 
-	return ret, nil
+	return activeAccounts, inactiveAccounts, nil
 }
 
 func childrenOUs(ctx context.Context, orgChildrenLister organizations.ListChildrenAPIClient, ouID string) ([]string, error) {
@@ -243,7 +243,7 @@ func childrenOUs(ctx context.Context, orgChildrenLister organizations.ListChildr
 	return childOUs, nil
 }
 
-func accountsInOrganizationalUnit(ctx context.Context, orgChildrenLister organizations.ListAccountsForParentAPIClient, ouID string) (activeAccountIDs []string, notActiveAccountIDs []string, err error) {
+func accountsInOrganizationalUnit(ctx context.Context, orgChildrenLister organizations.ListAccountsForParentAPIClient, ouID string) (activeAccountIDs []string, inactiveAccountIDs []string, err error) {
 	paginator := organizations.NewListAccountsForParentPaginator(orgChildrenLister, &organizations.ListAccountsForParentInput{
 		ParentId: aws.String(ouID),
 	})
@@ -258,10 +258,10 @@ func accountsInOrganizationalUnit(ctx context.Context, orgChildrenLister organiz
 			if account.State == organizationstypes.AccountStateActive {
 				activeAccountIDs = append(activeAccountIDs, aws.ToString(account.Id))
 			} else {
-				notActiveAccountIDs = append(notActiveAccountIDs, aws.ToString(account.Id))
+				inactiveAccountIDs = append(inactiveAccountIDs, aws.ToString(account.Id))
 			}
 		}
 	}
 
-	return activeAccountIDs, notActiveAccountIDs, nil
+	return activeAccountIDs, inactiveAccountIDs, nil
 }
