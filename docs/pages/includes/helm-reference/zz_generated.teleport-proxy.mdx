@@ -15,13 +15,14 @@ along with the externally-facing public address to use to access it. In most
 setups this must be a fully-qualified domain name (e.g. `teleport.example.com`)
 as this value is used as the cluster's public address by default.
 
-Note: When using a fully qualified domain name as your `clusterName`, you will also
-need to configure the DNS provider for this domain to point to the external
-load balancer address of your Teleport cluster. If you're using this proxy-only
-chart, this typically means adding the external IP of this proxy's load-balancer
-to your geography-aware DNS service. We do not recommend using a load balancer
-with an Anycast VIP because Teleport clients maintain long-live persistent
-connections that may be disrupted during Anycast routing changes.
+> [!NOTE]
+> When using a fully qualified domain name as your `clusterName`, you will also
+> need to configure the DNS provider for this domain to point to the external
+> load balancer address of your Teleport cluster. If you're using this proxy-only
+> chart, this typically means adding the external IP of this proxy's load-balancer
+> to your geography-aware DNS service. We do not recommend using a load balancer
+> with an Anycast VIP because Teleport clients maintain long-live persistent
+> connections that may be disrupted during Anycast routing changes.
 
 ## `authServer`
 
@@ -273,7 +274,8 @@ You will need to download your Enterprise license from the Teleport dashboard an
 kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 ```
 
-> Note: The teleport proxy service
+> [!NOTE]
+> The teleport proxy service
 > (`proxy_service.enabled` in [teleport.yaml](../../reference/deployment/config.mxd#proxy-service),
 > as deployed by this chart), does not require the license file even when
 > running an enterprise build. Your license file only needs to be deployed on
@@ -374,8 +376,9 @@ via an ingress (`ingress.enabled`).
 `highAvailability.replicaCount` controls the amount of pod replicas. The `highAvailability` comment describes
 the replication requirements.
 
-WARNING: You **must** meet the replication criteria,
-else the deployment will result in errors and inconsistent data.
+> [!WARNING]
+> You **must** meet the replication criteria, else the deployment will
+> result in errors and inconsistent data.
 
 ### `highAvailability.requireAntiAffinity`
 
@@ -1018,10 +1021,11 @@ Example:
 `resources` to request for the teleport container
 https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 
-DANGER: Setting CPU limits is an anti-pattern and harmful in most cases.
-Unless you enabled [the Static CPU management policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy),
-a multithreaded workload with CPU limits will very likely not behave the way
-you expect when approaching its CPU limit.
+> [!DANGER]
+> Setting CPU limits is an anti-pattern and harmful in most cases.
+> Unless you enabled [the Static CPU management policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy),
+> a multithreaded workload with CPU limits will very likely not behave the way
+> you expect when approaching its CPU limit.
 
 Teleport will become unstable once throttling starts. We recommend not to set CPU limits.
 See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for technical details.
