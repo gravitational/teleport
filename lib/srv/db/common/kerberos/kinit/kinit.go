@@ -287,7 +287,7 @@ func (k *kinitProvider) buildAnchorsFileContents(caCerts [][]byte) []byte {
 		buf.Write(bytes.TrimSpace(pem))
 		buf.WriteRune('\n')
 	}
-	buf.Write(bytes.TrimSpace([]byte(k.ldapCertificatePEM)))
+	buf.WriteString(strings.TrimSpace(k.ldapCertificatePEM))
 	buf.WriteRune('\n')
 	return buf.Bytes()
 }
