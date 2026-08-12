@@ -108,19 +108,25 @@ teleportVersionOverride: ""
 #
 proxyProtocol: ""
 
-# serviceAccountTokenAudience(string) -- optionally overrides the audience on
-# the projected Kubernetes service account token mounted into proxy pods.
+# serviceAccountTokenAudience(string) -- should ALMOST ALWAYS be left empty to
+# let the chart insert the correct value.
+# 
+# optionally overrides the audience on the projected Kubernetes service account
+# token mounted into proxy pods.
 #
 # When left empty and the effective Teleport join method is `kubernetes`, the
 # chart defaults this to `clusterName`.
 serviceAccountTokenAudience: ""
 
-# serviceAccountTokenExpirationSeconds(int) -- optionally overrides the TTL in
-# seconds on the projected Kubernetes service account token mounted into proxy
-# pods.
+# serviceAccountTokenExpirationSeconds(int) -- should ALMOST ALWAYS be omitted
+# to let the chart insert the correct value.
+# 
+# seconds until expiry on the projected Kubernetes service account token mounted
+# into proxy pods. This must be sufficiently long to allow the proxy to join the
+# cluster.
 #
-# When omitted by the user and the effective Teleport join method is
-# `kubernetes`, the chart defaults this to 600 seconds.
+# When omitted the effective Teleport join method is `kubernetes`, the chart
+# defaults this to 600 seconds.
 serviceAccountTokenExpirationSeconds: null
 
 # teleportConfig(object) -- contains YAML teleport configuration for the
