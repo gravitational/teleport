@@ -533,6 +533,8 @@ plan_modifiers:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     KubernetesClusterV3.scope:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    ServerV2.scope:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"

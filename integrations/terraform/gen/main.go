@@ -367,24 +367,6 @@ var (
 		GetCanReturnNil:        true,
 	}
 
-	server = payload{
-		Name:                   "Server",
-		TypeName:               "ServerV2",
-		VarName:                "server",
-		GetMethod:              "GetNode",
-		CreateMethod:           "UpsertNode",
-		UpdateMethod:           "UpsertNode",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteNode",
-		ID:                     "server.Metadata.Name",
-		Kind:                   "node",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_server",
-		HasCheckAndSetDefaults: true,
-		Namespaced:             true,
-		ForceSetKind:           "apitypes.KindNode",
-	}
-
 	autoUpdateVersion = payload{
 		Name:                  "AutoUpdateVersion",
 		TypeName:              "AutoUpdateVersion",
@@ -729,8 +711,6 @@ func genTFSchema() {
 	generateDataSource(provisionToken, pluralDataSource)
 	generateResource(uiConfig, singularResource)
 	generateDataSource(uiConfig, singularDataSource)
-	generateResource(server, pluralResource)
-	generateDataSource(server, pluralDataSource)
 	generateResource(autoUpdateVersion, singularResource)
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
