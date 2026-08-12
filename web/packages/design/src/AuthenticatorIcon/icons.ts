@@ -73,6 +73,7 @@ export { default as HideezKey3FIDO2_69418ef1 } from './assets/hideez-key-3-fido2
 export { default as HyperFIDOProNFC_718e8fff } from './assets/hyper-fido-pro-nfc-718e8fff.png?no-inline';
 export { default as HyperFIDOPro_463f45ab } from './assets/hyper-fido-pro-463f45ab.png?no-inline';
 export { default as IDEMIASOLVOFly80R1FIDOCa_384a778c } from './assets/idemia-solvo-fly-80-r1-fido-ca-384a778c.png?no-inline';
+export { default as IDEMIASOLVOFly80R3FIDOCa_1b537154 } from './assets/idemia-solvo-fly-80-r3-fido-ca-1b537154.png?no-inline';
 export { default as IDEXCTAP21Biometrics_c3062d99 } from './assets/idex-ctap2-1-biometrics-c3062d99.png?no-inline';
 export { default as IDmelonAuthenticator_eaec55dd } from './assets/idmelon-authenticator-eaec55dd.png?no-inline';
 export { default as IDmelon_9f46d84e } from './assets/idmelon-9f46d84e.svg?no-inline';
@@ -115,11 +116,15 @@ export { default as OneSpanDIGIPASSFX7B_4874fd4e } from './assets/onespan-digipa
 export { default as OneSpanFIDOTouch_243adddc } from './assets/onespan-fido-touch-243adddc.png?no-inline';
 export { default as OnlyKeySecp256R1FIDO2CTAP2_d10e3e7b } from './assets/onlykey-secp256r1-fido2-ctap2-d10e3e7b.png?no-inline';
 export { default as OpenSKauthenticator_479b1cb4 } from './assets/opensk-authenticator-479b1cb4.png?no-inline';
+export { default as Parcel_3256d3e0 } from './assets/parcel-3256d3e0.svg?no-inline';
+export { default as PassCard_5f7a884a } from './assets/passcard-5f7a884a.svg?no-inline';
 export { default as PoneBiometricsOFFPADAuthent_5714b84f } from './assets/pone-biometrics-offpad-authent-5714b84f.png?no-inline';
 export { default as PrecisionInnaITKeyFIDO2Le_271f6ea9 } from './assets/precision-innait-key-fido-2-le-271f6ea9.png?no-inline';
 export { default as PrecisionInnaITKeyFIDO2Le_f7c2733a } from './assets/precision-innait-key-fido-2-le-f7c2733a.png?no-inline';
 export { default as ProtonPass_a2983af5 } from './assets/proton-pass-a2983af5.svg?no-inline';
 export { default as RSAAuthenticator4forAndroi_e17f28ad } from './assets/rsa-authenticator-4-for-androi-e17f28ad.png?no-inline';
+export { default as RoyalVault_b9815d4f } from './assets/royal-vault-b9815d4f.svg?no-inline';
+export { default as RoyalVault_faac7e28 } from './assets/royal-vault-faac7e28.svg?no-inline';
 export { default as SECORAConnectSLS21D1FIDO2_f28ff56a } from './assets/secora-connect-sls21-d1-fido-2-f28ff56a.png?no-inline';
 export { default as SECORAIDV2byInfineonPayE_742efd75 } from './assets/secora-id-v2-by-infineon-pay-e-742efd75.png?no-inline';
 export { default as SHALOAUTH_01dfe793 } from './assets/shalo-auth-01dfe793.png?no-inline';
@@ -129,6 +134,7 @@ export { default as SentryEnterprisesCTAP2Authe_534d123a } from './assets/sentry
 export { default as Sherlocked_d09754c3 } from './assets/sherlocked-d09754c3.svg?no-inline';
 export { default as SmartDisplayerBobeePassFIDO2_e18ffc6a } from './assets/smartdisplayer-bobeepass-fido2-e18ffc6a.png?no-inline';
 export { default as SoloSecp256R1FIDO2CTAP2Aut_a9e10478 } from './assets/solo-secp256r1-fido2-ctap2-aut-a9e10478.png?no-inline';
+export { default as SpearIDFIDO2Standard_d53cabb2 } from './assets/spearid-fido2-standard-d53cabb2.png?no-inline';
 export { default as Ssame_382fbdca } from './assets/s-same-382fbdca.svg?no-inline';
 export { default as StickyPasswordManager_7b0a06b3 } from './assets/sticky-password-manager-7b0a06b3.svg?no-inline';
 export { default as SwissbitiShieldKeyPro_da0c81c3 } from './assets/swissbit-ishield-key-pro-da0c81c3.png?no-inline';
@@ -143,6 +149,8 @@ export { default as TokenRing3FIDO2Authenticat_cb0bdb7c } from './assets/token-r
 export { default as ToothPicPasskeyProvider_3931ecb6 } from './assets/toothpic-passkey-provider-3931ecb6.svg?no-inline';
 export { default as ToothPicPasskeyProvider_a22945d6 } from './assets/toothpic-passkey-provider-a22945d6.svg?no-inline';
 export { default as TruUWindowsAuthenticator_23137c6f } from './assets/truu-windows-authenticator-23137c6f.png?no-inline';
+export { default as Uniqkey_22fc41ef } from './assets/uniqkey-22fc41ef.svg?no-inline';
+export { default as Uniqkey_cbc4ebc6 } from './assets/uniqkey-cbc4ebc6.svg?no-inline';
 export { default as VALMIDOPROFIDO_78959049 } from './assets/valmido-pro-fido-78959049.png?no-inline';
 export { default as VeriMarkGuard21Fingerprint_eaa1ede4 } from './assets/verimark-guard-2-1-fingerprint-eaa1ede4.png?no-inline';
 export { default as VeriMarkNFCUSBASecurityK_41e58bac } from './assets/verimark-nfc-usb-a-security-k-41e58bac.png?no-inline';
@@ -150,6 +158,7 @@ export { default as VeridiumIDPasskeyiOSSDK_eaf09359 } from './assets/veridiumid
 export { default as VeroCardFIDO2Authenticator_b0f574ae } from './assets/verocard-fido2-authenticator-b0f574ae.png?no-inline';
 export { default as VinCSSFIDO2Authenticator_4405f4f0 } from './assets/vincss-fido2-authenticator-4405f4f0.png?no-inline';
 export { default as VivoKeyApexFIDO2_18b765ab } from './assets/vivokey-apex-fido2-18b765ab.png?no-inline';
+export { default as WALLIXVault_56f8d0a7 } from './assets/wallix-vault-56f8d0a7.svg?no-inline';
 export { default as WebCommOETHenticator_bdd0bdda } from './assets/webcomm-oethenticator-bdd0bdda.png?no-inline';
 export { default as WinMagicFIDOEazySoftware_20dc638d } from './assets/winmagic-fido-eazy-software-20dc638d.png?no-inline';
 export { default as WindowsHello_e63a433d } from './assets/windows-hello-e63a433d.svg?no-inline';

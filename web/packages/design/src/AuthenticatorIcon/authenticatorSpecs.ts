@@ -182,6 +182,11 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     light: i.override_yubico_7db3534f,
     dark: i.override_yubico_7db3534f,
   },
+  '19bca99b-7c09-44fe-a969-8cba45764542': {
+    name: 'HID Crescendo Key V3 FIPS',
+    light: i.HIDCrescendo_c1bff469,
+    dark: i.HIDCrescendo_c1bff469,
+  },
   '1ac71f64-468d-4fe0-bef1-0e5f2f551f18': {
     name: 'YubiKey 5 Series with NFC',
     light: i.override_yubico_7db3534f,
@@ -512,10 +517,20 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     light: i.override_yubico_7db3534f,
     dark: i.override_yubico_7db3534f,
   },
+  '45e3057e-b2f9-48ed-912f-9b901e153b16': {
+    name: 'Uniqkey',
+    light: i.Uniqkey_cbc4ebc6,
+    dark: i.Uniqkey_22fc41ef,
+  },
   '46544d5d-8f5d-4db4-89ac-ea8977073fff': {
     name: 'Foongtone FIDO Authenticator',
     light: i.FoongtoneFIDOAuthenticator_f56f5050,
     dark: i.FoongtoneFIDOAuthenticator_f56f5050,
+  },
+  '477b05cd-7f78-4fe7-b629-27247f296138': {
+    name: 'WALLIX Vault',
+    light: i.WALLIXVault_56f8d0a7,
+    dark: i.WALLIXVault_56f8d0a7,
   },
   '47ab2fb4-66ac-4184-9ae1-86be814012d5': {
     name: 'Security Key NFC by Yubico',
@@ -596,6 +611,11 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     name: 'SmartDisplayer BobeePass FIDO2',
     light: i.SmartDisplayerBobeePassFIDO2_e18ffc6a,
     dark: i.SmartDisplayerBobeePassFIDO2_e18ffc6a,
+  },
+  '51787637-8ab8-460c-9302-de0b853d4ffb': {
+    name: 'SpearID FIDO2 Standard',
+    light: i.SpearIDFIDO2Standard_d53cabb2,
+    dark: i.SpearIDFIDO2Standard_d53cabb2,
   },
   '522a3f91-5f5d-480d-be37-6cecfad5a27b': {
     name: 'Precision InnaIT Key FIDO 2 Le',
@@ -692,6 +712,11 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     light: i.AllthenticatoriOSApproamin_f763ba0f,
     dark: i.AllthenticatoriOSApproamin_f763ba0f,
   },
+  '5ca471bb-a56d-46ad-a496-67e70e9ed9fb': {
+    name: 'Parcel',
+    light: i.Parcel_3256d3e0,
+    dark: i.Parcel_3256d3e0,
+  },
   '5d629218-d3a5-11ed-afa1-0242ac120002': {
     name: 'Swissbit iShield Key Pro',
     light: i.SwissbitiShieldKeyPro_da0c81c3,
@@ -737,10 +762,20 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     light: i.eWBMeFA500FIDO2Authenticato_b9819758,
     dark: i.eWBMeFA500FIDO2Authenticato_b9819758,
   },
+  '6169eb16-f87a-42d8-978d-e1ac0c3f319f': {
+    name: 'GoTrust Idem Card',
+    light: i.GoTrustIdemKey_5ee09cfa,
+    dark: i.GoTrustIdemKey_5ee09cfa,
+  },
   '62e54e98-c209-4df3-b692-de71bb6a8528': {
     name: 'YubiKey 5 FIPS Series with NFC',
     light: i.override_yubico_7db3534f,
     dark: i.override_yubico_7db3534f,
+  },
+  '65c97700-f5ef-4d5c-8a42-f30e45ac94b7': {
+    name: 'Royal Vault',
+    light: i.RoyalVault_b9815d4f,
+    dark: i.RoyalVault_faac7e28,
   },
   '662ef48a-95e2-4aaa-a6c1-5b9c40375824': {
     name: 'YubiKey 5 Series with NFC - En',
@@ -997,6 +1032,11 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     name: 'eWBM eFA320 FIDO2 Authenticato',
     light: i.eWBMeFA500FIDO2Authenticato_b9819758,
     dark: i.eWBMeFA500FIDO2Authenticato_b9819758,
+  },
+  '87f5ec51-f721-4feb-9fe4-be18c4971894': {
+    name: 'PassCard',
+    light: i.PassCard_5f7a884a,
+    dark: i.PassCard_5f7a884a,
   },
   '882adaf5-3aa9-4708-8e7d-3957103775b4': {
     name: 'T-Shield TrustSec FIDO2 Bio an',
@@ -1352,6 +1392,11 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     dark: i.ThalesPAYGFCX13authenticato_20bc1c6e,
   },
   'b5397666-4885-aa6b-cebf-e52262a439a2': { name: 'Chromium Browser' },
+  'b68c4b8d-65cb-42ae-b4f6-8606dfba3c22': {
+    name: 'IDEMIA SOLVO Fly 80 R3 FIDO Ca',
+    light: i.IDEMIASOLVOFly80R3FIDOCa_1b537154,
+    dark: i.IDEMIASOLVOFly80R3FIDOCa_1b537154,
+  },
   'b6ede29c-3772-412c-8a78-539c1f4c62d2': {
     name: 'Feitian BioPass FIDO2 Plus Aut',
     light: i.FeitianePassFIDOAuthenticat_560be735,
@@ -1446,6 +1491,11 @@ export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {
     name: 'iPasswords',
     light: i.iPasswords_7b4f712b,
     dark: i.iPasswords_7b4f712b,
+  },
+  'c09b3399-4a3d-306c-7bdc-967fef47241f': {
+    name: 'Giesecke+Devrient StarSign FID',
+    light: i.GDStarKeyFIDO2NFC_c023adcd,
+    dark: i.GDStarKeyFIDO2NFC_c023adcd,
   },
   'c1288a5c-d66b-495c-a68f-4e81f9ec5b53': {
     name: 'Deepnet SafeKey/Classic XF',
