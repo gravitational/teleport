@@ -7,11 +7,11 @@ on:
   schedule:
     # Scheduled jobs only run from master. If you are reading this on another branch,
     # this event does not fire there.
-    # Run weekly at 4am UTC which is about 21:00 PST (plus/minus DST) on Saturdays.
+    # Run at 4am UTC on Mondays, Thursdays, and Saturdays.
     # The minute offset of 26 is a "random" offset to not run at the top of the hour.
     # This should be coordinated with nightly releases so that cleanups are (usually)
     # avoided when the releases are running.
-    - cron: '26 4 * * 6'
+    - cron: '26 4 * * 1,4,6'
 
 jobs:
   build:
