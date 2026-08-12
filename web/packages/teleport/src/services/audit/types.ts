@@ -123,6 +123,9 @@ export const eventCodes = {
   DEVICE_AUTHENTICATE_CONFIRM: 'TV009I',
   DEVICE_ENROLL_PAIRING_REQUEST: 'TV010I',
   DEVICE_ENROLL_PAIRING_REQUEST_FAILURE: 'TV010W',
+  DEVICE_ENROLL_PAIRING_APPROVE: 'TV011I',
+  DEVICE_ENROLL_PAIRING_APPROVE_FAILURE: 'TV011W',
+  DEVICE_ENROLL_PAIRING_DENY: 'TV012W',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -1432,6 +1435,17 @@ export type RawEvents = {
   // is what failed) and surfaces the failure reason via the error field.
   [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE]: RawEvent<
     typeof eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE,
+    Merge<DeviceEventFields, { error?: string }>
+  >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_APPROVE
+  >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE]: RawEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE,
+    Merge<DeviceEventFields, { error?: string }>
+  >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_DENY]: RawEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_DENY,
     Merge<DeviceEventFields, { error?: string }>
   >;
   [eventCodes.UNKNOWN]: RawEvent<

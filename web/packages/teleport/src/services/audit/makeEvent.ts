@@ -1507,6 +1507,34 @@ export const formatters: Formatters = {
         ? `Device enrollment request failed${formatDevice(device)}: ${error}`
         : `Device enrollment request failed${formatDevice(device)}`,
   },
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE]: {
+    type: 'device.enroll_pairing.approve',
+    desc: 'Device Enroll Pairing Approved',
+    format: ({ user, device }) =>
+      `User [${user}] approved the device enrollment request${formatDevice(device)}`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE]: {
+    type: 'device.enroll_pairing.approve',
+    desc: 'Device Enroll Pairing Approval Failed',
+    format: ({ user, device, error }) => {
+      let msg = `User [${user}] failed to approve the device enrollment request${formatDevice(device)}`;
+      if (error) {
+        msg += `: ${error}`;
+      }
+      return msg;
+    },
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_DENY]: {
+    type: 'device.enroll_pairing.deny',
+    desc: 'Device Enroll Pairing Denied',
+    format: ({ user, device, error }) => {
+      let msg = `Device enrollment request for user [${user}] was denied${formatDevice(device)}`;
+      if (error) {
+        msg += `: ${error}`;
+      }
+      return msg;
+    },
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',

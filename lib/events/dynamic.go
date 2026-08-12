@@ -297,7 +297,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		DeviceEnrollTokenCreateEvent,
 		DeviceWebTokenCreateEvent,
 		DeviceAuthenticateConfirmEvent,
-		DeviceEnrollPairingRequestEvent:
+		DeviceEnrollPairingRequestEvent,
+		DeviceEnrollPairingApproveEvent,
+		DeviceEnrollPairingDenyEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}

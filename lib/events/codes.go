@@ -530,6 +530,13 @@ const (
 	// DeviceEnrollPairingRequestFailureCode is the device enroll pairing request
 	// failure code.
 	DeviceEnrollPairingRequestFailureCode = "TV010W"
+	// DeviceEnrollPairingApproveCode is the device enroll pairing approve code.
+	DeviceEnrollPairingApproveCode = "TV011I"
+	// DeviceEnrollPairingApproveFailureCode is the device enroll pairing approve
+	// failure code.
+	DeviceEnrollPairingApproveFailureCode = "TV011W"
+	// DeviceEnrollPairingDenyCode is the device enroll pairing deny code.
+	DeviceEnrollPairingDenyCode = "TV012W"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"

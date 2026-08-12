@@ -712,6 +712,14 @@ const (
 	// awaiting approval. It is also emitted on failure (e.g. an invalid token),
 	// before any transition, in which case there is no associated user.
 	DeviceEnrollPairingRequestEvent = "device.enroll_pairing.request"
+	// DeviceEnrollPairingApproveEvent is emitted when the user approves an enroll
+	// pairing in the Web UI, which lets the device retrieve its enrollment token.
+	// It is also emitted on a failed approval attempt, for example one arriving
+	// after the pairing expired or was already approved.
+	DeviceEnrollPairingApproveEvent = "device.enroll_pairing.approve"
+	// DeviceEnrollPairingDenyEvent is emitted when the user denies an enroll
+	// pairing in the Web UI.
+	DeviceEnrollPairingDenyEvent = "device.enroll_pairing.deny"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
