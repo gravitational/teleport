@@ -1,10 +1,23 @@
 ##################################################
+# This chart deploys the Teleport proxy only. It should be used only in complex
+# setups. Please use the [teleport-cluster chart](../../reference/helm-reference/teleport-cluster.mxd)
+# unless a Teleport engineer recommends you to do otherwise.
+#
+# When deploying standalone Teleport proxies with this chart and using proxy
+# peering, you must guarantee that every proxy pod can dial every other proxy
+# pod. The different Kube clusters pod subnets must be peered via VPC peering,
+# service-mesh or simliar.
+##################################################
+
+
+
+##################################################
 # Values that must always be provided by the user.
 ##################################################
 
 # clusterName(string) -- MUST match the clusterName used by the Teleport Auth
 # service ([clusterName in the teleport-cluster chart](../../reference/helm-reference/teleport-cluster.mxd#clustername)
-# / [auth_service.cluster_name in the Auth Service config](../../reference/deployment/config/#auth-service))
+# / [auth_service.cluster_name in the Auth Service config](../../reference/deployment/config.mxd#auth-service))
 # It controls the name this proxy will use to refer to the Teleport cluster,
 # along with the externally-facing public address to use to access it. In most
 # setups this must be a fully-qualified domain name (e.g. `teleport.example.com`)
