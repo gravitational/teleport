@@ -547,6 +547,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				return
 			case *proto.UpstreamInventoryAgentMetadata:
 				c.handleAgentMetadata(handle, m)
+			case *proto.InstanceStatus:
+				if m.HasAuditQueue() {
+					handle.setAuditQueueStatus(m.GetAuditQueue())
+				}
 			case *proto.InventoryHeartbeat:
 				// XXX: when adding new services to the heartbeat logic, make
 				// sure to also update the 'icsServiceToMetricName' mapping in
@@ -869,7 +873,7 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 		fn()
 	}
 
-	instance, err := tracker.nextHeartbeat(now, handle.Hello(), c.authID)
+	instance, err := tracker.nextHeartbeat(now, handle.Hello(), c.authID, handle.AuditQueueStatus())
 	if err != nil {
 		slog.WarnContext(c.closeContext, "Failed to construct next heartbeat value for instance (this is a bug)",
 			"server_id", handle.Hello().GetServerID(),
