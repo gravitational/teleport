@@ -254,20 +254,17 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	// A WebAuthn device left unnamed is named by the server after the authenticator that registered it,
-	// which it can only do once the ceremony has run. TOTP has nothing to name itself after.
+	c.devName = strings.TrimSpace(c.devName)
+
+	// A WebAuthn device left unnamed is named after the authenticator that registered it, which can only
+	// happen once the ceremony has run. TOTP has nothing to name itself after.
 	if c.devName == "" && c.devType == totpDeviceType {
 		var err error
-		c.devName, err = prompt.Input(ctx, os.Stdout, prompt.Stdin(), "Enter device name")
+		c.devName, err = promptDeviceName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if strings.TrimSpace(c.devName) == "" {
-			return trace.BadParameter("device name cannot be empty")
-		}
 	}
-	c.devName = strings.TrimSpace(c.devName)
 
 	switch c.devType {
 	case webauthnDeviceType:
@@ -374,9 +371,24 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.Wrap(err)
 		}
 
+		devName := c.devName
+		if devName == "" {
+			devName = defaultDeviceName(ctx, rootAuthClient, registerResp, c.devType, c.allowPasswordless)
+		}
+
+		// Nothing suitable could be worked out, so fall back to asking, as tsh always did before it
+		// named devices itself.
+		if devName == "" {
+			devName, err = promptDeviceName(ctx)
+			if err != nil {
+				registerCallback.Rollback() // Attempt to delete new key.
+				return trace.Wrap(err)
+			}
+		}
+
 		// Complete registration and confirm new key.
 		addResp, err := rootAuthClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
-			NewDeviceName:  c.devName,
+			NewDeviceName:  devName,
 			NewMFAResponse: registerResp,
 			DeviceUsage:    usage,
 		})

@@ -35,12 +35,12 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-// SignAssertion signs a WebAuthn assertion following the
-// U2F-compat-getAssertion algorithm.
 const aaguidLen = 16
 
 var zeroAAGUID = make([]byte, aaguidLen)
 
+// SignAssertion signs a WebAuthn assertion following the
+// U2F-compat-getAssertion algorithm.
 func (muk *Key) SignAssertion(origin string, assertion *wantypes.CredentialAssertion) (*wantypes.CredentialAssertionResponse, error) {
 	// Reference:
 	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#u2f-authenticatorGetAssertion-interoperability
@@ -190,8 +190,8 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 	authData.Write(muk.KeyHandle)
 	authData.Write(pubKeyCBOR)
 
-	// U2F attestation is only valid for an authenticator with no AAGUID, so a Key that reports a make
-	// and model attests to nothing instead. Browser-bound providers behave the same way: Chrome's own
+	// A pure U2F authenticator doesn't carry an AAGUID, so we only set the "fido-u2f" attestation
+	// format if the AAGUID is zeroed. Browser-bound providers behave the same way: Chrome's own
 	// passkeys report an AAGUID with a "none" attestation.
 	// See https://www.w3.org/TR/webauthn-2/#sctn-fido-u2f-attestation.
 	attObj := &protocol.AttestationObject{

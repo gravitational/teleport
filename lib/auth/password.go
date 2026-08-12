@@ -415,8 +415,7 @@ func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		case req.GetNewMFARegisterResponse().GetTOTP() != nil:
 			deviceName = "otp"
 		case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
-			// Left empty: the WebAuthn registration flow names the device after the authenticator that
-			// produced the credential, which it can only do once the ceremony has run.
+			deviceName = "webauthn"
 		default:
 			// Fallback to something reasonable while letting verifyMFARespAndAddDevice
 			// worry about the "unknown" response type.

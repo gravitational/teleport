@@ -701,12 +701,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				case dev.GetTotp() != nil:
 					wantName = "otp"
 				case dev.GetWebauthn() != nil:
-					// WebAuthn devices are named after the authenticator that registered them. The mock
-					// leaves itself unidentified, so the name falls back to what the credential is for.
-					wantName = "Security key"
-					if len(validReq.NewPassword) == 0 {
-						wantName = "Passkey"
-					}
+					wantName = "webauthn"
 				}
 				require.Equal(t, wantName, dev.GetName(), "device name mismatch")
 			}

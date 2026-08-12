@@ -20,9 +20,9 @@ import { resolveAuthenticatorName } from 'design/AuthenticatorIcon';
 
 import { aaguidFromCredential, transportsOf } from './aaguid';
 
-// The longest device name the server accepts, mirroring mfaDeviceNameMaxLen (lib/auth/auth.go).
-// The server measures it in bytes rather than characters, so every length check here goes
-// through utf8Length.
+// The longest device name the server accepts, mirroring defaults.MFADeviceNameMaxLen
+// (lib/defaults/defaults.go). The server measures it in bytes rather than characters, so every
+// length check here goes through utf8Length.
 // The AuthenticatorIcon generator clips vendor names to the same budget; deviceNameLimit
 // .test.ts holds it to that.
 export const MAX_DEVICE_NAME_BYTES = 30;

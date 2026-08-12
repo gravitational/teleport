@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package aaguid_test
+package aaguid
 
 import (
 	"testing"
@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/auth/webauthn/aaguid"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -57,7 +56,7 @@ func TestName(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			name, ok := aaguid.Name(test.aaguid)
+			name, ok := Name(test.aaguid)
 			assert.Equal(t, test.want, name)
 			assert.Equal(t, test.want != "", ok)
 		})
@@ -69,26 +68,25 @@ func TestNameFromBytes(t *testing.T) {
 	raw, err := id.MarshalBinary()
 	require.NoError(t, err, "MarshalBinary failed")
 
-	name, ok := aaguid.NameFromBytes(raw)
+	name, ok := NameFromBytes(raw)
 	assert.True(t, ok)
 	assert.Equal(t, "YubiKey 5 Series", name)
 
 	// Devices registered before Teleport stored the AAGUID have none at all.
-	_, ok = aaguid.NameFromBytes(nil)
+	_, ok = NameFromBytes(nil)
 	assert.False(t, ok)
 
 	// Anything that is not 16 bytes is not an AAGUID.
-	_, ok = aaguid.NameFromBytes([]byte{1, 2, 3})
+	_, ok = NameFromBytes([]byte{1, 2, 3})
 	assert.False(t, ok)
 }
 
-// Names are offered as device names, so one over the server's limit would be stored by a registration
+// Names are offered as device names, so one over the server's limit would be rejected for any client
 // that names a device on the user's behalf. The generator clips them; this holds it to that.
 func TestNamesFitDeviceNameLimit(t *testing.T) {
-	all := aaguid.All()
-	require.NotEmpty(t, all, "embedded AAGUID table is empty")
+	require.NotEmpty(t, names, "embedded AAGUID name table is empty")
 
-	for id, name := range all {
+	for id, name := range names {
 		assert.LessOrEqualf(t, len(name), defaults.MFADeviceNameMaxLen,
 			"name %q for AAGUID %v is over the device name limit", name, id)
 	}
