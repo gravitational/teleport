@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -188,7 +187,7 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
 
 // AWSOrganizationsGetter gets an AWS Organizations client used for listing accounts.
-type AWSOrganizationsGetter func(ctx context.Context, opts ...awsconfig.OptionsFn) (organizations.OrganizationsClient, error)
+type AWSOrganizationsGetter = organizations.ClientGetter
 
 // AWSSTSClient is the subset of the AWS STS API used by EC2 discovery.
 type AWSSTSClient interface {
@@ -601,7 +600,7 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, params matcherR
 	return regions, nil
 }
 
-func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Context) ([]string, error) {
+func (f *ec2InstanceFetcher) fetchAccountsUnderOrganization(ctx context.Context) (organizations.MatchedAccounts, error) {
 	awsOpts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
 	}
@@ -618,27 +617,27 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 
 	orgsClient, err := f.AWSOrganizationsGetter(ctx, awsOpts...)
 	if err != nil {
-		return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+		return organizations.MatchedAccounts{}, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
 			err:                   err,
 			issueType:             usertasks.AutoDiscoverEC2IssuePermOrgDenied,
 			resolveCallerIdentity: resolveCallerIdentity,
 		})
 	}
 
-	accountIDs, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
+	accounts, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
 		IncludeOUs:     includeOUs,
 		ExcludeOUs:     excludeOUs,
 		OrganizationID: organizationID,
 	})
 	if err != nil {
-		return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+		return organizations.MatchedAccounts{}, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
 			err:                   err,
 			issueType:             usertasks.AutoDiscoverEC2IssuePermOrgDenied,
 			resolveCallerIdentity: resolveCallerIdentity,
 		})
 	}
 
-	return accountIDs, nil
+	return accounts, nil
 }
 
 type assumeRoleWithExternalID struct {
@@ -668,23 +667,20 @@ func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWi
 		return nil, trace.BadParameter("assume role name is required when using AWS organization discovery")
 	}
 
-	accountIDs, err := f.fetchAccountIDsUnderOrganization(ctx)
+	accounts, err := f.fetchAccountsUnderOrganization(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var allAssumeRoles []assumeRoleWithExternalID
-	for _, accountID := range accountIDs {
-		assumeRoleARN := arn.ARN{
-			Partition: "aws",
-			Service:   "iam",
-			Region:    "",
-			AccountID: accountID,
-			Resource:  "role/" + f.Matcher.AssumeRole.RoleName,
-		}
+	roleARNs, err := accounts.AssumeRoleARNs(f.Matcher.AssumeRole.RoleName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	allAssumeRoles := make([]assumeRoleWithExternalID, 0, len(roleARNs))
+	for _, roleARN := range roleARNs {
 		allAssumeRoles = append(allAssumeRoles, assumeRoleWithExternalID{
-			RoleARN:    assumeRoleARN.String(),
+			RoleARN:    roleARN,
 			ExternalID: f.Matcher.AssumeRole.ExternalID,
 		})
 	}

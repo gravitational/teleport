@@ -19,6 +19,7 @@
 package organizations
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"testing"
@@ -35,6 +36,7 @@ import (
 type mockOrganizationsClient struct {
 	organizationID string
 	rootOUID       string
+	rootARN        string
 	ouItems        map[string]ouItem
 }
 
@@ -67,7 +69,7 @@ func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organ
 }
 
 func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organizations.ListRootsInput, opts ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
-	rootARN := fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID)
+	rootARN := cmp.Or(m.rootARN, fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID))
 	return &organizations.ListRootsOutput{
 		Roots: []organizationstypes.Root{
 			{
@@ -457,8 +459,111 @@ func TestMatchingAccounts(t *testing.T) {
 			)
 			tt.errCheck(t, err)
 			if tt.expectedAccounts != nil {
-				require.ElementsMatch(t, tt.expectedAccounts, matchingAccounts)
+				require.ElementsMatch(t, tt.expectedAccounts, matchingAccounts.AccountIDs)
 			}
+		})
+	}
+}
+
+func TestMatchingAccountsPartition(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		rootARN           string
+		expectedPartition string
+	}{
+		{
+			name:              "standard partition",
+			rootARN:           "arn:aws:organizations::000000000000:root/o-1/r-1",
+			expectedPartition: "aws",
+		},
+		{
+			name:              "govcloud partition",
+			rootARN:           "arn:aws-us-gov:organizations::000000000000:root/o-1/r-1",
+			expectedPartition: "aws-us-gov",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			orgsClient := &mockOrganizationsClient{
+				organizationID: "o-1",
+				rootOUID:       "r-1",
+				rootARN:        tt.rootARN,
+				ouItems: map[string]ouItem{
+					"r-1": {innerAccounts: []string{"111111111111"}},
+				},
+			}
+
+			matchingAccounts, err := MatchingAccounts(
+				t.Context(),
+				logtest.NewLogger(),
+				orgsClient,
+				MatchingAccountsFilter{OrganizationID: "o-1", IncludeOUs: []string{"*"}},
+			)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedPartition, matchingAccounts.Partition)
+		})
+	}
+}
+
+func TestAssumeRoleARNs(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		accounts MatchedAccounts
+		roleName string
+		expected []string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name: "one role ARN per account",
+			accounts: MatchedAccounts{
+				Partition:  "aws",
+				AccountIDs: []string{"111111111111", "222222222222"},
+			},
+			roleName: "TeleportDiscovery",
+			expected: []string{
+				"arn:aws:iam::111111111111:role/TeleportDiscovery",
+				"arn:aws:iam::222222222222:role/TeleportDiscovery",
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "partition is carried into the ARN",
+			accounts: MatchedAccounts{
+				Partition:  "aws-us-gov",
+				AccountIDs: []string{"111111111111"},
+			},
+			roleName: "TeleportDiscovery",
+			expected: []string{"arn:aws-us-gov:iam::111111111111:role/TeleportDiscovery"},
+			errCheck: require.NoError,
+		},
+		{
+			name: "empty role name is rejected",
+			accounts: MatchedAccounts{
+				Partition:  "aws",
+				AccountIDs: []string{"111111111111"},
+			},
+			errCheck: require.Error,
+		},
+		{
+			name: "role ARN instead of role name is rejected",
+			accounts: MatchedAccounts{
+				Partition:  "aws",
+				AccountIDs: []string{"111111111111"},
+			},
+			roleName: "arn:aws:iam::111111111111:role/TeleportDiscovery",
+			errCheck: require.Error,
+		},
+		{
+			name:     "no accounts yields no ARNs",
+			accounts: MatchedAccounts{Partition: "aws"},
+			roleName: "TeleportDiscovery",
+			expected: []string{},
+			errCheck: require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			roleARNs, err := tt.accounts.AssumeRoleARNs(tt.roleName)
+			tt.errCheck(t, err)
+			require.Equal(t, tt.expected, roleARNs)
 		})
 	}
 }

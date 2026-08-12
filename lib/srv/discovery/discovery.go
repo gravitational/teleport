@@ -717,7 +717,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, s.GetAWSRegionsLister, otherMatchers, noDiscoveryConfig)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(fetchers.MatchersToEKSFetchersParams{
+		Matchers:                  otherMatchers,
+		ClientGetter:              s.AWSFetchersClients,
+		RegionsListerGetter:       s.GetAWSRegionsLister,
+		OrganizationsClientGetter: s.GetAWSOrganizationsClient,
+		DiscoveryConfigName:       noDiscoveryConfig,
+		Logger:                    s.Log,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1013,7 +1020,14 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName
 		return matcherType == types.AWSMatcherEKS
 	})
 	if len(awsKubeMatchers) > 0 {
-		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, s.GetAWSRegionsLister, awsKubeMatchers, discoveryConfigName)
+		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(fetchers.MatchersToEKSFetchersParams{
+			Matchers:                  awsKubeMatchers,
+			ClientGetter:              s.AWSFetchersClients,
+			RegionsListerGetter:       s.GetAWSRegionsLister,
+			OrganizationsClientGetter: s.GetAWSOrganizationsClient,
+			DiscoveryConfigName:       discoveryConfigName,
+			Logger:                    s.Log,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

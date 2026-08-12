@@ -42,6 +42,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/aws/organizations"
 )
 
 const (
@@ -101,6 +102,9 @@ type EKSFetcherConfig struct {
 	// RegionsListerGetter lists AWS regions enabled for the caller's account.
 	// Required to expand the wildcard region.
 	RegionsListerGetter awsregions.ListerGetter
+	// OrganizationsClientGetter lists the accounts of an AWS Organization.
+	// Required when the matcher has an organization matcher.
+	OrganizationsClientGetter organizations.ClientGetter
 	// DiscoveryConfigName is the name of the discovery config which originated the resource.
 	// Might be empty when the fetcher is using static matchers:
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
@@ -131,26 +135,39 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// MatchersToEKSFetchersParams are the inputs shared by every fetcher built from a
+// set of matchers.
+type MatchersToEKSFetchersParams struct {
+	// Matchers are the AWS matchers to build EKS fetchers from. Matchers that do
+	// not include the eks type are ignored.
+	Matchers []types.AWSMatcher
+	// ClientGetter retrieves an EKS client and an STS client.
+	ClientGetter AWSClientGetter
+	// RegionsListerGetter lists AWS regions enabled for an account.
+	RegionsListerGetter awsregions.ListerGetter
+	// OrganizationsClientGetter lists the accounts of an AWS Organization.
+	OrganizationsClientGetter organizations.ClientGetter
+	// DiscoveryConfigName is the name of the discovery config which originated the matchers.
+	DiscoveryConfigName string
+	// Logger is the logger.
+	Logger *slog.Logger
+}
+
 // MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers.
 // Emits one fetcher per matcher. Wildcard regions are expanded at fetch time.
-func MakeEKSFetchersFromAWSMatchers(
-	logger *slog.Logger,
-	clients AWSClientGetter,
-	regionsListerGetter awsregions.ListerGetter,
-	matchers []types.AWSMatcher,
-	discoveryConfigName string,
-) ([]common.Fetcher, error) {
+func MakeEKSFetchersFromAWSMatchers(params MatchersToEKSFetchersParams) ([]common.Fetcher, error) {
 	var kubeFetchers []common.Fetcher
-	for _, matcher := range matchers {
+	for _, matcher := range params.Matchers {
 		if !slices.Contains(matcher.Types, types.AWSMatcherEKS) {
 			continue
 		}
 		fetcher, err := NewEKSFetcher(EKSFetcherConfig{
-			ClientGetter:        clients,
-			Matcher:             matcher,
-			RegionsListerGetter: regionsListerGetter,
-			Logger:              logger,
-			DiscoveryConfigName: discoveryConfigName,
+			Matcher:                   matcher,
+			ClientGetter:              params.ClientGetter,
+			RegionsListerGetter:       params.RegionsListerGetter,
+			OrganizationsClientGetter: params.OrganizationsClientGetter,
+			DiscoveryConfigName:       params.DiscoveryConfigName,
+			Logger:                    params.Logger,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -212,69 +229,161 @@ func (d *DiscoveredEKSCluster) GetSetupAccessForARN() string {
 }
 
 func (f *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	regions := f.Matcher.Regions
-	if f.Matcher.IsRegionWildcard() {
-		enabled, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, matcherCredentialOpts(f.Matcher)...)
-		if err != nil {
-			if trace.IsAccessDenied(err) {
-				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
-					"Add this permission to the IAM Role, or enumerate the regions explicitly.")
-			}
-			return nil, trace.Wrap(err)
-		}
-		regions = enabled
-	}
-	if len(regions) == 0 {
-		return nil, trace.Errorf("account:ListRegions returned no enabled regions")
+	assumeRoles, err := f.accountAssumeRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var resources types.ResourcesWithLabels
-	for _, region := range regions {
-		eksClient, err := f.regionClient(ctx, region)
+	// A name override label set in more than one account collapses two clusters
+	// onto one Teleport name, and the reconciler would drop one without a trace.
+	discoveredNames := make(map[string]types.KubeAWS)
+
+	for _, assumeRole := range assumeRoles {
+		var roleARN string
+		if assumeRole != nil {
+			roleARN = assumeRole.RoleARN
+		}
+		awsOpts := credentialOpts(assumeRole, f.Matcher.Integration)
+
+		regions, err := f.regions(ctx, awsOpts)
 		if err != nil {
-			f.Logger.WarnContext(ctx, "Failed to initialize EKS client for region, skipping",
-				"region", region, "error", err)
+			if !f.Matcher.HasOrganizationMatcher() {
+				return nil, trace.Wrap(err)
+			}
+			f.Logger.WarnContext(ctx, "Failed to resolve regions for account, skipping",
+				"assume_role_arn", roleARN, "error", err)
 			continue
 		}
-		clusters, err := f.findClustersInRegion(ctx, eksClient)
-		if err != nil {
-			f.Logger.WarnContext(ctx, "Failed to discover EKS clusters in region, skipping",
-				"region", region, "error", err)
-			continue
-		}
-		for _, cluster := range clusters {
-			resources = append(resources, cluster)
+
+		for _, region := range regions {
+			eksClient, err := f.regionClient(ctx, region, awsOpts)
+			if err != nil {
+				f.Logger.WarnContext(ctx, "Failed to initialize EKS client for region, skipping",
+					"region", region, "assume_role_arn", roleARN, "error", err)
+				continue
+			}
+			clusters, err := f.findClustersInRegion(ctx, eksClient, assumeRole)
+			if err != nil {
+				f.Logger.WarnContext(ctx, "Failed to discover EKS clusters in region, skipping",
+					"region", region, "assume_role_arn", roleARN, "error", err)
+				continue
+			}
+			for _, cluster := range clusters {
+				meta := cluster.GetAWSConfig()
+				if kept, ok := discoveredNames[cluster.GetName()]; ok {
+					f.Logger.WarnContext(ctx, "Skipping EKS cluster whose Teleport name is already taken by another discovered cluster",
+						"name", cluster.GetName(),
+						"skipped_account_id", meta.AccountID, "skipped_region", meta.Region,
+						"kept_account_id", kept.AccountID, "kept_region", kept.Region)
+					continue
+				}
+				discoveredNames[cluster.GetName()] = meta
+				resources = append(resources, cluster)
+			}
 		}
 	}
 	return resources, nil
 }
 
-// regionClient builds an EKS client scoped to one region with the matcher's
+// accountAssumeRoles returns one role to assume per account to search. Outside
+// organization mode the only entry is the matcher's own assume role, which is nil
+// when the matcher uses ambient or integration credentials directly.
+func (f *eksFetcher) accountAssumeRoles(ctx context.Context) ([]*types.AssumeRole, error) {
+	if !f.Matcher.HasOrganizationMatcher() {
+		return []*types.AssumeRole{f.Matcher.AssumeRole}, nil
+	}
+
+	if f.OrganizationsClientGetter == nil {
+		return nil, trace.BadParameter("missing OrganizationsClientGetter field, which is required to discover accounts under an AWS organization")
+	}
+	if f.Matcher.AssumeRole == nil || f.Matcher.AssumeRole.RoleName == "" {
+		return nil, trace.BadParameter("assume role name is required when using AWS organization discovery")
+	}
+
+	orgsClient, err := f.OrganizationsClientGetter(ctx,
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
+	)
+	if err != nil {
+		return nil, trace.Wrap(awslib.ConvertRequestFailureError(err))
+	}
+
+	var includeOUs, excludeOUs []string
+	if f.Matcher.Organization.OrganizationalUnits != nil {
+		includeOUs = f.Matcher.Organization.OrganizationalUnits.Include
+		excludeOUs = f.Matcher.Organization.OrganizationalUnits.Exclude
+	}
+
+	accounts, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
+		OrganizationID: f.Matcher.Organization.OrganizationID,
+		IncludeOUs:     includeOUs,
+		ExcludeOUs:     excludeOUs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(awslib.ConvertRequestFailureError(err))
+	}
+
+	roleARNs, err := accounts.AssumeRoleARNs(f.Matcher.AssumeRole.RoleName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	assumeRoles := make([]*types.AssumeRole, 0, len(roleARNs))
+	for _, roleARN := range roleARNs {
+		assumeRoles = append(assumeRoles, &types.AssumeRole{
+			RoleARN:    roleARN,
+			ExternalID: f.Matcher.AssumeRole.ExternalID,
+		})
+	}
+	return assumeRoles, nil
+}
+
+// regions returns the regions to search in one account, expanding the wildcard
+// region with that account's credentials.
+func (f *eksFetcher) regions(ctx context.Context, awsOpts []awsconfig.OptionsFn) ([]string, error) {
+	if !f.Matcher.IsRegionWildcard() {
+		return f.Matcher.Regions, nil
+	}
+
+	enabled, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, awsOpts...)
+	if err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
+				"Add this permission to the IAM Role, or enumerate the regions explicitly.")
+		}
+		return nil, trace.Wrap(err)
+	}
+	if len(enabled) == 0 {
+		return nil, trace.Errorf("account:ListRegions returned no enabled regions")
+	}
+	return enabled, nil
+}
+
+// regionClient builds an EKS client scoped to one region with one account's
 // read-side credentials.
-func (f *eksFetcher) regionClient(ctx context.Context, region string) (EKSClient, error) {
-	cfg, err := f.ClientGetter.GetConfig(ctx, region, matcherCredentialOpts(f.Matcher)...)
+func (f *eksFetcher) regionClient(ctx context.Context, region string, awsOpts []awsconfig.OptionsFn) (EKSClient, error) {
+	cfg, err := f.ClientGetter.GetConfig(ctx, region, awsOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return f.ClientGetter.GetAWSEKSClient(cfg), nil
 }
 
-// matcherCredentialOpts builds the AWS config options for discovery's read side:
-// listing and describing clusters with the matcher's credentials, including its
-// integration. Access provisioning uses accessCredentialOpts, which omits the
-// integration.
-func matcherCredentialOpts(m types.AWSMatcher) []awsconfig.OptionsFn {
-	var assumeRole types.AssumeRole
-	if m.AssumeRole != nil {
-		assumeRole = *m.AssumeRole
+// credentialOpts builds AWS config options that assume assumeRole on top of the
+// integration's credentials. Callers pass an empty integration to provision access
+// with the discovery service's own credentials.
+func credentialOpts(assumeRole *types.AssumeRole, integration string) []awsconfig.OptionsFn {
+	role := types.AssumeRole{}
+	if assumeRole != nil {
+		role = *assumeRole
 	}
-	return getAWSOpts(assumeRole, m.Integration)
+	return getAWSOpts(role, integration)
 }
 
 // findClustersInRegion lists EKS clusters reachable through eksClient and returns
 // the ones matching the matcher. Per-cluster errors are logged and swallowed so one
 // bad cluster cannot abort the region.
-func (f *eksFetcher) findClustersInRegion(ctx context.Context, eksClient EKSClient) ([]*DiscoveredEKSCluster, error) {
+func (f *eksFetcher) findClustersInRegion(ctx context.Context, eksClient EKSClient, assumeRole *types.AssumeRole) ([]*DiscoveredEKSCluster, error) {
 	var (
 		clusters        []*DiscoveredEKSCluster
 		mu              sync.Mutex
@@ -289,7 +398,7 @@ func (f *eksFetcher) findClustersInRegion(ctx context.Context, eksClient EKSClie
 		}
 		for _, clusterName := range out.Clusters {
 			group.Go(func() error {
-				cluster, err := f.getMatchingKubeCluster(groupCtx, eksClient, clusterName)
+				cluster, err := f.getMatchingKubeCluster(groupCtx, eksClient, clusterName, assumeRole)
 				if trace.IsCompareFailed(err) {
 					f.Logger.DebugContext(groupCtx, "Cluster did not match the filtering criteria", "error", err, "cluster", clusterName)
 					return nil
@@ -339,7 +448,7 @@ func (f *eksFetcher) String() string {
 // getMatchingKubeCluster describes clusterName, excludes clusters that are not ready,
 // and matches the result against the matcher's labels. It returns trace.CompareFailed
 // for a clean non-match to distinguish filtering from operational errors.
-func (f *eksFetcher) getMatchingKubeCluster(ctx context.Context, eksClient EKSClient, clusterName string) (*DiscoveredEKSCluster, error) {
+func (f *eksFetcher) getMatchingKubeCluster(ctx context.Context, eksClient EKSClient, clusterName string, assumeRole *types.AssumeRole) (*DiscoveredEKSCluster, error) {
 	rsp, err := eksClient.DescribeCluster(
 		ctx,
 		&eks.DescribeClusterInput{
@@ -374,7 +483,7 @@ func (f *eksFetcher) getMatchingKubeCluster(ctx context.Context, eksClient EKSCl
 		awsCluster:             rsp.Cluster,
 		Integration:            f.Matcher.Integration,
 		EnableKubeAppDiscovery: f.Matcher.KubeAppDiscovery,
-		AssumeRole:             f.Matcher.AssumeRole,
+		AssumeRole:             assumeRole,
 		SetupAccessForARN:      f.Matcher.SetupAccessForARN,
 	}, nil
 }
