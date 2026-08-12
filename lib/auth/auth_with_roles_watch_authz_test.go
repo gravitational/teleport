@@ -264,7 +264,7 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			// scoped-kind-whitelist: this test case and associated behaviore can be removed once all scoped
 			// kinds are namespaced.
 			name:      "non-namespaced kind EXACT denied by whitelist",
-			kind:      types.KindNode,
+			kind:      types.KindDatabase,
 			filter:    filter(scopesv1.Mode_MODE_EXACT, pinScope),
 			assertErr: requireAccessDenied,
 		},
@@ -272,7 +272,7 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			// scoped-kind-whitelist: this test case and associated behaviore can be removed once all scoped
 			// kinds are namespaced.
 			name:      "non-namespaced kind ALL denied by whitelist for scoped caller",
-			kind:      types.KindNode,
+			kind:      types.KindDatabase,
 			filter:    filter(scopesv1.Mode_MODE_ALL, ""),
 			assertErr: requireAccessDenied,
 		},
@@ -435,7 +435,7 @@ func TestUnscopedWatchKindAuthz(t *testing.T) {
 			// scoped-kind-whitelist: this test case and associated behaviore can be removed once all scoped
 			// kinds are namespaced.
 			name:      "non-namespaced kind EXACT denied by whitelist",
-			kind:      types.KindNode,
+			kind:      types.KindDatabase,
 			filter:    filter(scopesv1.Mode_MODE_EXACT, "/foo"),
 			assertErr: requireAccessDenied,
 		},

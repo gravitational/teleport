@@ -56,6 +56,7 @@ export const ArrowSquareOut = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-arrowsquareout"
+
       {...otherProps}
       ref={ref}
     >

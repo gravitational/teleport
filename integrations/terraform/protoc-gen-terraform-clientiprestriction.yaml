@@ -38,12 +38,6 @@ exclude_fields:
   # not track it. The Create/Update poll reads it from the live resource, not
   # from Terraform state.
   - "ClientIPRestriction.status"
-  # TODO: add Terraform support for mode and expires. Excluded for now so the
-  # provider surface stays unchanged until they can be wired up together;
-  # spec.expires additionally needs a `Timestamp` custom_types entry, without
-  # which codegen emits invalid Go.
-  - "ClientIPRestriction.spec.mode"
-  - "ClientIPRestriction.spec.expires"
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -68,6 +62,11 @@ validators:
   # Expires must be in the future
   Metadata.expires:
     - github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()
+  # Cloud rejects an expiry less than 20 minutes out; catching a past time at
+  # plan time is faster than round-tripping to the API to be told.
+  ClientIPRestrictionSpec.expires:
+    - github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()
 
 custom_types:
   "ClientIPRestriction.metadata.expires": Timestamp
+  "ClientIPRestriction.spec.expires": Timestamp

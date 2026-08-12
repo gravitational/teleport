@@ -26,7 +26,10 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
   )
 
   dynamic "statement" {
-    for_each = contains(var.database_types_for_default_iam_policy, "rds") ? [true] : []
+    for_each = (
+      contains(var.database_types_for_default_iam_policy, "rds") &&
+      var.allow_database_modification
+    ) ? [true] : []
 
     content {
       sid = "RDSAutoEnableIAMAuth"

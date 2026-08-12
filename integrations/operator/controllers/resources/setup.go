@@ -32,10 +32,11 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // ReconcilerFactory is a function that creates a reconciler from Kubernetes and Teleport clients.
-type ReconcilerFactory func(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error)
+type ReconcilerFactory func(client kclient.Client, tClient *client.Client, metadata reconcilers.OperatorMetadata) (controllers.Reconciler, error)
 
 // Add new reconcilers here.
 var supportedReconcilers = []ReconcilerFactory{
@@ -62,6 +63,7 @@ var supportedReconcilers = []ReconcilerFactory{
 	NewRoleV6Reconciler,
 	NewRoleV7Reconciler,
 	NewRoleV8Reconciler,
+	NewRoleV9Reconciler,
 	NewSAMLConnectorReconciler,
 	NewSAMLIdPServiceProviderV1Reconciler,
 	NewScopedRoleV1Reconciler,
@@ -112,6 +114,8 @@ type Config struct {
 	// Features are the features advertised by the Teleport cluster.
 	// This is used to know which reconcilers should be started.
 	Features *proto.Features
+	// OperatorMetadata contains metadata about the operator.
+	OperatorMetadata reconcilers.OperatorMetadata
 }
 
 // gvkCache is a minimal opportunistic cache around the [discovery.DiscoveryInterface]
@@ -159,7 +163,7 @@ func filterEnabledReconcilers(c Config, reconcilers []ReconcilerFactory, discove
 	var enabledReconcilers []controllers.Reconciler
 	// Check which reconcilers can and should be enabled.
 	for i, factory := range reconcilers {
-		reconciler, err := factory(c.KubeClient, c.TeleportClient)
+		reconciler, err := factory(c.KubeClient, c.TeleportClient, c.OperatorMetadata)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating reconciler[%d]", i)
 		}

@@ -37,72 +37,83 @@ export default {
 };
 
 export const List: StoryObj = {
+  beforeEach({ msw }) {
+    msw.use(withMockCluster(), withMockEvents(), withMockThumbnails());
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [withMockCluster(), withMockEvents(), withMockThumbnails()],
-    },
   },
+
   render,
 };
 
 export const ListError: StoryObj = {
   name: 'List with error fetching recordings',
+
+  beforeEach({ msw }) {
+    msw.use(
+      withMockCluster(),
+      http.get(cfg.api.clusterEventsRecordingsPath, () => {
+        return HttpResponse.json(
+          {
+            error: {
+              message: 'Internal Server Error',
+            },
+          },
+          { status: 500 }
+        );
+      })
+    );
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        withMockCluster(),
-        http.get(cfg.api.clusterEventsRecordingsPath, () => {
-          return HttpResponse.json(
-            {
-              error: {
-                message: 'Internal Server Error',
-              },
-            },
-            { status: 500 }
-          );
-        }),
-      ],
-    },
   },
+
   render,
 };
 
 export const ListClusterError: StoryObj = {
   name: 'List with error fetching clusters',
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.clustersPath, () => {
+        return HttpResponse.json(
+          {
+            error: {
+              message: 'Failed to fetch clusters',
+            },
+          },
+          { status: 500 }
+        );
+      }),
+      withMockEvents()
+    );
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        http.get(cfg.api.clustersPath, () => {
-          return HttpResponse.json(
-            {
-              error: {
-                message: 'Failed to fetch clusters',
-              },
-            },
-            { status: 500 }
-          );
-        }),
-        withMockEvents(),
-      ],
-    },
   },
+
   render,
 };
 
 export const ListLoading: StoryObj = {
   name: 'List loading state',
+
+  beforeEach({ msw }) {
+    msw.use(
+      withMockCluster(),
+      http.get(cfg.api.clusterEventsRecordingsPath, () => delay('infinite'))
+    );
+  },
+
   parameters: {
     layout: 'fullscreen',
-    msw: {
-      handlers: [
-        withMockCluster(),
-        http.get(cfg.api.clusterEventsRecordingsPath, () => delay('infinite')),
-      ],
-    },
   },
+
   render,
 };
 

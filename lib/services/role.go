@@ -29,6 +29,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -289,7 +290,40 @@ func ValidateRole(r types.Role) error {
 	if err := validateSessionPolicies(r); err != nil {
 		errs = append(errs, err)
 	}
+	if err := validateAppResources(r); err != nil {
+		errs = append(errs, err)
+	}
 	return trace.NewAggregate(errs...)
+}
+
+// validateAppResources rejects an app_resources rule set that this version
+// cannot enforce, for example a rule with an unknown field. It also rejects
+// any app_resources_expressions. It runs on create and update only, not on
+// read.
+func validateAppResources(r types.Role) error {
+	if len(r.GetAppResources(types.Deny)) > 0 {
+		return trace.BadParameter("app_resources is not allowed under deny")
+	}
+	if len(r.GetAppResourcesExpressions(types.Deny)) > 0 {
+		return trace.BadParameter("app_resources_expressions is not allowed under deny")
+	}
+	if len(r.GetAppResourcesExpressions(types.Allow)) > 0 {
+		return trace.BadParameter("app_resources_expressions is not supported in this version, only app_resources with allow_all is honored")
+	}
+	allow := r.GetAppResources(types.Allow)
+	for i, rule := range allow {
+		// The backend JSON marshal drops unknown fields. Storing such a
+		// rule would silently widen it to unrestricted access.
+		if !rule.IsAllowAllOnly() {
+			return trace.BadParameter("app_resources[%d]: this version implements allow_all only, so a rule must set allow_all and nothing else", i)
+		}
+	}
+	// Every rule sets allow_all at this point, so more than one rule can
+	// only mean allow_all next to another rule.
+	if len(allow) > 1 {
+		return trace.BadParameter("app_resources: a rule setting allow_all must be the only rule")
+	}
+	return nil
 }
 
 // validateRoleExpressions validates all expression and predicate syntax in a role.
@@ -2981,6 +3015,14 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
+// RoleGrantsResource reports whether role alone grants access to r, checking
+// the namespace and label conditions only. It skips the MFA, device trust and
+// lock checks, which apply to a whole role set rather than one role.
+func RoleGrantsResource(role types.Role, r AccessCheckable, username string, traits wrappers.Traits) bool {
+	_, err := NewRoleSet(role).checkAccess(r, username, traits, AccessState{MFAVerified: true})
+	return err == nil
+}
+
 // checkAccess determines whether access should be granted to a resource based on the provided roles, resource
 // attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
 // is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
@@ -4116,6 +4158,37 @@ const (
 // Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
 const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 
+// knownAppResourceFields lists the JSON field names this version understands
+// on an app_resources rule, derived from the AppResource message so a new
+// proto field extends it automatically.
+var knownAppResourceFields = func() map[string]struct{} {
+	fields := make(map[string]struct{})
+	for f := range reflect.TypeFor[types.AppResource]().Fields() {
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name != "" && name != "-" {
+			fields[name] = struct{}{}
+		}
+	}
+	return fields
+}()
+
+// denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
+// stored JSON carried a field this version does not recognize, so the rule
+// grants no access. Worst case is over-deny.
+func denyAppAccessForUnknownFields(role *types.RoleV6, raw []byte) {
+	if role.Version != types.V9 {
+		return
+	}
+	for i := range role.Spec.Allow.AppResources {
+		for _, key := range jsoniter.Get(raw, "spec", "allow", "app_resources", i).Keys() {
+			if _, known := knownAppResourceFields[key]; !known {
+				role.Spec.Allow.AppResources[i] = types.AppResource{}
+				break
+			}
+		}
+	}
+}
+
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	return UnmarshalRoleV6(bytes, opts...)
@@ -4131,7 +4204,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8, types.V9:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
@@ -4153,6 +4226,8 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	if err := CheckAndSetDefaults(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	denyAppAccessForUnknownFields(&role, bytes)
 
 	if cfg.Revision != "" {
 		role.SetRevision(cfg.Revision)

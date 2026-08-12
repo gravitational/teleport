@@ -773,7 +773,6 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindHealthCheckConfig, RW()),
 							types.NewRule(types.KindVnetConfig, RW()),
 							types.NewRule(types.KindIntegration, RW()),
-							types.NewRule(types.KindAppAuthConfig, RW()),
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),

@@ -38,45 +38,39 @@ export default {
 };
 
 export const Success = () => <Component />;
-Success.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsAppAccess.createV2, () =>
-        HttpResponse.json({ name: 'app-1' })
-      ),
-    ],
-  },
+Success.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsAppAccess.createV2, () =>
+      HttpResponse.json({ name: 'app-1' })
+    )
+  );
 };
 
 export const Loading = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-Loading.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.api.awsAppAccess.createV2,
-        async () => await delay('infinite')
-      ),
-    ],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(
+      cfg.api.awsAppAccess.createV2,
+      async () => await delay('infinite')
+    )
+  );
 };
 
 export const Failed = () => <Component />;
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsAppAccess.createV2, () =>
-        HttpResponse.json(
-          {
-            message: 'Some kind of error message',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsAppAccess.createV2, () =>
+      HttpResponse.json(
+        {
+          message: 'Some kind of error message',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 const Component = () => {

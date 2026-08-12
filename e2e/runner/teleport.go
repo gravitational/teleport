@@ -31,9 +31,9 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,6 +48,7 @@ type teleportInstance struct {
 	stateFile       string
 	logFile         string // empty means stdout/stderr
 	recordingOwners recordingOwners
+	envOverrides    map[string]string
 
 	cmd      *exec.Cmd
 	logF     *os.File
@@ -57,6 +58,7 @@ type teleportInstance struct {
 
 func (t *teleportInstance) start(ctx context.Context) error {
 	t.cmd = exec.CommandContext(ctx, t.teleportBin, "start", "-c", t.configPath, "--bootstrap", t.stateFile)
+	t.cmd.Env = instanceEnv(t.envOverrides)
 
 	if t.logFile != "" {
 		f, err := os.Create(t.logFile)
@@ -73,7 +75,7 @@ func (t *teleportInstance) start(ctx context.Context) error {
 
 	t.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	t.log.Info("starting teleport with bootstrap state")
+	t.log.InfoContext(ctx, "starting teleport with bootstrap state")
 	if err := t.cmd.Start(); err != nil {
 		return fmt.Errorf("starting teleport: %w", err)
 	}
@@ -89,7 +91,7 @@ func (t *teleportInstance) start(ctx context.Context) error {
 
 // waitReady polls the proxy's /webapi/ping endpoint until it responds with 200.
 func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration) error {
-	t.log.Debug("waiting for teleport to be ready")
+	t.log.DebugContext(ctx, "waiting for teleport to be ready")
 
 	client := &http.Client{
 		Timeout: 2 * time.Second,
@@ -120,7 +122,7 @@ func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration)
 		return fmt.Errorf("teleport failed to become ready: %w", err)
 	}
 
-	t.log.Info("teleport is ready")
+	t.log.InfoContext(ctx, "teleport is ready")
 
 	return nil
 }
@@ -130,7 +132,7 @@ func (t *teleportInstance) stop() {
 		return
 	}
 
-	t.log.Info("stopping teleport")
+	t.log.InfoContext(context.Background(), "stopping teleport")
 
 	select {
 	case <-t.waitDone:
@@ -141,7 +143,7 @@ func (t *teleportInstance) stop() {
 		select {
 		case <-t.waitDone:
 		case <-time.After(5 * time.Second):
-			t.log.Warn("teleport did not exit gracefully, sending SIGKILL")
+			t.log.WarnContext(context.Background(), "teleport did not exit gracefully, sending SIGKILL")
 			_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
 			<-t.waitDone
 		}
@@ -168,9 +170,12 @@ func generateTeleportConfig(templatePath, outPath string, data *TeleportConfig) 
 }
 
 type TeleportNodeConfig struct {
-	AuthServerHost string
-	AuthServerPort int
-	SSHServerPort  int
+	NodeName          string
+	AuthServerHost    string
+	AuthServerPort    int
+	SSHServerPort     int
+	SSHPublicHost     string
+	EnhancedRecording bool
 }
 
 func generateTeleportNodeConfig(templatePath, outPath string, data *TeleportNodeConfig) (string, error) {
@@ -188,7 +193,16 @@ func resolveDockerHost() (string, error) {
 		return "", fmt.Errorf("parsing DOCKER_HOST: %w", err)
 	}
 
-	conn, err := net.Dial("udp", u.Host)
+	// This dial carries no traffic, it only picks a route so we can report the local address the daemon's host can reach us back on.
+	target := u.Host
+	if u.Scheme == "ssh" {
+		target, err = sshRouteTarget(u)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	conn, err := net.Dial("udp", target)
 	if err != nil {
 		return "", fmt.Errorf("dialing docker host: %w", err)
 	}

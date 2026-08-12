@@ -35,14 +35,12 @@ export function Loaded() {
     </TeleportProviderBasic>
   );
 }
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () =>
-        HttpResponse.json({ connectors: [connectors[0], connectors[1]] })
-      ),
-    ],
-  },
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getGithubConnectorsUrl(), () =>
+      HttpResponse.json({ connectors: [connectors[0], connectors[1]] })
+    )
+  );
 };
 
 export function Processing() {
@@ -52,15 +50,10 @@ export function Processing() {
     </TeleportProviderBasic>
   );
 }
-Processing.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getGithubConnectorsUrl(),
-        async () => await delay('infinite')
-      ),
-    ],
-  },
+Processing.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getGithubConnectorsUrl(), async () => await delay('infinite'))
+  );
 };
 
 export function Empty() {
@@ -70,12 +63,8 @@ export function Empty() {
     </TeleportProviderBasic>
   );
 }
-Empty.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () => HttpResponse.json({})),
-    ],
-  },
+Empty.beforeEach = ({ msw }) => {
+  msw.use(http.get(cfg.getGithubConnectorsUrl(), () => HttpResponse.json({})));
 };
 
 export function Failed() {
@@ -85,17 +74,15 @@ export function Failed() {
     </TeleportProviderBasic>
   );
 }
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorsUrl(), () =>
-        HttpResponse.json(
-          { message: 'something went wrong' },
-          {
-            status: 500,
-          }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getGithubConnectorsUrl(), () =>
+      HttpResponse.json(
+        { message: 'something went wrong' },
+        {
+          status: 500,
+        }
+      )
+    )
+  );
 };

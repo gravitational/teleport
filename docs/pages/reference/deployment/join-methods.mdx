@@ -124,6 +124,7 @@ Delegated join methods are:
 - [`ec2`](#aws-ec2-identity-document-ec2)
 - [`env0`](#env0-env0)
 - [`gcp`](#gcp-service-account-gcp)
+- [`generic_oidc`](#generic-oidc-generic_oidc)
 - [`github`](#github-actions-github)
 - [`gitlab`](#gitlab-gitlab)
 - [`iam`](#aws-iam-role-iam)
@@ -162,6 +163,7 @@ Non-renewable join methods are:
 - [`azure_devops`](#azure-devops-azure_devops)
 - [`env0`](#env0-env0)
 - [`gcp`](#gcp-service-account-gcp)
+- [`generic_oidc`](#generic-oidc-generic_oidc)
 - [`github`](#github-actions-github)
 - [`circleci`](#circleci-circleci)
 - [`gitlab`](#gitlab-gitlab)
@@ -399,6 +401,29 @@ on the Teleport process joining the cluster.
 <Admonition type="note" title="See Also">
 - How to [Join Services with GCP](../../installation/agents/gcp.mdx).
 - [Deploying Machine & Workload Identity on GCP](../../machine-workload-identity/deployment/gcp.mdx)
+</Admonition>
+
+### Generic OIDC: `generic_oidc`
+
+The `generic_oidc` join method can be used to join bots and agents by
+authenticating via any OIDC-compatible provider. Any provider can be specified
+provided it meets certain minimum requirements, and you can specify your own
+joining rules to ensure only trusted clients or workloads are allowed to join.
+
+Note that where available, dedicated provider-specific join methods are still
+preferred. Dedicated join methods, even those that themselves authenticate via
+OIDC, are individually vetted and are designed to ensure a relatively secure
+configuration baseline has been met. When using `generic_oidc`, you are solely
+responsible for the joining configuration and must ensure all rules are valid
+and secure.
+
+The `generic_oidc` join method requires Teleport v18.11.0 or later.
+
+(!docs/pages/includes/provision-token/generic-oidc-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine & Workload Identity on arbitrary OIDC providers](../../machine-workload-identity/deployment/generic-oidc.mdx)
+- [Joining Services with any OIDC provider via Generic OIDC](../../installation/agents/generic-oidc.mdx)
 </Admonition>
 
 ### GitHub Actions: `github`

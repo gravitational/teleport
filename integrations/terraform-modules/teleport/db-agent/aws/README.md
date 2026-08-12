@@ -55,16 +55,17 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| allow\_database\_modification | Whether to add RDS permissions that allow the Teleport Database Service to modify database configuration. | `bool` | `false` | no |
 | apply\_aws\_tags | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
-| assign\_public\_ip | Whether to assign public IP addresses to Teleport db agent ECS tasks. If this is set to true, then var.ecs\_service\_subnets must be public subnets (route to an internet gateway). Otherwise, var.ecs\_service\_subnets must be private subnets (route to a NAT gateway). | `bool` | `false` | no |
+| assign\_public\_ip | Whether to assign public IP addresses to Teleport ECS tasks. If this is set to true, then var.ecs\_service\_subnets must be public subnets (route to an internet gateway). Otherwise, var.ecs\_service\_subnets must be private subnets (route to a NAT gateway). | `bool` | `false` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
-| create\_security\_group | Whether to create a security group for the Teleport db agent ECS tasks. | `bool` | `true` | no |
+| create\_security\_group | Whether to create a security group for the Teleport ECS tasks. | `bool` | `true` | no |
 | database\_service\_resources | Override the db\_service resource matchers. When null, a default matcher is used that matches databases in the same account, region, and VPC. | ```list(object({ labels = map(list(string)) aws = optional(object({ assume_role_arn = optional(string, "") external_id = optional(string, "") })) }))``` | `null` | no |
 | database\_types\_for\_default\_iam\_policy | Database types for which default IAM policy statements will be added to the ECS task role's inline policy. Currently, only `rds` is supported. Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs\_task\_role\_inline\_policy. | `list(string)` | `[]` | no |
 | ecs\_cluster\_name | Name of the ECS cluster. | `string` | `"teleport-db-services"` | no |
 | ecs\_cluster\_use\_name\_prefix | Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name. | `bool` | `true` | no |
 | ecs\_service\_name | Name of the ECS service. | `string` | `"teleport-db-service"` | no |
-| ecs\_service\_subnets | Subnet IDs where the Teleport db agent will be deployed. If var.assign\_public\_ip is true, then all of these subnets must be public subnets (route to an internet gateway). If var.assign\_public\_ip is false, then all of these subnets must be private subnets (route to a NAT gateway). | `list(string)` | n/a | yes |
+| ecs\_service\_subnets | Subnet IDs where Teleport will be deployed. If var.assign\_public\_ip is true, then all of these subnets must be public subnets (route to an internet gateway). If var.assign\_public\_ip is false, then all of these subnets must be private subnets (route to a NAT gateway). | `list(string)` | n/a | yes |
 | ecs\_task\_cloudwatch\_log\_group\_kms\_key\_id | KMS key ID or ARN used to encrypt the ECS task CloudWatch log group. When null, CloudWatch Logs uses its default encryption key. | `string` | `null` | no |
 | ecs\_task\_cloudwatch\_log\_group\_name | Name for the ECS task CloudWatch log group. | `string` | `"ecs-teleport"` | no |
 | ecs\_task\_cloudwatch\_log\_group\_region | AWS region for the ECS task CloudWatch log group. Defaults to the AWS provider region. | `string` | `null` | no |
@@ -74,39 +75,40 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | ecs\_task\_cpu | Number of CPU units used by the ECS task. | `number` | `2048` | no |
 | ecs\_task\_definition\_name | Name of the ECS task. | `string` | `"teleport-db-agent"` | no |
 | ecs\_task\_definition\_use\_name\_prefix | Determines whether `var.ecs_task_definition_name` is used as a prefix of the ECS task definition name. | `bool` | `true` | no |
-| ecs\_task\_desired\_count | Desired number of Teleport db agent ECS tasks to run. | `number` | `2` | no |
+| ecs\_task\_desired\_count | Desired number of Teleport ECS tasks to run. | `number` | `2` | no |
 | ecs\_task\_force\_new\_deployment | Set to true to force the ECS service to redeploy tasks without configuration changes. | `bool` | `false` | no |
 | ecs\_task\_memory | Amount (in MiB) of memory used by the ECS task. | `number` | `4096` | no |
 | ecs\_task\_role\_inline\_policy | Optional JSON policy document to merge into the inline policy attached to the ECS task IAM role. | `string` | `null` | no |
-| environment\_vars | Environment variables to set on the Teleport db agent ECS container. | `map(string)` | `{}` | no |
+| environment\_vars | Environment variables to set on the Teleport ECS container. | `map(string)` | `{}` | no |
 | join\_params | Override the Teleport join parameters. When null, the module creates an IAM join token automatically. Set this to use a pre-existing token or a different join method. | ```object({ token_name = string method = string })``` | `null` | no |
-| log\_level | Teleport agent log level. | `string` | `"INFO"` | no |
-| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `false` | no |
+| log\_level | Teleport log level. | `string` | `"INFO"` | no |
+| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
 | managed\_updates\_group | Update group to query through the v2 Managed Updates endpoint. | `string` | `"default"` | no |
-| security\_group\_ids | Additional security group IDs to attach to the Teleport db agent ECS tasks. | `list(string)` | `[]` | no |
-| teleport\_container\_image | Container image used for the Teleport db agent ECS tasks. | `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` | no |
-| teleport\_provision\_token\_name | Name for the Teleport provision token resource. | `string` | `"db-agent"` | no |
+| security\_group\_ids | Additional security group IDs to attach to the Teleport ECS tasks. | `list(string)` | `[]` | no |
+| teleport\_container\_image | Container image used for the Teleport ECS tasks. | `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` | no |
+| teleport\_provision\_token\_name | Name for the Teleport provision token resource. | `string` | `"iam-db-agent"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Determines whether the name of the Teleport provision token is used as a prefix. | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address `host:port`. | `string` | n/a | yes |
 | teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"19.0.0-prealpha.2"` | no |
-| vpc\_id | VPC ID where the Teleport db agent will be deployed. | `string` | n/a | yes |
+| vpc\_id | VPC ID where Teleport will be deployed. | `string` | n/a | yes |
 
 ## Outputs
 
 | Name | Description |
 | ---- | ----------- |
-| ecs\_cluster\_arn | ARN of the ECS cluster for the Teleport db agent ECS service. |
-| ecs\_cluster\_name | Name of the ECS cluster for the Teleport db agent ECS service. |
-| ecs\_execution\_role\_arn | The ARN of the execution IAM role for the Teleport db agent ECS task. |
-| ecs\_execution\_role\_name | The name of the execution IAM role for the Teleport db agent ECS task. |
-| ecs\_service\_arn | ARN of the Teleport db agent ECS service. |
-| ecs\_service\_name | Name of the Teleport db agent ECS service. |
-| ecs\_task\_cloudwatch\_log\_group\_arn | ARN of the CloudWatch log group for the Teleport db agent ECS task. |
-| ecs\_task\_cloudwatch\_log\_group\_name | Name of the CloudWatch log group for the Teleport db agent ECS task. |
-| ecs\_task\_definition\_arn | ARN of the Teleport db agent ECS task definition. |
-| ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport db agent ECS task. |
-| ecs\_task\_role\_name | The name of the task IAM role for the Teleport db agent ECS task. |
-| security\_group\_id | Security group ID created for the Teleport db agent ECS service. |
+| ecs\_cluster\_arn | ARN of the ECS cluster for the Teleport ECS service. |
+| ecs\_cluster\_name | Name of the ECS cluster for the Teleport ECS service. |
+| ecs\_execution\_role\_arn | The ARN of the execution IAM role for the Teleport ECS task. |
+| ecs\_execution\_role\_name | The name of the execution IAM role for the Teleport ECS task. |
+| ecs\_service\_arn | ARN of the Teleport ECS service. |
+| ecs\_service\_name | Name of the Teleport ECS service. |
+| ecs\_task\_cloudwatch\_log\_group\_arn | ARN of the CloudWatch log group for the Teleport ECS task. |
+| ecs\_task\_cloudwatch\_log\_group\_name | Name of the CloudWatch log group for the Teleport ECS task. |
+| ecs\_task\_definition\_arn | ARN of the Teleport ECS task definition. |
+| ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport ECS task. |
+| ecs\_task\_role\_name | The name of the task IAM role for the Teleport ECS task. |
+| security\_group\_id | Security group ID created for the Teleport ECS service. |
+| teleport\_config | Teleport configuration used by the ECS task. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
-| teleport\_provision\_token\_name | Name of the Teleport provision token that allows the db agent to join the cluster using AWS IAM credentials. |
+| teleport\_provision\_token\_name | Name of the Teleport provision token that allows the to join the cluster using AWS IAM credentials. |
 <!-- END_TF_DOCS -->

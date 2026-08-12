@@ -27,7 +27,6 @@ import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
-import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { ConfigService } from '../services/config';
@@ -285,26 +284,24 @@ export type AgentProcessState =
       message: string;
     };
 
-export interface ClusterContextMenuOptions {
-  isClusterConnected: boolean;
-
-  onRefresh(): void;
-
-  onLogin(): void;
-
-  onLogout(): void;
-
-  onRemove(): void;
-}
-
 export interface TabContextMenuOptions {
-  document: Document;
+  capabilities: TabContextMenuCapabilities;
   onClose(): void;
   onCloseOthers(): void;
   onCloseToRight(): void;
   onDuplicatePty(): void;
   onReopenPtyInShell(shell: Shell): void;
 }
+
+export type TabContextMenuCapabilities = {
+  /** Whether the tab can be duplicated. */
+  canDuplicatePty: boolean;
+  /** Present when the tab supports changing its shell. */
+  shellSelector?: {
+    /** ID of the currently active shell, if any. */
+    activeShellId?: string;
+  };
+};
 
 export const TerminalContextMenuEventChannel =
   'TerminalContextMenuEventChannel';

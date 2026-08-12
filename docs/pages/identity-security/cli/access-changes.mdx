@@ -1,0 +1,86 @@
+---
+title: Monitor Access-Path Changes from the CLI
+sidebar_label: Access Changes
+description: Use tctl access-changes to review access-path changes to your crown jewels from the terminal.
+tags:
+  - identity-security
+  - how-to
+enterprise: Identity Security
+page_type: how-to
+---
+
+`tctl access-changes` reports changes to the access paths that lead to your
+[Crown Jewels](../usage/crown-jewels.mdx) — the most sensitive users and
+resources you have marked for monitoring. Use it to review how access to those
+resources has shifted over time.
+
+## Prerequisites
+
+See [Identity Security from the Command Line](./cli.mdx) for the shared
+prerequisites and how the CLI authenticates to Access Graph. This command
+requires Access Graph v1.24.0 or later. You must also have marked at least one
+resource as a crown jewel; see [Crown Jewels](../usage/crown-jewels.mdx).
+
+## List access changes
+
+Start by listing recent changes. With no filters, `ls` returns the most recent
+changes across all of your crown jewels, newest first, with the affected node
+and when the change was recorded:
+
+```code
+$ tctl access-changes ls
+```
+
+On a busy cluster this list can be long. Narrow it with a free-text search or
+structured filters — for example, to focus on a single source or resource kind:
+
+```code
+$ tctl access-changes ls --search=payments
+$ tctl access-changes ls --kind=resource --source=AWS
+```
+
+Use `--filter` to combine axes. Comma-separated pairs within one `--filter` are
+AND'd; repeat `--filter` to OR the groups:
+
+```code
+$ tctl access-changes ls --filter kind=resource,source=AWS --filter type=teleport_user
+```
+
+| Flag       | Description                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--search` | Free-text search term.                                                                                                   |
+| `--filter` | Comma-separated `key=value` pairs (keys: `type`, `kind`, `source`). Pairs within one `--filter` are AND'd; repeat to OR. |
+| `--type`   | Origin type (e.g. `aws_s3`, `teleport_user`). Repeatable; OR'd.                                                          |
+| `--kind`   | `identity` or `resource`. Repeatable; OR'd.                                                                              |
+| `--source` | `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`. Repeatable; OR'd.                                                          |
+| `--limit`  | Maximum changes to return (`0` for unlimited). Default: `100`.                                                           |
+| `--format` | `text`, `json`, `yaml`.                                                                                                  |
+
+## Inspect a change
+
+Each row in `tctl access-changes ls` has a `Change ID` — a UUID identifying one
+recorded change to a crown jewel's access paths. Pass that ID to `get` to see
+the affected node and the full diff of what changed:
+
+```code
+$ tctl access-changes get f4d760fe-809e-45fc-afa7-bdce1d6e8a86
+```
+
+The output first identifies the affected node (the crown jewel), then lists the
+graph operations that make up the change — one row per added or removed node and
+edge, with the operation (`add`/`remove`), the entity type, and a human-readable
+name. Reading the diff tells you which grantor, role, or membership shifted the
+access path, so you can decide whether the change is expected.
+
+## Next steps
+
+- [tctl access-changes ls reference](../../reference/cli/tctl.mdx#tctl-access-changes-ls)
+- [tctl access-changes get reference](../../reference/cli/tctl.mdx#tctl-access-changes-get)
+
+## Troubleshooting
+
+### No changes found
+
+`tctl access-changes` only reports paths to resources marked as crown jewels.
+Confirm you have configured crown jewels and that access to them has changed in
+the period you are reviewing. See [Crown Jewels](../usage/crown-jewels.mdx).

@@ -27,7 +27,7 @@ import (
 )
 
 // pollUntil calls probe at the given interval until it returns true,
-// the timeout expires, or the context is cancelled.
+// the timeout expires, or the context is canceled.
 func pollUntil(ctx context.Context, timeout, interval time.Duration, probe func(ctx context.Context) (bool, error)) error {
 	deadline := time.After(timeout)
 	tick := time.NewTicker(interval)

@@ -270,15 +270,13 @@ function Story(props: UserDetailsStoryProps) {
 }
 
 export const BasicUser: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get('/v2/webapi/sites/:clusterId/locks', () => {
-          return HttpResponse.json({
-            items: [],
-          });
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/v2/webapi/sites/:clusterId/locks', () => {
+        return HttpResponse.json({
+          items: [],
+        });
+      })
+    );
   },
 };

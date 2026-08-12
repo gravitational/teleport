@@ -102,8 +102,8 @@ const (
 	disableIPv6Setting = "disable_ipv6"
 )
 
-// hostIPv6Disabled checks whether IPv6 has been disabled on the host.
-func hostIPv6Disabled(tunName string) (bool, error) {
+// platformHostIPv6Disabled checks whether IPv6 has been disabled on the host.
+func platformHostIPv6Disabled(tunName string) (bool, error) {
 	if _, err := os.Stat(procIPv6Conf); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return true, nil

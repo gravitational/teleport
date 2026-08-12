@@ -220,30 +220,6 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 	return trace.Wrap(err)
 }
 
-// GetTokens returns all active (non-expired) provisioning tokens
-// Deprecated: use [ListProvisionTokens] instead.
-// TODO(hugoShaka): DELETE IN 19.0.0
-func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	startKey := backend.ExactKey(tokensPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tokens := make([]types.ProvisionToken, len(result.Items))
-	for i, item := range result.Items {
-		t, err := services.UnmarshalProvisionToken(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshaling token (key: %q)", item.Key)
-		}
-		tokens[i] = t
-	}
-	return tokens, nil
-}
-
 // ListProvisionTokens returns a paginated list of provision tokens. Items can
 // be filtered by role and bot name. Tokens with ANY of the provided roles are
 // returned. If a bot name is provided, only tokens having a role of Bot are
