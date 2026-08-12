@@ -3361,7 +3361,6 @@ export const events = [
       os_type: 4,
     },
     ei: 0,
-    error: 'user denied the enrollment request',
     event: 'device.enroll_pairing.deny',
     success: false,
     time: '2024-04-08T19:41:48.1Z',
