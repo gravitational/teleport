@@ -1089,6 +1089,33 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 	return a.authServer.ClearAlertAcks(ctx, req)
 }
 
+// GetNodes returns all registered SSH servers
+// that the calling identity has permissions to view.
+func (a *ScopedServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	servers, err := a.authServer.GetNodes(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+
+	var filtered []types.Server
+	for _, server := range servers {
+		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Read, scopedaccess.List); err != nil {
+				return trace.Wrap(err)
+			}
+			return checker.SSH().CanAccessSSHServer(server)
+		})
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered, nil
+}
+
 func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	// Note: UpsertNode doesn't allow any namespaces but "default".
@@ -2289,7 +2316,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	}
 
 	switch req.ResourceType {
-	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer:
+	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer, types.KindNode:
 	default:
 		return nil, trace.AccessDenied("resource kind %q not supported for scoped identities", req.ResourceType)
 	}
@@ -2339,6 +2366,10 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		case types.KubeServer:
 			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.Kube().CanAccessCluster(res.GetCluster())
+			})
+		case types.Server:
+			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.SSH().CanAccessSSHServer(res)
 			})
 		case types.KubeCluster:
 			// kube clusters should always land in the fake pagination path, but we defensively ignore
@@ -2887,6 +2918,17 @@ func (a *ScopedServerWithRoles) listResourcesWithSort(ctx context.Context, req p
 			return nil, trace.Wrap(err)
 		}
 		resources = sortedServers.AsResources()
+	case types.KindNode:
+		nodes, err := a.GetNodes(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sorted := types.Servers(nodes)
+		if err := sorted.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sorted.AsResources()
 	default:
 		// We explicitly disallow other kinds to avoid any potential for calling
 		// FakePaginate with a kind that does not properly support scoped access.
