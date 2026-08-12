@@ -74,6 +74,9 @@ type Auth interface {
 	UpsertLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error)
 	DeleteLinuxDesktop(ctx context.Context, name string) error
 
+	UpsertWindowsDesktopService(ctx context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error)
+	DeleteWindowsDesktopService(ctx context.Context, name string) error
+
 	KeepAliveServer(context.Context, types.KeepAlive) error
 	UpsertInstance(ctx context.Context, instance types.Instance) error
 }
@@ -125,6 +128,18 @@ const (
 	kubeUpsertRetryOk  testEvent = "kube-upsert-retry-ok"
 	kubeUpsertRetryErr testEvent = "kube-upsert-retry-err"
 
+	winServiceKeepAliveOk  testEvent = "win-service-keep-alive-ok"
+	winServiceKeepAliveErr testEvent = "win-service-keep-alive-err"
+
+	winServiceUpsertOk  testEvent = "win-service-upsert-ok"
+	winServiceUpsertErr testEvent = "win-service-upsert-err"
+
+	winServiceUpsertRetryOk  testEvent = "win-service-upsert-retry-ok"
+	winServiceUpsertRetryErr testEvent = "win-service-upsert-retry-err"
+
+	winServiceDelOk  testEvent = "win-service-del-ok"
+	winServiceDelErr testEvent = "win-service-del-err"
+
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
 
@@ -135,10 +150,11 @@ const (
 	handlerStart = "handler-start"
 	handlerClose = "handler-close"
 
-	keepAliveSSHTick      = "keep-alive-ssh-tick"
-	keepAliveAppTick      = "keep-alive-app-tick"
-	keepAliveDatabaseTick = "keep-alive-db-tick"
-	keepAliveKubeTick     = "keep-alive-kube-tick"
+	keepAliveSSHTick            = "keep-alive-ssh-tick"
+	keepAliveAppTick            = "keep-alive-app-tick"
+	keepAliveDatabaseTick       = "keep-alive-db-tick"
+	keepAliveKubeTick           = "keep-alive-kube-tick"
+	keepAliveWindowsServiceTick = "keep-alive-win-service-tick"
 )
 
 // heartbeatStepSize is the step size used for the variable heartbeat intervals.
@@ -261,30 +277,31 @@ func WithClock(clock clockwork.Clock) ControllerOption {
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
-	store                      *Store
-	serviceCounter             *serviceCounter
-	auth                       Auth
-	authID                     string
-	serverKeepAlive            time.Duration
-	serverTTL                  time.Duration
-	instanceTTL                time.Duration
-	instanceHBEnabled          bool
-	instanceHBVariableDuration *interval.VariableDuration
-	sshHBVariableDuration      *interval.VariableDuration
-	appHBVariableDuration      *interval.VariableDuration
-	dbHBVariableDuration       *interval.VariableDuration
-	kubeHBVariableDuration     *interval.VariableDuration
-	relayHBVariableDuration    *interval.VariableDuration
-	maxKeepAliveErrs           int
-	usageReporter              usagereporter.UsageReporter
-	testEvents                 chan testEvent
-	onConnectFunc              func(string)
-	onDisconnectFunc           func(string, int)
-	cleanupLimiter             *rate.Limiter
-	cleanupTimeout             time.Duration
-	clock                      clockwork.Clock
-	closeContext               context.Context
-	cancel                     context.CancelFunc
+	store                        *Store
+	serviceCounter               *serviceCounter
+	auth                         Auth
+	authID                       string
+	serverKeepAlive              time.Duration
+	serverTTL                    time.Duration
+	instanceTTL                  time.Duration
+	instanceHBEnabled            bool
+	instanceHBVariableDuration   *interval.VariableDuration
+	sshHBVariableDuration        *interval.VariableDuration
+	appHBVariableDuration        *interval.VariableDuration
+	dbHBVariableDuration         *interval.VariableDuration
+	kubeHBVariableDuration       *interval.VariableDuration
+	winServiceHBVariableDuration *interval.VariableDuration
+	relayHBVariableDuration      *interval.VariableDuration
+	maxKeepAliveErrs             int
+	usageReporter                usagereporter.UsageReporter
+	testEvents                   chan testEvent
+	onConnectFunc                func(string)
+	onDisconnectFunc             func(string, int)
+	cleanupLimiter               *rate.Limiter
+	cleanupTimeout               time.Duration
+	clock                        clockwork.Clock
+	closeContext                 context.Context
+	cancel                       context.CancelFunc
 }
 
 // NewController sets up a new controller instance.
@@ -302,10 +319,11 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	})
 
 	var (
-		sshHBVariableDuration  *interval.VariableDuration
-		appHBVariableDuration  *interval.VariableDuration
-		dbHBVariableDuration   *interval.VariableDuration
-		kubeHBVariableDuration *interval.VariableDuration
+		sshHBVariableDuration        *interval.VariableDuration
+		appHBVariableDuration        *interval.VariableDuration
+		dbHBVariableDuration         *interval.VariableDuration
+		kubeHBVariableDuration       *interval.VariableDuration
+		winServiceHBVariableDuration *interval.VariableDuration
 
 		relayHBVariableDuration *interval.VariableDuration
 	)
@@ -334,6 +352,11 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 			MaxDuration: options.serverKeepAlive * 4,
 			Step:        heartbeatStepSize,
 		})
+		winServiceHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
+			MinDuration: options.serverKeepAlive,
+			MaxDuration: options.serverKeepAlive * 4,
+			Step:        heartbeatStepSize,
+		})
 		relayHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
 			MinDuration: options.serverKeepAlive,
 			MaxDuration: options.serverKeepAlive * 4,
@@ -343,30 +366,31 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
-		store:                      NewStore(),
-		serviceCounter:             &serviceCounter{},
-		serverKeepAlive:            options.serverKeepAlive,
-		serverTTL:                  serverTTL,
-		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
-		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
-		instanceHBVariableDuration: instanceHBVariableDuration,
-		sshHBVariableDuration:      sshHBVariableDuration,
-		appHBVariableDuration:      appHBVariableDuration,
-		dbHBVariableDuration:       dbHBVariableDuration,
-		kubeHBVariableDuration:     kubeHBVariableDuration,
-		relayHBVariableDuration:    relayHBVariableDuration,
-		maxKeepAliveErrs:           options.maxKeepAliveErrs,
-		auth:                       auth,
-		authID:                     options.authID,
-		testEvents:                 options.testEvents,
-		usageReporter:              usageReporter,
-		onConnectFunc:              options.onConnectFunc,
-		onDisconnectFunc:           options.onDisconnectFunc,
-		cleanupLimiter:             options.cleanupLimiter,
-		cleanupTimeout:             options.cleanupTimeout,
-		clock:                      options.clock,
-		closeContext:               ctx,
-		cancel:                     cancel,
+		store:                        NewStore(),
+		serviceCounter:               &serviceCounter{},
+		serverKeepAlive:              options.serverKeepAlive,
+		serverTTL:                    serverTTL,
+		instanceTTL:                  apidefaults.InstanceHeartbeatTTL,
+		instanceHBEnabled:            !instanceHeartbeatsDisabledEnv(),
+		instanceHBVariableDuration:   instanceHBVariableDuration,
+		sshHBVariableDuration:        sshHBVariableDuration,
+		appHBVariableDuration:        appHBVariableDuration,
+		dbHBVariableDuration:         dbHBVariableDuration,
+		kubeHBVariableDuration:       kubeHBVariableDuration,
+		winServiceHBVariableDuration: winServiceHBVariableDuration,
+		relayHBVariableDuration:      relayHBVariableDuration,
+		maxKeepAliveErrs:             options.maxKeepAliveErrs,
+		auth:                         auth,
+		authID:                       options.authID,
+		testEvents:                   options.testEvents,
+		usageReporter:                usageReporter,
+		onConnectFunc:                options.onConnectFunc,
+		onDisconnectFunc:             options.onDisconnectFunc,
+		cleanupLimiter:               options.cleanupLimiter,
+		cleanupTimeout:               options.cleanupTimeout,
+		clock:                        options.clock,
+		closeContext:                 ctx,
+		cancel:                       cancel,
 	}
 }
 
@@ -461,6 +485,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	var sshKeepAliveDelay *delay.Delay
 	var relayKeepAliveDelay *delay.Delay
 	var linuxKeepAliveDelay *delay.Delay
+	var windowsServiceKeepAliveDelay *delay.Delay
 
 	defer func() {
 		// this is a function expression because the variables are initialized
@@ -468,6 +493,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		sshKeepAliveDelay.Stop()
 		relayKeepAliveDelay.Stop()
 		linuxKeepAliveDelay.Stop()
+		windowsServiceKeepAliveDelay.Stop()
 		handle.appKeepAliveDelay.Stop()
 		handle.dbKeepAliveDelay.Stop()
 		handle.kubeKeepAliveDelay.Stop()
@@ -508,6 +534,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		if handle.linuxDesktop != nil {
 			c.onDisconnectFunc(constants.KeepAliveLinuxDesktop, 1)
 			handle.linuxDesktop = nil
+		}
+
+		if handle.windowsDesktopService != nil {
+			c.onDisconnectFunc(constants.KeepAliveWindowsDesktopService, 1)
+			if c.winServiceHBVariableDuration != nil {
+				c.winServiceHBVariableDuration.Dec()
+			}
+			handle.windowsDesktopService = nil
 		}
 
 		if len(handle.appServers) > 0 {
@@ -624,6 +658,17 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
+				if m.HasWindowsDesktopService() {
+					if windowsServiceKeepAliveDelay == nil {
+						windowsServiceKeepAliveDelay = c.createKeepAliveDelay(c.winServiceHBVariableDuration)
+					}
+
+					if err := c.handleWindowsDesktopServiceHB(handle, m.GetWindowsDesktopService(), windowsServiceKeepAliveDelay); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+				}
+
 			case *proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
 			case *proto.UpstreamInventoryGoodbye:
@@ -722,6 +767,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				return
 			}
 
+		case now := <-windowsServiceKeepAliveDelay.Elapsed():
+			windowsServiceKeepAliveDelay.Advance(now)
+
+			if err := c.keepAliveWindowsDesktopService(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+
 		case req := <-handle.pingC:
 			// pings require multiplexing, so we need to do the sending from this
 			// goroutine rather than sending directly via the handle.
@@ -760,6 +813,7 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 		"kube", len(handle.kubernetesServers),
 		"relay", handle.relayServer != nil,
 		"linux_desktop", handle.linuxDesktop != nil,
+		"windows_desktop_service", handle.windowsDesktopService != nil,
 		"server_id", handle.Hello().GetServerID(),
 	)
 
@@ -780,6 +834,25 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 			}
 			slog.WarnContext(c.closeContext, "Failed to remove Linux desktop on termination",
 				"linux_desktop", handle.linuxDesktop.resource.GetMetadata().GetName(),
+				"error", err,
+			)
+		}
+	}
+
+	if handle.windowsDesktopService != nil {
+		// a missing heartbeat is the outcome we want, so treat it as success
+		// rather than warning about a resource that already expired.
+		err := c.auth.DeleteWindowsDesktopService(cleanupCtx, handle.windowsDesktopService.resource.GetName())
+		if err == nil || trace.IsNotFound(err) {
+			c.testEvent(winServiceDelOk)
+		} else {
+			c.testEvent(winServiceDelErr)
+			if cleanupCtx.Err() != nil {
+				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().GetServerID(), "error", err)
+				return
+			}
+			slog.WarnContext(c.closeContext, "Failed to delete windows desktop service on termination",
+				"windows_desktop_service", handle.windowsDesktopService.resource.GetName(),
 				"error", err,
 			)
 		}
@@ -1374,6 +1447,62 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 	return nil
 }
 
+func (c *Controller) handleWindowsDesktopServiceHB(handle *upstreamHandle, windowsDesktopService *types.WindowsDesktopServiceV3, windowsServiceDelay *delay.Delay) error {
+	if !handle.HasService(types.RoleWindowsDesktop) {
+		return trace.AccessDenied("control stream not configured to support windows desktop service heartbeats")
+	}
+
+	if windowsDesktopService.GetName() != handle.Hello().GetServerID() {
+		return trace.AccessDenied("incorrect windows desktop service ID (expected %q, got %q)", handle.Hello().GetServerID(), windowsDesktopService.GetName())
+	}
+
+	if handle.windowsDesktopService == nil {
+		c.onConnectFunc(constants.KeepAliveWindowsDesktopService)
+		if c.winServiceHBVariableDuration != nil {
+			c.winServiceHBVariableDuration.Inc()
+		}
+		handle.windowsDesktopService = &heartBeatInfo[*types.WindowsDesktopServiceV3]{
+			resource: windowsDesktopService,
+		}
+	} else if handle.windowsDesktopService.keepAliveErrs == 0 && services.CompareServers(handle.windowsDesktopService.resource, windowsDesktopService) != services.Different {
+		// if we have successfully upserted this exact server the last time
+		// (except for the expiry), we don't need to upsert it again right now
+		return nil
+	} else {
+		handle.windowsDesktopService.resource = windowsDesktopService
+	}
+
+	handle.windowsDesktopService.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+
+	if _, err := c.auth.UpsertWindowsDesktopService(c.closeContext, handle.windowsDesktopService.resource); err == nil {
+		c.testEvent(winServiceUpsertOk)
+		handle.windowsDesktopService.keepAliveErrs = 0
+		handle.windowsDesktopService.retryUpsert = false
+
+		windowsServiceDelay.Reset()
+	} else {
+		c.testEvent(winServiceUpsertErr)
+		slog.WarnContext(c.closeContext, "Failed to announce windows desktop service",
+			"server_id", handle.Hello().GetServerID(),
+			"error", err,
+		)
+
+		// we use keepAliveErrs as a general upsert error count, retryUpsert as a
+		// flag to signify that we MUST succeed the very next upsert: if we're
+		// here it means that we have a new resource to upsert and we have failed
+		// to do so once, so if we fail again we are going to fall too far behind
+		// and we should let the instance go and connect to a healthier auth
+		// server
+		handle.windowsDesktopService.keepAliveErrs++
+		if handle.windowsDesktopService.retryUpsert || handle.windowsDesktopService.keepAliveErrs > c.maxKeepAliveErrs {
+			return trace.Wrap(err, "failed to announce windows desktop service")
+		}
+		handle.windowsDesktopService.retryUpsert = true
+	}
+
+	return nil
+}
+
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.UpstreamInventoryAgentMetadata) {
 	handle.setAgentMetadata(m)
 
@@ -1654,6 +1783,55 @@ func (c *Controller) keepAliveLinuxDesktop(handle *upstreamHandle, now time.Time
 
 		if closing {
 			return trace.Wrap(err, "failed to keep alive linux desktop")
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) keepAliveWindowsDesktopService(handle *upstreamHandle, now time.Time) error {
+	service := handle.windowsDesktopService
+	if service == nil {
+		return nil
+	}
+
+	service.resource.SetExpiry(now.Add(c.serverTTL).UTC())
+	if _, err := c.auth.UpsertWindowsDesktopService(c.closeContext, service.resource); err == nil {
+		if service.retryUpsert {
+			c.testEvent(winServiceUpsertRetryOk)
+		} else {
+			c.testEvent(winServiceKeepAliveOk)
+		}
+		service.keepAliveErrs = 0
+		service.retryUpsert = false
+	} else {
+		if service.retryUpsert {
+			c.testEvent(winServiceUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert windows desktop service on retry",
+				"server_id", handle.Hello().GetServerID(),
+				"error", err,
+			)
+			// retryUpsert is set when we get a new resource and we fail to
+			// upsert it; if we're here it means that we have failed to upsert
+			// it _again_, so we have fallen quite far behind
+			return trace.Wrap(err, "failed to upsert windows desktop service on retry")
+		}
+
+		c.testEvent(winServiceKeepAliveErr)
+		service.keepAliveErrs++
+		closing := service.keepAliveErrs > c.maxKeepAliveErrs
+		slog.WarnContext(c.closeContext, "Failed to upsert windows desktop service on keepalive",
+			"server_id", handle.Hello().GetServerID(),
+			"error", err,
+			"count", service.keepAliveErrs,
+			"closing", closing,
+		)
+
+		// there is only ever one windows desktop service per handle, so there is
+		// nothing to remove and keep the stream going for. close the handle
+		// instead and let the deferred cleanup do the disconnect accounting.
+		if closing {
+			return trace.Wrap(err, "failed to keep alive windows desktop service")
 		}
 	}
 

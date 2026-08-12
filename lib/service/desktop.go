@@ -240,6 +240,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
+		InventoryHandle:      process.inventoryHandle,
 		ShowDesktopWallpaper: cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:           cfg.WindowsDesktop.LDAP,
 		KDCAddr:              cfg.WindowsDesktop.KDCAddr,

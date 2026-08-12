@@ -717,6 +717,9 @@ type upstreamHandle struct {
 	// linuxDesktop, if set, is the current linux desktop heartbeat.
 	linuxDesktop *heartBeatInfo[*linuxdesktopv1.LinuxDesktop]
 
+	// windowsDesktopService, if set, is the current windows desktop service heartbeat.
+	windowsDesktopService *heartBeatInfo[*types.WindowsDesktopServiceV3]
+
 	// relayServerErrorCount counts how many times in a row we have failed to
 	// keepalive the relay server heartbeat, or, if negative, signals that we
 	// have failed to upsert a new resource.

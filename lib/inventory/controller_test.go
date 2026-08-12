@@ -228,6 +228,31 @@ func (a *fakeAuth) DeleteLinuxDesktop(ctx context.Context, name string) error {
 	return nil
 }
 
+func (a *fakeAuth) UpsertWindowsDesktopService(_ context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	a.lastServerExpiry = service.Expiry()
+	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
+}
+
 // UpsertRelayServer implements [Auth].
 func (a *fakeAuth) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error) {
 	panic("unimplemented")

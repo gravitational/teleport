@@ -214,6 +214,26 @@ func NewLinuxDesktopHeartbeat(cfg HeartbeatV2Config[*linuxdesktopv1.LinuxDesktop
 	}), nil
 }
 
+// NewWindowsDesktopServiceHeartbeat creates a [HeartbeatV2] that can be used to
+// update the presence of [types.WindowsDesktopServiceV3].
+func NewWindowsDesktopServiceHeartbeat(cfg HeartbeatV2Config[*types.WindowsDesktopServiceV3]) (*HeartbeatV2, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inner := &windowsDesktopServiceHeartbeatV2{
+		announcer:  cfg.Announcer,
+		getService: cfg.GetResource,
+	}
+
+	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
+	}), nil
+}
+
 // hbv2TestEvent is a basic event type used to monitor/await
 // specific events within the HeartbeatV2 type's operations
 // during tests.
@@ -820,6 +840,80 @@ func (h *linuxDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory
 		return false
 	}
 	h.prev = desktop
+	return true
+}
+
+// windowsDesktopServiceHeartbeatV2 is the heartbeatV2 implementation for windows desktop service.
+type windowsDesktopServiceHeartbeatV2 struct {
+	getService func(ctx context.Context) (*types.WindowsDesktopServiceV3, error)
+	announcer  authclient.Announcer
+	prev       *types.WindowsDesktopServiceV3
+}
+
+var _ heartbeatV2Driver = (*windowsDesktopServiceHeartbeatV2)(nil)
+
+func (h *windowsDesktopServiceHeartbeatV2) Poll(ctx context.Context) (changed bool) {
+	if h.prev == nil {
+		return true
+	}
+
+	service, err := h.getService(ctx)
+	if err != nil {
+		return false
+	}
+
+	return services.CompareServers(service, h.prev) == services.Different
+}
+
+func (h *windowsDesktopServiceHeartbeatV2) SupportsFallback() bool {
+	return h.announcer != nil
+}
+
+func (h *windowsDesktopServiceHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
+	if h.announcer == nil {
+		return false
+	}
+
+	service, err := h.getService(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to get windows desktop service for fallback heartbeat", "error", err)
+		return false
+	}
+
+	if _, err := h.announcer.UpsertWindowsDesktopService(ctx, service); err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for windows desktop service", "error", err)
+		}
+		return false
+	}
+
+	h.prev = service
+	return true
+}
+
+func (h *windowsDesktopServiceHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
+	hello := sender.Hello()
+	switch {
+	case !hello.HasCapabilities():
+		return h.FallbackAnnounce(ctx)
+	case !hello.GetCapabilities().GetWindowsDesktopServiceHeartbeats():
+		return h.FallbackAnnounce(ctx)
+	}
+
+	service, err := h.getService(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to get windows desktop service for inventory heartbeat", "error", err)
+		return false
+	}
+
+	if err := sender.Send(ctx, proto.InventoryHeartbeat_builder{WindowsDesktopService: apiutils.CloneProtoMsg(service)}.Build()); err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for windows desktop service", "error", err)
+		}
+		return false
+	}
+
+	h.prev = service
 	return true
 }
 
