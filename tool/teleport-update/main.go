@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -64,6 +65,26 @@ const (
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
+
+// artifactSignaturePublicKeyB64 is injected into the teleport-update
+// binary at build time via ldflags.
+var artifactSignaturePublicKeyB64 string
+
+// artifactSignatureBackupPublicKeyB64 is injected into the teleport-update
+// binary at build time via ldflags.
+var artifactSignatureBackupPublicKeyB64 string
+
+// artifactSignatureAdditionalPublicKeyB64 is injected into the
+// teleport-update binary at build time via ldflags. It provides an additional
+// trusted artifact signing key beyond the primary/backup pair, for example to
+// allow a staging-built updater to verify prod-signed artifacts.
+var artifactSignatureAdditionalPublicKeyB64 string
+
+// artifactSignatureAdditionalBackupPublicKeyB64 is injected into the
+// teleport-update binary at build time via ldflags. It provides an additional
+// trusted backup artifact signing key beyond the primary/backup pair, for
+// example to allow a staging-built updater to verify prod-signed artifacts.
+var artifactSignatureAdditionalBackupPublicKeyB64 string
 
 func main() {
 	if code := Run(os.Args[1:]); code != 0 {
@@ -113,6 +134,10 @@ func Run(args []string) int {
 		Hidden().StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
+	app.Flag("insecure-skip-signature-verify", "Disable artifact signature verification and fall back to checksum-only verification. Do not use in production.").
+		Hidden().IsSetByUser(&ccfg.InsecureSkipSignatureVerifyChanged).BoolVar(&ccfg.InsecureSkipSignatureVerify)
+	app.Flag("enable-staging-signature-verify", "Enable detached signature verification for staging CDN artifacts that would otherwise skip verification").
+		IsSetByUser(&ccfg.EnableStagingSignatureVerifyChanged).BoolVar(&ccfg.EnableStagingSignatureVerify)
 
 	app.HelpFlag.Short('h')
 
@@ -277,6 +302,15 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
+func newArtifactSignatureVerifiers() ([]signature.Verifier, error) {
+	return autoupdate.NewArtifactSignatureVerifiers(
+		artifactSignaturePublicKeyB64,
+		artifactSignatureBackupPublicKeyB64,
+		artifactSignatureAdditionalPublicKeyB64,
+		artifactSignatureAdditionalBackupPublicKeyB64,
+	)
+}
+
 func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
 	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
@@ -286,12 +320,17 @@ func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updat
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup:          ccfg.SelfSetup,
-		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
-		Debug:              ccfg.Debug,
-		InsecureSkipVerify: ccfg.Insecure,
+		SelfSetup:                  ccfg.SelfSetup,
+		Log:                        plog,
+		LogFormat:                  ccfg.LogFormat,
+		Debug:                      ccfg.Debug,
+		InsecureSkipVerify:         ccfg.Insecure,
+		ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 	}, ns)
 	return updater, lockFile, trace.Wrap(err)
 }
@@ -301,12 +340,17 @@ func statusConfig(ctx context.Context, ccfg *cliConfig) (*autoupdate.Updater, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup:          ccfg.SelfSetup,
-		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
-		Debug:              ccfg.Debug,
-		InsecureSkipVerify: ccfg.Insecure,
+		SelfSetup:                  ccfg.SelfSetup,
+		Log:                        plog,
+		LogFormat:                  ccfg.LogFormat,
+		Debug:                      ccfg.Debug,
+		InsecureSkipVerify:         ccfg.Insecure,
+		ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 	}, ns)
 	return updater, trace.Wrap(err)
 }
@@ -466,12 +510,17 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup:          ccfg.SelfSetup,
-		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
-		Debug:              ccfg.Debug,
-		InsecureSkipVerify: ccfg.Insecure,
+		SelfSetup:                  ccfg.SelfSetup,
+		Log:                        plog,
+		LogFormat:                  ccfg.LogFormat,
+		Debug:                      ccfg.Debug,
+		InsecureSkipVerify:         ccfg.Insecure,
+		ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 	}, ns)
 	if err != nil {
 		return trace.Wrap(err)

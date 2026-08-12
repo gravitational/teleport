@@ -22,19 +22,27 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
+	sigopts "github.com/sigstore/sigstore/pkg/signature/options"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
@@ -51,6 +59,14 @@ const (
 	configFileMode = 0644
 	// systemDirMode is the mode used for new directories.
 	systemDirMode = 0755
+	// artifactSignatureType is the detached cosign signature extension for Teleport tgzs.
+	artifactSignatureType = "sig"
+	// maxArtifactSignatureSize is the maximum allowed size of a detached artifact signature.
+	maxArtifactSignatureSize = 4_096 // 4 KB, ECDSA P256 signatures are ~96 bytes
+	// stagingCDNBaseURL is the staging CDN used for tenant dev-build workflows.
+	stagingCDNBaseURL = "https://cdn.cloud.gravitational.io"
+	// stagingSignatureVerificationVersion is the first major version that verifies staging CDN artifacts by default.
+	stagingSignatureVerificationVersion = 19
 )
 
 const (
@@ -58,6 +74,8 @@ const (
 	serviceDir = "lib/systemd/system"
 	// serviceName contains the upstream name of the Teleport SystemD service file.
 	serviceName = "teleport.service"
+	// artifactSignatureHash is the digest algorithm used for detached cosign signatures.
+	artifactSignatureHash = crypto.SHA256
 )
 
 // ServiceFile represents a systemd service file for a Teleport binary.
@@ -110,6 +128,8 @@ type LocalInstaller struct {
 	ValidateBinary func(ctx context.Context, path string) (bool, error)
 	// Template is download URI Template of Teleport packages.
 	Template string
+	// ArtifactSignatureVerifiers verifies detached release artifact signatures.
+	ArtifactSignatureVerifiers []signature.Verifier
 }
 
 // Remove a Teleport version directory from InstallDir.
@@ -140,7 +160,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipSignatureVerify, enableStagingSignatureVerify bool) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -153,8 +173,6 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		return trace.Wrap(err)
 	}
 
-	// Get new and old checksums. If they match, skip download.
-	// Otherwise, clear the old version directory and re-download.
 	checksumURI := uri + "." + checksumType
 	newSum, err := li.getChecksum(ctx, checksumURI)
 	if err != nil {
@@ -200,9 +218,8 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	if err != nil {
 		return trace.Wrap(err, "failed to download teleport")
 	}
-	// Seek to the start of the tgz file after writing
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return trace.Wrap(err, "failed seek to start of download")
+		return trace.Wrap(err, "failed to reset artifact after download")
 	}
 
 	// If interrupted, close the file immediately to stop extracting.
@@ -211,10 +228,19 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	context.AfterFunc(ctx, func() {
 		_ = f.Close() // safe to close file multiple times
 	})
-	// Check integrity before decompression
-	if !bytes.Equal(newSum, pathSum) {
-		return trace.Errorf("mismatched checksum, download possibly corrupt")
+
+	if insecureSkipSignatureVerify {
+		li.Log.WarnContext(ctx, "Artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
+	} else if shouldSkipStagingSignatureVerification(baseURL, rev.Version, enableStagingSignatureVerify) {
+		li.Log.WarnContext(ctx, "Artifact signature verification skipped: staging CDN in use.", "version", rev)
+	} else if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
+		return trace.Wrap(err)
 	}
+
+	if !bytes.Equal(newSum, pathSum) {
+		return trace.BadParameter("downloaded checksum does not match artifact digest")
+	}
+
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
 	if err != nil {
@@ -295,6 +321,171 @@ func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	return sum, nil
+}
+
+func isStagingCDN(baseURL string) bool {
+	ok, err := sameHostname(baseURL, stagingCDNBaseURL)
+	return err == nil && ok
+}
+
+func shouldSkipStagingSignatureVerification(baseURL, version string, enableStagingSignatureVerify bool) bool {
+	if !isStagingCDN(baseURL) || enableStagingSignatureVerify {
+		return false
+	}
+	semVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return false
+	}
+	return semVersion.Major < stagingSignatureVerificationVersion
+}
+
+func sameHostname(rawURL, wantURL string) (bool, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	w, err := url.Parse(wantURL)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	got := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	want := strings.TrimSuffix(strings.ToLower(w.Hostname()), ".")
+
+	return got == want, nil
+}
+
+// NewArtifactSignatureVerifiers constructs the trusted verifier set for
+// teleport-update. The primary/backup pair is required. An additional
+// primary/backup pair may be provided to extend trust for specific build lanes,
+// such as allowing a staging-built updater to verify prod-signed artifacts.
+func NewArtifactSignatureVerifiers(primaryPublicKeyB64, backupPublicKeyB64, additionalPublicKeyB64, additionalBackupPublicKeyB64 string) ([]signature.Verifier, error) {
+	if primaryPublicKeyB64 == "" {
+		return nil, trace.BadParameter("teleport-update artifact signature public key is not configured")
+	}
+	if backupPublicKeyB64 == "" {
+		return nil, trace.BadParameter("teleport-update backup artifact signature public key is not configured")
+	}
+
+	if additionalPublicKeyB64 != "" && additionalBackupPublicKeyB64 == "" {
+		return nil, trace.BadParameter("teleport-update additional backup artifact signature public key is not configured")
+	}
+
+	if additionalPublicKeyB64 == "" && additionalBackupPublicKeyB64 != "" {
+		return nil, trace.BadParameter("teleport-update additional artifact signature public key is not configured")
+	}
+
+	primaryVerifier, err := loadArtifactSignatureVerifier(primaryPublicKeyB64, "primary")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	backupVerifier, err := loadArtifactSignatureVerifier(backupPublicKeyB64, "backup")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	verifiers := []signature.Verifier{primaryVerifier, backupVerifier}
+	if additionalPublicKeyB64 != "" {
+		additionalPrimaryVerifier, err := loadArtifactSignatureVerifier(additionalPublicKeyB64, "additional primary")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiers = append(verifiers, additionalPrimaryVerifier)
+
+		additionalBackupVerifier, err := loadArtifactSignatureVerifier(additionalBackupPublicKeyB64, "additional backup")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiers = append(verifiers, additionalBackupVerifier)
+	}
+
+	return verifiers, nil
+}
+
+func loadArtifactSignatureVerifier(publicKeyB64 string, label string) (signature.Verifier, error) {
+	pem, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to decode %s teleport-update artifact signature public key", label)
+	}
+	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(pem)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse %s teleport-update artifact signature public key", label)
+	}
+	verifier, err := signature.LoadVerifier(pubKey, artifactSignatureHash)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize %s teleport-update artifact signature verifier", label)
+	}
+	return verifier, nil
+}
+
+func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := li.HTTP.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, trace.Errorf("signature not found: %s", url)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
+	}
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxArtifactSignatureSize+1))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(raw) > maxArtifactSignatureSize {
+		return nil, trace.BadParameter("signature exceeds maximum size")
+	}
+	sig, err := base64.StdEncoding.DecodeString(string(bytes.TrimSpace(raw)))
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to decode signature")
+	}
+	return sig, nil
+}
+
+func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url string, digest []byte) error {
+	if len(li.ArtifactSignatureVerifiers) == 0 {
+		return trace.BadParameter("teleport-update artifact signature verifier is not configured")
+	}
+
+	sig, err := li.getSignature(ctx, url)
+	if err != nil {
+		return trace.Wrap(err, "failed to download signature from %s", url)
+	}
+	// WithDigest reuses the SHA-256 computed during download, so the verifier does
+	// not need the artifact bytes here for the current ECDSA verifier path. Use
+	// an empty reader as a safe placeholder rather than nil; upstream
+	// sigstore-go uses the same digest-only pattern:
+	// https://github.com/sigstore/sigstore-go/blob/v1.1.4/pkg/verify/signature.go#L398
+	//
+	// Note: this is not a generic sigstore pattern for all key types. In
+	// particular, sigstore's Ed25519 verifier rejects WithDigest-based
+	// verification, so this code would need to change if the signing algorithm
+	// changes in the future.
+	//
+	// Sigstore documents an ECDSA malleability warning for WithDigest:
+	// https://github.com/sigstore/sigstore/blob/v1.10.5/pkg/signature/options/digest.go#L29
+	// Here the digest is computed locally from the downloaded artifact, not
+	// supplied by an untrusted source.
+	var errs []error
+	for _, verifier := range li.ArtifactSignatureVerifiers {
+		err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest))
+		if err == nil {
+			return nil
+		}
+		errs = append(errs, err)
+	}
+	return trace.Wrap(errors.Join(errs...), "artifact signature verification failed for all trusted keys")
 }
 
 func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, url string) (sum []byte, err error) {
