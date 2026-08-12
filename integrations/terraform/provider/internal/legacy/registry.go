@@ -55,7 +55,6 @@ func ResourceTypes() map[string]tfsdk.ResourceType {
 		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_ui_config":                  resourceTeleportUIConfigType{},
 		"teleport_bot":                        resourceTeleportBotType{},
-		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
