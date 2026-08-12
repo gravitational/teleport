@@ -419,8 +419,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       node-pty:
-        specifier: 1.2.0-beta.14
-        version: 1.2.0-beta.14
+        specifier: 1.2.0-beta.15
+        version: 1.2.0-beta.15
       ring-buffer-ts:
         specifier: ^1.2.0
         version: 1.2.0
@@ -465,11 +465,11 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       electron:
-        specifier: 42.5.0
-        version: 42.5.0(supports-color@8.1.1)
+        specifier: 43.3.0
+        version: 43.3.0(supports-color@8.1.1)
       electron-builder:
-        specifier: ^26.15.6
-        version: 26.15.6(supports-color@8.1.1)
+        specifier: ^26.15.7
+        version: 26.15.7(supports-color@8.1.1)
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9(supports-color@8.1.1)
@@ -3236,12 +3236,12 @@ packages:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
 
-  app-builder-lib@26.15.6:
-    resolution: {integrity: sha512-lN6BliNJLnS2ruBdYd1j1rzd2yl4ZwKqyTtAwVznIkkadOR9cFvRz/tNQ6nd824AobnFZKhcdFrpIGDnr0PRSg==}
+  app-builder-lib@26.15.7:
+    resolution: {integrity: sha512-C7APoYISPExUmrEntNhDpz9Tccb4uWuEDfLaC0WPPc7/pwzz0WZGznCz/ycPfkkzw6tKOalceD8g6TgHmVz1QA==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      dmg-builder: 26.15.6
-      electron-builder-squirrel-windows: 26.15.6
+      dmg-builder: 26.15.7
+      electron-builder-squirrel-windows: 26.15.7
 
   argparse@1.0.10:
     resolution: {integrity: sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg==}
@@ -3809,8 +3809,8 @@ packages:
   dir-compare@4.2.0:
     resolution: {integrity: sha512-2xMCmOoMrdQIPHdsTawECdNPwlVFB9zGcz3kuhmBO6U3oU+UQjsue0i8ayLKpgBcm+hcXPMVSGUN9d+pvJ6+VQ==}
 
-  dmg-builder@26.15.6:
-    resolution: {integrity: sha512-nr5vQxEhM0REomp1qiHbc6V99yrfBZy+wUU56VXADfSOlLj8PdLqsHiRe7b+FbqKesiyv4ax+k1GVwGonYKuCg==}
+  dmg-builder@26.15.7:
+    resolution: {integrity: sha512-rfo1YyAWO0L3cZLKCqKQiLYbW6ZXebRUfK0kWp4oXxO7dDFLrf7alRkWImNuXvZVQhs6Idzy++cwOk8I+xPDhw==}
 
   dnd-core@14.0.1:
     resolution: {integrity: sha512-+PVS2VPTgKFPYWo3vAFEA8WPbTf7/xo43TifH9G8S1KqnrQu0o77A3unrF5yOugy4mIz7K5wAVFHUcha7wsz6A==}
@@ -3864,8 +3864,8 @@ packages:
     engines: {node: '>=0.10.0'}
     hasBin: true
 
-  electron-builder@26.15.6:
-    resolution: {integrity: sha512-jxlHRjqYrlTgLVo/aoACGpiki3QFYv8s4f2djsqaEbwTBZ9PcTBK03Tj/HMa65kiE0hdZxxbZdmVFo22eou2wA==}
+  electron-builder@26.15.7:
+    resolution: {integrity: sha512-DBpaNzxsPs1BvEblzFoNriSbzsBqDCy/gseIngeEhYzQG1IxfB7Hvc2tBBVmpWE2BTQGP9J1RrAvDT+Vc/uAxg==}
     engines: {node: '>=14.0.0'}
     hasBin: true
 
@@ -3889,8 +3889,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@42.5.0:
-    resolution: {integrity: sha512-cYEKS9XFz+c9fAB4jI0x49yz1FFzB55r3q96wu9YkwwJMv7t9202IE/ltlgy6yitl/J4M7C8JQcmUqdzDvPl/w==}
+  electron@43.3.0:
+    resolution: {integrity: sha512-nLlvu0WFjftWsSaTkV2B/c4NDuJBspTyXu8vKSQ6vLvFt8uG3NgN49LLKcXddwX0GqVvAQDhciWp+4xOdTdhew==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -4979,8 +4979,8 @@ packages:
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  node-pty@1.2.0-beta.14:
-    resolution: {integrity: sha512-XORU9BQgpxVgqr7WivjJ17mLenOHUgKKWzuZZNaw3NDYgHc/wPJQMSaoLDrpEgqV6aU1nNwil1o/OqYj6lWmUA==}
+  node-pty@1.2.0-beta.15:
+    resolution: {integrity: sha512-vORSzHXi4Ofl7HemVWpuudLqCPdaQb4LfpRCUpE5HPxhp4JYscl8zZwxh11p26v2wvW24WMwnMfLjhRLixrfxA==}
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -7438,17 +7438,17 @@ snapshots:
   '@emnapi/core@1.8.1':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
-      tslib: 2.7.0
+      tslib: 2.8.1
     optional: true
 
   '@emnapi/runtime@1.8.1':
     dependencies:
-      tslib: 2.7.0
+      tslib: 2.8.1
     optional: true
 
   '@emnapi/wasi-threads@1.1.0':
     dependencies:
-      tslib: 2.7.0
+      tslib: 2.8.1
     optional: true
 
   '@emotion/babel-plugin@11.12.0(supports-color@8.1.1)':
@@ -8406,7 +8406,7 @@ snapshots:
 
   '@peculiar/json-schema@1.1.12':
     dependencies:
-      tslib: 2.7.0
+      tslib: 2.8.1
 
   '@peculiar/utils@2.0.3':
     dependencies:
@@ -8828,7 +8828,7 @@ snapshots:
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
-      tslib: 2.7.0
+      tslib: 2.8.1
     optional: true
 
   '@types/aria-query@5.0.4': {}
@@ -9285,7 +9285,7 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.2
 
-  app-builder-lib@26.15.6(dmg-builder@26.15.6(supports-color@8.1.1))(supports-color@8.1.1):
+  app-builder-lib@26.15.7(dmg-builder@26.15.7(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
@@ -9306,7 +9306,7 @@ snapshots:
       chromium-pickle-js: 0.2.0
       ci-info: 4.3.1
       debug: 4.4.3(supports-color@8.1.1)
-      dmg-builder: 26.15.6(supports-color@8.1.1)
+      dmg-builder: 26.15.7(supports-color@8.1.1)
       dotenv: 16.5.0
       dotenv-expand: 11.0.6
       ejs: 3.1.10
@@ -9923,9 +9923,9 @@ snapshots:
       minimatch: 3.1.5
       p-limit: 3.1.0
 
-  dmg-builder@26.15.6(supports-color@8.1.1):
+  dmg-builder@26.15.7(supports-color@8.1.1):
     dependencies:
-      app-builder-lib: 26.15.6(dmg-builder@26.15.6(supports-color@8.1.1))(supports-color@8.1.1)
+      app-builder-lib: 26.15.7(dmg-builder@26.15.7(supports-color@8.1.1))(supports-color@8.1.1)
       builder-util: 26.15.3(supports-color@8.1.1)
       fs-extra: 10.1.0
       js-yaml: 4.3.1
@@ -9992,14 +9992,14 @@ snapshots:
     dependencies:
       jake: 10.8.5
 
-  electron-builder@26.15.6(supports-color@8.1.1):
+  electron-builder@26.15.7(supports-color@8.1.1):
     dependencies:
-      app-builder-lib: 26.15.6(dmg-builder@26.15.6(supports-color@8.1.1))(supports-color@8.1.1)
+      app-builder-lib: 26.15.7(dmg-builder@26.15.7(supports-color@8.1.1))(supports-color@8.1.1)
       builder-util: 26.15.3(supports-color@8.1.1)
       builder-util-runtime: 9.7.0(supports-color@8.1.1)
       chalk: 4.1.2
       ci-info: 4.3.1
-      dmg-builder: 26.15.6(supports-color@8.1.1)
+      dmg-builder: 26.15.7(supports-color@8.1.1)
       fs-extra: 10.1.0
       lazy-val: 1.0.5
       simple-update-notifier: 2.0.0
@@ -10051,7 +10051,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@42.5.0(supports-color@8.1.1):
+  electron@43.3.0(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.4
       '@electron/get': 5.0.0(supports-color@8.1.1)
@@ -11374,7 +11374,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.2.0-beta.14:
+  node-pty@1.2.0-beta.15:
     dependencies:
       node-addon-api: 7.1.0
 
