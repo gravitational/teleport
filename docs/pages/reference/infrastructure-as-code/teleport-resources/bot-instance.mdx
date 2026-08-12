@@ -229,6 +229,7 @@ oracle: # [...]
 azure_devops: # [...]
 env0: # [...]
 generic_oidc: # [...]
+bound_keypair: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -236,6 +237,7 @@ generic_oidc: # [...]
 |azure|Attributes that are specific to the Azure (`azure`) join method.|[Join Attrs Azure](#join-attrs-azure)|
 |azure_devops|Attributes that are specific to the Azure Devops (`azure_devops`) join method.|[Join Attrs Azure Devops](#join-attrs-azure-devops)|
 |bitbucket|Attributes that are specific to the Bitbucket (`bitbucket`) join method.|[Join Attrs Bitbucket](#join-attrs-bitbucket)|
+|bound_keypair|Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.|[Join Attrs Bound Keypair](#join-attrs-bound-keypair)|
 |circleci|Attributes that are specific to the CircleCI (`circleci`) join method.|[Join Attrs CircleCI](#join-attrs-circleci)|
 |env0|Attributes that are specific to the Env0 (`env0`) join method.|[Join Attrs Env0](#join-attrs-env0)|
 |gcp|Attributes that are specific to the GCP (`gcp`) join method.|[Join Attrs GCP](#join-attrs-gcp)|
@@ -362,6 +364,25 @@ branch_name: "string"
 |step_uuid|The UUID of the pipeline step.|string|
 |sub|The `sub` claim of the Bitbucket JWT that was used to join.|string|
 |workspace_uuid|The UUID of the workspace the pipeline belongs to.|string|
+
+## Join Attrs Bound Keypair
+
+Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.
+
+
+Example:
+
+```yaml
+public_key: "string"
+recovery_mode: "string"
+recovery_count: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|The bound public key verified during this join, in SSH authorized_keys format.|string|
+|recovery_count|The token's recovery counter after this join.|number|
+|recovery_mode|The token's configured recovery mode, e.g. `standard` or `relaxed`.|string|
 
 ## Join Attrs CircleCI
 
