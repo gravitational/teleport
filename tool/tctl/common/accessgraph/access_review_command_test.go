@@ -51,9 +51,9 @@ func TestBuildAccessReviewOutput(t *testing.T) {
 
 	nodes := []accessgraph.IdentityAccessNode{
 		{Id: idID, Name: "alice@corp", Kind: "identity", SubKind: ptr("user")},
-		{Id: resID, Name: "prod-db", Kind: "resource", SubKind: ptr("db"), Alias: ptr("Production DB")},
+		{Id: resID, Name: "prod-db", Kind: "resource", SubKind: ptr("database"), Alias: ptr("Production DB")},
 		{Id: grStanding, Name: "admins", Kind: "identity_group", SubKind: ptr("role")},
-		{Id: grRequest, Name: "oncall", Kind: "identity_group", SubKind: ptr("access_request"), Temporary: ptr(true)},
+		{Id: grRequest, Name: "oncall", Kind: "identity_group", SubKind: ptr("role"), Temporary: ptr(true)},
 	}
 	resp := &accessgraph.IdentityAccessResponse{
 		Nodes: nodes,
