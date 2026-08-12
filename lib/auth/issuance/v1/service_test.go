@@ -689,7 +689,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 				traceErrCheck: trace.IsBadParameter,
 				errMsg:        "app.public_addr: is required",
 			},
-			"app scope outside pinned scope rejected": {
+			"app scope outside pinned scope rejected by not matching the scoped public addr subdomain": {
 				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
 					TlsPublicKey: tlsPubKeyPEM,
 					Ttl:          durationpb.New(requestedTTL),
@@ -699,8 +699,21 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 						Scope:      "/other-scope",
 					}.Build(),
 				}.Build(),
+				traceErrCheck: trace.IsBadParameter,
+				errMsg:        "app.public_addr: is not valid for given app name and scope",
+			},
+			"app scope outside pinned scope with matching the scoped public addr subdomain gets rejected": {
+				req: issuancev1pb.IssueScopedBotCertsRequest_builder{
+					TlsPublicKey: tlsPubKeyPEM,
+					Ttl:          durationpb.New(requestedTTL),
+					App: issuancev1pb.UsageApp_builder{
+						Name:       "test-app",
+						PublicAddr: scopedapp.ScopedAppPublicAddr("/other-scope", "test-app", "proxy.example.com"),
+						Scope:      "/other-scope",
+					}.Build(),
+				}.Build(),
 				traceErrCheck: trace.IsAccessDenied,
-				errMsg:        "other scope",
+				errMsg:        "other-scope",
 			},
 		}
 
