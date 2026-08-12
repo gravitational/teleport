@@ -38,6 +38,10 @@ func platformConfigureOS(_ context.Context, _ *osConfig, _ *platformOSConfigStat
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 
+func platformHostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+	return false, trace.Wrap(ErrVnetNotImplemented)
+}
+
 // Satisfy unused linter.
 var (
 	_ = newOSConfigurator

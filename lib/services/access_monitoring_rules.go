@@ -115,6 +115,13 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		default:
 			return trace.BadParameter("accessMonitoringRule automatic_review decision %q is not supported", automaticReview.GetDecision())
 		}
+
+		// The automatic review reason becomes the access request's resolve reason
+		// when the review resolves the request, so it must satisfy the access
+		// request reason limit
+		if len(automaticReview.GetReason()) > maxAccessRequestReasonSize {
+			return trace.BadParameter("accessMonitoringRule automatic_review reason is too long, max %v bytes", maxAccessRequestReasonSize)
+		}
 	}
 
 	if slices.Contains(accessMonitoringRule.GetSpec().GetSubjects(), types.KindAccessRequest) {

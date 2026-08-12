@@ -56,6 +56,7 @@ export const Calendar = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-calendar"
+
       {...otherProps}
       ref={ref}
     >

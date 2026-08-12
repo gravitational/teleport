@@ -56,6 +56,7 @@ export const AlarmRing = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-alarmring"
+
       {...otherProps}
       ref={ref}
     >

@@ -97,6 +97,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1565,6 +1566,7 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	username := "test-user@example.com"
@@ -1608,7 +1610,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"host-id",
 	)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), awsAppServer)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsAppServer)
 	require.NoError(t, err)
 
 	app, err := types.NewAppV3(
@@ -1628,7 +1630,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"host-id",
 	)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
 	// add a SAMLIdPServiceProvider
@@ -1645,7 +1647,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(ctx, samlapp)
 	require.NoError(t, err)
 
 	// Add nodes
@@ -1655,7 +1657,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			Hostname: name,
 		})
 		require.NoError(t, err)
-		_, err = env.server.Auth().UpsertNode(context.Background(), node)
+		_, err = env.server.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
 
@@ -1680,7 +1682,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		})
 		require.NoError(t, err)
 		dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
-		_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+		_, err = env.server.Auth().UpsertDatabaseServer(ctx, dbServer)
 		require.NoError(t, err)
 	}
 
@@ -1691,7 +1693,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
 	)
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
+	err = env.server.Auth().UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
 	// add git server
@@ -1700,15 +1702,36 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Integration:  "org1",
 	})
 	require.NoError(t, err)
-	_, err = env.server.Auth().GitServers.UpsertGitServer(context.Background(), gitServer)
+	_, err = env.server.Auth().GitServers.UpsertGitServer(ctx, gitServer)
 	require.NoError(t, err)
 
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
+	expectedKinds := map[string]int{
+		types.KindApp:            3,  // my-app, my-aws-app and the SAML IdP service provider
+		types.KindDatabase:       1,  // 3 db servers, single resource
+		types.KindNode:           21, // 20 created above, plus SSH node in newWebPack
+		types.KindWindowsDesktop: 1,
+		types.KindGitServer:      1,
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+		require.NoError(t, err)
+
+		res := clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+
+		gotKinds := make(map[string]int, len(expectedKinds))
+		for _, item := range res.Items {
+			gotKinds[item.Kind]++
+		}
+		require.Equal(t, expectedKinds, gotKinds)
+	}, 15*time.Second, 100*time.Millisecond, "unified resource cache did not converge")
+
 	// test sort type ascend
 	query := url.Values{"sort": []string{"kind:asc"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	re, err := pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1719,7 +1742,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1732,7 +1755,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// shouldnt get any results with no access
 	query = url.Values{"sort": []string{"name:asc"}}
-	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	re, err = noAccessPack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1744,7 +1767,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		TotalCount int              `json:"totalCount"`
 	}
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}, "query": []string{`health.status == "mixed"`}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	dbRes := dbResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
@@ -1762,7 +1785,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1772,7 +1795,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("startKey", res.StartKey)
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1784,7 +1807,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"search": []string{"my-aws-app"},
 		"sort":   []string{"name"},
 	}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	listResp := struct {
 		Items []webui.App `json:"Items"`
@@ -1803,7 +1826,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			TotalCount int         `json:"totalCount"`
 		}
 		query := url.Values{"kinds": []string{types.KindApp}}
-		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		re, err := pack.clt.Get(ctx, endpoint, query)
 		require.NoError(t, err)
 		appRes := appResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
@@ -1839,6 +1862,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 // from roles reachable via search_as_roles when includedResourceMode=all.
 func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
@@ -1870,7 +1894,7 @@ func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = env.server.Auth().UpsertRole(context.Background(), requestableRole)
+	_, err = env.server.Auth().UpsertRole(ctx, requestableRole)
 	require.NoError(t, err)
 
 	pack := proxy.authPack(t, username, []types.Role{assignedRole})
@@ -1881,7 +1905,7 @@ func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 		HostID: "host-1",
 	})
 	require.NoError(t, err)
-	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(context.Background(), desktop))
+	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(ctx, desktop))
 
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
@@ -1897,7 +1921,17 @@ func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
 		"kinds":                []string{types.KindWindowsDesktop},
 		"includedResourceMode": []string{"all"},
 	}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	// Wait for the desktop created above to show up before asserting on the logins it reports.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := pack.clt.Get(ctx, endpoint, query)
+		require.NoError(t, err)
+
+		var resp desktopResponse
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+	}, 15*time.Second, 100*time.Millisecond, "desktop did not appear in the unified resource cache")
+
+	re, err := pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 
 	var resp desktopResponse
@@ -2712,7 +2746,9 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				webauthnResBytes, err := json.Marshal(client.MFAChallengeResponse{
+					WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()),
+				})
 				require.NoError(t, err)
 
 				envelope := &terminal.Envelope{
@@ -3716,6 +3752,64 @@ func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
 	require.NotContains(t, response, "&gt;")
 	require.NotContains(t, response, "&#39;")
 	require.NotContains(t, response, "&#34;")
+}
+
+// TestInstallerScriptWindowsAuthPackageRendered renders the built-in Windows
+// auth package installer through the endpoint.
+func TestInstallerScriptWindowsAuthPackageRendered(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	const rebootNotice = "A reboot is required to complete installation."
+	const scheduleRestart = `& shutdown.exe /r /t 60`
+
+	for _, tt := range []struct {
+		name                   string
+		restartAfterEnrollment string
+		expectContains         string
+		expectNotContains      string
+	}{
+		{
+			name:                   "restart after enrollment",
+			restartAfterEnrollment: "true",
+			expectContains:         scheduleRestart,
+			expectNotContains:      rebootNotice,
+		},
+		{
+			name:                   "no restart after enrollment",
+			restartAfterEnrollment: "false",
+			expectContains:         rebootNotice,
+			expectNotContains:      scheduleRestart,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := wc.Get(
+				s.ctx,
+				wc.Endpoint("webapi", "scripts", "installer", "default-installer-windows-auth-package"),
+				url.Values{"restart-after-enrollment": []string{tt.restartAfterEnrollment}},
+			)
+			require.NoError(t, err)
+
+			response := string(re.Bytes())
+
+			require.Contains(t, response, `$ErrorActionPreference = 'Stop'`)
+			require.Contains(t, response, `$InstallerName = "teleport-windows-auth-setup-`)
+			// The installstatus exit codes survived the fmt.Sprintf injection.
+			require.Contains(t, response, "exit 200") // WindowsInstallerDownloadFailure
+			require.Contains(t, response, "exit 201") // WindowsInstallerExecutionFailure
+			require.Contains(t, response, "exit 203") // WindowsInstallerChecksumMismatch
+
+			// getWindowsCA rendered a non-empty CA bundle, and no template
+			// directives were left unrendered.
+			require.NotContains(t, response, "{{")
+			require.NotContains(t, response, `$CA = ''`)
+
+			// The RestartAfterEnrollment branch resolved correctly.
+			require.Contains(t, response, tt.expectContains)
+			require.NotContains(t, response, tt.expectNotContains)
+		})
+	}
 }
 
 func TestMultipleConnectors(t *testing.T) {
@@ -5846,7 +5940,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(context.Background(), endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 
@@ -5882,7 +5976,7 @@ func TestAddMFADevice(t *testing.T) {
 	// Obtain a privilege token.
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 	var privilegeToken string
@@ -5977,7 +6071,7 @@ func TestDeleteMFA(t *testing.T) {
 	// Obtain a privilege token.
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 
@@ -7639,7 +7733,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 
 	// Wait for node to show up
 	require.Eventually(t, func() bool {
-		_, err := env.server.Auth().GetNode(ctx, apidefaults.Namespace, nodeName)
+		_, err := env.server.Auth().GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: nodeName}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -9925,6 +10019,17 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 
 func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	clt, err := client.NewWebClient(r.webURL.String(), opts...)
+	require.NoError(t, err)
+	return &TestWebClient{clt, t}
+}
+
+func (r *testProxy) newClientNoRedirects(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
+	nrClient := client.NewInsecureWebClient()
+	nrClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	opts = append(opts, roundtrip.HTTPClient(nrClient))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
 	return &TestWebClient{clt, t}

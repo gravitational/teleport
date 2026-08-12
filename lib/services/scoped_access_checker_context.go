@@ -341,7 +341,7 @@ func (c *ScopedAccessCheckerContext) ResolveScopeFilter(filter *scopesv1.Filter)
 
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided
 // rules. For scoped identities, always returns nil — the scoped access model evaluates permissions per-resource.
-func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
+func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if !c.isScoped() {
 		return checkMaybeHasAccessToRulesImpl(c.unscopedChecker, ctx, resource, verbs...)
 	}
@@ -518,7 +518,7 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
 	return c.decision(
 		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
 		func(checker *ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate)
+			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create)
 		},
 	)
 }
@@ -539,7 +539,7 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
 	return c.decision(
 		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
 		func(checker *ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate, types.VerbUpdate)
+			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create, scopedaccess.Update)
 		},
 	)
 }
@@ -551,7 +551,7 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
 type UnpinnedReadAuthorization struct {
 	resourceScope string
 	kind          string
-	verbs         []string
+	verbs         []scopedaccess.Verb
 }
 
 func (a UnpinnedReadAuthorization) check() error {
@@ -563,8 +563,10 @@ func (a UnpinnedReadAuthorization) check() error {
 	}
 	for _, verb := range a.verbs {
 		switch verb {
-		case types.VerbList, types.VerbReadNoSecrets, types.VerbRead:
+		case scopedaccess.List, scopedaccess.Read:
 		default:
+			// note that Secrets verb in particular is not allowed here, unpinned reads should
+			// never include secrets.
 			return trace.BadParameter("invalid verb for unpinned read authorization: %q", verb)
 		}
 	}
@@ -580,97 +582,118 @@ var (
 	UnpinnedReadCertAuthority = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindCertAuthority,
-		verbs:         []string{types.VerbReadNoSecrets},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadCertAuthorities is a special authorization to complete an
 	// unscoped access check to list and read a cert authorities without secrets.
 	UnpinnedReadCertAuthorities = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindCertAuthority,
-		verbs:         []string{types.VerbList, types.VerbReadNoSecrets},
+		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadAuthServers is a special authorization to complete an
 	// unscoped access check to list and read auth server resources.
 	UnpinnedReadAuthServers = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindAuthServer,
-		verbs:         []string{types.VerbList, types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadProxies is a special authorization to complete an
 	// unscoped access check to list and read proxy resources.
 	UnpinnedReadProxies = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindProxy,
-		verbs:         []string{types.VerbList, types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadAuthPreference is a special authorization to complete an
 	// unscoped access check to read a cluster auth preference.
 	UnpinnedReadAuthPreference = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindClusterAuthPreference,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadVnetConfig is a special authorization to complete an
 	// unscoped access check to read a cluster VNet config.
 	UnpinnedReadVnetConfig = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindVnetConfig,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadSPIFFEFederation is a special authorization to complete an
 	// unscoped access check to read a SPIFFE federation.
 	UnpinnedReadSPIFFEFederation = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindSPIFFEFederation,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadSPIFFEFederations is a special authorization to complete an
 	// unscoped access check to list and read SPIFFE federations.
 	UnpinnedReadSPIFFEFederations = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindSPIFFEFederation,
-		verbs:         []string{types.VerbList, types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadClusterNetworkingConfig is a special authorization to complete an
 	// unscoped access check to read a cluster networking config.
 	UnpinnedReadClusterNetworkingConfig = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindClusterNetworkingConfig,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadClusterName is a special authorization to complete an
 	// unscoped access check to read a cluster name.
 	UnpinnedReadClusterName = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindClusterName,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadSessionRecordingConfig is a special authorization to complete an
 	// unscoped access check to read a cluster session recording config.
 	UnpinnedReadSessionRecordingConfig = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindSessionRecordingConfig,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadScopedRole is a special authorization to complete an
 	// unscoped access check to read a scoped role.
 	UnpinnedReadScopedRole = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          scopedaccess.KindScopedRole,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadUser is a special authorization to complete a unscoped access check
 	// to read a user.
 	UnpinnedReadUser = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindUser,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadRole is a special authorization to complete an unscoped access check
 	// to read a role.
 	UnpinnedReadRole = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindRole,
-		verbs:         []string{types.VerbRead},
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
+	}
+	// UnpinnedReadAndListLock is a special authorization to complete an unscoped access check
+	// to read a lock.
+	UnpinnedReadAndListLock = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindLock,
+		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
+	}
+	// UnpinnedReadLock is a special authorization to complete an unscoped access check
+	// to read a lock.
+	UnpinnedReadLock = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindLock,
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
+	}
+	// UnpinnedReadClusterAuditConfig is a special authorization to complete an unscoped access check
+	// to read a cluster audit config.
+	UnpinnedReadClusterAuditConfig = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindClusterAuditConfig,
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 )

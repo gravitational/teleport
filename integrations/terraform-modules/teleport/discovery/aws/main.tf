@@ -5,7 +5,14 @@ locals {
     "teleport.dev/integration" = local.teleport_integration_name
     "teleport.dev/iac-tool"    = "terraform"
   })
-  apply_teleport_resource_labels = merge(var.apply_teleport_resource_labels, {
+  apply_teleport_org_labels = var.aws_organization_discovery != null ? {
+    "teleport.dev/aws-organizational-units-include" = join(",",
+    sort(var.aws_organization_discovery.organizational_units.include))
+    "teleport.dev/aws-organizational-units-exclude" = join(",",
+    sort(coalesce(var.aws_organization_discovery.organizational_units.exclude, [])))
+  } : {}
+
+  apply_teleport_resource_labels = merge(var.apply_teleport_resource_labels, local.apply_teleport_org_labels, {
     "teleport.dev/iac-tool" = "terraform",
   })
 

@@ -145,22 +145,22 @@ func (g *userTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestTeleportUserCreation(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewUserReconciler, test)
+	testlib.ResourceCreationSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserDeletion(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewUserReconciler, test)
+	testlib.ResourceDeletionSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserDeletionDrift(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewUserReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserUpdate(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewUserReconciler, test)
+	testlib.ResourceUpdateTestSynchronous[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
 }
 
 func TestUserCreationFromYAML(t *testing.T) {
@@ -233,7 +233,7 @@ traits:
 			err = setup.K8sClient.Create(ctx, obj)
 			require.NoError(t, err)
 
-			reconciler, err := resources.NewUserReconciler(setup.K8sClient, setup.TeleportClient)
+			reconciler, err := resources.NewUserReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 			require.NoError(t, err)
 			// Test execution: Kick off the reconciliation.
 			req := reconcile.Request{
@@ -359,7 +359,7 @@ func TestUserUpdate(t *testing.T) {
 	}
 	k8sCreateUser(ctx, t, setup.K8sClient, &k8sUser)
 
-	reconciler, err := resources.NewUserReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := resources.NewUserReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 	// Test execution: Kick off the reconciliation.
 	req := reconcile.Request{

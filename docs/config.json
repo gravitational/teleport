@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.10.0",
+      "version": "18.10.3",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -3983,6 +3983,21 @@
     {
       "source": "/configuration/managing-resources/user-and-role/",
       "destination": "/configuration/resource-guides/user-and-role/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/infrastructure-as-code/teleport-resources/app-auth-config/",
+      "destination": "/reference/infrastructure-as-code/teleport-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/infrastructure-as-code/terraform-provider/data-sources/app_auth_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/infrastructure-as-code/terraform-provider/resources/app_auth_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/",
       "permanent": true
     }
   ]

@@ -56,6 +56,7 @@ export const ChatBubble = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-chatbubble"
+
       {...otherProps}
       ref={ref}
     >

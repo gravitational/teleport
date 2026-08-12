@@ -230,9 +230,9 @@ type ClientIPRestrictionSpec struct {
 	//
 	// Once it elapses, enforcement stops and status.state becomes "expired".
 	// Neither mode nor expires is modified by Teleport Cloud, so a lapsed
-	// restriction still reads "enforced until <past>"; enforcing again takes a new
-	// write. Whether the restriction is in effect is therefore derived from this
-	// field and mode, not stored on its own.
+	// restriction still reads as enforced with an elapsed expiry; enforcing again
+	// takes a new write. Whether the restriction is in effect is therefore derived
+	// from this field and mode, not stored on its own.
 	//
 	// Note: we do not use the `metadata.expires` field for this, because that
 	// conventionally denotes that the resource should be deleted once it elapses.
@@ -334,9 +334,9 @@ type ClientIPRestrictionSpec_builder struct {
 	//
 	// Once it elapses, enforcement stops and status.state becomes "expired".
 	// Neither mode nor expires is modified by Teleport Cloud, so a lapsed
-	// restriction still reads "enforced until <past>"; enforcing again takes a new
-	// write. Whether the restriction is in effect is therefore derived from this
-	// field and mode, not stored on its own.
+	// restriction still reads as enforced with an elapsed expiry; enforcing again
+	// takes a new write. Whether the restriction is in effect is therefore derived
+	// from this field and mode, not stored on its own.
 	//
 	// Note: we do not use the `metadata.expires` field for this, because that
 	// conventionally denotes that the resource should be deleted once it elapses.

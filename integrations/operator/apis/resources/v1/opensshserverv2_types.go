@@ -42,6 +42,7 @@ type TeleportOpenSSHServerV2 struct {
 
 	Spec   TeleportOpenSSHServerV2Spec `json:"spec"`
 	Status teleportcr.Status           `json:"status"`
+	Scope  string                      `json:"scope"`
 }
 
 //+kubebuilder:object:root=true
@@ -63,7 +64,8 @@ func (r TeleportOpenSSHServerV2) ToTeleport() types.Server {
 			Labels:      r.Labels,
 			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
-		Spec: types.ServerSpecV2(r.Spec),
+		Spec:  types.ServerSpecV2(r.Spec),
+		Scope: r.Scope,
 	}
 }
 

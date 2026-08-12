@@ -56,6 +56,7 @@ export const Edit = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-edit"
+
       {...otherProps}
       ref={ref}
     >

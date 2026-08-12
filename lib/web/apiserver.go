@@ -21,11 +21,13 @@
 package web
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -57,6 +59,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -115,6 +118,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -201,6 +205,10 @@ type Handler struct {
 	autoUpdateResolver *autoupdatelookup.Resolver
 
 	accessGraphHandler http.Handler
+
+	// webSessionRootClientDialOptions contains additional gRPC dial options for
+	// root clients created for web sessions. Used for testing.
+	webSessionRootClientDialOptions []grpc.DialOption
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -211,6 +219,15 @@ type HandlerOption func(h *Handler) error
 func SetClock(clock clockwork.Clock) HandlerOption {
 	return func(h *Handler) error {
 		h.clock = clock
+		return nil
+	}
+}
+
+// WithWebSessionRootClientDialOption adds a [grpc.DialOption] to root clients
+// created for web sessions. It is intended for tests.
+func WithWebSessionRootClientDialOption(opt grpc.DialOption) HandlerOption {
+	return func(h *Handler) error {
+		h.webSessionRootClientDialOptions = append(h.webSessionRootClientDialOptions, opt)
 		return nil
 	}
 }
@@ -621,6 +638,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		proxySigner:               cfg.PROXYSigner,
 		logger:                    h.logger,
 		buildType:                 cfg.Modules.BuildType(),
+		rootClientDialOptions:     h.webSessionRootClientDialOptions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2700,7 +2718,30 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		targetVersion = teleport.SemVer()
 	}
 
-	instTmpl, err := texttemplate.New("").Parse(installer.GetScript())
+	getWindowsCA := func() (string, error) {
+		authorities, err := client.ExportAllAuthorities(
+			r.Context(),
+			h.GetProxyClient(),
+			client.ExportAuthoritiesRequest{
+				AuthType: "windows",
+			},
+		)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// Combine all certificates into a single PEM-encoded string and then base64
+		// encode it.
+		var buf bytes.Buffer
+		for _, a := range authorities {
+			pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: a.Data})
+		}
+		return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	}
+
+	instTmpl, err := texttemplate.New("").
+		Funcs(texttemplate.FuncMap{"getWindowsCA": getWindowsCA}).
+		Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2725,16 +2766,36 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 	azureClientID := r.URL.Query().Get("azure-client-id")
 
+	// For windows auth package installer scripts, we need to know if the installer
+	// should restart the machine after installation. A restart is required before
+	// smartcard authentication can be used, but we give the user the option
+	// because they may not want to restart immediately.
+	restartAfterEnrollment := r.URL.Query().Get("restart-after-enrollment") == "true"
+
 	tmpl := installers.Template{
-		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
-		TeleportPackage:   teleportPackage,
-		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
-		AutomaticUpgrades: strconv.FormatBool(installUpdater),
-		AzureClientID:     shsprintf.EscapeDefaultContext(azureClientID),
+		PublicProxyAddr:                  h.PublicProxyAddr(),
+		MajorVersion:                     shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
+		TeleportPackage:                  teleportPackage,
+		RepoChannel:                      shsprintf.EscapeDefaultContext(repoChannel),
+		AutomaticUpgrades:                strconv.FormatBool(installUpdater),
+		AzureClientID:                    shsprintf.EscapeDefaultContext(azureClientID),
+		AuthPackageVersion:               strings.ReplaceAll(targetVersion.String(), "'", "''"),
+		RestartAfterEnrollment:           restartAfterEnrollment,
+		WindowsInstallerDownloadFailure:  int(installstatus.WindowsInstallerDownloadFailure),
+		WindowsInstallerExecutionFailure: int(installstatus.WindowsInstallerExecutionFailure),
+		WindowsInstallerStagingDirUnsafe: int(installstatus.WindowsInstallerStagingDirUnsafe),
+		WindowsInstallerChecksumMismatch: int(installstatus.WindowsInstallerChecksumMismatch),
 	}
-	err = instTmpl.Execute(w, tmpl)
-	return nil, trace.Wrap(err)
+
+	var buf bytes.Buffer
+	if err := instTmpl.Execute(&buf, tmpl); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if _, err := io.Copy(w, &buf); err != nil {
+		h.logger.DebugContext(r.Context(), "Failed writing installer script response", "error", err)
+	}
+	return nil, nil
+
 }
 
 // AuthParams are used to construct redirect URL containing auth

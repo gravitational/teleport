@@ -46,11 +46,6 @@ type Provisioner interface {
 	// Imlementations must guarantee that this returns trace.NotFound error if the token doesn't exist
 	DeleteToken(ctx context.Context, token string) error
 
-	// GetTokens returns all non-expired tokens
-	// Deprecated: use [ListProvisionTokens] instead.
-	// TODO(hugoShaka): DELETE IN 19.0.0
-	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
-
 	// PatchToken performs a conditional update on the named token using
 	// `updateFn`, retrying internally if a comparison failure occurs.
 	PatchToken(

@@ -120,7 +120,8 @@ are expected to work. The following commands are officially supported in
 scoped mode:
 
 - `tsh login --scope=<scope> ...`
-- `tsh logout` (required to exit a scoped session)
+- `tsh logout`
+- `tsh scopes ls` (lists the scopes at which the user has assigned privileges)
 - `tsh ls` (lists SSH instances available at the current scope)
 - `tsh ssh <login>@<host>` (for SSH instances available at the current scope)
 - `tsh kube ls` (lists Kubernetes clusters available at the current scope)
@@ -189,9 +190,9 @@ spec:
         values: ['*']
   rules:
     - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list]
-      verbs: [create, list, readnosecrets, update, delete]
-    - resources: [scoped_token, kube_cluster]
       verbs: [create, list, read, update, delete]
+    - resources: [scoped_token, kube_cluster]
+      verbs: [create, list, read, secrets, update, delete]
 version: v1
 EOF
 ```
@@ -798,7 +799,7 @@ spec:
         - bot_instance
       verbs:
         - list
-        - readnosecrets
+        - read
         - create
         - update
         - delete
@@ -807,7 +808,7 @@ spec:
       verbs:
         - list
         - read
-        - readnosecrets
+        - secrets
         - create
         - update
         - delete
@@ -948,7 +949,7 @@ The following rules apply to the SPIFFE ID of a scoped Workload Identity:
 
 Issuance is controlled by the `workload_identity` section of a scoped role,
 which selects the Workload Identities that the role permits issuance with
-by label. Issuance additionally requires the `readnosecrets` verb (and,
+by label. Issuance additionally requires the `read` verb (and,
 when issuing by label selector, `list`) for the `workload_identity`
 resource in the role's `rules`.
 
@@ -998,7 +999,7 @@ spec:
         values: [payments]
   rules:
     - resources: [workload_identity]
-      verbs: [list, readnosecrets]
+      verbs: [list, read]
 ---
 kind: scoped_role_assignment
 version: v1
@@ -1301,6 +1302,7 @@ spec:
         - create
         - list
         - read
+        - secrets
         - update
         - delete
 version: v1
@@ -1328,11 +1330,10 @@ version: v1
 EOF
 ```
 
-Log out of your current session, then log in to the `/examples/kube` scope so
-the scoped role assignment is active for the following `tctl` commands:
+Log in to the `/examples/kube` scope so the scoped role assignment is active
+for the following `tctl` commands:
 
 ```code
-$ tsh logout
 $ tsh login --user=<Var name="user" /> --scope=/examples/kube --proxy=<Var name="example.teleport.sh:443" />
 ```
 

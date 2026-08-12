@@ -56,6 +56,7 @@ export const Beams = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-beams"
+
       {...otherProps}
       ref={ref}
     >

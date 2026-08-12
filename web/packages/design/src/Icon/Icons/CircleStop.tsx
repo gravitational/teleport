@@ -56,6 +56,7 @@ export const CircleStop = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-circlestop"
+
       {...otherProps}
       ref={ref}
     >

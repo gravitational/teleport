@@ -56,6 +56,7 @@ export const ArrowUpRight = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-arrowupright"
+
       {...otherProps}
       ref={ref}
     >

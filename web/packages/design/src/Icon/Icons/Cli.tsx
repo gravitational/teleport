@@ -56,6 +56,7 @@ export const Cli = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cli"
+
       {...otherProps}
       ref={ref}
     >

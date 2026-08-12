@@ -656,7 +656,6 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
-		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		Summarizer:              p.AuthServer.Services.Summarizer,
 		SubCAService:            p.AuthServer.Services.SubCAService,
@@ -1178,8 +1177,12 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 }
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
-func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
+func TestScopedBot(t *testing.T, botName scopes.QualifiedName, botInternal bool) TestIdentity {
+	// The cert username must match the User name the bot service persists.
+	userName, err := services.BotResourceName(botName)
+	if err != nil {
+		t.Fatalf("TestScopedBot: %s", err.Error())
+	}
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: userName,
@@ -1190,7 +1193,7 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 				BotInternal: botInternal,
 			},
 		},
-		Scope: scope,
+		Scope: botName.Scope,
 	}
 }
 

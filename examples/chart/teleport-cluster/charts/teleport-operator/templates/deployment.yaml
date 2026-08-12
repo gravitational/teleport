@@ -56,8 +56,11 @@ spec:
             - '{{ .Values.joinMethod }}'
             - -token
             - '{{ .Values.token }}'
-  {{- if .Values.scoped }}
-            - -scoped
+  {{- if .Values.scope }}
+            - -scope
+            - {{ .Values.scope | quote }}
+            - -owner-email
+            - {{ required "ownerEmail must be set when running in scoped mode" .Values.ownerEmail | quote }}
   {{- end }}
   {{- if .Values.caPins }}
             - -ca-pin
@@ -66,7 +69,7 @@ spec:
   {{- if .Values.extraArgs }}
             {{- toYaml .Values.extraArgs | nindent 12 }}
   {{- end }}
-  {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) (.Values.extraEnv)  }}
+  {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) (.Values.extraEnv) (.Values.scope) }}
           env:
     {{- if .Values.extraEnv }}
           {{- toYaml .Values.extraEnv | nindent 12 }}
@@ -78,6 +81,14 @@ spec:
     {{- if .Values.teleportClusterName }}
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/teleport/serviceaccount/token
+    {{- end }}
+    {{- if .Values.scope }}
+            - name: KUBE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELEASE_NAME
+              value: {{ include "teleport-cluster.operator.fullname" . | quote}}
     {{- end }}
   {{- end }}
           livenessProbe:

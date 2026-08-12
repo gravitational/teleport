@@ -89,6 +89,11 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		}
 	}
 
+	ctx, err = withReusableAdminActionMFA(ctx, client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var updatedAccessList *accesslist.AccessList
 	var updatedRoles []string
 	var rolesToDelete []string
@@ -494,10 +499,10 @@ func unsupportedGrantFields(unsupportedFields []string, accessListID string, fie
 // "roles" were defined. This helps in avoiding silent dropping of
 // unsupported fields when updating.
 func rejectUnknownGrants(al *accesslist.AccessList) error {
-	reviewerRole := accesslist.RoleName(preset.RoleReviewerPrefix, al.GetName())
-	requesterRole := accesslist.RoleName(preset.RoleRequesterPrefix, al.GetName())
-	standardRole := accesslist.RoleName(standardRolePrefixName, al.GetName())
-	awsicRole := accesslist.RoleName(awsicRolePrefixName, al.GetName())
+	reviewerRole := preset.RoleName(preset.RoleReviewerPrefix, al.GetName())
+	requesterRole := preset.RoleName(preset.RoleRequesterPrefix, al.GetName())
+	standardRole := preset.RoleName(standardRolePrefixName, al.GetName())
+	awsicRole := preset.RoleName(awsicRolePrefixName, al.GetName())
 
 	unknownRoles := func(validRoles []string, gotRoles []string) []string {
 		unknownRoles := []string{}
@@ -513,11 +518,11 @@ func rejectUnknownGrants(al *accesslist.AccessList) error {
 	var validOwnerRoles []string
 
 	switch al.GetAllLabels()[accesslist.AccessListPresetLabel] {
-	case string(accesslist.ShortTermPresetType):
+	case string(preset.ShortTermPresetType):
 		validMemberRoles = []string{requesterRole}
 		validOwnerRoles = []string{reviewerRole}
 
-	case string(accesslist.LongTermPresetType):
+	case string(preset.LongTermPresetType):
 		validMemberRoles = []string{standardRole, awsicRole}
 		validOwnerRoles = []string{reviewerRole}
 	}

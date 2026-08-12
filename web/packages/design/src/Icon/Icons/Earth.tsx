@@ -56,6 +56,7 @@ export const Earth = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-earth"
+
       {...otherProps}
       ref={ref}
     >

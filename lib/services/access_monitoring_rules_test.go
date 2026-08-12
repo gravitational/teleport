@@ -19,6 +19,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -98,6 +99,22 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, `accessMonitoringRule automatic_review decision "invalid-decision" is not supported`)
+			},
+		},
+		{
+			description: "automatic_review reason at maximum length",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.GetSpec().GetAutomaticReview().SetReason(strings.Repeat("a", maxAccessRequestReasonSize))
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "automatic_review reason too long",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.GetSpec().GetAutomaticReview().SetReason(strings.Repeat("a", maxAccessRequestReasonSize+1))
+			},
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "automatic_review reason is too long")
 			},
 		},
 		{
