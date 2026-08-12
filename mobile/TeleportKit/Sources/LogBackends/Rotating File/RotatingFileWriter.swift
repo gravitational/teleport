@@ -122,6 +122,7 @@ extension RotatingFileWriter {
 	/// - Parameter record: The record to write to disk.
 	private func append(record: String) throws {
 		let record = truncateRecordIfNeeded(Data(record.utf8))
+
 		try openActiveFileIfNeeded()
 		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 
@@ -146,8 +147,13 @@ extension RotatingFileWriter {
 	/// - Parameter record: The record to truncate
 	/// - Returns: The record, truncated only if necessary
 	private func truncateRecordIfNeeded(_ record: Data) -> Data {
-		// TODO: Truncate the record
-		record
+		guard record.count > configuration.maximumFileSize else { return record }
+
+		let marker = Data("… [truncated]".utf8)
+		let retainedByteCount = configuration.maximumFileSize - marker.count
+		var truncatedRecord = Data(record.prefix(retainedByteCount))
+		truncatedRecord.append(marker)
+		return truncatedRecord
 	}
 
 	/// Opens a file for appending if no active file is yet open.
@@ -177,13 +183,12 @@ extension RotatingFileWriter {
 
 			let activeFileSize = try fileClient.seekToEnd()
 			let maximumFileSize = UInt64(configuration.maximumFileSize)
-			let appendingByteCount = UInt64(byteCount)
+			let unsignedByteCount = UInt64(byteCount)
 
-			// Rotation isn't needed when the active file is within its limit and the new record still fits.
-			if
-				activeFileSize <= maximumFileSize,
-				appendingByteCount <= maximumFileSize - activeFileSize
-			{
+			// Rotation isn't needed if appending the record would keep the file within limits
+			let (resultingFileSize, additionOverflowed) = activeFileSize.addingReportingOverflow(unsignedByteCount)
+			let appendingWouldExceedCapacity = additionOverflowed || resultingFileSize > maximumFileSize
+			guard appendingWouldExceedCapacity else {
 				return
 			}
 

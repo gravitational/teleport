@@ -130,9 +130,8 @@ struct RotatingFileWriterTests {
 			try await writer.flush()
 
 			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
-			let archiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
-			#expect(activeContents == "")
-			#expect(archiveContents == truncatedRecord)
+			#expect(activeContents == truncatedRecord)
+			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
 		}
 	}
 
