@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -31,6 +32,8 @@ import (
 	accounttypes "github.com/aws/aws-sdk-go-v2/service/account/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
+	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
@@ -42,8 +45,11 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+const testRoleARN = "arn:aws:iam::123456789012:role/test-role"
 
 func TestEKSFetcher(t *testing.T) {
 	region1Clusters := []*ekstypes.Cluster{{
@@ -73,16 +79,16 @@ func TestEKSFetcher(t *testing.T) {
 		return &mockAccountClient{err: denied}, nil
 	}
 	// Single-region shorthand: dispatch the stock populated mock for one region.
-	single := func(region string) map[string]EKSClient {
-		return map[string]EKSClient{region: &mockEKSAPI{clusters: eksMockClusters}}
+	single := func(region string) map[eksClientKey]EKSClient {
+		return map[eksClientKey]EKSClient{{region: region}: &mockEKSAPI{clusters: eksMockClusters}}
 	}
 
 	type args struct {
-		regions         []string
-		filterLabels    types.Labels
-		clientsByRegion map[string]EKSClient
-		regionsLister   awsregions.ListerGetter
-		assumeRole      types.AssumeRole
+		regions       []string
+		filterLabels  types.Labels
+		clients       map[eksClientKey]EKSClient
+		regionsLister awsregions.ListerGetter
+		assumeRole    types.AssumeRole
 	}
 	tests := []struct {
 		name    string
@@ -93,9 +99,9 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list everything",
 			args: args{
-				regions:         []string{"eu-west-1"},
-				filterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-				clientsByRegion: single("eu-west-1"),
+				regions:      []string{"eu-west-1"},
+				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				clients:      single("eu-west-1"),
 			},
 			want:    eksClustersToResources(t, eksMockClusters...),
 			wantErr: require.NoError,
@@ -103,10 +109,12 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list everything with assumed role",
 			args: args{
-				regions:         []string{"eu-west-1"},
-				filterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-				clientsByRegion: single("eu-west-1"),
-				assumeRole:      types.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "extID123"},
+				regions:      []string{"eu-west-1"},
+				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				clients: map[eksClientKey]EKSClient{
+					{roleARN: testRoleARN, region: "eu-west-1"}: &mockEKSAPI{clusters: eksMockClusters},
+				},
+				assumeRole: types.AssumeRole{RoleARN: testRoleARN, ExternalID: "extID123"},
 			},
 			want:    eksClustersToResources(t, eksMockClusters...),
 			wantErr: require.NoError,
@@ -114,9 +122,9 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list prod clusters",
 			args: args{
-				regions:         []string{"eu-west-1"},
-				filterLabels:    types.Labels{"env": []string{"prod"}},
-				clientsByRegion: single("eu-west-1"),
+				regions:      []string{"eu-west-1"},
+				filterLabels: types.Labels{"env": []string{"prod"}},
+				clients:      single("eu-west-1"),
 			},
 			want:    eksClustersToResources(t, eksMockClusters[:2]...),
 			wantErr: require.NoError,
@@ -129,7 +137,7 @@ func TestEKSFetcher(t *testing.T) {
 					"env":      []string{"stg"},
 					"location": []string{"eu-west-1"},
 				},
-				clientsByRegion: single("uswest2"),
+				clients: single("uswest2"),
 			},
 			want:    eksClustersToResources(t, eksMockClusters[2:]...),
 			wantErr: require.NoError,
@@ -137,9 +145,9 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "filter not found",
 			args: args{
-				regions:         []string{"uswest2"},
-				filterLabels:    types.Labels{"env": []string{"none"}},
-				clientsByRegion: single("uswest2"),
+				regions:      []string{"uswest2"},
+				filterLabels: types.Labels{"env": []string{"none"}},
+				clients:      single("uswest2"),
 			},
 			want:    eksClustersToResources(t),
 			wantErr: require.NoError,
@@ -147,9 +155,9 @@ func TestEKSFetcher(t *testing.T) {
 		{
 			name: "list everything with specified values",
 			args: args{
-				regions:         []string{"uswest2"},
-				filterLabels:    types.Labels{"env": []string{"prod", "stg"}},
-				clientsByRegion: single("uswest2"),
+				regions:      []string{"uswest2"},
+				filterLabels: types.Labels{"env": []string{"prod", "stg"}},
+				clients:      single("uswest2"),
 			},
 			want:    eksClustersToResources(t, eksMockClusters...),
 			wantErr: require.NoError,
@@ -159,9 +167,9 @@ func TestEKSFetcher(t *testing.T) {
 			args: args{
 				regions:      []string{"us-east-1", "eu-west-1"},
 				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				clientsByRegion: map[string]EKSClient{
-					"us-east-1": &mockEKSAPI{clusters: region1Clusters},
-					"eu-west-1": &mockEKSAPI{clusters: region2Clusters},
+				clients: map[eksClientKey]EKSClient{
+					{region: "us-east-1"}: &mockEKSAPI{clusters: region1Clusters},
+					{region: "eu-west-1"}: &mockEKSAPI{clusters: region2Clusters},
 				},
 			},
 			want:    eksClustersToResources(t, append(region1Clusters, region2Clusters...)...),
@@ -172,9 +180,9 @@ func TestEKSFetcher(t *testing.T) {
 			args: args{
 				regions:      []string{types.Wildcard},
 				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				clientsByRegion: map[string]EKSClient{
-					"us-east-1": &mockEKSAPI{clusters: region1Clusters},
-					"eu-west-1": &mockEKSAPI{clusters: region2Clusters},
+				clients: map[eksClientKey]EKSClient{
+					{region: "us-east-1"}: &mockEKSAPI{clusters: region1Clusters},
+					{region: "eu-west-1"}: &mockEKSAPI{clusters: region2Clusters},
 				},
 				regionsLister: twoRegionLister,
 			},
@@ -186,9 +194,9 @@ func TestEKSFetcher(t *testing.T) {
 			args: args{
 				regions:      []string{"us-east-1", "eu-west-1"},
 				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				clientsByRegion: map[string]EKSClient{
-					"us-east-1": &mockEKSAPI{listErr: denied},
-					"eu-west-1": &mockEKSAPI{clusters: region2Clusters},
+				clients: map[eksClientKey]EKSClient{
+					{region: "us-east-1"}: &mockEKSAPI{listErr: denied},
+					{region: "eu-west-1"}: &mockEKSAPI{clusters: region2Clusters},
 				},
 			},
 			want:    eksClustersToResources(t, region2Clusters...),
@@ -224,7 +232,7 @@ func TestEKSFetcher(t *testing.T) {
 					AWSConfigProvider: mocks.AWSConfigProvider{
 						STSClient: stsClt,
 					},
-					clientsByRegion: tt.args.clientsByRegion,
+					clients: tt.args.clients,
 				},
 				RegionsListerGetter: tt.args.regionsLister,
 				Matcher:             matcher,
@@ -253,6 +261,209 @@ func TestEKSFetcher(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEKSFetcherOrganization(t *testing.T) {
+	const (
+		organizationID = "o-1"
+		accountA       = "000000000001"
+		accountB       = "000000000002"
+		roleName       = "TeleportDiscovery"
+		roleA          = "arn:aws:iam::" + accountA + ":role/" + roleName
+		roleB          = "arn:aws:iam::" + accountB + ":role/" + roleName
+	)
+
+	eksCluster := func(name, region, accountID string, tags map[string]string) *ekstypes.Cluster {
+		return &ekstypes.Cluster{
+			Name:   aws.String(name),
+			Arn:    aws.String("arn:aws:eks:" + region + ":" + accountID + ":cluster/" + name),
+			Status: ekstypes.ClusterStatusActive,
+			Tags:   tags,
+		}
+	}
+	clusterA := eksCluster("shared-name", "eu-west-1", accountA, nil)
+	clusterB := eksCluster("shared-name", "eu-west-1", accountB, nil)
+
+	matcher := func(regions ...string) types.AWSMatcher {
+		return types.AWSMatcher{
+			Types:      []string{types.AWSMatcherEKS},
+			Regions:    regions,
+			Tags:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AssumeRole: &types.AssumeRole{RoleName: roleName},
+			Organization: &types.AWSOrganizationMatcher{
+				OrganizationID:      organizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{Include: []string{types.Wildcard}},
+			},
+		}
+	}
+	clientGetter := func(clients map[eksClientKey]EKSClient) AWSClientGetter {
+		return &mockRegionalEKSClientGetter{
+			AWSConfigProvider: mocks.AWSConfigProvider{STSClient: &mocks.STSClient{}},
+			clients:           clients,
+		}
+	}
+	orgsClientGetter := func(client liborganizations.OrganizationsClient) liborganizations.ClientGetter {
+		return func(context.Context, ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+			return client, nil
+		}
+	}
+	bothAccounts := orgsClientGetter(&mockOrganizationsClient{
+		organizationID: organizationID,
+		accountIDs:     []string{accountA, accountB},
+	})
+	get := func(t *testing.T, cfg EKSFetcherConfig) (types.ResourcesWithLabels, error) {
+		cfg.Logger = logtest.NewLogger()
+		fetcher, err := NewEKSFetcher(cfg)
+		require.NoError(t, err)
+		return fetcher.Get(t.Context())
+	}
+	// rolesByName maps each discovered cluster's Teleport name to the role that
+	// discovery recorded on it.
+	rolesByName := func(t *testing.T, resources types.ResourcesWithLabels) map[string]string {
+		roles := make(map[string]string, len(resources))
+		for _, resource := range resources {
+			cluster, ok := resource.(*DiscoveredEKSCluster)
+			require.True(t, ok, "expected a DiscoveredEKSCluster, got %T", resource)
+			roles[cluster.GetName()] = cluster.GetAssumeRoleARN()
+		}
+		return roles
+	}
+
+	t.Run("each account is searched with its own role", func(t *testing.T) {
+		resources, err := get(t, EKSFetcherConfig{
+			Matcher: matcher("eu-west-1"),
+			ClientGetter: clientGetter(map[eksClientKey]EKSClient{
+				{roleARN: roleA, region: "eu-west-1"}: &mockEKSAPI{clusters: []*ekstypes.Cluster{clusterA}},
+				{roleARN: roleB, region: "eu-west-1"}: &mockEKSAPI{clusters: []*ekstypes.Cluster{clusterB}},
+			}),
+			OrganizationsClientGetter: bothAccounts,
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{
+			"shared-name-eks-eu-west-1-" + accountA: roleA,
+			"shared-name-eks-eu-west-1-" + accountB: roleB,
+		}, rolesByName(t, resources))
+	})
+
+	t.Run("wildcard region expands per account", func(t *testing.T) {
+		regionsByRole := map[string][]string{
+			roleA: {"us-east-1"},
+			roleB: {"eu-west-1"},
+		}
+		resources, err := get(t, EKSFetcherConfig{
+			Matcher: matcher(types.Wildcard),
+			ClientGetter: clientGetter(map[eksClientKey]EKSClient{
+				{roleARN: roleA, region: "us-east-1"}: &mockEKSAPI{
+					clusters: []*ekstypes.Cluster{eksCluster("east", "us-east-1", accountA, nil)},
+				},
+				{roleARN: roleB, region: "eu-west-1"}: &mockEKSAPI{
+					clusters: []*ekstypes.Cluster{eksCluster("west", "eu-west-1", accountB, nil)},
+				},
+			}),
+			OrganizationsClientGetter: bothAccounts,
+			RegionsListerGetter: func(_ context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+				var regions []accounttypes.Region
+				for _, region := range regionsByRole[assumedRoleARN(opts...)] {
+					regions = append(regions, accounttypes.Region{RegionName: aws.String(region)})
+				}
+				return &mockAccountClient{output: &account.ListRegionsOutput{Regions: regions}}, nil
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{
+			"east-eks-us-east-1-" + accountA: roleA,
+			"west-eks-eu-west-1-" + accountB: roleB,
+		}, rolesByName(t, resources))
+	})
+
+	t.Run("a denied account does not block the others", func(t *testing.T) {
+		resources, err := get(t, EKSFetcherConfig{
+			Matcher: matcher("eu-west-1"),
+			ClientGetter: clientGetter(map[eksClientKey]EKSClient{
+				{roleARN: roleA, region: "eu-west-1"}: &mockEKSAPI{
+					listErr: awsResponseError(http.StatusForbidden, "AccessDenied"),
+				},
+				{roleARN: roleB, region: "eu-west-1"}: &mockEKSAPI{clusters: []*ekstypes.Cluster{clusterB}},
+			}),
+			OrganizationsClientGetter: bothAccounts,
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{
+			"shared-name-eks-eu-west-1-" + accountB: roleB,
+		}, rolesByName(t, resources))
+	})
+
+	t.Run("a name override shared by two accounts keeps one cluster", func(t *testing.T) {
+		override := map[string]string{types.AWSKubeClusterNameOverrideLabels[0]: "override-name"}
+		resources, err := get(t, EKSFetcherConfig{
+			Matcher: matcher("eu-west-1"),
+			ClientGetter: clientGetter(map[eksClientKey]EKSClient{
+				{roleARN: roleA, region: "eu-west-1"}: &mockEKSAPI{
+					clusters: []*ekstypes.Cluster{eksCluster("cluster-a", "eu-west-1", accountA, override)},
+				},
+				{roleARN: roleB, region: "eu-west-1"}: &mockEKSAPI{
+					clusters: []*ekstypes.Cluster{eksCluster("cluster-b", "eu-west-1", accountB, override)},
+				},
+			}),
+			OrganizationsClientGetter: bothAccounts,
+		})
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		require.Equal(t, "override-name", resources[0].GetName())
+	})
+
+	t.Run("listing the organization's accounts fails", func(t *testing.T) {
+		_, err := get(t, EKSFetcherConfig{
+			Matcher:      matcher("eu-west-1"),
+			ClientGetter: clientGetter(nil),
+			OrganizationsClientGetter: orgsClientGetter(&mockOrganizationsClient{
+				err: awsResponseError(http.StatusForbidden, "AccessDenied"),
+			}),
+		})
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %T: %v", err, err)
+	})
+
+	t.Run("organizations client getter is required", func(t *testing.T) {
+		_, err := get(t, EKSFetcherConfig{
+			Matcher:      matcher("eu-west-1"),
+			ClientGetter: clientGetter(nil),
+		})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %T: %v", err, err)
+	})
+}
+
+// mockOrganizationsClient reports one root organizational unit holding accountIDs.
+type mockOrganizationsClient struct {
+	organizationID string
+	accountIDs     []string
+	err            error
+}
+
+func (m *mockOrganizationsClient) ListRoots(context.Context, *organizations.ListRootsInput, ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &organizations.ListRootsOutput{
+		Roots: []organizationstypes.Root{{
+			Id:  aws.String("r-1"),
+			Arn: aws.String("arn:aws:organizations::000000000000:root/" + m.organizationID + "/r-1"),
+		}},
+	}, nil
+}
+
+func (m *mockOrganizationsClient) ListChildren(context.Context, *organizations.ListChildrenInput, ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
+	return &organizations.ListChildrenOutput{}, nil
+}
+
+func (m *mockOrganizationsClient) ListAccountsForParent(context.Context, *organizations.ListAccountsForParentInput, ...func(*organizations.Options)) (*organizations.ListAccountsForParentOutput, error) {
+	var accounts []organizationstypes.Account
+	for _, accountID := range m.accountIDs {
+		accounts = append(accounts, organizationstypes.Account{
+			Id:    aws.String(accountID),
+			State: organizationstypes.AccountStateActive,
+		})
+	}
+	return &organizations.ListAccountsForParentOutput{Accounts: accounts}, nil
 }
 
 // mockSTSClient records how many times GetCallerIdentity is called and
@@ -387,16 +598,43 @@ func eksClustersToResources(t *testing.T, clusters ...*ekstypes.Cluster) types.R
 	return kubeClusters.AsResources()
 }
 
-// mockRegionalEKSClientGetter dispatches EKS clients keyed by the region
-// supplied to GetConfig.
+// eksClientKey identifies the mock EKS client reachable through one assumed role
+// in one region. The role ARN is empty when the matcher assumes no role.
+type eksClientKey struct {
+	roleARN string
+	region  string
+}
+
+// mockRegionalEKSClientGetter dispatches EKS clients keyed by the role assumed to
+// reach them and the region. The fetcher calls GetConfig and GetAWSEKSClient as a
+// pair for one account and region, so the role recorded by GetConfig identifies
+// the client requested next.
 type mockRegionalEKSClientGetter struct {
 	mocks.AWSConfigProvider
 
-	clientsByRegion map[string]EKSClient
+	clients map[eksClientKey]EKSClient
+
+	mu           sync.Mutex
+	roleByRegion map[string]string
+}
+
+func (g *mockRegionalEKSClientGetter) GetConfig(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
+	g.mu.Lock()
+	if g.roleByRegion == nil {
+		g.roleByRegion = make(map[string]string)
+	}
+	g.roleByRegion[region] = assumedRoleARN(optFns...)
+	g.mu.Unlock()
+
+	return g.AWSConfigProvider.GetConfig(ctx, region, optFns...)
 }
 
 func (g *mockRegionalEKSClientGetter) GetAWSEKSClient(cfg aws.Config) EKSClient {
-	if c, ok := g.clientsByRegion[cfg.Region]; ok {
+	g.mu.Lock()
+	roleARN := g.roleByRegion[cfg.Region]
+	g.mu.Unlock()
+
+	if c, ok := g.clients[eksClientKey{roleARN: roleARN, region: cfg.Region}]; ok {
 		return c
 	}
 	return &mockEKSAPI{}
@@ -412,6 +650,16 @@ func (g *mockRegionalEKSClientGetter) GetAWSSTSPresignClient(aws.Config) kubeuti
 
 func (g *mockRegionalEKSClientGetter) GetAWSIAMClient(aws.Config) IAMClient {
 	return nil
+}
+
+// assumedRoleARN returns the last role in the options' assume-role chain, which is
+// the role whose credentials the resulting client uses.
+func assumedRoleARN(optFns ...awsconfig.OptionsFn) string {
+	var roleARN string
+	for _, role := range awsconfig.AssumedRoles(optFns...) {
+		roleARN = role.RoleARN
+	}
+	return roleARN
 }
 
 // mockAccountClient implements account.ListRegionsAPIClient.

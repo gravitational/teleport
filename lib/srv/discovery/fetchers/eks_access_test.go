@@ -95,7 +95,7 @@ func TestEKSAccessSkipsWithoutBootstrap(t *testing.T) {
 	const principalARN = "arn:aws:iam::123456789012:role/operator"
 	eksClient := &mockEKSAPI{accessEntryNotFound: true}
 	mgr := newTestAccessManager(t,
-		map[string]EKSClient{"eu-west-1": eksClient},
+		map[eksClientKey]EKSClient{{region: "eu-west-1"}: eksClient},
 		&mockSTSClient{arn: "unused", failCalls: 100},
 	)
 	cluster := testDiscoveredEKSCluster(t, testEKSCluster(ekstypes.AuthenticationModeApi),
@@ -165,7 +165,7 @@ func TestEKSAccessProvisionConcurrency(t *testing.T) {
 		const clusterCount = provisionConcurrency + 2
 		eksClient := &concurrencyRecordingEKSAPI{release: make(chan struct{})}
 		mgr := newTestAccessManager(t,
-			map[string]EKSClient{"eu-west-1": eksClient},
+			map[eksClientKey]EKSClient{{region: "eu-west-1"}: eksClient},
 			&mockSTSClient{arn: "arn:aws:iam::123456789012:role/discovery"},
 		)
 		clusters := make([]*DiscoveredEKSCluster, clusterCount)
@@ -226,12 +226,12 @@ func testEKSCluster(authMode ekstypes.AuthenticationMode) *ekstypes.Cluster {
 	}
 }
 
-func newTestAccessManager(t *testing.T, clients map[string]EKSClient, sts *mockSTSClient) *EKSAccessManager {
+func newTestAccessManager(t *testing.T, clients map[eksClientKey]EKSClient, sts *mockSTSClient) *EKSAccessManager {
 	t.Helper()
 	mgr, err := NewEKSAccessManager(&mockRegionalEKSClientGetterWithSTS{
 		mockRegionalEKSClientGetter: mockRegionalEKSClientGetter{
 			AWSConfigProvider: mocks.AWSConfigProvider{},
-			clientsByRegion:   clients,
+			clients:           clients,
 		},
 		stsClient: sts,
 	}, logtest.NewLogger())

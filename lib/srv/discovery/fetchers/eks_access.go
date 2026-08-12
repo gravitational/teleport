@@ -47,7 +47,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/fixtures"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 )
@@ -144,7 +143,7 @@ func (m *EKSAccessManager) Provision(ctx context.Context, cluster *DiscoveredEKS
 	}
 
 	region := cluster.GetAWSConfig().Region
-	cfg, err := m.clientGetter.GetConfig(ctx, region, accessCredentialOpts(cluster.GetAssumeRole())...)
+	cfg, err := m.clientGetter.GetConfig(ctx, region, credentialOpts(cluster.GetAssumeRole(), "")...)
 	if err != nil {
 		m.logger.WarnContext(ctx, "Failed to initialize AWS config for EKS access, will retry next cycle",
 			"cluster", cluster.GetName(), "region", region, "error", err)
@@ -211,7 +210,7 @@ func (m *EKSAccessManager) ambientIdentity(ctx context.Context, region string) s
 // resolveCallerIdentity returns the discovery service's own IAM role ARN, looked up
 // via STS in the given region.
 func (m *EKSAccessManager) resolveCallerIdentity(ctx context.Context, region string) (string, error) {
-	cfg, err := m.clientGetter.GetConfig(ctx, region, accessCredentialOpts(nil)...)
+	cfg, err := m.clientGetter.GetConfig(ctx, region, credentialOpts(nil, "")...)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -220,15 +219,6 @@ func (m *EKSAccessManager) resolveCallerIdentity(ctx context.Context, region str
 		return "", trace.Wrap(err)
 	}
 	return resolveIAMRoleARN(ctx, m.clientGetter.GetAWSIAMClient(cfg), aws.ToString(out.Arn))
-}
-
-// accessCredentialOpts builds AWS config options for provisioning a cluster.
-func accessCredentialOpts(assumeRole *types.AssumeRole) []awsconfig.OptionsFn {
-	role := types.AssumeRole{}
-	if assumeRole != nil {
-		role = *assumeRole
-	}
-	return getAWSOpts(role, "")
 }
 
 // Cleanup deletes the EKS access entry recorded on the cluster's AWS discovery
