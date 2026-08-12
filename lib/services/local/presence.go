@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
-	scopecache "github.com/gravitational/teleport/lib/scopes/cache"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1045,6 +1044,13 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // UpsertKubernetesServer registers an kubernetes server.
 func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	if cluster := server.GetCluster(); cluster != nil {
+		server = server.Copy()
+		if err := server.SetCluster(cluster.WithoutSecrets().(types.KubeCluster)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	svc, err := s.kubeServers.WithScopedResourcePrefix(scopes.QualifiedName{
 		Scope: server.GetScope(),
 		Name:  server.GetHostID(),
@@ -1746,21 +1752,13 @@ func (s *PresenceService) listKubeServers(ctx context.Context, req proto.ListRes
 }
 
 func getFakePaginationKey(ki backend.KeyedItem) string {
-	// TODO(eriktate/scopes): this will need to be reassessed when we implement scoped namespacing
-	if kubeCluster, ok := ki.(types.KubeCluster); ok {
-		if scope := kubeCluster.GetScope(); scope != "" {
-			// It should not be possible for EncodeStringToCursor to fail given that we've already
-			// confirmed the scope is non-empty and "@" is not a valid character for kube cluster
-			// names. However, in the case that it does fail for some reason, we fall back to
-			// backend.GetPaginationKey() since it will still work perfectly fine in lieu of
-			// duplicates cluster names across scope boundaries.
-			if key, err := scopecache.EncodeStringCursor(scopecache.Cursor[string]{
-				Key:   kubeCluster.GetName(),
-				Scope: scope,
-			}); err == nil {
-				return key
-			}
-		}
+	switch item := ki.(type) {
+	case types.KubeCluster:
+		return services.GetCursorForKubeCluster(item)
+	case types.KubeServer:
+		return services.GetCursorForKubeServer(item)
+	case types.AppServer:
+		return services.GetCursorForAppServer(item)
 	}
 
 	return backend.GetPaginationKey(ki)

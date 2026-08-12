@@ -56,6 +56,7 @@ export const Check = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-check"
+
       {...otherProps}
       ref={ref}
     >

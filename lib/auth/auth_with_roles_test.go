@@ -2375,6 +2375,32 @@ func TestClusterNetworkingConfigScopedRead(t *testing.T) {
 	require.Empty(t, cmp.Diff(netConfig, nc))
 }
 
+func TestClusterAuditConfigScopedRead(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	auditConfig := types.DefaultClusterAuditConfig()
+	_, err = as.AuthServer.UpsertClusterAuditConfig(ctx, auditConfig)
+	require.NoError(t, err)
+
+	const hostID = "testhost"
+	const scope = "/aa/bb"
+	srv := newScopePinnedTestServerForHost(t, as, hostID, scope, types.RoleNode)
+	ac, err := srv.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(auditConfig, ac))
+}
+
 func TestSessionRecordingConfigRBAC(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -4704,7 +4730,7 @@ func TestKindClusterConfig(t *testing.T) {
 			srv.AuditLog,
 			*authContext,
 		)
-		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err1 := s.ScopedServerWithRoles().GetClusterAuditConfig(ctx)
 		_, err2 := s.ScopedServerWithRoles().GetClusterNetworkingConfig(ctx)
 		_, err3 := s.ScopedServerWithRoles().GetSessionRecordingConfig(ctx)
 		return []error{err1, err2, err3}

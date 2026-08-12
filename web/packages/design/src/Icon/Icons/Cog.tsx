@@ -56,6 +56,7 @@ export const Cog = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cog"
+
       {...otherProps}
       ref={ref}
     >

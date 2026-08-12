@@ -21,6 +21,6 @@
     "semver": "^7.8.5"
   },
   "devDependencies": {
-    "@types/semver": "^7.7.1"
+    "@types/semver": "^7.8.0"
   }
 }

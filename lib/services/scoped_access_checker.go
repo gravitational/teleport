@@ -120,7 +120,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 
 	// Create an access checker with this single role. Single-role evaluation is a core principle
 	// of the scoped access model - the first role that permits access determines all parameters.
-	checker := newAccessChecker(b.info, b.localCluster, NewRoleSet(role))
+	checker := newAccessChecker(b.info, b.localCluster, newScopedRoleSet(role))
 
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       key.ScopeOfOrigin,
@@ -130,27 +130,34 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	}, nil
 }
 
+// newScopedRoleSet builds the classic role set backing a scoped identity's compat checker. It exists
+// instead of [NewRoleSet] because that appends the classic default implicit role, which grants
+// secret-inclusive read; scoped identities get [newScopedImplicitRole] instead. Note that this must be
+// used for *every* scoped checker, since the implicit role is appended to each single-role checker.
+func newScopedRoleSet(roles ...types.Role) RoleSet {
+	return append(roles, newScopedImplicitRole())
+}
+
 // newDefaultImplicitChecker builds a scoped access checker representing the default implicit role. We rely on the privileges conferred
 // by the default implicit role always being "assigned" at root as if they came from a root scoped role assignment. We achieve this by
-// creating a fake scoped access checker that wraps an "empty" unscoped access checker. Since all unscoped access checkers automatically
-// include the default implicit role, this effectively simulates the presence of the default implicit role at root scope. Note that as
-// functionality of scoped roles further diverges from unscoped roles, we may need to revisit this approach in favor of defining our
-// own default implicit scoped role instead.
+// creating a fake scoped access checker that wraps an unscoped access checker holding only the scoped implicit role, which effectively
+// simulates the presence of the default implicit role at root scope. Note that as functionality of scoped roles further diverges from
+// unscoped roles, we may need to revisit this approach in favor of defining our own default implicit scoped role instead.
 func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context) *ScopedAccessChecker {
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       scopes.Root,
 		scopeOfEffect:       scopes.Root,
-		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, NewRoleSet()), // default implicit role definition is auto-populated by NewRoleSet()
-		role: &scopedaccessv1.ScopedRole{
-			Metadata: &headerv1.Metadata{
+		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, newScopedRoleSet()),
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: constants.DefaultImplicitRole,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopes.Root},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 }
 
@@ -259,7 +266,7 @@ func (c *ScopedAccessChecker) Traits() wrappers.Traits {
 }
 
 // CheckAccessToRules verifies that *all* of a series of verbs are permitted for the specified resource.
-func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
+func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if !c.isScoped() {
 		return checkAccessToRulesImpl(c.unscopedChecker, ctx, resource, verbs...)
 	}
@@ -344,12 +351,16 @@ func (c *ScopedAccessChecker) DelegationSessionID() string {
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.
-func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
+func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed rule check for %q, no verbs provided (this is a bug)", resource)
 	}
 	for _, verb := range verbs {
-		if err := checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, verb); err != nil {
+		classicVerb, err := verb.ClassicVerb()
+		if err != nil {
+			return trace.Wrap(err, "malformed rule check for %q", resource)
+		}
+		if err := checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, classicVerb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -357,12 +368,16 @@ func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource str
 }
 
 // checkMaybeHasAccessToRulesImpl returns an error if the checker definitely does not have access to the provided rules.
-func checkMaybeHasAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
+func checkMaybeHasAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed maybe has access to rule check for %q, no verbs provided (this is a bug)", resource)
 	}
 	for _, verb := range verbs {
-		if err := checker.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, resource, verb); err != nil {
+		classicVerb, err := verb.ClassicVerb()
+		if err != nil {
+			return trace.Wrap(err, "malformed maybe has access to rule check for %q", resource)
+		}
+		if err := checker.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, resource, classicVerb); err != nil {
 			return trace.Wrap(err)
 		}
 	}

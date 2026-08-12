@@ -1691,11 +1691,11 @@ func (f fakeChecker) CheckAccessToRule(context services.RuleContext, namespace s
 		return trace.AccessDenied("no allow rules for kind")
 	}
 
-	if !slices.Contains(verbs, verb) {
-		return trace.AccessDenied("verb %s not allowed", verb)
+	if slices.Contains(verbs, verb) || (verb == types.VerbReadNoSecrets && slices.Contains(verbs, types.VerbRead)) {
+		return nil
 	}
 
-	return nil
+	return trace.AccessDenied("verb %s not allowed", verb)
 }
 
 type envConfig struct {

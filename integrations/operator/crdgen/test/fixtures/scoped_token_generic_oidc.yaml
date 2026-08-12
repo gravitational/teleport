@@ -1,0 +1,24 @@
+apiVersion: resources.teleport.dev/v1
+kind: TeleportScopedTokenV1
+metadata:
+  name: test-scoped-generic-oidc-token
+  namespace: default
+scope: "/test"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/test/stag"
+  join_method: generic_oidc
+  usage_mode: unlimited
+  generic_oidc:
+    issuer: "https://idp.example.com"
+    audience: "example.teleport.sh/generic-oidc"
+    must_match_fields:
+      org: acme
+      nested:
+        deep: value
+    allow_any:
+      - conditions:
+          - attribute: sub
+            eq:
+              value: "test-subject"

@@ -56,6 +56,7 @@ export const ArrowLineLeft = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-arrowlineleft"
+
       {...otherProps}
       ref={ref}
     >

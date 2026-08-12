@@ -42,14 +42,12 @@ export function Loaded() {
     </TeleportProviderBasic>
   );
 }
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
-        HttpResponse.json(connectors[0])
-      ),
-    ],
-  },
+Loaded.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
+      HttpResponse.json(connectors[0])
+    )
+  );
 };
 
 export function Processing() {
@@ -65,15 +63,13 @@ export function Processing() {
     </TeleportProviderBasic>
   );
 }
-Processing.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getGithubConnectorUrl('github_connector'),
-        async () => await delay('infinite')
-      ),
-    ],
-  },
+Processing.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getGithubConnectorUrl('github_connector'),
+      async () => await delay('infinite')
+    )
+  );
 };
 
 export function Failed() {
@@ -89,17 +85,15 @@ export function Failed() {
     </TeleportProviderBasic>
   );
 }
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
-        HttpResponse.json(
-          { message: 'something went wrong' },
-          {
-            status: 500,
-          }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getGithubConnectorUrl('github_connector'), () =>
+      HttpResponse.json(
+        { message: 'something went wrong' },
+        {
+          status: 500,
+        }
+      )
+    )
+  );
 };

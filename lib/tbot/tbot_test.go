@@ -1939,7 +1939,7 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindWorkloadIdentity},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 					}.Build(),
 				},
 				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{

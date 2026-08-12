@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -128,7 +129,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	// reading cache or backend if unauthorized.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbDelete,
+		&ruleCtx, types.KindBotInstance, scopedaccess.Delete,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +151,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindBotInstance,
-				types.VerbDelete,
+				scopedaccess.Delete,
 			)
 		},
 	); err != nil {
@@ -183,7 +184,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	// reading cache or backend if unauthorized.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets,
+		&ruleCtx, types.KindBotInstance, scopedaccess.Read,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,7 +202,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindBotInstance,
-				types.VerbReadNoSecrets,
+				scopedaccess.Read,
 			)
 		},
 	); err != nil {
@@ -251,7 +252,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 	// reading cache or backend if unauthorized.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets, types.VerbList,
+		&ruleCtx, types.KindBotInstance, scopedaccess.Read, scopedaccess.List,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -308,8 +309,8 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 						return checker.CheckAccessToRules(
 							&ruleCtx,
 							types.KindBotInstance,
-							types.VerbReadNoSecrets,
-							types.VerbList,
+							scopedaccess.Read,
+							scopedaccess.List,
 						)
 					},
 				)

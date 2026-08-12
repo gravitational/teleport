@@ -189,6 +189,10 @@ func strongValidateFormat(noun, value string, shape *regexp.Regexp) error {
 // about them (e.g. due to significant version drift). Prefer using [StrongValidateSegment] for segments received from
 // external sources (e.g. user input or identity provider).
 func WeakValidateSegment(segment string) error {
+	if segment == "" {
+		return trace.BadParameter("segment is empty")
+	}
+
 	// check for spaces and control characters
 	for _, b := range []byte(segment) {
 		if !isNonSpacePrintableASCII(b) {

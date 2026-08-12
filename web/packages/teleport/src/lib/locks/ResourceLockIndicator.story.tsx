@@ -46,25 +46,24 @@ export const LockedSingle: Story = {
     targetKind: 'user',
     targetName: 'example-user',
   },
-  parameters: {
-    msw: {
-      handlers: [
-        listV2LocksSuccess({
-          locks: [
-            {
-              name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
-              message: 'This is a test message',
-              expires: '2023-12-31T23:59:59Z',
-              targets: {
-                user: 'example-user',
-              },
-              createdAt: '2023-01-01T00:00:00Z',
-              createdBy: 'admin',
+
+  beforeEach({ msw }) {
+    msw.use(
+      listV2LocksSuccess({
+        locks: [
+          {
+            name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+            message: 'This is a test message',
+            expires: '2023-12-31T23:59:59Z',
+            targets: {
+              user: 'example-user',
             },
-          ],
-        }),
-      ],
-    },
+            createdAt: '2023-01-01T00:00:00Z',
+            createdBy: 'admin',
+          },
+        ],
+      })
+    );
   },
 };
 
@@ -73,35 +72,34 @@ export const LockedMultiple: Story = {
     targetKind: 'user',
     targetName: 'example-user',
   },
-  parameters: {
-    msw: {
-      handlers: [
-        listV2LocksSuccess({
-          locks: [
-            {
-              name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
-              message: 'This is a test message',
-              expires: '2023-12-31T23:59:59Z',
-              targets: {
-                user: 'example-user',
-              },
-              createdAt: '2023-01-01T00:00:00Z',
-              createdBy: 'admin',
+
+  beforeEach({ msw }) {
+    msw.use(
+      listV2LocksSuccess({
+        locks: [
+          {
+            name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+            message: 'This is a test message',
+            expires: '2023-12-31T23:59:59Z',
+            targets: {
+              user: 'example-user',
             },
-            {
-              name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
-              message: 'This is a test message',
-              expires: '2023-12-31T23:59:59Z',
-              targets: {
-                user: 'example-user',
-              },
-              createdAt: '2023-01-01T00:00:00Z',
-              createdBy: 'admin',
+            createdAt: '2023-01-01T00:00:00Z',
+            createdBy: 'admin',
+          },
+          {
+            name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+            message: 'This is a test message',
+            expires: '2023-12-31T23:59:59Z',
+            targets: {
+              user: 'example-user',
             },
-          ],
-        }),
-      ],
-    },
+            createdAt: '2023-01-01T00:00:00Z',
+            createdBy: 'admin',
+          },
+        ],
+      })
+    );
   },
 };
 

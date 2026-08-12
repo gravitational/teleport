@@ -1573,6 +1573,121 @@ func TestFakePaginateWithScopes(t *testing.T) {
 	}
 }
 
+func TestFakePaginateScopedCursors(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+
+	const scope = "/aa"
+	encodedScope := scopes.EncodeForResourceCursor(scope)
+
+	unscopedKubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "cluster",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	scopedKubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "cluster",
+		},
+		types.KubernetesClusterSpecV3{},
+		types.KubeClusterWithScope(scope),
+	)
+	require.NoError(t, err)
+
+	unscopedKubeServer, err := types.NewKubernetesServerV3FromCluster(unscopedKubeCluster, "host", "host-id")
+	require.NoError(t, err)
+
+	scopedKubeServer, err := types.NewKubernetesServerV3FromCluster(scopedKubeCluster, "host", "host-id")
+	require.NoError(t, err)
+
+	unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+
+	unscopedAppServer, err := types.NewAppServerV3FromApp(unscopedApp, "host", "host-id")
+	require.NoError(t, err)
+
+	scopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"}, scope)
+	require.NoError(t, err)
+	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "host", "host-id")
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name          string
+		params        FakePaginateParams
+		resources     []types.ResourceWithLabels
+		expectNextKey string
+		expectErr     bool
+	}{
+		{
+			name: "next key is scoped kube cluster",
+			params: FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{unscopedKubeCluster, scopedKubeCluster},
+			expectNextKey: "~scoped/" + encodedScope + "/cluster",
+		},
+		{
+			name: "next key is unscoped kube cluster",
+			params: FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{scopedKubeCluster, unscopedKubeCluster},
+			expectNextKey: "cluster",
+		},
+		{
+			name: "fake paginating kube servers should fail",
+			params: FakePaginateParams{
+				ResourceType: types.KindKubeServer,
+				Limit:        2,
+			},
+			resources: []types.ResourceWithLabels{unscopedKubeServer, scopedKubeServer},
+			expectErr: true,
+		},
+		{
+			name: "next key is scoped app server",
+			params: FakePaginateParams{
+				ResourceType: types.KindAppServer,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{unscopedAppServer, scopedAppServer},
+			expectNextKey: "~scoped/" + encodedScope + "/host-id/a",
+		},
+		{
+			name: "next key is unscoped app server",
+			params: FakePaginateParams{
+				ResourceType: types.KindAppServer,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{scopedAppServer, unscopedAppServer},
+			expectNextKey: "host-id/a",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := FakePaginate(tt.resources, tt.params)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.expectNextKey, res.NextKey)
+		})
+	}
+
+}
+
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

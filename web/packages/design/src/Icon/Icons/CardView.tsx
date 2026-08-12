@@ -56,6 +56,7 @@ export const CardView = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cardview"
+
       {...otherProps}
       ref={ref}
     >

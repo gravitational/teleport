@@ -56,6 +56,7 @@ export const Memory = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-memory"
+
       {...otherProps}
       ref={ref}
     >

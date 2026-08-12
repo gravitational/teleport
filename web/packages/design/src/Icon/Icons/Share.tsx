@@ -56,6 +56,7 @@ export const Share = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-share"
+
       {...otherProps}
       ref={ref}
     >

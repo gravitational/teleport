@@ -2294,6 +2294,29 @@ Arguments:
 |---|---|---|
 |query|*no default* (optional)|Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").|
 
+## tctl recordings summary
+
+View an AI-generated session summary.
+
+Usage:
+
+```code
+$ tctl recordings summary [<flags>] <session-id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Defines the output format for the summary.|
+|`-o`, `--output`|*no default*|Optional file path to write the summary to instead of stdout.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|session-id|*no default* (required)|ID of the session to retrieve the summary for.|
+
 ## tctl requests approve
 
 Approve pending Access Request.

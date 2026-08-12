@@ -49,33 +49,27 @@ const handlers = [
 ];
 
 export const Success = () => <Component />;
-Success.parameters = {
-  msw: {
-    handlers,
-  },
+Success.beforeEach = ({ msw }) => {
+  msw.use(...handlers);
 };
 
 export const Loading = () => <Component />;
-Loading.parameters = {
-  msw: {
-    handlers: [http.get(cfg.getIntegrationsUrl(), () => delay('infinite'))],
-  },
+Loading.beforeEach = ({ msw }) => {
+  msw.use(http.get(cfg.getIntegrationsUrl(), () => delay('infinite')));
 };
 
 export const Failed = () => <Component />;
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
-        HttpResponse.json(
-          {
-            message: 'some kind of error',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(), () =>
+      HttpResponse.json(
+        {
+          message: 'some kind of error',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const NoPerm = () => <Component noAccess={true} />;
