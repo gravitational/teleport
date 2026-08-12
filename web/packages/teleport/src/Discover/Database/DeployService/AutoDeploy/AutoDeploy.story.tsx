@@ -44,20 +44,18 @@ export const Init = () => {
     </DiscoverProviderDatabase>
   );
 };
-Init.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.api.awsDeployTeleportServicePath, () =>
-        HttpResponse.json({ serviceDashboardUrl: 'some-dashboard-url' })
-      ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json({ subnets: subnetsResponse })
-      ),
-    ],
-  },
+Init.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsSecurityGroupsListPath, () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.api.awsDeployTeleportServicePath, () =>
+      HttpResponse.json({ serviceDashboardUrl: 'some-dashboard-url' })
+    ),
+    http.post(cfg.api.awsSubnetListPath, () =>
+      HttpResponse.json({ subnets: subnetsResponse })
+    )
+  );
 };
 
 export const InitWithAutoDiscover = () => {
@@ -82,22 +80,20 @@ export const InitWithAutoDiscover = () => {
     </RequiredDiscoverProviders>
   );
 };
-InitWithAutoDiscover.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.getAwsRdsDbsDeployServicesUrl('test-integration'), () =>
-        HttpResponse.json({
-          clusterDashboardUrl: 'some-cluster-dashboard-url',
-        })
-      ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json({ subnets: subnetsResponse })
-      ),
-    ],
-  },
+InitWithAutoDiscover.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsSecurityGroupsListPath, () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.getAwsRdsDbsDeployServicesUrl('test-integration'), () =>
+      HttpResponse.json({
+        clusterDashboardUrl: 'some-cluster-dashboard-url',
+      })
+    ),
+    http.post(cfg.api.awsSubnetListPath, () =>
+      HttpResponse.json({ subnets: subnetsResponse })
+    )
+  );
 };
 
 export const InitWithLabelsWithDeployFailure = () => {
@@ -117,25 +113,23 @@ export const InitWithLabelsWithDeployFailure = () => {
     </RequiredDiscoverProviders>
   );
 };
-InitWithLabelsWithDeployFailure.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.api.awsDeployTeleportServicePath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, something went wrong.' },
-          },
-          { status: 500 }
-        )
-      ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json({ subnets: subnetsResponse })
-      ),
-    ],
-  },
+InitWithLabelsWithDeployFailure.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsSecurityGroupsListPath, () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.api.awsDeployTeleportServicePath, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, something went wrong.' },
+        },
+        { status: 500 }
+      )
+    ),
+    http.post(cfg.api.awsSubnetListPath, () =>
+      HttpResponse.json({ subnets: subnetsResponse })
+    )
+  );
 };
 
 export const InitSgSubnetLoadingFailed = () => {
@@ -146,27 +140,25 @@ export const InitSgSubnetLoadingFailed = () => {
   );
 };
 
-InitSgSubnetLoadingFailed.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json(
-          {
-            message: 'some error when trying to list security groups',
-          },
-          { status: 403 }
-        )
-      ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error getting subnets' },
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+InitSgSubnetLoadingFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsSecurityGroupsListPath, () =>
+      HttpResponse.json(
+        {
+          message: 'some error when trying to list security groups',
+        },
+        { status: 403 }
+      )
+    ),
+    http.post(cfg.api.awsSubnetListPath, () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, error getting subnets' },
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const InitSgSubnetLoading = () => {
@@ -177,13 +169,11 @@ export const InitSgSubnetLoading = () => {
   );
 };
 
-InitSgSubnetLoading.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () => delay('infinite')),
-      http.post(cfg.api.awsSubnetListPath, () => delay('infinite')),
-    ],
-  },
+InitSgSubnetLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsSecurityGroupsListPath, () => delay('infinite')),
+    http.post(cfg.api.awsSubnetListPath, () => delay('infinite'))
+  );
 };
 
 const subnetsResponse = [

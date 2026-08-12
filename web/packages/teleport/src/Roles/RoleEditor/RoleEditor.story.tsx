@@ -101,10 +101,9 @@ export const NewRole: StoryObj = {
   render() {
     return <RoleEditor />;
   },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(yamlifyHandler, parseHandler);
   },
 };
 
@@ -119,10 +118,9 @@ export const ExistingRole: StoryObj = {
       />
     );
   },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(yamlifyHandler, parseHandler);
   },
 };
 
@@ -135,16 +133,15 @@ export const yamlifyProcessing: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [
-        http.post(
-          cfg.getYamlStringifyUrl(YamlSupportedResourceKind.Role),
-          async () => await delay('infinite')
-        ),
-        parseHandler,
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.post(
+        cfg.getYamlStringifyUrl(YamlSupportedResourceKind.Role),
+        async () => await delay('infinite')
+      ),
+      parseHandler
+    );
   },
 };
 
@@ -157,16 +154,15 @@ export const yamlifyError: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [
-        http.post(
-          cfg.getYamlStringifyUrl(YamlSupportedResourceKind.Role),
-          serverErrorResponse
-        ),
-        parseHandler,
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.post(
+        cfg.getYamlStringifyUrl(YamlSupportedResourceKind.Role),
+        serverErrorResponse
+      ),
+      parseHandler
+    );
   },
 };
 
@@ -187,16 +183,15 @@ export const parseProcessing: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [
-        yamlifyHandler,
-        http.post(
-          cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
-          async () => await delay('infinite')
-        ),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      yamlifyHandler,
+      http.post(
+        cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
+        async () => await delay('infinite')
+      )
+    );
   },
 };
 
@@ -217,16 +212,15 @@ export const parseError: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [
-        yamlifyHandler,
-        http.post(
-          cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
-          serverErrorResponse
-        ),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      yamlifyHandler,
+      http.post(
+        cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
+        serverErrorResponse
+      )
+    );
   },
 };
 
@@ -245,10 +239,9 @@ export const saving: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(yamlifyHandler, parseHandler);
   },
 };
 
@@ -271,10 +264,9 @@ export const savingError: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(yamlifyHandler, parseHandler);
   },
 };
 
@@ -289,10 +281,12 @@ export const noAccess: StoryObj = {
       />
     );
   },
+
+  beforeEach({ msw }) {
+    msw.use(yamlifyHandler, parseHandler);
+  },
+
   parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
     acl: {
       list: true,
       create: false,
@@ -353,11 +347,11 @@ export const Dialog: StoryObj = {
       </>
     );
   },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(yamlifyHandler, parseHandler);
   },
+
   argTypes: {
     roleDiffState: {
       control: { type: 'select' },
@@ -365,6 +359,7 @@ export const Dialog: StoryObj = {
       mapping: RoleDiffState,
     },
   },
+
   args: {
     roleDiffEnabled: false,
     roleDiffState: RoleDiffState.Disabled,

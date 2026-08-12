@@ -80,39 +80,33 @@ export const AutoDiscoverEnabled = () => (
     <Component autoDiscover={true} />
   </>
 );
-AutoDiscoverEnabled.parameters = {
-  msw: {
-    handlers: [deployEndpointSuccess, ec2IceEndpointWithTick],
-  },
+AutoDiscoverEnabled.beforeEach = ({ msw }) => {
+  msw.use(deployEndpointSuccess, ec2IceEndpointWithTick);
 };
 
 export const ListSecurityGroupsLoading = () => <Component />;
 
-ListSecurityGroupsLoading.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
-        delay('infinite')
-      ),
-    ],
-  },
+ListSecurityGroupsLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+      delay('infinite')
+    )
+  );
 };
 
 export const ListSecurityGroupsFail = () => <Component />;
 
-ListSecurityGroupsFail.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
-        HttpResponse.json(
-          {
-            message: 'some error when trying to list security groups',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+ListSecurityGroupsFail.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+      HttpResponse.json(
+        {
+          message: 'some error when trying to list security groups',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const DeployEiceFail = () => (
@@ -122,22 +116,20 @@ export const DeployEiceFail = () => (
   </>
 );
 
-DeployEiceFail.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'), () =>
-        HttpResponse.json(
-          {
-            message: 'some error when trying to initiate the deployment',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+DeployEiceFail.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'), () =>
+      HttpResponse.json(
+        {
+          message: 'some error when trying to initiate the deployment',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const CreatingInProgress = () => (
@@ -147,29 +139,27 @@ export const CreatingInProgress = () => (
   </>
 );
 
-CreatingInProgress.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
-        HttpResponse.json({
-          ec2Ices: [
-            {
-              name: 'test-eice',
-              state: 'create-in-progress',
-              stateMessage: '',
-              dashboardLink: 'goteleport.com',
-              subnetId: 'test-subnetid',
-            },
-          ],
-          nextToken: '',
-        })
-      ),
-      deployEndpointSuccess,
-    ],
-  },
+CreatingInProgress.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+      HttpResponse.json({
+        ec2Ices: [
+          {
+            name: 'test-eice',
+            state: 'create-in-progress',
+            stateMessage: '',
+            dashboardLink: 'goteleport.com',
+            subnetId: 'test-subnetid',
+          },
+        ],
+        nextToken: '',
+      })
+    ),
+    deployEndpointSuccess
+  );
 };
 
 export const CreatingFailed = () => (
@@ -182,29 +172,27 @@ export const CreatingFailed = () => (
   </>
 );
 
-CreatingFailed.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
-        HttpResponse.json({
-          ec2Ices: [
-            {
-              name: 'test-eice',
-              state: 'create-failed',
-              stateMessage: '',
-              dashboardLink: 'goteleport.com',
-              subnetId: 'test-subnetid',
-            },
-          ],
-          nextToken: '',
-        })
-      ),
-      deployEndpointSuccess,
-    ],
-  },
+CreatingFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+      HttpResponse.json({
+        ec2Ices: [
+          {
+            name: 'test-eice',
+            state: 'create-failed',
+            stateMessage: '',
+            dashboardLink: 'goteleport.com',
+            subnetId: 'test-subnetid',
+          },
+        ],
+        nextToken: '',
+      })
+    ),
+    deployEndpointSuccess
+  );
 };
 
 export const CreatingComplete = () => (
@@ -216,53 +204,51 @@ export const CreatingComplete = () => (
   </>
 );
 
-CreatingComplete.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
-      ),
-      http.post(cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'), () =>
-        HttpResponse.json({ name: 'test-eice' })
-      ),
-      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
-        HttpResponse.json({
-          ec2Ices: [
-            {
-              name: 'test-eice',
-              state: 'create-complete',
-              stateMessage: '',
-              dashboardLink: 'goteleport.com',
-              subnetId: 'test-subnetid',
-            },
-          ],
-          nextToken: '',
-        })
-      ),
-      http.post(cfg.getClusterNodesUrlNoParams('localhost'), async () => {
-        await delay(2000);
-        return HttpResponse.json({
-          id: 'ec2-instance-1',
-          kind: 'node',
-          clusterId: 'cluster',
-          hostname: 'ec2-hostname-1',
-          labels: [{ name: 'instance', value: 'ec2-1' }],
-          addr: 'ec2.1.com',
-          tunnel: false,
-          subKind: 'openssh-ec2-ice',
-          sshLogins: ['test'],
-          aws: {
-            accountId: 'test-account',
-            instanceId: 'instance-ec2-1',
-            region: 'us-east-1',
-            vpcId: 'test',
-            integration: 'test',
-            subnetId: 'test',
+CreatingComplete.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+      HttpResponse.json({ securityGroups: securityGroupsResponse })
+    ),
+    http.post(cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'), () =>
+      HttpResponse.json({ name: 'test-eice' })
+    ),
+    http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+      HttpResponse.json({
+        ec2Ices: [
+          {
+            name: 'test-eice',
+            state: 'create-complete',
+            stateMessage: '',
+            dashboardLink: 'goteleport.com',
+            subnetId: 'test-subnetid',
           },
-        });
-      }),
-    ],
-  },
+        ],
+        nextToken: '',
+      })
+    ),
+    http.post(cfg.getClusterNodesUrlNoParams('localhost'), async () => {
+      await delay(2000);
+      return HttpResponse.json({
+        id: 'ec2-instance-1',
+        kind: 'node',
+        clusterId: 'cluster',
+        hostname: 'ec2-hostname-1',
+        labels: [{ name: 'instance', value: 'ec2-1' }],
+        addr: 'ec2.1.com',
+        tunnel: false,
+        subKind: 'openssh-ec2-ice',
+        sshLogins: ['test'],
+        aws: {
+          accountId: 'test-account',
+          instanceId: 'instance-ec2-1',
+          region: 'us-east-1',
+          vpcId: 'test',
+          integration: 'test',
+          subnetId: 'test',
+        },
+      });
+    })
+  );
 };
 
 const Component = ({ autoDiscover = false }: { autoDiscover?: boolean }) => {

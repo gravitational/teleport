@@ -64,16 +64,15 @@ const roles: RoleResource[] = [
 ];
 
 export const Edit: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        successGetRoles({
-          startKey: '',
-          items: roles,
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successGetRoles({
+        startKey: '',
+        items: roles,
+      })
+    );
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -84,11 +83,10 @@ export const Edit: StoryObj = {
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleUpdateUser(() => delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(handleUpdateUser(() => delay('infinite')));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -99,11 +97,10 @@ export const Processing: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleUpdateUser(() => delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(handleUpdateUser(() => delay('infinite')));
   },
+
   render() {
     return (
       <TeleportProviderBasic>

@@ -19,7 +19,8 @@
 import { Preview } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
-import { initialize, mswLoader } from 'msw-storybook-addon';
+import { mswLoader } from 'msw-storybook-addon/csf3';
+import { setupWorker } from 'msw/browser';
 import { ComponentType, PropsWithChildren } from 'react';
 
 import Box from '../packages/design/src/Box';
@@ -35,43 +36,6 @@ import {
   darkTheme as teletermDarkTheme,
   lightTheme as teletermLightTheme,
 } from '../packages/teleterm/src/ui/ThemeProvider/theme';
-
-initialize(
-  {
-    onUnhandledRequest(request, print) {
-      try {
-        // Ignores asset related http requests, otherwise
-        // it prints noisy warnings, hiding important ones.
-        const url = new URL(request.url);
-        if (
-          url.pathname.startsWith('/sb-common-assets') ||
-          url.pathname.startsWith('/index.json') ||
-          url.pathname.startsWith('/.storybook') ||
-          url.pathname.endsWith('.png') ||
-          url.pathname.endsWith('.svg') ||
-          url.pathname.endsWith('.css') ||
-          url.pathname.endsWith('.yaml')
-        ) {
-          return;
-        }
-      } catch {
-        /* empty */
-      }
-
-      print.warning();
-    },
-  },
-  [
-    // we emit these for posthog events (ignores any error),
-    // and we don't ever mock them in stories.
-    http.post(cfg.api.captureUserEventPath, () => {
-      return HttpResponse.json({ message: 'ok' });
-    }),
-    http.post(cfg.api.capturePreUserEventPath, () => {
-      return HttpResponse.json({ message: 'ok' });
-    }),
-  ]
-);
 
 history.init();
 
@@ -147,7 +111,23 @@ const preview: Preview = {
     controls: { expanded: true, disableSaveFromUI: true },
   },
   argTypes: { userContext: { table: { disable: true } } },
-  loaders: [mswLoader],
+  loaders: [
+    mswLoader(async () => {
+      const worker = setupWorker(
+        // Global telemetry handlers.
+        http.post(cfg.api.captureUserEventPath, () =>
+          HttpResponse.json({ message: 'ok' })
+        ),
+        http.post(cfg.api.capturePreUserEventPath, () =>
+          HttpResponse.json({ message: 'ok' })
+        )
+      );
+
+      await worker.start();
+
+      return worker;
+    }),
+  ],
   decorators: [
     (Story, meta) => (
       <QueryClientProvider client={queryClient}>

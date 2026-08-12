@@ -62,10 +62,8 @@ export const macOS = () => {
     </OverrideUserAgent>
   );
 };
-macOS.parameters = {
-  msw: {
-    handlers: [noNodesHandler],
-  },
+macOS.beforeEach = ({ msw }) => {
+  msw.use(noNodesHandler);
 };
 
 export const Linux = () => {
@@ -77,10 +75,8 @@ export const Linux = () => {
     </OverrideUserAgent>
   );
 };
-Linux.parameters = {
-  msw: {
-    handlers: [noNodesHandler],
-  },
+Linux.beforeEach = ({ msw }) => {
+  msw.use(noNodesHandler);
 };
 
 export const Polling = () => {
@@ -90,10 +86,8 @@ export const Polling = () => {
     </Provider>
   );
 };
-Polling.parameters = {
-  msw: {
-    handlers: [noNodesHandler],
-  },
+Polling.beforeEach = ({ msw }) => {
+  msw.use(noNodesHandler);
 };
 
 export const PollingSuccess = () => {
@@ -103,21 +97,19 @@ export const PollingSuccess = () => {
     </Provider>
   );
 };
-PollingSuccess.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        withoutQuery(cfg.api.nodesPath),
-        () => {
-          return HttpResponse.json({ items: [] });
-        },
-        { once: true }
-      ),
-      http.get(withoutQuery(cfg.api.nodesPath), () => {
-        return HttpResponse.json({ items: [{ id: '1234', hostname: 'foo' }] });
-      }),
-    ],
-  },
+PollingSuccess.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      withoutQuery(cfg.api.nodesPath),
+      () => {
+        return HttpResponse.json({ items: [] });
+      },
+      { once: true }
+    ),
+    http.get(withoutQuery(cfg.api.nodesPath), () => {
+      return HttpResponse.json({ items: [{ id: '1234', hostname: 'foo' }] });
+    })
+  );
 };
 
 export const HintTimeout = () => {
@@ -128,12 +120,8 @@ export const HintTimeout = () => {
   );
 };
 
-HintTimeout.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.webRenewTokenPath, () => HttpResponse.json({})),
-    ],
-  },
+HintTimeout.beforeEach = ({ msw }) => {
+  msw.use(http.post(cfg.api.webRenewTokenPath, () => HttpResponse.json({})));
 };
 
 const Provider = ({ children }) => {

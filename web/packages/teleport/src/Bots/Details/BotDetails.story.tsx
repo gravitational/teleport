@@ -90,184 +90,175 @@ const successHandler = getBotSuccess({
 });
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
-            content: `role-${r}`,
-            id: `role-${r}`,
-            name: `role-${r}`,
-            kind: 'role',
-          })),
-        }),
-        listV2LocksSuccess(),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        removeLockSuccess(),
-        createLockSuccess(),
-        deleteBotSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+          content: `role-${r}`,
+          id: `role-${r}`,
+          name: `role-${r}`,
+          kind: 'role',
+        })),
+      }),
+      listV2LocksSuccess(),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      removeLockSuccess(),
+      createLockSuccess(),
+      deleteBotSuccess()
+    );
   },
 };
 
 export const HappyWithEmpty: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotSuccess({
-          name: 'ansible-worker',
-          roles: [],
-          traits: [],
-          max_session_ttl: {
-            seconds: 43200,
-          },
-        }),
-        listV2TokensSuccess({
-          tokens: [],
-        }),
-        mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess({
-          bot_instances: [],
-          next_page_token: '',
-        }),
-        successGetRoles({
-          startKey: '',
-          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
-            content: `role-${r}`,
-            id: `role-${r}`,
-            name: `role-${r}`,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      getBotSuccess({
+        name: 'ansible-worker',
+        roles: [],
+        traits: [],
+        max_session_ttl: {
+          seconds: 43200,
+        },
+      }),
+      listV2TokensSuccess({
+        tokens: [],
+      }),
+      mfaAuthnChallengeSuccess(),
+      listBotInstancesSuccess({
+        bot_instances: [],
+        next_page_token: '',
+      }),
+      successGetRoles({
+        startKey: '',
+        items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+          content: `role-${r}`,
+          id: `role-${r}`,
+          name: `role-${r}`,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
 export const HappyWithTypical: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotSuccess({
-          name: 'ansible-worker',
-          roles: ['access'],
-          traits: [],
-          max_session_ttl: {
-            seconds: 43200,
+  beforeEach({ msw }) {
+    msw.use(
+      getBotSuccess({
+        name: 'ansible-worker',
+        roles: ['access'],
+        traits: [],
+        max_session_ttl: {
+          seconds: 43200,
+        },
+      }),
+      listV2TokensSuccess({
+        tokens: ['kubernetes'],
+      }),
+      mfaAuthnChallengeSuccess(),
+      listBotInstancesSuccess({
+        bot_instances: [
+          {
+            bot_name: 'bot-1',
+            instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
+            active_at_latest: new Date().toISOString(),
+            host_name_latest: 'my-svc.my-namespace.svc.cluster-domain.example',
+            join_method_latest: 'kubernetes',
+            os_latest: 'linux',
+            version_latest: '18.1.0',
           },
-        }),
-        listV2TokensSuccess({
-          tokens: ['kubernetes'],
-        }),
-        mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess({
-          bot_instances: [
-            {
-              bot_name: 'bot-1',
-              instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
-              active_at_latest: new Date().toISOString(),
-              host_name_latest:
-                'my-svc.my-namespace.svc.cluster-domain.example',
-              join_method_latest: 'kubernetes',
-              os_latest: 'linux',
-              version_latest: '18.1.0',
-            },
-          ],
-          next_page_token: '',
-        }),
-        successGetRoles({
-          startKey: '',
-          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
-            content: `role-${r}`,
-            id: `role-${r}`,
-            name: `role-${r}`,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+        ],
+        next_page_token: '',
+      }),
+      successGetRoles({
+        startKey: '',
+        items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+          content: `role-${r}`,
+          id: `role-${r}`,
+          name: `role-${r}`,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
 export const HappyWithLongValues: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotSuccess({
-          name: 'ansibleworkeransibleworkeransibleworkeransibleworkeransibleworkeransibleworker',
-          description:
-            'This is a bot. This is a bot. This is a bot. This is a bot. This is a bot.',
-          roles: [
-            'rolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerole',
-          ],
-          traits: [
-            {
-              name: 'traittraittraittraittraittraittraittraittraittraittraittraittraittraittrait',
-              values: ['value'],
-            },
-            {
-              name: 'name',
-              values: [
-                'valuevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevalue',
-              ],
-            },
-          ],
-          max_session_ttl: {
-            seconds: 43200,
+  beforeEach({ msw }) {
+    msw.use(
+      getBotSuccess({
+        name: 'ansibleworkeransibleworkeransibleworkeransibleworkeransibleworkeransibleworker',
+        description:
+          'This is a bot. This is a bot. This is a bot. This is a bot. This is a bot.',
+        roles: [
+          'rolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerole',
+        ],
+        traits: [
+          {
+            name: 'traittraittraittraittraittraittraittraittraittraittraittraittraittraittrait',
+            values: ['value'],
           },
-        }),
-        listV2TokensSuccess({
-          tokens: [
-            'tokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentoken',
-          ],
-        }),
-        mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess({
-          bot_instances: [
-            {
-              bot_name: '',
-              instance_id:
-                '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
-              host_name_latest:
-                'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
-              active_at_latest: '2025-01-01T00:00:00Z',
-              join_method_latest: 'github',
-              os_latest: 'linux',
-              version_latest: '17.2.6-04241a2',
-            },
-          ],
-          next_page_token: '',
-        }),
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+          {
+            name: 'name',
+            values: [
+              'valuevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevaluevalue',
+            ],
+          },
+        ],
+        max_session_ttl: {
+          seconds: 43200,
+        },
+      }),
+      listV2TokensSuccess({
+        tokens: [
+          'tokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentokentoken',
+        ],
+      }),
+      mfaAuthnChallengeSuccess(),
+      listBotInstancesSuccess({
+        bot_instances: [
+          {
+            bot_name: '',
+            instance_id:
+              '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
+            host_name_latest:
+              'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
+            active_at_latest: '2025-01-01T00:00:00Z',
+            join_method_latest: 'github',
+            os_latest: 'linux',
+            version_latest: '17.2.6-04241a2',
+          },
+        ],
+        next_page_token: '',
+      }),
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
@@ -275,27 +266,26 @@ export const HappyWithoutEditPermission: Story = {
   args: {
     hasBotsEdit: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
@@ -303,111 +293,104 @@ export const HappyWithoutTokenListPermission: Story = {
   args: {
     hasTokensList: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
 export const HappyWithMFAPrompt: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensMfaError(),
-        mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensMfaError(),
+      mfaAuthnChallengeSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
 export const HappyWithTokensError: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensError(500, 'something went wrong'),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensError(500, 'something went wrong'),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
 export const HappyWithTokensOutdatedProxy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensError(404, 'path not found', {
-          proxyVersion: {
-            major: 19,
-            minor: 0,
-            patch: 0,
-            preRelease: 'dev',
-            string: '18.0.0',
-          },
-        }),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensError(404, 'path not found', {
+        proxyVersion: {
+          major: 19,
+          minor: 0,
+          patch: 0,
+          preRelease: 'dev',
+          string: '18.0.0',
+        },
+      }),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
@@ -415,67 +398,64 @@ export const HappyWithoutBotInstanceListPermission: Story = {
   args: {
     hasBotInstanceListPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        listV2LocksSuccess(),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      listV2LocksSuccess()
+    );
   },
 };
 
 export const HappyWithLock: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
-            content: `role-${r}`,
-            id: `role-${r}`,
-            name: `role-${r}`,
-            kind: 'role',
-          })),
-        }),
-        listV2LocksSuccess({
-          locks: [
-            {
-              name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
-              message: 'This is a test message',
-              expires: '2023-12-31T23:59:59Z',
-              targets: {
-                user: 'bot-ansible-worker',
-              },
-              createdAt: '2023-01-01T00:00:00Z',
-              createdBy: 'admin',
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+          content: `role-${r}`,
+          id: `role-${r}`,
+          name: `role-${r}`,
+          kind: 'role',
+        })),
+      }),
+      listV2LocksSuccess({
+        locks: [
+          {
+            name: '76bc5cc7-b9bf-4a03-935f-8018c0a2bc05',
+            message: 'This is a test message',
+            expires: '2023-12-31T23:59:59Z',
+            targets: {
+              user: 'bot-ansible-worker',
             },
-          ],
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-        removeLockSuccess(),
-        createLockSuccess(),
-      ],
-    },
+            createdAt: '2023-01-01T00:00:00Z',
+            createdBy: 'admin',
+          },
+        ],
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3'),
+      removeLockSuccess(),
+      createLockSuccess()
+    );
   },
 };
 
@@ -483,54 +463,44 @@ export const HappyWithLockError: Story = {
   args: {
     hasLocksMutatePermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        listV2TokensSuccess(),
-        listBotInstancesSuccessHandler,
-        successGetRoles({
-          startKey: '',
-          items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
-            content: `role-${r}`,
-            id: `role-${r}`,
-            name: `role-${r}`,
-            kind: 'role',
-          })),
-        }),
-        listV2LocksError(500, 'error message goes here'),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      listV2TokensSuccess(),
+      listBotInstancesSuccessHandler,
+      successGetRoles({
+        startKey: '',
+        items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
+          content: `role-${r}`,
+          id: `role-${r}`,
+          name: `role-${r}`,
+          kind: 'role',
+        })),
+      }),
+      listV2LocksError(500, 'error message goes here'),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3')
+    );
   },
 };
 
 export const WithFetchPending: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotForever(), listV2LocksSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotForever(), listV2LocksSuccess());
   },
 };
 
 export const WithFetchFailure: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        getBotError(500, 'error message goes here'),
-        listV2LocksSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotError(500, 'error message goes here'), listV2LocksSuccess());
   },
 };
 
 export const WithBotNotFound: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotError(404, 'not found'), listV2LocksSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotError(404, 'not found'), listV2LocksSuccess());
   },
 };
 
@@ -538,13 +508,12 @@ export const WithNoBotReadPermission: Story = {
   args: {
     hasBotsRead: false,
   },
-  parameters: {
-    msw: {
-      handlers: [
-        getBotError(500, 'you have permission, congrats 🎉'),
-        listV2LocksSuccess(),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      getBotError(500, 'you have permission, congrats 🎉'),
+      listV2LocksSuccess()
+    );
   },
 };
 
