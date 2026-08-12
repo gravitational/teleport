@@ -885,7 +885,19 @@ func (s *Server) handleAzureSubscriptionListError(integration string, err error)
 		return
 	}
 
-	if err := s.taskUpdater().upsertAzureSubscriptionListTask(integration, issueType); err != nil {
+	var tenantID, clientID string
+	integrationResource, err := s.Config.AccessPoint.GetIntegration(s.ctx, integration)
+	if err != nil {
+		s.Log.WarnContext(s.ctx, "Failed to get Azure integration identity for User Task",
+			"integration", integration,
+			"error", err,
+		)
+	} else if azureOIDCSpec := integrationResource.GetAzureOIDCIntegrationSpec(); azureOIDCSpec != nil {
+		tenantID = azureOIDCSpec.TenantID
+		clientID = azureOIDCSpec.ClientID
+	}
+
+	if err := s.taskUpdater().upsertAzureSubscriptionListTask(integration, issueType, tenantID, clientID); err != nil {
 		s.Log.WarnContext(s.ctx, "Failed to upsert Azure subscription list permission User Task",
 			"integration", integration,
 			"error", err,
