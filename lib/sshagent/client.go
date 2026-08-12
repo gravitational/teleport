@@ -17,6 +17,7 @@
 package sshagent
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -87,6 +88,162 @@ func (c *client) Close() error {
 	}
 	err := c.conn.Close()
 	return trace.Wrap(err)
+}
+
+// NewSingleRequestClient returns a client that opens a new connection for each request
+// and closes it once the request completes.
+//
+// The returned agent is safe for concurrent use as long as getClient is.
+func NewSingleRequestClient(getClient ClientGetter) agent.ExtendedAgent {
+	return singleRequestClient{getClient: getClient}
+}
+
+type singleRequestClient struct {
+	getClient ClientGetter
+}
+
+// withSingleRequestClient opens a new agent connection, runs fn against it,
+// and closes the connection.
+func withSingleRequestClient[T any](getClient ClientGetter, fn func(Client) (T, error)) (T, error) {
+	agentClient, err := getClient()
+	if err != nil {
+		var zero T
+		return zero, trace.Wrap(err)
+	}
+	defer agentClient.Close()
+
+	out, err := fn(agentClient)
+	return out, trace.Wrap(err)
+}
+
+// doWithSingleRequestClient is [withSingleRequestClient] for requests with no return value.
+func doWithSingleRequestClient(getClient ClientGetter, fn func(Client) error) error {
+	_, err := withSingleRequestClient(getClient, func(agentClient Client) (struct{}, error) {
+		return struct{}{}, fn(agentClient)
+	})
+	return trace.Wrap(err)
+}
+
+func (s singleRequestClient) List() ([]*agent.Key, error) {
+	return withSingleRequestClient(s.getClient, func(agentClient Client) ([]*agent.Key, error) {
+		return agentClient.List()
+	})
+}
+
+func (s singleRequestClient) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
+	return withSingleRequestClient(s.getClient, func(agentClient Client) (*ssh.Signature, error) {
+		return agentClient.Sign(key, data)
+	})
+}
+
+func (s singleRequestClient) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
+	return withSingleRequestClient(s.getClient, func(agentClient Client) (*ssh.Signature, error) {
+		return agentClient.SignWithFlags(key, data, flags)
+	})
+}
+
+func (s singleRequestClient) Add(key agent.AddedKey) error {
+	return doWithSingleRequestClient(s.getClient, func(agentClient Client) error {
+		return agentClient.Add(key)
+	})
+}
+
+func (s singleRequestClient) Remove(key ssh.PublicKey) error {
+	return doWithSingleRequestClient(s.getClient, func(agentClient Client) error {
+		return agentClient.Remove(key)
+	})
+}
+
+func (s singleRequestClient) RemoveAll() error {
+	return doWithSingleRequestClient(s.getClient, func(agentClient Client) error {
+		return agentClient.RemoveAll()
+	})
+}
+
+func (s singleRequestClient) Lock(passphrase []byte) error {
+	return doWithSingleRequestClient(s.getClient, func(agentClient Client) error {
+		return agentClient.Lock(passphrase)
+	})
+}
+
+func (s singleRequestClient) Unlock(passphrase []byte) error {
+	return doWithSingleRequestClient(s.getClient, func(agentClient Client) error {
+		return agentClient.Unlock(passphrase)
+	})
+}
+
+func (s singleRequestClient) Extension(extensionType string, contents []byte) ([]byte, error) {
+	return withSingleRequestClient(s.getClient, func(agentClient Client) ([]byte, error) {
+		return agentClient.Extension(extensionType, contents)
+	})
+}
+
+// Signers returns signers for all the keys currently known to the agent.
+// The signers do not hold a connection open, they connect to the agent on demand
+// for each signature.
+func (s singleRequestClient) Signers() ([]ssh.Signer, error) {
+	keys, err := s.List()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signers := make([]ssh.Signer, 0, len(keys))
+	for _, key := range keys {
+		signers = append(signers, singleRequestSigner{getClient: s.getClient, pub: key})
+	}
+	return signers, nil
+}
+
+// singleRequestSigner is a signer for a key held by an agent that
+// opens a new connection for each signature request.
+type singleRequestSigner struct {
+	getClient ClientGetter
+	pub       ssh.PublicKey
+}
+
+var _ ssh.AlgorithmSigner = singleRequestSigner{}
+
+func (s singleRequestSigner) PublicKey() ssh.PublicKey {
+	return s.pub
+}
+
+func (s singleRequestSigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
+	// Note: the agent has its own entropy source, so the rand argument is ignored.
+	return withSingleRequestClient(s.getClient, func(agentClient Client) (*ssh.Signature, error) {
+		return agentClient.Sign(s.pub, data)
+	})
+}
+
+func (s singleRequestSigner) SignWithAlgorithm(rand io.Reader, data []byte, algorithm string) (*ssh.Signature, error) {
+	return withSingleRequestClient(s.getClient, func(agentClient Client) (*ssh.Signature, error) {
+		signer, err := agentSigner(agentClient, s.pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return signer.SignWithAlgorithm(rand, data, algorithm)
+	})
+}
+
+// agentSigner returns the agent's own signer for the given public key.
+func agentSigner(agentClient Client, pub ssh.PublicKey) (ssh.AlgorithmSigner, error) {
+	signers, err := agentClient.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pubBytes := pub.Marshal()
+	for _, signer := range signers {
+		if !bytes.Equal(signer.PublicKey().Marshal(), pubBytes) {
+			continue
+		}
+		algorithmSigner, ok := signer.(ssh.AlgorithmSigner)
+		if !ok {
+			return nil, trace.NotImplemented("agent signer of type %T does not support signing with a specific algorithm", signer)
+		}
+		return algorithmSigner, nil
+	}
+
+	return nil, trace.NotFound("agent no longer holds the requested %v key", pub.Type())
 }
 
 const channelType = "auth-agent@openssh.com"

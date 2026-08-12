@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -63,6 +64,10 @@ type KeyAgentTestSuite struct {
 	clusterName string
 	tlsca       *tlsca.CertAuthority
 	tlscaCert   authclient.TrustedCerts
+
+	// openSystemAgentConns is the number of client connections currently
+	// open to the agent served on $SSH_AUTH_SOCK.
+	openSystemAgentConns *atomic.Int32
 }
 
 type keyAgentTestSuiteFunc func(opt *keyAgentTestSuiteOpt)
@@ -96,14 +101,15 @@ func makeSuite(t *testing.T, opts ...keyAgentTestSuiteFunc) *KeyAgentTestSuite {
 		o(&settings)
 	}
 
-	err := startDebugAgent(t)
+	openSystemAgentConns, err := startDebugAgent(t)
 	require.NoError(t, err)
 
 	s := &KeyAgentTestSuite{
-		keyDir:      t.TempDir(),
-		username:    "foo",
-		hostname:    settings.hostname,
-		clusterName: settings.clusterName,
+		keyDir:               t.TempDir(),
+		username:             "foo",
+		hostname:             settings.hostname,
+		clusterName:          settings.clusterName,
+		openSystemAgentConns: openSystemAgentConns,
 	}
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
@@ -181,6 +187,40 @@ func TestAddKey(t *testing.T) {
 	}
 	require.True(t, found)
 
+}
+
+// TestSystemAgentConnections ensures that a LocalKeyAgent does not hold
+// connections to the system agent open.
+func TestSystemAgentConnections(t *testing.T) {
+	s := makeSuite(t)
+
+	requireNoOpenConns := func(t *testing.T) {
+		t.Helper()
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Zero(t, s.openSystemAgentConns.Load())
+		}, 5*time.Second, 10*time.Millisecond, "connections to the system agent were leaked")
+	}
+
+	// Creating many key agents must not accumulate connections to the system agent.
+	var keyAgents []*LocalKeyAgent
+	for range 10 {
+		keyAgent := s.newKeyAgent(t)
+		require.NotNil(t, keyAgent.systemAgent, "expected the key agent to use the system agent")
+		keyAgents = append(keyAgents, keyAgent)
+	}
+	requireNoOpenConns(t)
+
+	for _, keyAgent := range keyAgents {
+		require.NoError(t, keyAgent.AddKeyRing(s.keyRing))
+		requireNoOpenConns(t)
+
+		_, err := keyAgent.Signers()
+		require.NoError(t, err)
+		requireNoOpenConns(t)
+
+		require.NoError(t, keyAgent.UnloadKeyRing(s.keyRing.KeyRingIndex))
+		requireNoOpenConns(t)
+	}
 }
 
 // TestLoadKey ensures correct loading of a key into an agent. This test
@@ -812,7 +852,10 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 	}
 }
 
-func startDebugAgent(t *testing.T) error {
+// startDebugAgent serves an in-memory keyring over $SSH_AUTH_SOCK, mimicking
+// the system agent. It returns an atomic integer tracking the number of client
+// connections that are currently open to that agent.
+func startDebugAgent(t *testing.T) (openConns *atomic.Int32, err error) {
 	// Create own tmp dir instead of using t.TmpDir
 	// because net.Listen("unix", path) has dir path length limitation
 	tempDir, err := os.MkdirTemp("", "teleport-test")
@@ -824,18 +867,18 @@ func startDebugAgent(t *testing.T) error {
 	socketpath := filepath.Join(tempDir, "agent.sock")
 	listener, err := net.Listen("unix", socketpath)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	systemAgent := agent.NewKeyring()
 	t.Setenv(teleport.SSHAuthSock, socketpath)
 
+	openConns = new(atomic.Int32)
 	startedC := make(chan struct{})
 	doneC := make(chan struct{})
+
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// agent is listening and environment variable is set, unblock now
 		close(startedC)
 		for {
@@ -846,24 +889,22 @@ func startDebugAgent(t *testing.T) error {
 				}
 				return
 			}
-			wg.Add(2)
-			go func() {
+			openConns.Add(1)
+			wg.Go(func() {
 				agent.ServeAgent(systemAgent, conn)
-				wg.Done()
-			}()
-			go func() {
+				openConns.Add(-1)
+			})
+			wg.Go(func() {
 				<-doneC
 				conn.Close()
-				wg.Done()
-			}()
+			})
 		}
-	}()
+	})
 
-	go func() {
+	wg.Go(func() {
 		<-doneC
 		listener.Close()
-		wg.Done()
-	}()
+	})
 
 	t.Cleanup(func() {
 		close(doneC)
@@ -872,7 +913,7 @@ func startDebugAgent(t *testing.T) error {
 
 	// block until agent is started
 	<-startedC
-	return nil
+	return openConns, nil
 }
 
 func (s *KeyAgentTestSuite) newKeyAgent(t *testing.T) *LocalKeyAgent {

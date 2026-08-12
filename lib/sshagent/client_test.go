@@ -28,7 +28,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -138,6 +140,106 @@ func TestSSHAgentClient(t *testing.T) {
 	require.NoError(t, err)
 	_, err = agentClient.List()
 	require.Error(t, err)
+}
+
+// TestSingleRequestClient verifies that a single requeest agent client
+// serves requests without keeping a connection to the agent open in between them.
+func TestSingleRequestClient(t *testing.T) {
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
+	// Serve the keyring over a unix socket, keeping track of how many client
+	// connections are currently open.
+	var openConns atomic.Int32
+	agentPath := filepath.Join(t.TempDir(), "agent.sock")
+	l, err := net.Listen("unix", agentPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { l.Close() })
+
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			openConns.Add(1)
+			go func() {
+				defer openConns.Add(-1)
+				defer conn.Close()
+				agent.ServeAgent(keyring, conn)
+			}()
+		}
+	}()
+
+	requireNoOpenConns := func(t *testing.T) {
+		t.Helper()
+		// The server notices a closed connection asynchronously.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Zero(t, openConns.Load())
+		}, time.Second*5, time.Millisecond*10, "single-request agent client leaked a connection to the agent")
+	}
+
+	var dials atomic.Int32
+	src := sshagent.NewSingleRequestClient(func() (sshagent.Client, error) {
+		dials.Add(1)
+		return sshagent.NewClient(func() (io.ReadWriteCloser, error) {
+			return net.Dial("unix", agentPath)
+		})
+	})
+
+	// Creating the client should not connect to the agent.
+	require.Zero(t, dials.Load())
+	requireNoOpenConns(t)
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(pub)
+	require.NoError(t, err)
+
+	require.NoError(t, src.Add(agent.AddedKey{PrivateKey: priv}))
+	requireNoOpenConns(t)
+
+	keys, err := src.List()
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	requireNoOpenConns(t)
+
+	// Signers returned by a single-request client must remain usable
+	// after the request they were retrieved by has completed.
+	signers, err := src.Signers()
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+	requireNoOpenConns(t)
+	require.Equal(t, sshPub.Marshal(), signers[0].PublicKey().Marshal())
+
+	data := []byte("teleport")
+	sig, err := signers[0].Sign(rand.Reader, data)
+	require.NoError(t, err)
+	require.NoError(t, sshPub.Verify(data, sig))
+	requireNoOpenConns(t)
+
+	// An algorithm signer must delegate to the agent's own signer, which knows
+	// how to translate algorithm names into agent signature flags.
+	algorithmSigner, ok := signers[0].(ssh.AlgorithmSigner)
+	require.True(t, ok)
+	sig, err = algorithmSigner.SignWithAlgorithm(rand.Reader, data, ssh.KeyAlgoED25519)
+	require.NoError(t, err)
+	require.NoError(t, sshPub.Verify(data, sig))
+	requireNoOpenConns(t)
+
+	require.NoError(t, src.Remove(sshPub))
+	keys, err = src.List()
+	require.NoError(t, err)
+	require.Empty(t, keys)
+	requireNoOpenConns(t)
+
+	// Verify that the requests above actually opened connections.
+	require.Positive(t, dials.Load())
+
+	// The signer should detect when the key is gone from the agent.
+	_, err = algorithmSigner.SignWithAlgorithm(rand.Reader, data, ssh.KeyAlgoED25519)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+	requireNoOpenConns(t)
 }
 
 func TestConcurrentServeChannelRequests(t *testing.T) {
