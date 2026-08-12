@@ -101,6 +101,42 @@ struct RotatingFileWriterTests {
 	}
 
 	@Test
+	func `a record matching the exact file size limit remains unchanged`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
+			let record = "1234567890123456"
+
+			writer.enqueue(logMessage: record)
+			try await writer.flush()
+
+			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(contents == record)
+			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
+		}
+	}
+
+	@Test
+	func `a record exceeding the size limit is truncated`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
+			let record = "12345678901234567"
+			let truncatedRecord = "1… [truncated]"
+
+			writer.enqueue(logMessage: record)
+			try await writer.flush()
+
+			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			let archiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
+			#expect(activeContents == "")
+			#expect(archiveContents == truncatedRecord)
+		}
+	}
+
+	@Test
 	func `an append exceeding the size limit rotates the active file first`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
