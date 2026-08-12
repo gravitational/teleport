@@ -238,35 +238,6 @@ This is useful when terminating TLS at a load balancer in front of Teleport
 
 These settings will not apply if proxyListenerMode is set to "multiplex".
 
-## `acme`
-
-| Type | Default |
-|------|---------|
-| `bool` | `false` |
-
-`acme` is a protocol for getting Web X.509 certificates
-Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
-For HA configurations, see either the "highAvailability.certManager" or "tls" values.
-Setting acme to 'true' enables the ACME protocol and will attempt to get a free TLS certificate from Let's Encrypt.
-Setting acme to 'false' (the default) will cause Teleport to generate and use self-signed certificates for its web UI.
-This section is mutually exclusive with the "tls" value below.
-
-## `acmeEmail`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`acmeEmail` is the email address to provide during certificate registration (this is a Let's Encrypt requirement)
-
-## `acmeURI`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`acmeURI` is the ACME server to use for getting certificates. The default is to use Let's Encrypt's production server.
-
 ## `enterprise`
 
 | Type | Default |

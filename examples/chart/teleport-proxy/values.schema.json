@@ -201,21 +201,6 @@
             "type": "string",
             "default": ""
         },
-        "acme": {
-            "$id": "#/properties/acme",
-            "type": "boolean",
-            "default": false
-        },
-        "acmeEmail": {
-            "$id": "#/properties/acmeEmail",
-            "type": "string",
-            "default": ""
-        },
-        "acmeURI": {
-            "$id": "#/properties/acmeURI",
-            "type": "string",
-            "default": ""
-        },
         "enterprise": {
             "$id": "#/properties/enterprise",
             "type": "boolean",
