@@ -56,6 +56,7 @@ export const FolderPlus = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-folderplus"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Printer = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-printer"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const EnvelopeOpen = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-envelopeopen"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const PlugsConnected = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-plugsconnected"
+
       {...otherProps}
       ref={ref}
     >

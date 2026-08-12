@@ -56,6 +56,7 @@ export const SyncAlt = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-syncalt"
+
       {...otherProps}
       ref={ref}
     >

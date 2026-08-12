@@ -56,6 +56,7 @@ export const CornersIn = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cornersin"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Table = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-table"
+
       {...otherProps}
       ref={ref}
     >

@@ -291,10 +291,12 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
         padding: ${p => p.theme.space[3]}px;
         border-left: 4px solid
           ${p => p.theme.colors.interactive.solid.alert.default};
-        ${index !== lastServerInList &&
-        css`
-          border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
-        `}
+        ${
+          index !== lastServerInList &&
+          css`
+            border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
+          `
+        }
       `}
     >
       <Text>

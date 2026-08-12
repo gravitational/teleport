@@ -56,6 +56,7 @@ export const CCAmex = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ccamex"
+
       {...otherProps}
       ref={ref}
     >

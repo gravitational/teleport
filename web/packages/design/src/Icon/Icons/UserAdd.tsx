@@ -56,6 +56,7 @@ export const UserAdd = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-useradd"
+
       {...otherProps}
       ref={ref}
     >

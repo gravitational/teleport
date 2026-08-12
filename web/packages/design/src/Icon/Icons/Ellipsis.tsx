@@ -56,6 +56,7 @@ export const Ellipsis = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ellipsis"
+
       {...otherProps}
       ref={ref}
     >

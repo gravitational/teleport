@@ -56,6 +56,7 @@ export const CirclePlay = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-circleplay"
+
       {...otherProps}
       ref={ref}
     >
