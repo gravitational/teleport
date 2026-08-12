@@ -143,6 +143,7 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	exitCode := m.Run()
+	teardownSharedFixtures()
 	cancel()
 	os.Exit(exitCode)
 }

@@ -65,7 +65,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
-			DataDir:  t.TempDir(),
+			DataDir:  dataDirFor(t, options.shared),
 			NodeName: "rootnode",
 		},
 		SSH: config.SSH{
@@ -156,7 +156,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		options.rootConfigFunc(cfg)
 	}
 
-	s.root = runTeleport(t, cfg)
+	s.root = startTeleport(t, cfg, options.shared)
 }
 
 func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
@@ -164,7 +164,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	fileConfig := &config.FileConfig{
 		Version: "v2",
 		Global: config.Global{
-			DataDir:  t.TempDir(),
+			DataDir:  dataDirFor(t, options.shared),
 			NodeName: "leafnode",
 		},
 		SSH: config.SSH{
@@ -254,7 +254,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	if options.leafConfigFunc != nil {
 		options.leafConfigFunc(cfg)
 	}
-	s.leaf = runTeleport(t, cfg)
+	s.leaf = startTeleport(t, cfg, options.shared)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedClusterV2(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
@@ -265,6 +265,7 @@ type testSuiteOptions struct {
 	leafConfigFunc func(cfg *servicecfg.Config)
 	leafCluster    bool
 	validationFunc func(*suite) bool
+	shared         bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -290,6 +291,13 @@ func withLeafCluster() testSuiteOptionFunc {
 func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.validationFunc = f
+	}
+}
+
+// withSharedFixture marks the suite as a long-lived fixture.
+func withSharedFixture() testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.shared = true
 	}
 }
 
@@ -322,6 +330,12 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 }
 
 func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess {
+	return startTeleport(t, cfg, false /* shared */)
+}
+
+// startTeleport starts cfg and waits for its configured services to become ready.
+func startTeleport(t *testing.T, cfg *servicecfg.Config, shared bool) *service.TeleportProcess {
+	t.Helper()
 	if cfg.InstanceMetadataClient == nil {
 		// Disables cloud auto-imported labels when running tests in cloud envs
 		// such as Github Actions.
@@ -338,10 +352,19 @@ func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err, trace.DebugReport(err))
 	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
+	if shared {
+		// Unlike the t.Cleanup below, this can't assert on Close/Wait.
+		// It runs from TestMain after tests finished; calling t.Errorf that late panics.
+		registerSharedFixtureTeardown(func() {
+			_ = process.Close()
+			_ = process.Wait()
+		})
+	} else {
+		t.Cleanup(func() {
+			require.NoError(t, process.Close())
+			require.NoError(t, process.Wait())
+		})
+	}
 
 	var serviceReadyEvents []string
 	if cfg.Proxy.Enabled {
