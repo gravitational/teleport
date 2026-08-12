@@ -55,11 +55,7 @@ func (h *Handler) githubIntegrationCallback(w http.ResponseWriter, r *http.Reque
 	switch authRequest.AuthenticatedUser {
 	case sctx.GetUser():
 	case "":
-		return h.githubIntegrationErrorRedirect(
-			r.Context(),
-			authRequest.ClientRedirectURL,
-			trace.BadParameter("auth request is not for an authenticated user"),
-		)
+		return nil, trace.BadParameter("auth request is not for an authenticated user")
 	default:
 		h.logger.WarnContext(r.Context(), "GitHub integration callback user mismatch",
 			"session_user", sctx.GetUser(),

@@ -99,8 +99,8 @@ func TestGithubIntegrationCallback(t *testing.T) {
 				ConnectorID:       "test-connector",
 				ClientRedirectURL: "http://127.0.0.1:12345/callback",
 			},
-			wantRedirectErr:   true,
-			wantRedirectMatch: "not for an authenticated user",
+			wantErr:         true,
+			wantErrContains: "not for an authenticated user",
 		},
 		{
 			name: "session user does not match",
