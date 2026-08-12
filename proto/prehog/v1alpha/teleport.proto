@@ -2203,6 +2203,12 @@ message SubmitEventRequest {
   // PostHog property: tp.teleport_version
   string teleport_version = 95;
 
+  // event_key is a UUID distinguishing one underlying event occurrence,
+  // allowing consumers to deduplicate resubmissions.
+  //
+  // PostHog property: tp.event_key
+  string event_key = 128;
+
   // the event being submitted
   oneof event {
     UserLoginEvent user_login = 3;
