@@ -32,8 +32,9 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "firstsecond")
+			let expectedContents = "firstsecond"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -49,8 +50,9 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "firstsecond")
+			let expectedContents = "firstsecond"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -63,8 +65,9 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "record")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "record")
+			let expectedContents = "record"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -78,8 +81,9 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "new")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "existingnew")
+			let expectedContents = "existingnew"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -94,8 +98,9 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "3456")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "1234567890123456")
+			let expectedContents = "1234567890123456"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
 		}
 	}
@@ -106,13 +111,13 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let archiveURL = directoryURL.appending(path: "events.1.log")
 			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
-			let record = "1234567890123456"
+			let expectedContents = "1234567890123456"
 
-			writer.enqueue(logMessage: record)
+			writer.enqueue(logMessage: expectedContents)
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == record)
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
 		}
 	}
@@ -124,13 +129,13 @@ struct RotatingFileWriterTests {
 			let archiveURL = directoryURL.appending(path: "events.1.log")
 			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 			let record = "12345678901234567"
-			let truncatedRecord = "1… [truncated]"
+			let expectedActiveContents = "1… [truncated]"
 
 			writer.enqueue(logMessage: record)
 			try await writer.flush()
 
-			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(activeContents == truncatedRecord)
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
 			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
 		}
 	}
@@ -146,17 +151,17 @@ struct RotatingFileWriterTests {
 			// the first byte of `é`. While 0xC3 is a valid leading byte, it's invalid UTF-8 on its own. So this test
 			// ensures that our truncation code is UTF-8 aware.
 			let record = "12é345678901234567"
-			let truncatedRecord = "12… [truncated]"
+			let expectedContents = "12… [truncated]"
 
 			// These expectations are self-evident but I kept them here for clarity
 			#expect(record.utf8.count == 19)
-			#expect(truncatedRecord.utf8.count == 17)
+			#expect(expectedContents.utf8.count == 17)
 
 			writer.enqueue(logMessage: record)
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == truncatedRecord)
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -171,10 +176,13 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "34567")
 			try await writer.flush()
 
-			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
-			let archiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
-			#expect(activeContents == "34567")
-			#expect(archiveContents == "123456789012")
+			let expectedActiveContents = "34567"
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
+
+			let expectedArchiveContents = "123456789012"
+			let gotArchiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
+			#expect(expectedArchiveContents == gotArchiveContents)
 		}
 	}
 
@@ -194,14 +202,21 @@ struct RotatingFileWriterTests {
 			writer.enqueue(logMessage: "next")
 			try await writer.flush()
 
-			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
-			let firstArchiveContents = try? String(contentsOf: firstArchiveURL, encoding: .utf8)
-			let secondArchiveContents = try? String(contentsOf: secondArchiveURL, encoding: .utf8)
-			let thirdArchiveContents = try? String(contentsOf: thirdArchiveURL, encoding: .utf8)
-			#expect(activeContents == "next")
-			#expect(firstArchiveContents == "active-record")
-			#expect(secondArchiveContents == "first archive")
-			#expect(thirdArchiveContents == "second archive")
+			let expectedActiveContents = "next"
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
+
+			let expectedFirstArchiveContents = "active-record"
+			let gotFirstArchiveContents = try? String(contentsOf: firstArchiveURL, encoding: .utf8)
+			#expect(expectedFirstArchiveContents == gotFirstArchiveContents)
+
+			let expectedSecondArchiveContents = "first archive"
+			let gotSecondArchiveContents = try? String(contentsOf: secondArchiveURL, encoding: .utf8)
+			#expect(expectedSecondArchiveContents == gotSecondArchiveContents)
+
+			let expectedThirdArchiveContents = "second archive"
+			let gotThirdArchiveContents = try? String(contentsOf: thirdArchiveURL, encoding: .utf8)
+			#expect(expectedThirdArchiveContents == gotThirdArchiveContents)
 		}
 	}
 
@@ -227,8 +242,10 @@ struct RotatingFileWriterTests {
 			))
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents?.contains("hello from the handler") == true)
+			let expectedContentsToContainMessage = true
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			let gotContentsContainsMessage = gotContents?.contains("hello from the handler")
+			#expect(expectedContentsToContainMessage == gotContentsContainsMessage)
 		}
 	}
 }
