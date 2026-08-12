@@ -1,0 +1,324 @@
+---
+title: Manage Long-Running Agents on Teleport Beams
+description: Provides instructions on getting up and running with beamctl, a tool for managing services on Teleport Beams.
+sidebar_label: Long-Running Agents
+tags:
+ - how-to
+ - ai
+page_type: "how-to"
+---
+
+{/* cSpell:ignore beamctl, morsecode */}
+
+You can use Teleport Beams to securely manage long-running agentic workloads,
+such as complex coding projects. Each beam deploys with a tool, `beamctl`, that
+allows you to manage services that continue running after you exit your SSH
+session.
+
+In this guide, you will learn how to manage long-running agentic workloads on a
+Teleport beam by walking through a small demo project.
+
+## How it works
+
+Teleport Beams are micro VM sandboxes for running agentic workloads, hosted on
+the Teleport Cloud infrastructure. `beam-init` is the init system for a Teleport
+beam, similar to `systemd` in that it runs as PID 1 and spawns other processes
+that run on the host. `beamctl` is a CLI for managing processes spawned by
+`beam-init`, which it communicates with over a local Unix socket. 
+
+These processes are called **services**. Unlike `systemd`, which loads service
+definition files from disk, `beam-init` requires the user to declare new
+services while executing them over the command line. This is consistent with the
+ephemeral nature of a Teleport beam, which expires after 24 hours.
+
+This guide illustrates the following `beamctl` commands in action:
+
+|Command|Description|
+|---|---|
+|`beamctl start <command>`|Create a service.|
+|`beamctl stop <service name>`|Terminate a service process.|
+|`beamctl restart <service name>`|Terminate a service process and start it again using its original command.|
+|`beamctl list`|List all services and their statuses.|
+|`beamctl logs <service name>`|Show the output of a service.|
+
+<details>
+<summary>Deleting a service</summary>
+
+To remove a service from the list of services `beam-init` tracks, run the
+following command:
+
+```code
+$ beamctl stop --prune <service name>
+```
+
+Otherwise, `beam-init` does not allow you to start a service with the same name
+as an existing one, even if that service is stopped.
+
+</details>
+
+For a full list of commands, run the following on your beam:
+
+```code
+$ beamctl help
+```
+
+## Prerequisites
+
+This guide requires a Teleport Beams account. [Start your free
+trial](https://www.beams.run/).
+
+In the demo project we'll use for this guide, you will run two continuous agent
+workloads to build a simple web application:
+
+- **Agent 1:** Runs tests and gets them to pass by writing and optimizing code.
+- **Agent 2:** Writes tests and designs testable function signatures, but leaves
+  implementations up to Agent 1.
+
+Agent 2 writes tests that handle edge cases Agent 1 hasn't addressed yet. This
+forces the agents to adopt a test-driven development (TDD) workflow and prevents
+the agent writing the application code from adding trivial tests.
+
+## Step 1/3. Create a demo user
+
+Agentic workloads that run on a beam receive the Teleport identity of the user
+who created the beam. Start by creating a user for the workloads we are running
+for the demo in order to isolate them from the rest of your cluster:
+
+1. Create a user called `beam-demo` with the `beam-user` role:
+
+   ```code
+   $ tctl users add --roles=beam-user beam-demo
+   ```
+
+1. Follow the instructions in your terminal to activate your user and
+   authenticate.
+
+## Step 2/3. Set up the demo project
+
+The demo project we'll create in this guide lets users enter Morse code using a
+browser button and converts it to text.
+
+<Admonition type="tip">
+
+Feel free to use another project idea. If you do, read through the rest of the
+guide first to understand the relevant workflows.
+
+</Admonition>
+
+Create a Teleport beam and set up a project so that your agents have a place to
+carry out their work:
+
+1. Create a beam:
+
+   ```code
+   $ tsh beams add
+   ```
+
+1. On the beam, set up a project directory:
+
+   ```code
+   $ mkdir morsecode
+   $ cd morsecode
+   ```
+
+1. Set up your project:
+
+   ```code
+   $ npm init
+   ```
+
+1. Name the package `morsecode` and accept all the `npm` defaults.
+
+1. Install Vite, which we'll use to set up the NodeJS project:
+
+   ```code
+   $ npm install -D vite@~8.2.0
+   ```
+
+1. Add empty directories:
+
+   ```code
+   $ mkdir tests src
+   ```
+
+1. Start a dev server, which reloads automatically when source files change:
+ 
+   ```code
+   $ beamctl start --name=server -- \
+     bash -c 'export HOME=/home/beams; \
+       cd /home/beams/morsecode; \
+       npx vite --host --port=8080;'
+   Started service server
+   ```
+
+   `beamctl start` starts a serviced managed by the `beam-init` init system,
+   which manages all processes that run on a Teleport beam. Here we set the home
+   directory as the one in which we created our Vite project to ensure `npm` can
+   work as expected.
+
+   The server must run on port `8080` so you can visit it via Teleport later in
+   the guide.
+
+1. Copy the following text to a file called SPEC.md on the beam:
+
+   ```markdown
+   # Morse code in your browser
+
+   When the user taps a button, the app reads it as Morse code and converts text
+   to a readout below the button. There is a collapsable Morse code key as a
+   reference for the user.
+   ```
+
+1. Start the testing agent with `claude`, which comes preinstalled on the beam
+   (as does `codex`). Every 10 seconds, the testing agent adds new tests to
+   implement the application and address potential edge cases. Like the coding
+   agent we'll start next, the testing agent has a limit of 30 executions,
+   amounting to around five minutes of work:
+
+   ```code
+   $ beamctl start --name=tester -- bash -c ' \
+     export HOME=/home/beams; \
+     export count=0; \
+     while [ $count -lt 30 ]; do \
+       claude -p --dangerously-skip-permissions < /dev/null "\
+         Read SPEC.md and the existing test files under tests. Identify one \
+         behavior from the spec that is not covered by an existing test yet, \
+         e.g., a new function, or an additional edge case for a function  \
+         you have already tested. If a test calls a function that does not exist \
+         yet, import it in the new test and assume it has a testable function \
+         signature, but do not create or modify anything in src. Another agent \
+         will define functions and get tests to pass. Do not modify or remove \
+         existing tests."; \
+      sleep 10; \
+      count=$((count+1)); \
+    done;'
+    Started service tester
+   ```
+
+   Since the beam is a sandbox environment, the agent running on the beam cannot
+   cause unintended impacts to your infrastructure, even if you include
+   `--dangerously-skip-permissions` when running it.
+
+1. Start the coding agent:
+
+   ```code
+   $ beamctl start --name=coder -- bash -c ' \
+     export HOME=/home/beams; \
+     export count=0; \
+     while [ $count -lt 30 ]; do \
+       if ! npm test --silent; then \
+         claude -p --dangerously-skip-permissions < /dev/null "\
+           Read SPEC.md and existing test files under tests. Get the tests to \
+           pass by editing files in src. Maintain a minimal Vite entrypoint at \
+           index.html to wire everything up."; \
+       fi; \
+      sleep 10; \
+      count=$((count+1)); \
+    done;'
+    Started service coder
+    ```
+
+1. Make sure all services are running as expected. All should report `running`:
+
+   ```code
+   $ beamctl list
+     bootstrap (running PID=2)
+     coder (running PID=168)
+     server (running PID=5817)
+     tester (running PID=136)
+   ```
+
+   <details>
+   <summary>Problem starting a service?</summary>
+
+   If a service has not started correctly, check its logs:
+
+   ```code
+   $ beamctl logs tester
+   $ beamctl logs coder
+   $ beamctl logs server
+   ```
+
+   If the problem has to do with the command you ran to start a service (e.g., a
+   typo), prune the service and start it again with the correct command:
+
+   ```code
+   $ beamctl stop --prune <service>
+   $ beamctl start <correct command>
+   ```
+
+   </details>
+
+1. Exit your session.
+
+   ```code
+   $ exit
+   logout
+   the connection was closed on the remote side at <timestamp>
+   ```
+
+Do something else for five minutes.
+
+## Step 3/3. Check your app
+
+At this point, your agents should have made substantial progress on your demo
+project.
+
+1. Find the beam you created so you can access it:
+
+   ```code
+   $ tsh beams ls
+   ```
+
+1. Publish the application. The command below enrolls your demo project as a
+   Teleport-protected web app. Assign <Var name="beam-name" /> to the name of
+   your beam:
+
+   ```code
+   $ tsh beams publish <Var name="beam-name" />
+   ```
+
+1. Follow the prompts to authenticate to Teleport and visit your app.
+
+1. In your terminal, SSH into your beam:
+
+   ```code
+   $ tsh beams ssh <Var name="beam-name" />
+   ```
+
+1. Show the status of all the `beamctl` services you started:
+
+   ```code
+   $ beamctl list
+     bootstrap (running PID=2)
+     coder (running PID=168)
+     server (running PID=5817)
+     tester (running PID=136)
+   ```
+
+1. Check the logs of your `beamctl` services. For example, you can see the
+   tester discussing the tests it has added:
+
+   ```code
+   $ beamctl logs tester
+   ```
+
+   You can add the `--follow` flag to attach your terminal's standard input to
+   the service's logs.
+
+1. If the services are still running, you can terminate their processes with the
+   following command:
+
+   ```code
+   $ beamctl stop tester
+   $ beamctl stop coder
+   ```
+
+1. If any services have stopped, and you would like them to resume their work,
+   you can run the following command to restart them. For example:
+
+   ```code
+   $ beamctl restart coder
+   $ beamctl restart tester
+   $ beamctl restart server
+   ```
