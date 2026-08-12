@@ -221,11 +221,6 @@
             "type": "boolean",
             "default": false
         },
-        "licenseSecretName": {
-            "$id": "#/properties/licenseSecretName",
-            "type": "string",
-            "default": "license"
-        },
         "chartMode": {
             "$id": "#/properties/chartMode",
             "type": "string",

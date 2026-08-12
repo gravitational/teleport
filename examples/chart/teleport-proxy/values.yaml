@@ -213,12 +213,18 @@ acmeURI: ""
 
 # enterprise(bool) -- uses the enterprise image.
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
+#
 # ```bash
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 # ```
+#
+# > Note: The teleport proxy service
+# > (`proxy_service.enabled` in [teleport.yaml](../../reference/deployment/config.mxd#proxy-service),
+# > as deployed by this chart), does not require the license file even when
+# > running an enterprise build. Your license file only needs to be deployed on
+# > the auth service with the
+# > [telepor-cluster chart](../../reference/helm-reference/teleport-cluster.mxd).
 enterprise: false
-# licenseSecretName(string) -- overrides name for the Kubernetes secret that stores the Enterprise license
-licenseSecretName: "license"
 
 # chartMode(string) -- introduces cloud-specific settings. At present, these
 # are only needed for AWS, so all other modes are effectively the same. Chart
