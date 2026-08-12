@@ -164,8 +164,9 @@ OpenAI-compatible proxies.
 
 ## Kubernetes Access (Proxy)
 
-The following tables identify all metrics available in the Teleport Proxy
-Service if at least one Kubernetes cluster is enrolled in your Teleport cluster.
+The following tables identify all metrics available in the [Teleport Proxy
+Service](https://goteleport.com/docs/reference/deployment/config/#proxy-service)
+if at least one Kubernetes cluster is enrolled in your Teleport cluster.
 
 ### Client
 
@@ -184,7 +185,8 @@ to upstream servers. In the case of `proxy`, the upstream server can be a
 
 ### Server
 
-The following table identifies all metrics available for incoming connections.
+The following table identifies all metrics available for incoming connections
+from clients (`tsh`, `kubectl`) to a Teleport Proxy.
 
 | Name                                                        | Type      | Component                 | Description                                         |
 | ----------------------------------------------------------- | --------- | ------------------------- | --------------------------------------------------- |
@@ -214,20 +216,32 @@ The following table identifies all metrics available for incoming connections.
 
 ## Teleport Kubernetes Service (Agent)
 
-The following table identifies all metrics available when the service connects
-to upstream servers. In the case of `kubernetes_service`, the upstream server
-is always a Kubernetes cluster.
+These metrics are available when the Teleport process is configured with
+[kubernetes_service](https://goteleport.com/docs/reference/deployment/config/#kubernetes-service)
+and apply to traffic between the agent and Kubernetes API.
+
+The same metrics are also reported by the Proxy service, but apply to the proxy
+phase of Kubernetes connections.
+
+### Client
+
+The following table identifies all metrics available when the
+`kubernetes_service` connects to the API of a Kubernetes cluster.
 
 | Name                                                              | Type      | Component                   | Description                                                                                               |
 | ----------------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `teleport_kubernetes_client_in_flight_requests`                   | gauge     | Teleport Kubernetes Service | In-flight requests waiting for the upstream response. |
 | `teleport_kubernetes_client_requests_total`                       | counter   | Teleport Kubernetes Service | Total number of requests sent to the upstream teleport proxy, kube_service or Kubernetes Cluster servers. |
 | `teleport_kubernetes_client_tls_duration_seconds`                 | histogram | Teleport Kubernetes Service | Latency distribution of TLS handshakes.                                                                   |
-| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Service | Latency distribution of time to dial to the upstream server - using reversetunnel or direct dialer.       |
+| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Service | Latency distribution of time to dial to the upstream server - using reverse tunnel or direct dialer.       |
 | `teleport_kubernetes_client_first_byte_response_duration_seconds` | histogram | Teleport Kubernetes Service | Latency distribution of time to receive the first response byte from the upstream server.                 |
 | `teleport_kubernetes_client_request_duration_seconds`             | histogram | Teleport Kubernetes Service | Latency distribution of the upstream request time.                                                        |
 
-The following table identifies all metrics available for incoming connections.
+
+### Server
+
+The following table identifies all metrics available for connections from
+clients/Teleport proxies to the Teleport `kubernetes_service`.
 
 | Name                                                        | Type      | Component                   | Description                                         |
 | ----------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------- |
