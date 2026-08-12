@@ -188,6 +188,65 @@ test('primary passwordless', () => {
   expect(screen.queryByTestId('userpassword')).not.toBeInTheDocument();
 });
 
+describe('passkey auto-prompt opt-out', () => {
+  const label = 'Ask for my passkey automatically';
+  // props is declared at the bottom of this file, so it can only be read once the tests run.
+  const autoPromptProps = (): Props => ({
+    ...props,
+    primaryAuthType: 'passwordless',
+    autoPromptAvailable: true,
+    onAutoPromptChange: () => {},
+  });
+
+  test('is shown checked when the auto-prompt is on', () => {
+    render(<FormLogin {...autoPromptProps()} autoPromptDisabled={false} />);
+    expect(screen.getByLabelText(label)).toBeChecked();
+  });
+
+  test('is shown unchecked when the auto-prompt is disabled', () => {
+    render(<FormLogin {...autoPromptProps()} autoPromptDisabled={true} />);
+    expect(screen.getByLabelText(label)).not.toBeChecked();
+  });
+
+  test('reports the opt-out when unchecked', () => {
+    const onAutoPromptChange = jest.fn();
+    render(
+      <FormLogin
+        {...autoPromptProps()}
+        autoPromptDisabled={false}
+        onAutoPromptChange={onAutoPromptChange}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText(label));
+    expect(onAutoPromptChange).toHaveBeenCalledWith(true);
+  });
+
+  test('is hidden for browsers that cannot be auto-prompted', () => {
+    render(<FormLogin {...autoPromptProps()} autoPromptAvailable={false} />);
+    expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  });
+
+  test('holds back only the passkey button while a ceremony is outstanding', () => {
+    render(<FormLogin {...autoPromptProps()} autoPromptPending={true} />);
+
+    // The browser is already asking for a passkey; a second ceremony would be rejected.
+    expect(
+      screen.getByRole('button', { name: 'Sign in with a Passkey' })
+    ).toBeDisabled();
+    // Every other way in stays open, and starting one cancels the automatic ceremony.
+    expect(screen.getByLabelText(label)).toBeEnabled();
+  });
+
+  test('leaves the passkey button usable when no ceremony is outstanding', () => {
+    render(<FormLogin {...autoPromptProps()} autoPromptPending={false} />);
+
+    expect(
+      screen.getByRole('button', { name: 'Sign in with a Passkey' })
+    ).toBeEnabled();
+  });
+});
+
 test('focuses the username input', () => {
   render(<FormLogin {...props} isPasswordlessEnabled />);
 

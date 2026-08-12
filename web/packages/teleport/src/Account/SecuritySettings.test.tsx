@@ -29,6 +29,7 @@ import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import auth from 'teleport/services/auth/auth';
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
+import { storageService } from 'teleport/services/storageService';
 import { PasswordState } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 
@@ -411,4 +412,76 @@ test('removing an MFA method', async () => {
     'touch_id'
   );
   expect(screen.queryByTestId('delete-step')).not.toBeInTheDocument();
+});
+
+describe('the passkey auto-prompt flag on device removal', () => {
+  // The table sorts by registration date, newest first, so the device under test is the most recent.
+  const newest = new Date(1628799417000);
+  const older = new Date(1600000000000);
+
+  async function removeNewestDevice(devices: MfaDevice[]) {
+    const user = userEvent.setup();
+    const ctx = createTeleportContext();
+    jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue(devices);
+    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+      webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
+      totpChallenge: true,
+      ssoChallenge: null,
+    });
+    jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+    jest
+      .spyOn(auth, 'createPrivilegeToken')
+      .mockResolvedValueOnce('privilege-token');
+    jest
+      .spyOn(MfaService.prototype, 'removeDevice')
+      .mockResolvedValueOnce(undefined);
+    cfg.auth.second_factor = 'on';
+    cfg.auth.allowPasswordless = true;
+
+    await renderComponent(ctx);
+
+    await user.click(
+      within(screen.getByTestId('device-list')).getAllByRole('button', {
+        name: 'Delete',
+      })[0]
+    );
+    await user.click(screen.getByText('Verify my identity'));
+    await user.click(
+      within(screen.getByTestId('delete-step')).getByRole('button', {
+        name: 'Delete',
+      })
+    );
+  }
+
+  it('is cleared when the last passkey is removed', async () => {
+    const clear = jest
+      .spyOn(storageService, 'clearHasLoggedInWithPasskey')
+      .mockImplementation();
+
+    await removeNewestDevice([
+      { ...testPasskey, registeredDate: newest },
+      { ...testMfaMethod, name: 'yubikey', registeredDate: older },
+    ]);
+
+    // An MFA method is left, but nothing the login page can prompt for.
+    expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('is kept while another passkey remains', async () => {
+    const clear = jest
+      .spyOn(storageService, 'clearHasLoggedInWithPasskey')
+      .mockImplementation();
+
+    await removeNewestDevice([
+      { ...testPasskey, registeredDate: newest },
+      {
+        ...testPasskey,
+        id: '3',
+        name: 'other_passkey',
+        registeredDate: older,
+      },
+    ]);
+
+    expect(clear).not.toHaveBeenCalled();
+  });
 });

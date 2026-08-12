@@ -108,4 +108,8 @@ const sample: State = {
   acknowledgeMotd: () => null,
   licenseAcknowledged: true,
   setLicenseAcknowledged: () => {},
+  autoPromptAvailable: true,
+  autoPromptPending: false,
+  autoPromptDisabled: false,
+  setAutoPromptDisabled: () => null,
 };

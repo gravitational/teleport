@@ -125,7 +125,8 @@ test('passwordless login', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Sign in with a Passkey' })
   );
-  expect(auth.loginWithWebauthn).toHaveBeenCalledWith(undefined); // No credentials
+  // No credentials, and no abort signal: only the automatic prompt has to be able to stand down.
+  expect(auth.loginWithWebauthn).toHaveBeenCalledWith(undefined, undefined);
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 

@@ -71,6 +71,8 @@ export const KeysEnum = {
   DESKTOP_HIDPI: 'grv_teleport_desktop_hidpi',
   // TODO(bl-nero): Remove this once the login scope picker is operational.
   USE_LOGIN_SCOPE_PICKER: 'grv_teleport_use_login_scope_picker',
+  HAS_LOGGED_IN_WITH_PASSKEY: 'grv_teleport_has_logged_in_with_passkey',
+  PASSKEY_AUTOPROMPT_DISABLED: 'grv_teleport_passkey_autoprompt_disabled',
 };
 
 // SurveyRequest is the request for sending data to the back end

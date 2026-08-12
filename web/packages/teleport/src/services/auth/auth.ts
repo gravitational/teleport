@@ -132,13 +132,18 @@ const auth = {
     });
   },
 
-  loginWithWebauthn(creds?: UserCredentials) {
+  /**
+   * @param signal aborts the credential ceremony. A browser rejects a second ceremony while one is
+   * outstanding, so a caller that starts ceremonies on its own initiative needs a way to stand down.
+   */
+  loginWithWebauthn(creds?: UserCredentials, signal?: AbortSignal) {
     return auth
       .checkWebauthnSupport()
       .then(() => auth.mfaLoginBegin(creds))
       .then(res =>
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
+          signal,
         })
       )
       .then(res => {

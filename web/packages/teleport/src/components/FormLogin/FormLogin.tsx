@@ -33,6 +33,7 @@ import {
 import * as Alerts from 'design/Alert';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import { P } from 'design/Text/Text';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -180,6 +181,10 @@ const Passwordless = ({
   autoFocus = false,
   hasTransitionEnded,
   primary,
+  autoPromptAvailable,
+  autoPromptPending,
+  autoPromptDisabled,
+  onAutoPromptChange,
 }: Props & { hasTransitionEnded: boolean; primary: boolean }) => {
   const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
@@ -205,11 +210,19 @@ const Passwordless = ({
           intent={primary ? 'primary' : 'neutral'}
           size="extra-large"
           ref={ref}
-          disabled={attempt.isProcessing}
+          disabled={attempt.isProcessing || autoPromptPending}
           onClick={() => onLoginWithWebauthn()}
         >
           Sign in with a Passkey
         </Button>
+        {autoPromptAvailable && onAutoPromptChange && (
+          <FieldCheckbox
+            mb={0}
+            label="Ask for my passkey automatically"
+            checked={!autoPromptDisabled}
+            onChange={e => onAutoPromptChange(!e.target.checked)}
+          />
+        )}
       </Flex>
     </Box>
   );
@@ -511,6 +524,23 @@ export type Props = {
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;
   setShowIdentifierFirstLogin?: (value: boolean) => void;
+  /**
+   * Whether this browser is eligible for the passkey auto-prompt at all. The opt-out checkbox is
+   * hidden when it isn't, since it would control something that cannot happen.
+   */
+  autoPromptAvailable?: boolean;
+  /**
+   * Whether the automatic ceremony is still outstanding. Only the passkey button is held back while it
+   * is: the browser is already asking for a passkey, and starting a second ceremony would fail. Every
+   * other way to sign in stays available and cancels the automatic one.
+   */
+  autoPromptPending?: boolean;
+  /**
+   * Whether the per-browser passkey auto-prompt opt-out is set. Controls the
+   * "Ask for my passkey automatically" checkbox in the passwordless view.
+   */
+  autoPromptDisabled?: boolean;
+  onAutoPromptChange?: (disabled: boolean) => void;
 };
 
 type AttemptState = ReturnType<typeof useAttempt>[0];

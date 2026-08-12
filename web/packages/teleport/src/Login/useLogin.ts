@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { matchPath } from 'react-router';
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
@@ -33,6 +33,40 @@ export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
   const [checkingValidSession, setCheckingValidSession] = useState(true);
   const licenseAcknowledged = storageService.getLicenseAcknowledged();
+
+  const [autoPromptDisabled, setAutoPromptDisabledState] = useState(
+    storageService.getPasskeyAutoPromptDisabled()
+  );
+  // Whether the auto-prompt is something this cluster can do at all, which is what decides whether the
+  // opt-out is worth offering. It stays visible for browsers that have not been prompted yet, so the
+  // opt-out does not require sitting through a prompt first.
+  const autoPromptAvailable = cfg.isPasswordlessEnabled();
+  // Prompting a browser that holds no passkey for this cluster opens a dialog the user cannot satisfy,
+  // so the ceremony itself waits for a passwordless sign-in to have happened here.
+  const autoPromptEligible =
+    autoPromptAvailable && storageService.getHasLoggedInWithPasskey();
+  // Guards the auto-prompt so the passkey ceremony is invoked at most once per
+  // page load, even as checkingValidSession flips and the effect re-runs.
+  const autoPromptFired = useRef(false);
+  // A browser rejects a second credential ceremony while one is outstanding, so the automatic one has
+  // to stand down as soon as the user commits to signing in some other way.
+  const autoPromptAbort = useRef<AbortController>(null);
+  const [autoPromptPending, setAutoPromptPending] = useState(false);
+
+  function abortAutoPrompt() {
+    autoPromptAbort.current?.abort();
+    autoPromptAbort.current = null;
+    setAutoPromptPending(false);
+  }
+
+  // A ceremony left open after the page goes away would keep prompting for a sign-in nobody is
+  // waiting on.
+  useEffect(() => abortAutoPrompt, []);
+
+  function setAutoPromptDisabled(disabled: boolean) {
+    storageService.setPasskeyAutoPromptDisabled(disabled);
+    setAutoPromptDisabledState(disabled);
+  }
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
@@ -97,7 +131,37 @@ export default function useLogin() {
     setCheckingValidSession(false);
   }, []);
 
+  // Auto-invoke the passwordless ceremony once the session check confirms there
+  // is no valid session, but only for browsers that have signed in with a
+  // passkey before and have not opted out. Some browsers gate the modal
+  // credentials.get() on user activation, in which case the ceremony is
+  // rejected and the auto-prompt leaves the form as it was.
+  useEffect(() => {
+    if (checkingValidSession || autoPromptFired.current) {
+      return;
+    }
+    // The MOTD and the community license both have to be accepted before signing
+    // in, and Login renders them in place of the form, so a ceremony here would
+    // authenticate the user past a gate they never saw. Mirrors the conditions
+    // Login uses to pick what it renders.
+    if (showMotd || (!licenseAcknowledged && cfg.edition === 'community')) {
+      return;
+    }
+    if (autoPromptEligible && !autoPromptDisabled) {
+      autoPromptFired.current = true;
+      autoPromptAbort.current = new AbortController();
+      setAutoPromptPending(true);
+      loginWithWebauthn(
+        undefined /* creds */,
+        true /* auto */,
+        autoPromptAbort.current.signal
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkingValidSession, showMotd, licenseAcknowledged]);
+
   function onLogin(email, password, token) {
+    abortAutoPrompt();
     attemptActions.start();
     storageService.clearLoginTime();
     auth
@@ -109,17 +173,53 @@ export default function useLogin() {
   }
 
   function onLoginWithWebauthn(creds?: UserCredentials) {
-    attemptActions.start();
-    storageService.clearLoginTime();
+    abortAutoPrompt();
+    loginWithWebauthn(creds, false /* auto */);
+  }
+
+  function loginWithWebauthn(
+    creds: UserCredentials | undefined,
+    auto: boolean,
+    signal?: AbortSignal
+  ) {
+    const isPasswordless = !creds;
+    // The auto-prompt stays out of the form's attempt state entirely. Claiming it would disable every
+    // field behind a dialog the user never asked for, and releasing it again on failure would discard
+    // the state of a sign-in they started in the meantime.
+    if (!auto) {
+      attemptActions.start();
+      storageService.clearLoginTime();
+    }
     auth
-      .loginWithWebauthn(creds)
-      .then(onSuccess)
+      .loginWithWebauthn(creds, signal)
+      .then(res => {
+        // Authenticated only records a login time when none is stored, so the previous session's has
+        // to go before this one starts.
+        if (auto) {
+          storageService.clearLoginTime();
+        }
+        if (isPasswordless) {
+          storageService.setHasLoggedInWithPasskey();
+        }
+        return onSuccess(res);
+      })
       .catch(err => {
+        // A dismissed dialog, an abort, or a browser that refuses a ceremony without user activation
+        // are all expected outcomes of a prompt nobody requested. Leave the form as the user found it.
+        if (auto) {
+          return;
+        }
         attemptActions.error(err);
+      })
+      .finally(() => {
+        if (auto) {
+          setAutoPromptPending(false);
+        }
       });
   }
 
   function onLoginWithSso(provider: AuthProvider, loginHint?: string) {
+    abortAutoPrompt();
     attemptActions.start();
     storageService.clearLoginTime();
     const appStartRoute = getEntryRoute();
@@ -156,6 +256,10 @@ export default function useLogin() {
     motd,
     showMotd,
     acknowledgeMotd,
+    autoPromptAvailable,
+    autoPromptPending,
+    autoPromptDisabled,
+    setAutoPromptDisabled,
   };
 }
 

@@ -49,6 +49,8 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.IDENTITY_SECURITY_RECOMMENDATIONS_UNIFIED_RESOURCES_CTA_SEEN,
   KeysEnum.DESKTOP_HIDPI,
   KeysEnum.USE_LOGIN_SCOPE_PICKER,
+  KeysEnum.HAS_LOGGED_IN_WITH_PASSKEY,
+  KeysEnum.PASSKEY_AUTOPROMPT_DISABLED,
 ];
 
 const RECENT_HISTORY_MAX_LENGTH = 10;
@@ -382,5 +384,35 @@ export const storageService = {
 
   getUseLoginScopePicker(): boolean {
     return this.getParsedJSONValue(KeysEnum.USE_LOGIN_SCOPE_PICKER, false);
+  },
+
+  setHasLoggedInWithPasskey() {
+    window.localStorage.setItem(KeysEnum.HAS_LOGGED_IN_WITH_PASSKEY, 'true');
+  },
+
+  getHasLoggedInWithPasskey(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.HAS_LOGGED_IN_WITH_PASSKEY) ===
+      'true'
+    );
+  },
+
+  clearHasLoggedInWithPasskey() {
+    window.localStorage.removeItem(KeysEnum.HAS_LOGGED_IN_WITH_PASSKEY);
+  },
+
+  setPasskeyAutoPromptDisabled(disabled: boolean) {
+    if (disabled) {
+      window.localStorage.setItem(KeysEnum.PASSKEY_AUTOPROMPT_DISABLED, 'true');
+    } else {
+      window.localStorage.removeItem(KeysEnum.PASSKEY_AUTOPROMPT_DISABLED);
+    }
+  },
+
+  getPasskeyAutoPromptDisabled(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.PASSKEY_AUTOPROMPT_DISABLED) ===
+      'true'
+    );
   },
 };

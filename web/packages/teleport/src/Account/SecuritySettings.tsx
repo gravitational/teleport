@@ -25,6 +25,7 @@ import { useStore } from 'shared/libs/stores';
 
 import cfg from 'teleport/config';
 import { DeviceUsage } from 'teleport/services/mfa';
+import { storageService } from 'teleport/services/storageService';
 import useTeleport from 'teleport/useTeleport';
 
 import { AccountProps } from './Account';
@@ -132,6 +133,15 @@ export function SecuritySettings({
   }
 
   function onDeleteDeviceSuccess() {
+    // Without a passkey left to offer, the login page would keep opening a ceremony this browser
+    // cannot satisfy. devices still holds the device being removed, hence the id check.
+    const passkeysLeft = devices.some(
+      d => d.id !== deviceToRemove.id && d.usage === 'passwordless'
+    );
+    if (!passkeysLeft) {
+      storageService.clearHasLoggedInWithPasskey();
+    }
+
     const message =
       deviceToRemove.usage === 'passwordless'
         ? 'Passkey successfully deleted.'
