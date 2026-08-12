@@ -133,8 +133,8 @@ serviceAccountTokenExpirationSeconds: null
 # proxy pods. The configuration will be merged with the chart-generated
 # configuration and will take precedence in case of conflict.
 #
-# See the Teleport Configuration Reference for the list of supported fields:
-# ../../config/
+# See the [Teleport Configuration Reference](../../reference/deployment/config.mxd)
+# for the list of supported fields:
 #
 # ```yaml
 # teleportConfig:
