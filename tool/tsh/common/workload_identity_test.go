@@ -165,7 +165,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, "my-workload-identity")
+		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{Name: "my-workload-identity"})
 		require.NoError(collect, err)
 	}, time.Second*5, 100*time.Millisecond)
 
@@ -259,7 +259,7 @@ func TestWorkloadIdentityIssueJWT(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, "my-workload-identity")
+		_, err := s.root.GetAuthServer().Cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "my-workload-identity"}.Build())
 		require.NoError(t, err)
 	}, time.Second*5, 100*time.Millisecond)
 

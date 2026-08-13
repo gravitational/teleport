@@ -56,6 +56,7 @@ export const SortAscending = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-sortascending"
+
       {...otherProps}
       ref={ref}
     >

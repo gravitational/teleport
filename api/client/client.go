@@ -3838,7 +3838,8 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 // TODO (eriktate): remove in v20
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	return c.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
-		Name: name,
+		Name:        name,
+		WithSecrets: true, // preserves legacy secret-inclusive default behavior
 	}.Build())
 }
 
@@ -3858,9 +3859,19 @@ func (c *Client) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClus
 
 		// fallback to legacy GetKubernetesCluster API
 		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
-		return c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{
+		cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{
 			Name: req.GetName(),
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// the legacy API is always secret-inclusive. if we didn't have permission to read secrets we'd
+		// have gotten a permission error, but we still want to respect the request's with_secrets flag
+		// and omit secrets locally to keep behavior consistent.
+		if !req.GetWithSecrets() {
+			return cluster.WithoutSecrets().(types.KubeCluster), nil
+		}
+		return cluster, nil
 	}
 	return res.GetCluster(), trace.Wrap(err)
 }
@@ -3886,8 +3897,9 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 // TODO (eriktate): remove in v20
 func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	return c.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
-		PageSize:  int32(limit),
-		PageToken: start,
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: true, // preserves legacy secret-inclusive default behavior
 	}.Build())
 }
 
@@ -3929,12 +3941,18 @@ func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeC
 	}
 	kubeClusters := make([]types.KubeCluster, len(clusters))
 	for i, cluster := range clusters {
+		// legacy fallback is always secret-inclusive.
+		if !req.GetWithSecrets() {
+			kubeClusters[i] = cluster.WithoutSecrets().(types.KubeCluster)
+			continue
+		}
 		kubeClusters[i] = cluster
 	}
 	return kubeClusters, nextPageToken, nil
 }
 
-// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end), including their
+// secrets.
 //
 // Deprecated: Use RangeKubeClusters instead.
 // TODO (eriktate): remove in v20
@@ -3947,6 +3965,7 @@ func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string)
 			ScopeFilter: scopesv1.Filter_builder{
 				Mode: scopesv1.Mode_MODE_UNSCOPED,
 			}.Build(),
+			WithSecrets: true, // preserves legacy secret-inclusive default behavior
 		}.Build())
 		return res.GetClusters(), res.GetNextPageToken(), err
 	}
@@ -4014,6 +4033,10 @@ func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKube
 		// fallback iterator
 		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
 		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.legacyListKubeClusters, nil) {
+			// the legacy API is always secret-inclusive.
+			if err == nil && !req.GetWithSecrets() {
+				cluster = cluster.WithoutSecrets().(*types.KubernetesClusterV3)
+			}
 			if !yield(cluster, err) {
 				return
 			}
@@ -6266,19 +6289,18 @@ func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScoped
 	return res, trace.Wrap(err)
 }
 
-func (c *Client) GetScopedToken(ctx context.Context, name string, withSecret bool) (*joiningv1.ScopedToken, error) {
-	res, err := c.grpc.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-		Name:       name,
-		WithSecret: withSecret,
-	})
-	return res.GetToken(), trace.Wrap(err)
+func (c *Client) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.GetScopedToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.GetToken(), nil
 }
 
 // DeleteScopedToken deletes an existing scoped token.
-func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-		Name: name,
-	})
+func (c *Client) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) error {
+	_, err := c.grpc.DeleteScopedToken(ctx, req)
 	return trace.Wrap(err)
 }
 

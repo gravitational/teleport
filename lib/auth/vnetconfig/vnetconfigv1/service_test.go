@@ -149,7 +149,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead},
+			allowedVerbs: []string{types.VerbReadNoSecrets},
 			action: func(service *Service) error {
 				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
 					return trace.Wrap(err, "creating vnet_config as pre-req for Get test")

@@ -48,39 +48,31 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Loaded: Story = {
-  parameters: {
-    msw: {
-      handlers: [listInstancesSuccess],
-    },
+  beforeEach({ msw }) {
+    msw.use(listInstancesSuccess);
   },
 };
 
 export const CacheInitializing: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        listInstancesError(
-          503,
-          'inventory cache is not yet healthy, please try again in a few minutes'
-        ),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      listInstancesError(
+        503,
+        'inventory cache is not yet healthy, please try again in a few minutes'
+      )
+    );
   },
 };
 
 export const Loading: Story = {
-  parameters: {
-    msw: {
-      handlers: [listInstancesLoading],
-    },
+  beforeEach({ msw }) {
+    msw.use(listInstancesLoading);
   },
 };
 
 export const Error: Story = {
-  parameters: {
-    msw: {
-      handlers: [listInstancesError(500, 'some error')],
-    },
+  beforeEach({ msw }) {
+    msw.use(listInstancesError(500, 'some error'));
   },
 };
 
@@ -89,10 +81,9 @@ export const NoInstancePermissions: Story = {
     hasInstanceListPermission: false,
     hasInstanceReadPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [listOnlyBotInstances],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(listOnlyBotInstances);
   },
 };
 
@@ -101,10 +92,9 @@ export const NoBotInstancePermissions: Story = {
     hasBotInstanceListPermission: false,
     hasBotInstanceReadPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [listOnlyRegularInstances],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(listOnlyRegularInstances);
   },
 };
 
@@ -115,10 +105,9 @@ export const NoPermissionsAtAll: Story = {
     hasBotInstanceListPermission: false,
     hasBotInstanceReadPermission: false,
   },
-  parameters: {
-    msw: {
-      handlers: [listInstancesError(403, 'access denied')],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(listInstancesError(403, 'access denied'));
   },
 };
 

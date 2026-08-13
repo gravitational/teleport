@@ -24,7 +24,6 @@ import (
 	"io"
 	"maps"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -985,37 +984,6 @@ func (c *installerCollection) WriteText(w io.Writer, verbose bool) error {
 	return nil
 }
 
-type integrationCollection struct {
-	integrations []types.Integration
-}
-
-func (c *integrationCollection) Resources() (r []types.Resource) {
-	for _, ig := range c.integrations {
-		r = append(r, ig)
-	}
-	return r
-}
-
-func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
-	sort.Sort(types.Integrations(c.integrations))
-	var rows [][]string
-	for _, ig := range c.integrations {
-		specProps := []string{}
-		switch ig.GetSubKind() {
-		case types.IntegrationSubKindAWSOIDC:
-			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
-		}
-
-		rows = append(rows, []string{
-			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
-		})
-	}
-	headers := []string{"Name", "Type", "Spec"}
-	t := asciitable.MakeTable(headers, rows...)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type externalAuditStorageCollection struct {
 	externalAuditStorages []*externalauditstorage.ExternalAuditStorage
 }
@@ -1140,30 +1108,6 @@ func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) 
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type botCollection struct {
-	bots []*machineidv1pb.Bot
-}
-
-func (c *botCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.bots))
-	for i, b := range c.bots {
-		resources[i] = types.ProtoResource153ToLegacy(b)
-	}
-	return resources
-}
-
-func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Roles"})
-	for _, b := range c.bots {
-		t.AddRow([]string{
-			b.Metadata.Name,
-			strings.Join(b.Spec.Roles, ", "),
-		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

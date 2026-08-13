@@ -1,6 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    resources.teleport.dev/scoped: "false"
   name: teleportprovisiontokens.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -418,7 +420,6 @@ spec:
                       and JWKS keys.
                     type: string
                   must_match_fields:
-                    additionalProperties: true
                     description: 'MustMatchFields perform simple comparison matches
                       using "AND" semantics. Rules are specified by mirroring the
                       structure of the JWT, using values that are expected to be equal
@@ -439,6 +440,7 @@ spec:
                       any join attempts to succeed.'
                     nullable: true
                     type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   static_jwks:
                     description: StaticJWKS is an optional static JWKS value that
                       can be used to specify JWKS keys when either OIDC discovery

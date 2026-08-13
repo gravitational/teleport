@@ -62,6 +62,11 @@ validators:
   # Expires must be in the future
   Metadata.expires:
     - github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()
+  # Cloud rejects an expiry less than 20 minutes out; catching a past time at
+  # plan time is faster than round-tripping to the API to be told.
+  ClientIPRestrictionSpec.expires:
+    - github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()
 
 custom_types:
   "ClientIPRestriction.metadata.expires": Timestamp
+  "ClientIPRestriction.spec.expires": Timestamp

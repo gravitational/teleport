@@ -85,6 +85,37 @@ Setting this value is required when joining via the
 
 `token` is the name of the token used by the operator to join the Teleport cluster.
 
+## `scope`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`scope` makes the operator run in scoped mode and specified the reconciled scope.
+In scoped mode, the operator can only reconcile scoped resource such as
+`TeleportScopedTokenV1`, `TeleportScopedRoleV1`, or `TeleportScopedRoleAssignmentV1`.
+Scoped mode requires the operator to join using a scoped token and the experimental scope
+feature to be enabled on both Teleport Auth Service instances and Proxy Service instances.
+
+The operator can only reconcile resources whose scope matches exactly `scope`.
+Resources in nested scopes are not reconciled.
+
+When running in scoped mode, `ownerEmail` must be set.
+When running in scoped mode, the operator generates a UUID and stores it in Kubernetes.
+This UUID is used to tag the operator-created resources and detect conflicts.
+
+## `ownerEmail`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`ownerEmail` is the name of the owner of the operator.
+This is used to tag the operator-created resources and know who created them.
+
+This is required when `scope` is specified..
+This currently has no effect when `scope` is empty.
+
 ## `teleportVersionOverride`
 
 | Type | Default |

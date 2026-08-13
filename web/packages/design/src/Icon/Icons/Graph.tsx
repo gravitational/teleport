@@ -56,6 +56,7 @@ export const Graph = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-graph"
+
       {...otherProps}
       ref={ref}
     >

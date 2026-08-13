@@ -304,6 +304,14 @@ func TestValidateQualifiedName(t *testing.T) {
 	}
 }
 
+func TestMaybeQualifiedName(t *testing.T) {
+	require.True(t, MaybeSQN("/foo/bar::llama"))
+	require.True(t, MaybeSQN("/llama"))
+	require.False(t, MaybeSQN("llama"))
+	require.False(t, MaybeSQN("llama/"))
+	require.False(t, MaybeSQN(""))
+}
+
 func TestSet(t *testing.T) {
 	t.Parallel()
 	tts := []struct {
@@ -333,6 +341,11 @@ func TestSet(t *testing.T) {
 		{
 			name: "invalid scope",
 			val:  "!bad::test",
+			ok:   false,
+		},
+		{
+			name: "scope prefix without separator",
+			val:  "/staging",
 			ok:   false,
 		},
 	}

@@ -208,6 +208,10 @@ type AccessChecker interface {
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
 
+	// CheckSubmitForUser checks whether the current user is allowed to
+	// submit reviews for other users, to be used by plugins.
+	CheckSubmitForUser(currentUser, submitForUser types.User) error
+
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
 	// number of concurrent connections is unconstrained.
@@ -492,17 +496,34 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (allowedResourc
 	ctx := context.Background()
 	isLoggingEnabled := rbacLogger.Enabled(ctx, logutils.TraceLevel)
 
+	var match *types.ResourceAccessID
 	for _, resourceID := range a.info.AllowedResourceAccessIDs {
-		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
-			// Allowed to access this resource by resource ID, move on to role checks.
+		id := resourceID.GetResourceID()
+		if id.ClusterName != a.localCluster || !matchesUCRResource(resourceID, r) {
+			continue
+		}
+		if resourceID.GetConstraints().Unenforceable() {
 			if isLoggingEnabled {
-				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID",
+				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, matched resource ID carries constraints this component cannot enforce",
 					slog.String("resource_id", types.ResourceIDToString(id)),
 				)
 			}
-
-			return allowedResourceMatch{&resourceID}, nil
+			return allowedResourceMatch{}, trace.AccessDenied(
+				"access to %v %+q denied because it carries constraints this component cannot enforce; they may have been created by a newer Teleport version",
+				r.GetKind(), r.GetName())
 		}
+		if match == nil {
+			match = &resourceID
+		}
+	}
+	if match != nil {
+		// Allowed to access this resource by resource ID, move on to role checks.
+		if isLoggingEnabled {
+			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID",
+				slog.String("resource_id", types.ResourceIDToString(match.GetResourceID())),
+			)
+		}
+		return allowedResourceMatch{match}, nil
 	}
 
 	if isLoggingEnabled {

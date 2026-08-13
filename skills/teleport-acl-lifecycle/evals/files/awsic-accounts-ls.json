@@ -1,0 +1,42 @@
+[
+  {
+    "spec": {
+      "permission_set": {
+        "arn": "arn:aws:sso:::permissionSet/ssoins-abc123/ps-read0001",
+        "name": "ReadOnlyAccess"
+      },
+      "account_name": "Finance Prod",
+      "account_id": "111122223333"
+    }
+  },
+  {
+    "spec": {
+      "permission_set": {
+        "arn": "arn:aws:sso:::permissionSet/ssoins-abc123/ps-bill0002",
+        "name": "BillingAdmin"
+      },
+      "account_name": "Finance Prod",
+      "account_id": "111122223333"
+    }
+  },
+  {
+    "spec": {
+      "permission_set": {
+        "arn": "arn:aws:sso:::permissionSet/ssoins-abc123/ps-read0001",
+        "name": "ReadOnlyAccess"
+      },
+      "account_name": "Finance Staging",
+      "account_id": "444455556666"
+    }
+  },
+  {
+    "spec": {
+      "permission_set": {
+        "arn": "arn:aws:sso:::permissionSet/ssoins-abc123/ps-admin003",
+        "name": "AdministratorAccess"
+      },
+      "account_name": "Platform Prod",
+      "account_id": "777788889999"
+    }
+  }
+]

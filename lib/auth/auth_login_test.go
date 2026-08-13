@@ -41,6 +41,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -677,6 +678,69 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 		assert.Equal(t, events.UserLoginEvent, event.GetType(), "event.Type mismatch")
 		assert.Equal(t, events.UserLocalLoginFailureCode, event.GetCode(), "event.Code mismatch")
 	})
+}
+
+// TestCreateAuthenticateChallenge_errors verifies that CreateAuthenticateChallenge
+// returns the expected sentinel errors and that they survive the gRPC round trip,
+// so mfa.(*Ceremony).Run can detect them on the client.
+func TestCreateAuthenticateChallenge_errors(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// An end user gets past the "only end users" gate, exercising errors that
+	// occur deeper in challenge creation.
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+	endUserClient, err := srv.NewClient(authtest.TestUser(u.username))
+	require.NoError(t, err)
+
+	// A built-in identity (here, the admin role) is not an end user and cannot
+	// perform an MFA ceremony.
+	builtinClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name    string
+		client  *authclient.Client
+		req     *proto.CreateAuthenticateChallengeRequest
+		wantErr error
+	}{
+		{
+			name:   "unknown challenge scope",
+			client: endUserClient,
+			req: &proto.CreateAuthenticateChallengeRequest{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope(99), // out of range, unknown scope
+				},
+			},
+			wantErr: &mfa.ErrUnknownChallengeScope,
+		},
+		{
+			name:    "non-end-user ContextUser challenge",
+			client:  builtinClient,
+			req:     &proto.CreateAuthenticateChallengeRequest{},
+			wantErr: &mfa.ErrMFANotSupportedContextUser,
+		},
+		{
+			name:   "non-end-user MFARequiredCheck",
+			client: builtinClient,
+			// A non-default request type skips the ContextUser gate above, so the
+			// MFARequiredCheck gate is what rejects the non-end-user caller.
+			req: &proto.CreateAuthenticateChallengeRequest{
+				Request:          &proto.CreateAuthenticateChallengeRequest_Passwordless{Passwordless: &proto.Passwordless{}},
+				MFARequiredCheck: &proto.IsMFARequiredRequest{},
+			},
+			wantErr: &mfa.ErrMFANotSupportedMFARequiredCheck,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Requests go over gRPC to ensure the error shapes survive the round trip.
+			_, err := tt.client.CreateAuthenticateChallenge(ctx, tt.req)
+			require.ErrorIs(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestCreateRegisterChallenge(t *testing.T) {

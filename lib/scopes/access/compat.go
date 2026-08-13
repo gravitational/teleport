@@ -97,6 +97,19 @@ func applyAppBlock(src *scopedaccessv1.ScopedRoleApp, dst *types.RoleConditions)
 	}
 }
 
+// applyWorkloadIdentityBlock writes/converts the relevant subset of the scoped role's workload_identity
+// block into the provided classic role allow block. This helper only writes fields relevant to issuance
+// access *checks*. We reuse the initial access check logic from classic RBAC (WorkloadIdentityLabels)
+// when performing issuance access checks for scoped identities.
+func applyWorkloadIdentityBlock(src *scopedaccessv1.ScopedRoleWorkloadIdentity, dst *types.RoleConditions) {
+	for _, label := range src.GetLabels() {
+		if dst.WorkloadIdentityLabels == nil {
+			dst.WorkloadIdentityLabels = make(types.Labels)
+		}
+		dst.WorkloadIdentityLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+}
+
 // applyRules merges the rules of a scoped role into the provided classic role
 // conditions. It is one of several per-protocol helpers that each contribute their fields to a
 // shared allow block; no single block has structural primacy over the others.
@@ -108,7 +121,8 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 		for _, resource := range r.GetResources() {
 			var verbs []string
 			for _, verb := range r.GetVerbs() {
-				if !isAllowedScopedRule(resource, verb) {
+				classicVerb, ok := compileScopedVerb(resource, verb)
+				if !ok {
 					// skip verbs that are not allowed for the resource kind. note that this differs from
 					// classic teleport role behavior, where we don't worry about unsupported resource:verb
 					// combinations because we theoretically won't have any access checks for unsupported
@@ -121,7 +135,7 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 					// the new rule.
 					continue
 				}
-				verbs = append(verbs, verb)
+				verbs = append(verbs, classicVerb)
 			}
 			if len(verbs) == 0 {
 				// skip rules that have no allowed verbs.
@@ -150,6 +164,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 	var conditions types.RoleConditions
 	applySSHBlock(sr.GetSpec().GetSsh(), &conditions)
 	applyKubeBlock(sr.GetSpec().GetKube(), &conditions)
+	applyWorkloadIdentityBlock(sr.GetSpec().GetWorkloadIdentity(), &conditions)
 	applyAppBlock(sr.GetSpec().GetApp(), &conditions)
 	applyRules(sr.GetSpec().GetRules(), &conditions)
 

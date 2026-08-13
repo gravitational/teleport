@@ -71,6 +71,12 @@ variable "ecs_cluster_name" {
   type        = string
 }
 
+variable "ecs_cluster_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name."
+  type        = bool
+}
+
 variable "ecs_service_name" {
   default     = "teleport-service"
   description = "Name of the ECS service."
@@ -83,9 +89,22 @@ variable "ecs_task_cloudwatch_log_group_name" {
   type        = string
 }
 
+variable "ecs_task_cloudwatch_log_group_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_task_cloudwatch_log_group_name` is used as a prefix of the ECS task CloudWatch log group name."
+  type        = bool
+}
+
 variable "ecs_task_cloudwatch_log_group_region" {
   default     = null
   description = "AWS region for the ECS task CloudWatch log group. Defaults to the AWS provider region."
+  nullable    = true
+  type        = string
+}
+
+variable "ecs_task_cloudwatch_log_group_kms_key_id" {
+  default     = null
+  description = "KMS key ID or ARN used to encrypt the ECS task CloudWatch log group. When null, CloudWatch Logs uses its default encryption key."
   nullable    = true
   type        = string
 }
@@ -106,9 +125,21 @@ EOF
 }
 
 variable "ecs_task_cpu" {
-  default     = "2048"
+  default     = 2048
   description = "Number of cpu units used by the ECS task."
+  type        = number
+}
+
+variable "ecs_task_definition_name" {
+  default     = "teleport-agent"
+  description = "Name of the ECS task."
   type        = string
+}
+
+variable "ecs_task_definition_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_task_definition_name` is used as a prefix of the ECS task definition name."
+  type        = bool
 }
 
 variable "ecs_task_desired_count" {
@@ -124,22 +155,22 @@ variable "ecs_task_force_new_deployment" {
 }
 
 variable "ecs_task_memory" {
-  default     = "4096"
+  default     = 4096
   description = "Amount (in MiB) of memory used by the ECS task."
-  type        = string
-}
-
-variable "ecs_task_name" {
-  default     = "teleport-agent"
-  description = "Name of the ECS task."
-  type        = string
+  type        = number
 }
 
 variable "ecs_task_role_inline_policy" {
   default     = null
-  description = "Optional JSON policy document to attach inline to the ECS task IAM role."
+  description = "Optional JSON policy document to merge into the inline policy attached to the ECS task IAM role."
   nullable    = true
   type        = string
+}
+
+variable "ecs_task_role_self_assumption_allowed" {
+  default     = true
+  description = "Whether the ECS task IAM role can assume itself."
+  type        = bool
 }
 
 variable "environment_vars" {

@@ -173,7 +173,9 @@ func (p *retrievalModelTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func RetrievalModelCreationTest(t *testing.T, clt *client.Client) {
 	test := &retrievalModelTestingPrimitives{}
-	ResourceCreationSynchronousTest(
+	ResourceCreationSynchronousTest[
+		*summarizerv1.RetrievalModel, *resourcesv1.TeleportRetrievalModelV1,
+	](
 		t, resources.NewRetrievalModelV1Reconciler, test,
 		WithTeleportClient(clt),
 		WithResourceName(types.MetaNameRetrievalModel),
@@ -182,7 +184,9 @@ func RetrievalModelCreationTest(t *testing.T, clt *client.Client) {
 
 func RetrievalModelDeletionTest(t *testing.T, clt *client.Client) {
 	test := &retrievalModelTestingPrimitives{}
-	ResourceDeletionSynchronousTest(
+	ResourceDeletionSynchronousTest[
+		*summarizerv1.RetrievalModel, *resourcesv1.TeleportRetrievalModelV1,
+	](
 		t, resources.NewRetrievalModelV1Reconciler, test,
 		WithTeleportClient(clt),
 		WithResourceName(types.MetaNameRetrievalModel),
@@ -191,7 +195,9 @@ func RetrievalModelDeletionTest(t *testing.T, clt *client.Client) {
 
 func RetrievalModelDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &retrievalModelTestingPrimitives{}
-	ResourceDeletionDriftSynchronousTest(
+	ResourceDeletionDriftSynchronousTest[
+		*summarizerv1.RetrievalModel, *resourcesv1.TeleportRetrievalModelV1,
+	](
 		t, resources.NewRetrievalModelV1Reconciler, test,
 		WithTeleportClient(clt),
 		WithResourceName(types.MetaNameRetrievalModel),
@@ -200,7 +206,9 @@ func RetrievalModelDeletionDriftTest(t *testing.T, clt *client.Client) {
 
 func RetrievalModelUpdateTest(t *testing.T, clt *client.Client) {
 	test := &retrievalModelTestingPrimitives{}
-	ResourceUpdateTestSynchronous(
+	ResourceUpdateTestSynchronous[
+		*summarizerv1.RetrievalModel, *resourcesv1.TeleportRetrievalModelV1,
+	](
 		t, resources.NewRetrievalModelV1Reconciler, test,
 		WithTeleportClient(clt),
 		WithResourceName(types.MetaNameRetrievalModel),
@@ -211,7 +219,7 @@ func RetrievalModelWrongNameTest(t *testing.T, clt *client.Client) {
 	ctx := t.Context()
 	setup := SetupFakeKubeTestEnv(t, WithTeleportClient(clt))
 
-	reconciler, err := resources.NewRetrievalModelV1Reconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := resources.NewRetrievalModelV1Reconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	const wrongName = "not-retrieval-model"

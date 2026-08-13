@@ -56,6 +56,7 @@ export const ListAddCheck = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-listaddcheck"
+
       {...otherProps}
       ref={ref}
     >

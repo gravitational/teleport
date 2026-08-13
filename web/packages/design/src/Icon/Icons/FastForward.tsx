@@ -56,6 +56,7 @@ export const FastForward = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-fastforward"
+
       {...otherProps}
       ref={ref}
     >

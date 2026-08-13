@@ -20,6 +20,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -30,6 +31,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
@@ -157,19 +160,6 @@ func scanFixturesFromTargets(targets []scanTarget) []*fixtures.Fixture {
 	}
 
 	return result
-}
-
-// scanFixtures wraps resolveTargetsWithHelpers + scanFixturesFromTargets for
-// callers that haven't been split yet.
-func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
-	targets, err := resolveTargetsWithHelpers(e2eDir, testFiles)
-	if err != nil {
-		slog.Warn("fixture scan: error resolving files", "error", err)
-
-		return nil
-	}
-
-	return scanFixturesFromTargets(targets)
 }
 
 func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error) {
@@ -317,7 +307,7 @@ func scanFile(path string, targetLine int) []*fixtures.Fixture {
 func readCleaned(path string) ([]string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		slog.Warn("scan: could not read file", "path", path, "error", err)
+		slog.WarnContext(context.Background(), "scan: could not read file", "path", path, "error", err)
 		return nil, false
 	}
 	return stripComments(strings.Split(string(data), "\n")), true
@@ -367,9 +357,10 @@ func findInlineComment(line string) int {
 		ch := line[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -398,9 +389,10 @@ func findBlockCommentOpen(line string) int {
 		ch := line[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -449,9 +441,10 @@ func parseBlocks(lines []string) []blockRange {
 			}
 
 			if quote != 0 {
-				if ch == '\\' {
+				switch ch {
+				case '\\':
 					j++
-				} else if ch == quote {
+				case quote:
 					if quote == '`' {
 						inTemplateLiteral = false
 					}
@@ -512,9 +505,10 @@ func findTestUseCalls(content string) []callRange {
 			ch := content[pos]
 
 			if quote != 0 {
-				if ch == '\\' {
+				switch ch {
+				case '\\':
 					pos++ // skip escaped character
-				} else if ch == quote {
+				case quote:
 					quote = 0
 				}
 
@@ -872,9 +866,10 @@ func scanBalanced(s string, openIdx int, open, close byte) int {
 		ch := s[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -895,23 +890,6 @@ func scanBalanced(s string, openIdx int, open, close byte) int {
 	}
 
 	return -1
-}
-
-// findClosingDelim finds the position after the matching close delimiter
-// for the first open delimiter at or after pos. Returns -1 if not found.
-// Delimiter bytes inside string or template literals are ignored.
-func findClosingDelim(s string, pos int, open, close byte) int {
-	start := strings.IndexByte(s[pos:], open)
-	if start < 0 {
-		return -1
-	}
-
-	end := scanBalanced(s, pos+start, open, close)
-	if end < 0 {
-		return -1
-	}
-
-	return end + 1
 }
 
 // scanTopLevelRecordings extracts recordings: [...] from a test.use() body,
@@ -986,22 +964,6 @@ func parseUserBlock(userBlock string) scannedUser {
 	return user
 }
 
-// extractInner returns the content between the first open delimiter and its
-// matching close, ignoring delimiters inside string/template literals.
-func extractInner(s string, open, close byte) string {
-	start := strings.IndexByte(s, open)
-	if start < 0 {
-		return ""
-	}
-
-	end := scanBalanced(s, start, open, close)
-	if end < 0 {
-		return ""
-	}
-
-	return s[start+1 : end]
-}
-
 // parseTraits parses trait key-value pairs
 // (e.g. `logins: ['root', 'alice'], groups: ['dev']`) into a map.
 func parseTraits(traitsContent string) map[string][]string {
@@ -1049,9 +1011,10 @@ func extractAllOuter(s string, open, close byte) []string {
 		ch := s[i]
 
 		if quote != 0 {
-			if ch == '\\' {
+			switch ch {
+			case '\\':
 				i++
-			} else if ch == quote {
+			case quote:
 				quote = 0
 			}
 
@@ -1088,7 +1051,7 @@ func warnDuplicateRoles(path string, line int, roles []scannedRole) {
 		if roles[i].file != "" {
 			ref = "file:" + roles[i].file
 		}
-		slog.Warn("scan: duplicate role for user", "path", path, "line", line, "role", ref)
+		slog.WarnContext(context.Background(), "scan: duplicate role for user", "path", path, "line", line, "role", ref)
 	}
 }
 
@@ -1121,15 +1084,23 @@ func sortRoles(roles []scannedRole) {
 type uniqueTeleportConfig struct {
 	// raw is the config object's raw JS text.
 	raw string
+	// env holds process environment variable overrides for this config.
+	env map[string]string
 	// files are the test files that declared this config.
 	files []string
+}
+
+// configEnvKey is a dedup key for a declared config
+type configEnvKey struct {
+	config string
+	env    string
 }
 
 // scanTeleportConfigs finds the unique custom Teleport configs declared by tests
 // and the base-config selectors (tests that run without one).
 func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, []string, error) {
-	byKey := make(map[string]*uniqueTeleportConfig)
-	var order []string
+	byKey := make(map[configEnvKey]*uniqueTeleportConfig)
+	var order []configEnvKey
 	var defaults []string
 
 	for _, t := range targets {
@@ -1157,10 +1128,10 @@ func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, []string
 		}
 
 		for _, sc := range configs {
-			key := normalizeConfigText(sc.raw)
+			key := configEnvKey{config: normalizeConfigText(sc.raw), env: normalizeEnvText(sc.env)}
 			u, ok := byKey[key]
 			if !ok {
-				u = &uniqueTeleportConfig{raw: sc.raw}
+				u = &uniqueTeleportConfig{raw: sc.raw, env: sc.env}
 				byKey[key] = u
 				order = append(order, key)
 			}
@@ -1209,6 +1180,7 @@ type scopedTeleportConfig struct {
 	raw                string
 	line               int
 	startByte, endByte int
+	env                map[string]string
 }
 
 // extractTeleportConfigs returns every declared config with the describe it is
@@ -1238,11 +1210,22 @@ func extractTeleportConfigs(content string, blocks []blockRange, path string) ([
 			return nil, fmt.Errorf("%s: a teleport config must be declared inside a named test.describe block", path)
 		}
 
+		var env map[string]string
+		envOpen, envClose := findKeyValueAtDepth(teleportBody, "env", '{', '}', 1)
+		if envOpen >= 0 {
+			parsed, err := parseEnvBlock(teleportBody[envOpen:envClose])
+			if err != nil {
+				return nil, fmt.Errorf("%s: parsing teleport.env: %w", path, err)
+			}
+			env = parsed
+		}
+
 		sc := scopedTeleportConfig{
 			raw:       teleportBody[configOpen:configClose],
 			line:      b.start,
 			startByte: b.startByte,
 			endByte:   b.endByte,
+			env:       env,
 		}
 		for _, existing := range out {
 			if existing.line == sc.line && normalizeConfigText(existing.raw) != normalizeConfigText(sc.raw) {
@@ -1263,6 +1246,36 @@ func describeTitle(content string, blockStart int) string {
 		return ""
 	}
 	return ms[len(ms)-1][1]
+}
+
+// parseEnvBlock parses a declared teleport.env object's raw JS text into a flat string map
+func parseEnvBlock(raw string) (map[string]string, error) {
+	var env map[string]string
+	if err := yaml.Unmarshal([]byte(raw), &env); err != nil {
+		return nil, fmt.Errorf("parsing declared teleport env %q: %w", raw, err)
+	}
+	return env, nil
+}
+
+// normalizeEnvText serializes env into a deterministic string with keys sorted
+func normalizeEnvText(env map[string]string) string {
+	if len(env) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(env[k])
+		b.WriteByte(';')
+	}
+	return b.String()
 }
 
 // normalizeConfigText gets rid of whitespace.

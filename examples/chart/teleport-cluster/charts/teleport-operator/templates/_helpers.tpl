@@ -27,6 +27,10 @@ This is done to avoid naming conflicts when including th chart in `teleport-clus
     {{- end }}
 {{- end }}
 
+{{- define "teleport-cluster.operator.shared-state-name" }}
+{{- printf "%s-shared-state" (include "teleport-cluster.operator.fullname" .) }}
+{{- end }}
+
 {{/*
 Create the name of the service account to use
 if serviceAccount is not defined or serviceAccount.name is empty, use .Release.Name
@@ -105,7 +109,8 @@ So we check if there's a CRD already deployed, it that's the case, we keep the C
 the release. As CRDs are not namespaced, we must use a custom annotation to avoid
 a conflict when two releases are deployed with the same name in different namespaces. */ -}}
 {{- define "teleport-cluster.operator.checkExistingCRDs" -}}
-  {{ $existingCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "teleportrolesv7.resources.teleport.dev"}}
+  {{ $sentinelCRD := ternary  "teleportscopedrolesv1.resources.teleport.dev" "teleportrolesv7.resources.teleport.dev" (not (empty .Values.scope)) }}
+  {{ $existingCRD := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" $sentinelCRD}}
   {{- if not $existingCRD -}}
     false
   {{- else -}}

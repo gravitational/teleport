@@ -56,6 +56,7 @@ export const CCStripe = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ccstripe"
+
       {...otherProps}
       ref={ref}
     >

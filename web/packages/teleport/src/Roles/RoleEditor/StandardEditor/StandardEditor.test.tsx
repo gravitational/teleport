@@ -86,6 +86,7 @@ test('adding and removing sections', async () => {
     'Application Access',
     'Database Access',
     'Windows Desktop Access',
+    'Linux Desktop Access',
     'GitHub Organization Access',
   ]);
 
@@ -100,6 +101,7 @@ test('adding and removing sections', async () => {
     'Application Access',
     'Database Access',
     'Windows Desktop Access',
+    'Linux Desktop Access',
     'GitHub Organization Access',
   ]);
 

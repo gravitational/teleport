@@ -56,6 +56,7 @@ export const CircleArrowRight = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-circlearrowright"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Rows = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-rows"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const SlidersVertical = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-slidersvertical"
+
       {...otherProps}
       ref={ref}
     >

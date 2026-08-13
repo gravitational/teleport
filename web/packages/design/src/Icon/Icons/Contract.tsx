@@ -56,6 +56,7 @@ export const Contract = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-contract"
+
       {...otherProps}
       ref={ref}
     >

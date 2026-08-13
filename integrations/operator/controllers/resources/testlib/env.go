@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -63,6 +65,11 @@ import (
 // scheme is our own test-specific scheme to avoid using the global
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = controllers.Scheme
+
+const (
+	testScope       = "/test"
+	testNestedScope = testScope + "/nested"
+)
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{
@@ -202,6 +209,17 @@ type TestSetup struct {
 	ResourceName             string
 	Context                  context.Context
 	ScopesFeatures           scopes.Features
+	scope                    string
+}
+
+func (s *TestSetup) OperatorMetadata() reconcilers.OperatorMetadata {
+	return reconcilers.OperatorMetadata{
+		Namespace: s.Namespace.Name,
+		ID:        "test-operator",
+		TokenName: "test-token",
+		Scope:     s.scope,
+		Owner:     "test@example.com",
+	}
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -238,7 +256,20 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)
 
-	err = resources.SetupAllControllers(setupLog, k8sManager, s.TeleportClient, pong.ServerFeatures)
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.K8sRestConfig)
+	require.NoError(t, err)
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes client")
+	}
+
+	err = resources.SetupAllControllers(resources.Config{
+		Log:              setupLog,
+		TeleportClient:   s.TeleportClient,
+		KubeClient:       k8sManager.GetClient(),
+		Scoped:           false,
+		Features:         pong.ServerFeatures,
+		OperatorMetadata: s.OperatorMetadata(),
+	}, k8sManager, discoveryClient)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -299,6 +330,14 @@ func WithTeleportClient(clt *client.Client) TestOption {
 func WithScopesFeatures(features scopes.Features) TestOption {
 	return func(setup *TestSetup) {
 		setup.ScopesFeatures = features
+	}
+}
+
+// WithScope sets the operator for the tests.
+func WithScope(scope string) TestOption {
+	return func(setup *TestSetup) {
+		setup.scope = scope
+		setup.ScopesFeatures = scopes.Features{Enabled: true}
 	}
 }
 

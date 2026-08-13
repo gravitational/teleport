@@ -21,6 +21,7 @@ package accesslists
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -756,6 +757,47 @@ func TestAccessListValidateWithMembers_basic(t *testing.T) {
 		})
 	})
 
+	t.Run("name length is validated on create", func(t *testing.T) {
+		testCases := []struct {
+			name           string
+			accessListName string
+			wantErr        string
+		}{
+			{
+				name:           "name too long",
+				accessListName: strings.Repeat("x", accesslist.MaxNameLength+1),
+				wantErr:        "name is too long",
+			},
+			{
+				name:           "longest allowed name",
+				accessListName: strings.Repeat("x", accesslist.MaxNameLength),
+			},
+			{
+				name:           "short name",
+				accessListName: "x",
+			},
+		}
+		for _, test := range testCases {
+			t.Run(test.name, func(t *testing.T) {
+				accessList := newAccessList(t, test.accessListName, clock)
+				err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, &mockAccessListAndMembersGetter{})
+
+				if test.wantErr != "" {
+					require.ErrorContains(t, err, test.wantErr)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("name length is not validated on update", func(t *testing.T) {
+		// access list whose name is too long
+		accessList := newAccessList(t, strings.Repeat("x", accesslist.MaxNameLength+1), clock)
+
+		err := ValidateAccessListWithMembers(ctx, accessList, accessList, nil, &mockAccessListAndMembersGetter{})
+		require.NoError(t, err)
+	})
 }
 
 func TestAccessListValidateWithMembers_members(t *testing.T) {

@@ -363,7 +363,7 @@ func TestJoinOracle(t *testing.T) {
 			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, &joiningv1.ScopedToken{
 				Scope: "/test",
 				Metadata: &headerv1.Metadata{
-					Name: "scoped_" + token.GetName(),
+					Name: token.GetName(),
 				},
 				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
@@ -377,7 +377,8 @@ func TestJoinOracle(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_, err := server.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
-					Name: scopedToken.GetMetadata().GetName(),
+					Name:  scopedToken.GetMetadata().GetName(),
+					Scope: scopedToken.GetScope(),
 				})
 				require.NoError(t, err)
 			})
@@ -396,7 +397,8 @@ func TestJoinOracle(t *testing.T) {
 
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token: "scoped_" + tc.requestTokenName,
+					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
+					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},

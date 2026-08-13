@@ -56,6 +56,7 @@ export const Trash = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-trash"
+
       {...otherProps}
       ref={ref}
     >

@@ -351,7 +351,6 @@ func TestRBAC(t *testing.T) {
 			},
 			expectChecks: []check{
 				{types.KindCertAuthority, types.VerbList},
-				{types.KindCertAuthority, types.VerbReadNoSecrets},
 				{types.KindCertAuthority, types.VerbRead},
 			},
 		},

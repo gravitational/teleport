@@ -261,6 +261,7 @@ impl Client {
             connection_result.io_channel_id,
             connection_result.user_channel_id,
             connection_result.desktop_size,
+            connection_result.share_id,
         )
         .await?;
 
@@ -407,6 +408,7 @@ impl Client {
 
                                     if let ConnectionActivationState::Finalized {
                                         desktop_size,
+                                        share_id,
                                         ..
                                     } = sequence.connection_activation_state()
                                     {
@@ -418,6 +420,7 @@ impl Client {
                                             activation_factory.io_channel_id(),
                                             activation_factory.user_channel_id(),
                                             desktop_size,
+                                            share_id,
                                         )
                                         .await?;
                                         break;
@@ -569,6 +572,7 @@ impl Client {
         io_channel_id: u16,
         user_channel_id: u16,
         desktop_size: DesktopSize,
+        share_id: u32,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || unsafe {
             ClientResult::from(cgo_handle_rdp_connection_activated(
@@ -577,6 +581,7 @@ impl Client {
                 user_channel_id,
                 desktop_size.width,
                 desktop_size.height,
+                share_id,
             ))
         })
         .await?

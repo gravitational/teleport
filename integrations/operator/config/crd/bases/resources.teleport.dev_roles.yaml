@@ -1,6 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    resources.teleport.dev/scoped: "false"
   name: teleportroles.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -564,6 +566,15 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true
@@ -1208,6 +1219,15 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true
@@ -2158,6 +2178,15 @@ spec:
                           type: string
                         nullable: true
                         type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       where:
                         description: Where is an optional predicate which further
                           limits which requests are reviewable.
@@ -2798,6 +2827,15 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true

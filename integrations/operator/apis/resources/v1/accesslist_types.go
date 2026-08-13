@@ -37,6 +37,7 @@ type TeleportAccessList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	Scope  string                 `json:"scope,omitempty"`
 	Spec   TeleportAccessListSpec `json:"spec,omitempty"`
 	Status teleportcr.Status      `json:"status,omitempty"`
 }
@@ -59,8 +60,7 @@ type TeleportAccessListList struct {
 func (l TeleportAccessList) ToTeleport() *accesslist.AccessList {
 	resource := &accesslist.AccessList{
 		ResourceHeader: header.ResourceHeader{
-			Kind:    "",
-			SubKind: "",
+			Kind:    types.KindAccessList,
 			Version: types.V1,
 			Metadata: header.Metadata{
 				Name:        l.Name,
@@ -68,7 +68,8 @@ func (l TeleportAccessList) ToTeleport() *accesslist.AccessList {
 				Labels:      l.Labels,
 			},
 		},
-		Spec: accesslist.Spec(l.Spec),
+		Spec:  accesslist.Spec(l.Spec),
+		Scope: l.Scope,
 	}
 	return resource
 }

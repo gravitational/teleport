@@ -37,10 +37,10 @@ type inferenceModelClient struct {
 
 // Get gets an inference model with a given name from Teleport.
 func (c inferenceModelClient) Get(
-	ctx context.Context, name string,
+	ctx context.Context, key reconcilers.ResourceKey,
 ) (*summarizerv1.InferenceModel, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceModel(
-		ctx, &summarizerv1.GetInferenceModelRequest{Name: name},
+		ctx, &summarizerv1.GetInferenceModelRequest{Name: key.Name},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,9 +70,9 @@ func (c inferenceModelClient) Update(
 }
 
 // Delete deletes an inference model with a given name from Teleport.
-func (c inferenceModelClient) Delete(ctx context.Context, name string) error {
+func (c inferenceModelClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceModel(
-		ctx, &summarizerv1.DeleteInferenceModelRequest{Name: name},
+		ctx, &summarizerv1.DeleteInferenceModelRequest{Name: key.Name},
 	)
 	return trace.Wrap(err)
 }
@@ -80,7 +80,7 @@ func (c inferenceModelClient) Delete(ctx context.Context, name string) error {
 // NewInferenceModelReconciler creates a new Kubernetes controller reconciling
 // inference_model resources.
 func NewInferenceModelReconciler(
-	client kclient.Client, tClient *client.Client,
+	client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	inferenceModelClient := &inferenceModelClient{
 		teleportClient: tClient,
@@ -91,6 +91,9 @@ func NewInferenceModelReconciler(
 	](
 		client,
 		inferenceModelClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequirePolicy,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)

@@ -28,9 +28,29 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 )
+
+// parseNameSelector splits a "name" workload identity selector into its name and
+// (optional) scope. A scope-qualified name ("<scope>::<name>") targets a scoped
+// WorkloadIdentity; a bare name targets an unscoped one. The scope, if any,
+// travels in the issuance request and the server matches it against the named
+// resource's scope.
+func parseNameSelector(selector string) (name, scope string, err error) {
+	if !scopes.MaybeSQN(selector) {
+		return selector, "", nil
+	}
+	qn, err := scopes.ParseQualifiedName(selector)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	if err := qn.StrongValidate(); err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	return qn.Name, qn.Scope, nil
+}
 
 // WorkloadIdentityLogValue returns a slog.Value for a given
 // *workloadidentityv1pb.Credential
@@ -102,16 +122,22 @@ func IssueX509WorkloadIdentity(
 
 	switch {
 	case workloadIdentity.Name != "":
+		name, scope, err := parseNameSelector(workloadIdentity.Name)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 		log.DebugContext(
 			ctx,
 			"Requesting issuance of X509 workload identity credential using name of WorkloadIdentity resource",
-			"name", workloadIdentity.Name,
+			"name", name,
+			"scope", scope,
 		)
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
-				Name: workloadIdentity.Name,
+				Name:  name,
+				Scope: scope,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
 						PublicKey:          pubBytes,
@@ -199,16 +225,22 @@ func IssueJWTWorkloadIdentity(
 
 	switch {
 	case workloadIdentity.Name != "":
+		name, scope, err := parseNameSelector(workloadIdentity.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		log.DebugContext(
 			ctx,
 			"Requesting issuance of JWT workload identity credential using name of WorkloadIdentity resource",
-			"name", workloadIdentity.Name,
+			"name", name,
+			"scope", scope,
 		)
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
 		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
-				Name: workloadIdentity.Name,
+				Name:  name,
+				Scope: scope,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
 					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
 						Audiences: audiences,

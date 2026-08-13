@@ -56,6 +56,7 @@ export const Bubble = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-bubble"
+
       {...otherProps}
       ref={ref}
     >

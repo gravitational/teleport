@@ -56,6 +56,7 @@ export const EqualizersVertical = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-equalizersvertical"
+
       {...otherProps}
       ref={ref}
     >

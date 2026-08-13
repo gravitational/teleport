@@ -56,6 +56,7 @@ export const UserCircleGear = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-usercirclegear"
+
       {...otherProps}
       ref={ref}
     >

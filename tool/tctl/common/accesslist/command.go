@@ -20,6 +20,7 @@ package accesslist
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -744,4 +746,15 @@ func (c *Command) collectAllMembers(ctx context.Context, client *authclient.Clie
 				AccessList:      aclName.Name,
 			}.Build())
 		}))
+}
+
+func withReusableAdminActionMFA(ctx context.Context, client *authclient.Client) (context.Context, error) {
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err != nil {
+		if errors.Is(err, &mfa.ErrMFANotRequired) || errors.Is(err, &mfa.ErrMFANotSupported) {
+			return ctx, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return mfa.ContextWithMFAResponse(ctx, mfaResponse), nil
 }

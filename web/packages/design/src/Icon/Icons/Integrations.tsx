@@ -56,6 +56,7 @@ export const Integrations = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-integrations"
+
       {...otherProps}
       ref={ref}
     >

@@ -19,6 +19,8 @@
 package reconcilers
 
 import (
+	"fmt"
+
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -29,6 +31,7 @@ import (
 // resourceWithoutLabels is for resources that don't implement types.ResourceWithLabels
 // but implement types.ResourceWithOrigin. This is a subset of types.ResourceWithOrigin.
 type resourceWithoutLabels interface {
+	GetKind() string
 	GetName() string
 	Origin() string
 	SetOrigin(string)
@@ -51,9 +54,17 @@ func (a ResourceWithoutLabelsAdapter[T]) GetResourceRevision(res T) string {
 	return res.GetRevision()
 }
 
-// GetResourceOrigin implements the Adapter interface.
-func (a ResourceWithoutLabelsAdapter[T]) GetResourceOrigin(res T) string {
-	return res.Origin()
+// CheckOwnership implements the Adapter interface.
+func (a ResourceWithoutLabelsAdapter[T]) CheckOwnership(res T, _ OperatorMetadata) (bool, string) {
+	origin := res.Origin()
+	switch origin {
+	case types.OriginKubernetes:
+		return true, ""
+	case "":
+		return false, ownershipIssueMissingOriginLabel
+	default:
+		return false, fmt.Sprintf(ownershipIssueMismatchOriginLabel, origin)
+	}
 }
 
 // SetResourceRevision implements the Adapter interface.
@@ -63,29 +74,43 @@ func (a ResourceWithoutLabelsAdapter[T]) SetResourceRevision(res T, revision str
 
 // SetResourceLabels implements the Adapter interface. As the resource does not
 // support labels, it only sets the origin label.
-func (a ResourceWithoutLabelsAdapter[T]) SetResourceLabels(res T, labels map[string]string) {
+func (a ResourceWithoutLabelsAdapter[T]) SetResourceLabels(res T, labels map[string]string, _ OperatorMetadata, _ customResourceMetadata) {
 	// We don't set all labels as the Resource doesn't support them
 	// Only the origin
-	origin := labels[types.OriginLabel]
-	res.SetOrigin(origin)
+	res.SetOrigin(types.OriginKubernetes)
 }
 
 // NewTeleportResourceWithoutLabelsReconciler instantiates a resourceReconciler for a
 // resource not implementing types.ResourcesWithLabels but implementing
 // resourceWithoutLabels.
 func NewTeleportResourceWithoutLabelsReconciler[T resourceWithoutLabels, K KubernetesCR[T]](
-	client kclient.Client,
+	kubeClient kclient.Client,
 	resourceClient resourceClient[T],
+	config Config,
 ) (controllers.Reconciler, error) {
+	checkFeatures := controllers.AlwaysEnabled
+	if config.CheckFeatures != nil {
+		checkFeatures = config.CheckFeatures
+	}
+
 	gvk, err := gvkFromScheme[K](controllers.Scheme)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	teleportKind := newKubeResource[K]().ToTeleport().GetKind()
+	if teleportKind == "" {
+		return nil, trace.BadParameter("teleport kind is required, this is a bug")
+	}
+
 	reconciler := &resourceReconciler[T, K]{
-		kubeClient:     client,
+		kubeClient:     kubeClient,
 		resourceClient: resourceClient,
 		gvk:            gvk,
 		adapter:        ResourceWithoutLabelsAdapter[T]{},
+		scoped:         config.Scoped,
+		teleportKind:   teleportKind,
+		checkFeatures:  checkFeatures,
 	}
 	return reconciler, nil
 }
