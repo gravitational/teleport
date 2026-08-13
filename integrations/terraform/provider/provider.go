@@ -590,6 +590,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_static_host_user":          resources.NewStaticHostUserResourceType(),
 		"teleport_trusted_cluster":           resources.NewTrustedClusterResourceType(),
 		"teleport_trusted_device":            resources.NewTrustedDeviceResourceType(),
+		"teleport_ui_config":                 resources.NewUIConfigResourceType(),
 		"teleport_user":                      resources.NewUserResourceType(),
 		"teleport_workload_identity":         resources.NewWorkloadIdentityResourceType(),
 	}
@@ -630,6 +631,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_static_host_user":          resources.NewStaticHostUserDataSourceType(),
 		"teleport_trusted_cluster":           resources.NewTrustedClusterDataSourceType(),
 		"teleport_trusted_device":            resources.NewTrustedDeviceDataSourceType(),
+		"teleport_ui_config":                 resources.NewUIConfigDataSourceType(),
 		"teleport_user":                      resources.NewUserDataSourceType(),
 		"teleport_workload_identity":         resources.NewWorkloadIdentityDataSourceType(),
 	}

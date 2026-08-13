@@ -350,23 +350,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	uiConfig = payload{
-		Name:                   "UIConfig",
-		TypeName:               "UIConfigV1",
-		VarName:                "uiConfig",
-		IfaceName:              "UIConfig",
-		GetMethod:              "GetUIConfig",
-		CreateMethod:           "SetUIConfig",
-		UpdateMethod:           "SetUIConfig",
-		DeleteMethod:           "DeleteUIConfig",
-		ID:                     `"ui_config"`,
-		Kind:                   "ui_config",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_ui_config",
-		HasCheckAndSetDefaults: true,
-		GetCanReturnNil:        true,
-	}
-
 	autoUpdateVersion = payload{
 		Name:                  "AutoUpdateVersion",
 		TypeName:              "AutoUpdateVersion",
@@ -709,8 +692,6 @@ func genTFSchema() {
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
-	generateResource(uiConfig, singularResource)
-	generateDataSource(uiConfig, singularDataSource)
 	generateResource(autoUpdateVersion, singularResource)
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)

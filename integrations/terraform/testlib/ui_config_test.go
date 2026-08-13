@@ -17,7 +17,6 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -65,12 +64,8 @@ func (s *TerraformSuiteOSS) TestUIConfig() {
 }
 
 func (s *TerraformSuiteOSS) TestImportUIConfig() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_ui_config"
-	id := "test_import"
-	name := r + "." + id
+	name := r + "." + "ui_config"
 
 	uiConfig := &types.UIConfigV1{
 		Spec: types.UIConfigSpecV1{
@@ -82,11 +77,11 @@ func (s *TerraformSuiteOSS) TestImportUIConfig() {
 	err := uiConfig.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	err = s.client.SetUIConfig(ctx, uiConfig)
+	err = s.client.SetUIConfig(s.T().Context(), uiConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err := s.client.GetUIConfig(ctx)
+		_, err := s.client.GetUIConfig(s.T().Context())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -99,10 +94,10 @@ func (s *TerraformSuiteOSS) TestImportUIConfig() {
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
+				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "ui_config" { }`,
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "ui_config",
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "ui_config", state[0].Attributes["kind"])
 					require.Equal(s.T(), "1000", state[0].Attributes["spec.scrollback_lines"])
