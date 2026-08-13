@@ -51,26 +51,36 @@ type ClusterClientGetter func(ctx context.Context, clusterName string) (ClusterS
 // be served with its constraints enforced, mirroring the Web UI's
 // feature-advertisement gating (RFD 0230): the features advertised by the
 // root cluster's Auth and Proxy servers are intersected with those of the
-// agent(s) serving each constrained resource, and RESOURCE_CONSTRAINTS_V1
-// must be present in every intersection. Resources in leaf clusters are
-// fetched from their own cluster, and the leaf's Auth and Proxy presence is
-// intersected as well, since those components also sit on the access path.
-// Requests without constraints skip the check.
+// agent(s) serving each constrained resource, and the resource kind's
+// constraint feature ID must be present in every intersection. Resources in
+// leaf clusters are fetched from their own cluster, and the leaf's Auth and
+// Proxy presence is intersected as well, since those components also sit on
+// the access path. Requests without constraints skip the check.
 func VerifyConstraintSupport(ctx context.Context, logger *slog.Logger, rootClusterName string, rootClt componentfeatures.AuthProxyServersLister, cltForCluster ClusterClientGetter, raids []types.ResourceAccessID) error {
 	byCluster := make(map[string][]types.ResourceAccessID)
+	requiredFeatures := make(map[componentfeatures.FeatureID]struct{})
 	for _, r := range raids {
 		if r.GetConstraints() != nil {
 			cluster := r.GetResourceID().ClusterName
 			byCluster[cluster] = append(byCluster[cluster], r)
+			required, ok := componentfeatures.ConstraintFeatureForKind(r.GetResourceID().Kind)
+			if !ok {
+				return trace.BadParameter("cannot verify constraint support for resource kind %q", r.GetResourceID().Kind)
+			}
+			requiredFeatures[required] = struct{}{}
 		}
 	}
 	if len(byCluster) == 0 {
 		return nil
 	}
 
+	// Auth and Proxy sit on every kind's constraint path, so they must
+	// advertise the per-kind feature of every constrained kind requested.
 	rootFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(ctx, rootClt, logger)
-	if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, rootFeatures) {
-		return trace.BadParameter("this cluster's Auth or Proxy servers do not support resource constraints; retry without constraints, or upgrade the cluster")
+	for required := range requiredFeatures {
+		if !componentfeatures.InAllSets(required, rootFeatures) {
+			return trace.BadParameter("this cluster's Auth or Proxy servers do not support the requested resource constraints; retry without constraints, or upgrade the cluster")
+		}
 	}
 
 	for clusterName, constrained := range byCluster {
@@ -87,14 +97,18 @@ func VerifyConstraintSupport(ctx context.Context, logger *slog.Logger, rootClust
 			// A leaf's Auth and Proxy servers also sit on the access path for
 			// its resources, so their advertised support is required too.
 			leafFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(ctx, clt, logger)
-			if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, leafFeatures) {
-				return trace.BadParameter("cluster %q's Auth or Proxy servers do not support resource constraints; retry without constraints, or upgrade that cluster", clusterName)
+			for _, r := range constrained {
+				required, _ := componentfeatures.ConstraintFeatureForKind(r.GetResourceID().Kind)
+				if !componentfeatures.InAllSets(required, leafFeatures) {
+					return trace.BadParameter("cluster %q's Auth or Proxy servers do not support the requested resource constraints; retry without constraints, or upgrade that cluster", clusterName)
+				}
 			}
 			clusterFeatures = componentfeatures.Intersect(rootFeatures, leafFeatures)
 		}
 
 		for _, r := range constrained {
 			id := r.GetResourceID()
+			required, _ := componentfeatures.ConstraintFeatureForKind(id.Kind)
 			enriched, err := apiclient.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 				Kinds:               []string{id.Kind},
 				PredicateExpression: fmt.Sprintf("name == %q", id.Name),
@@ -129,7 +143,7 @@ func VerifyConstraintSupport(ctx context.Context, logger *slog.Logger, rootClust
 			if !found {
 				return trace.NotFound("resource %q was not found; cannot verify constraint support", types.ResourceIDToString(id))
 			}
-			if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, sets...) {
+			if !componentfeatures.InAllSets(required, sets...) {
 				return trace.BadParameter("resource %q does not support the requested constraints (its agent or this cluster's components are too old); retry without constraints", types.ResourceIDToString(id))
 			}
 		}

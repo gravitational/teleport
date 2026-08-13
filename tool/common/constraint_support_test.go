@@ -76,7 +76,11 @@ func supportServer(t *testing.T, name string, features *componentfeaturesv1.Comp
 func TestVerifyConstraintSupport(t *testing.T) {
 	t.Parallel()
 
-	rcFeatures := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+	rcFeatures := componentfeatures.New(
+		componentfeatures.FeatureResourceConstraintsV1,
+		componentfeatures.FeatureResourceConstraintsSSHV1,
+	)
+	v1OnlyFeatures := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
 	constrained := []types.ResourceAccessID{sshRAID("main", "web-1", "root")}
 	leafConstrained := []types.ResourceAccessID{sshRAID("leaf", "web-1", "root")}
 	unconstrained := []types.ResourceAccessID{
@@ -115,6 +119,22 @@ func TestVerifyConstraintSupport(t *testing.T) {
 			name:     "old agent rejected",
 			presence: rcFeatures,
 			node:     nil,
+			raids:    constrained,
+			wantErr:  "does not support the requested constraints",
+		},
+		{
+			// A component advertising only the generic V1 ID cannot enforce
+			// SSH login constraints; the per-kind gate must not accept it.
+			name:     "generic V1 presence does not satisfy the SSH gate",
+			presence: v1OnlyFeatures,
+			node:     rcFeatures,
+			raids:    constrained,
+			wantErr:  "Auth or Proxy servers do not support",
+		},
+		{
+			name:     "generic V1 agent does not satisfy the SSH gate",
+			presence: rcFeatures,
+			node:     v1OnlyFeatures,
 			raids:    constrained,
 			wantErr:  "does not support the requested constraints",
 		},
