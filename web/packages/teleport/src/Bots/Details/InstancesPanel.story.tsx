@@ -94,26 +94,20 @@ export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
 });
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBotInstancesSuccessHandler],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBotInstancesSuccessHandler);
   },
 };
 
 export const WithFetchPending: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBotInstancesForever()],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBotInstancesForever());
   },
 };
 
 export const WithFetchFailure: Story = {
-  parameters: {
-    msw: {
-      handlers: [listBotInstancesError(500, 'something went wrong')],
-    },
+  beforeEach({ msw }) {
+    msw.use(listBotInstancesError(500, 'something went wrong'));
   },
 };
 

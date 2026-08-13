@@ -79,11 +79,10 @@ const users = [
 ];
 
 export const Loaded: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [successGetUsers(users)],
-    },
+  beforeEach({ msw }) {
+    msw.use(successGetUsers(users));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -94,11 +93,10 @@ export const Loaded: StoryObj = {
 };
 
 export const UsersNotEqualMauNotice: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [successGetUsers(users)],
-    },
+  beforeEach({ msw }) {
+    msw.use(successGetUsers(users));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -109,11 +107,10 @@ export const UsersNotEqualMauNotice: StoryObj = {
 };
 
 export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleGetUsers(async () => await delay('infinite'))],
-    },
+  beforeEach({ msw }) {
+    msw.use(handleGetUsers(async () => await delay('infinite')));
   },
+
   render() {
     return (
       <TeleportProviderBasic>
@@ -124,11 +121,10 @@ export const Processing: StoryObj = {
 };
 
 export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [errorGetUsers('Something went wrong')],
-    },
+  beforeEach({ msw }) {
+    msw.use(errorGetUsers('Something went wrong'));
   },
+
   render() {
     return (
       <TeleportProviderBasic>

@@ -102,18 +102,16 @@ const mockedNode = {
 };
 
 export const SingleInstanceListCreated = () => <Component />;
-SingleInstanceListCreated.parameters = {
-  msw: {
-    handlers: [
-      ...baseHandlers,
-      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
-        HttpResponse.json({
-          ec2Ices: [mockedCreatedEc2Ice],
-        })
-      ),
-      http.post(cfg.api.nodesPathNoParams, () => HttpResponse.json(mockedNode)),
-    ],
-  },
+SingleInstanceListCreated.beforeEach = ({ msw }) => {
+  msw.use(
+    ...baseHandlers,
+    http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+      HttpResponse.json({
+        ec2Ices: [mockedCreatedEc2Ice],
+      })
+    ),
+    http.post(cfg.api.nodesPathNoParams, () => HttpResponse.json(mockedNode))
+  );
 };
 
 export const SingleInstanceListForCloudPending = () => {
@@ -128,31 +126,27 @@ export const SingleInstanceListForCloudPending = () => {
     </>
   );
 };
-SingleInstanceListForCloudPending.parameters = {
-  msw: {
-    handlers: [
-      ...baseHandlers,
-      ec2IceEndpointWithTick,
-      http.post(cfg.api.nodesPathNoParams, () => HttpResponse.json(mockedNode)),
-    ],
-  },
+SingleInstanceListForCloudPending.beforeEach = ({ msw }) => {
+  msw.use(
+    ...baseHandlers,
+    ec2IceEndpointWithTick,
+    http.post(cfg.api.nodesPathNoParams, () => HttpResponse.json(mockedNode))
+  );
 };
 
 export const AutoDiscoverInstanceListForCloudCreated = () => {
   cfg.isCloud = true;
   return <Component autoDiscover={true} />;
 };
-AutoDiscoverInstanceListForCloudCreated.parameters = {
-  msw: {
-    handlers: [
-      ...baseHandlers,
-      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
-        HttpResponse.json({
-          ec2Ices: [mockedCreatedEc2Ice],
-        })
-      ),
-    ],
-  },
+AutoDiscoverInstanceListForCloudCreated.beforeEach = ({ msw }) => {
+  msw.use(
+    ...baseHandlers,
+    http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+      HttpResponse.json({
+        ec2Ices: [mockedCreatedEc2Ice],
+      })
+    )
+  );
 };
 
 export const AutoDiscoverInstanceListForCloudPending = () => {
@@ -170,55 +164,45 @@ export const AutoDiscoverInstanceListForCloudPending = () => {
     </>
   );
 };
-AutoDiscoverInstanceListForCloudPending.parameters = {
-  msw: {
-    handlers: [...baseHandlers, ec2IceEndpointWithTick],
-  },
+AutoDiscoverInstanceListForCloudPending.beforeEach = ({ msw }) => {
+  msw.use(...baseHandlers, ec2IceEndpointWithTick);
 };
 
 export const InstanceListLoading = () => <Component />;
-InstanceListLoading.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListEc2InstancesUrl('test-oidc'), () =>
-        delay('infinite')
-      ),
-    ],
-  },
+InstanceListLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListEc2InstancesUrl('test-oidc'), () => delay('infinite'))
+  );
 };
 
 export const WithAwsPermissionsError = () => <Component />;
 
-WithAwsPermissionsError.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.ec2InstancesListPath, () =>
-        HttpResponse.json(
-          {
-            message: 'StatusCode: 403, RequestID: operation error',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+WithAwsPermissionsError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.ec2InstancesListPath, () =>
+      HttpResponse.json(
+        {
+          message: 'StatusCode: 403, RequestID: operation error',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const WithOtherError = () => <Component />;
 
-WithOtherError.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getListEc2InstancesUrl('test-oidc'), () =>
-        HttpResponse.json(
-          {
-            message: 'Some kind of error message',
-          },
-          { status: 404 }
-        )
-      ),
-    ],
-  },
+WithOtherError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getListEc2InstancesUrl('test-oidc'), () =>
+      HttpResponse.json(
+        {
+          message: 'Some kind of error message',
+        },
+        { status: 404 }
+      )
+    )
+  );
 };
 
 const Component = ({

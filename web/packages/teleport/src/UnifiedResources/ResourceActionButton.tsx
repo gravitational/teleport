@@ -194,14 +194,12 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   if (awsConsole || isAwsIdentityCenterApp) {
     let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
     if (isAwsIdentityCenterApp) {
-      awsConsoleOrIdentityCenterRoles = permissionSets.map(
-        (ps): AwsRole => ({
-          name: ps.name,
-          arn: ps.name,
-          display: ps.name,
-          accountId: name,
-        })
-      );
+      awsConsoleOrIdentityCenterRoles = permissionSets.map((ps): AwsRole => ({
+        name: ps.name,
+        arn: ps.name,
+        display: ps.name,
+        accountId: name,
+      }));
     }
 
     return (
