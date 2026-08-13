@@ -305,6 +305,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BeamsConfigCreateEvent:                        &apievents.BeamsConfigCreate{},
 	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
 	BeamsConfigDeleteEvent:                        &apievents.BeamsConfigDelete{},
+	ClientIPRestrictionsUpdateEvent:               &apievents.ClientIPRestrictionsUpdate{},
 }
 
 // TestJSON tests JSON marshal events
