@@ -24,12 +24,6 @@ Pass `--no-resource-setup` to skip this step entirely. This is useful when the r
 
 `tests/web/authenticated/cloudPanel.spec.ts` asserts the panel bundle (served by the Cloud API) mounts and renders. It catches Teleport changes that break how the panel is loaded/mounted or how Teleport calls the Cloud API (GetFile / GetFeatures / GetUsage).
 
-Unlike the rest of the suite it needs a live Cloud backend and a cloud tenant license, so it is skipped unless `TELEPORT_CLOUD_HOSTPORT` is set.
+Unlike the rest of the suite it needs a live Cloud backend and a cloud tenant license. It declares its own Teleport config and its own `TELEPORT_CLOUD_HOSTPORT` (see [`../../e2e/README.md`](../../e2e/README.md#teleport-config) for how declared configs work), so the e2e runner restarts Teleport with an active cloud license and the staging cloud API just for this test.
 
-To run locally, you can use:
-
-```bash
-TELEPORT_CLOUD_HOSTPORT=api.cloud.gravitational.io ./e/e2e/run.sh --no-build --no-resource-setup --license-file <cloud-license.pem> e/e2e/tests/web/authenticated/cloudPanel.spec.ts
-```
-
-Note that the panel test needs none of the `config/resources/` seeds, and skipping them with `--no-resource-setup` keeps the run independent of whether the cloud license grants those resources' features.
+To point it at a different Cloud API host locally, edit both the `TELEPORT_CLOUD_HOSTPORT` value and the `license_file` in the test's `test.use({ teleport: { config, env } } })` block.
