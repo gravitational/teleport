@@ -314,7 +314,6 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 	}
 
 	return s.awsClientReqWithARN(ctx, integrationName, region, roleARN)
-
 }
 
 // ListEICE returns a paginated list of EC2 Instance Connect Endpoints.

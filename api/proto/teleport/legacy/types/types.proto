@@ -9266,6 +9266,8 @@ message IntegrationSpecV1 {
     GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
     // AWSRA contains the specific fields to handle the AWS Roles Anywhere Integration subkind.
     AWSRAIntegrationSpecV1 AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+
+    OAuthProxyIntegrationSpecV1 OAuthProxy = 6 [(gogoproto.jsontag) = "oauth_proxy,omitempty"];
   }
 
   // Credentials contains credentials for the integration.
@@ -9276,6 +9278,13 @@ message IntegrationSpecV1 {
 message IntegrationStatusV1 {
   // AWSRolesAnywhere contains the specific status fields to related to the AWS Roles Anywhere Integration subkind.
   AWSRAIntegrationStatusV1 AWSRolesAnywhere = 1 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+}
+
+message OAuthProxyIntegrationSpecV1 {
+  string issuer = 1;
+  string client_id = 2;
+  string upstream_url = 3;
+  repeated string scopes = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.

@@ -485,6 +485,10 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
 			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
 		}
+	case types.IntegrationSubKindOAuthProxy:
+		igMeta.OAuthProxy = &apievents.OAuthProxyIntegrationMetadata{
+			Issuer: ig.GetOAuthProxyIntegrationSpec().Issuer,
+		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}
@@ -529,6 +533,9 @@ func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.
 		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, authCtx, ig))
 	case types.IntegrationSubKindGitHub:
 		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
+	case types.IntegrationSubKindOAuthProxy:
+		// TODO(nixpig): Implement deletion.
+		return nil
 	default:
 		return trace.NotImplemented("DeleteAssociatedResources not supported for integration kind %q", ig.GetKind())
 	}

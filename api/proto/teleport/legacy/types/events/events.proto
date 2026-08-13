@@ -5055,6 +5055,11 @@ message IntegrationMetadata {
   GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
   // AWSRA contains metadata for AWS IAM Roles Anywhere integrations.
   AWSRAIntegrationMetadata AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+  OAuthProxyIntegrationMetadata OAuthProxy = 6 [(gogoproto.jsontag) = "oauth_proxy,omitempty"];
+}
+
+message OAuthProxyIntegrationMetadata {
+  string Issuer = 1 [(gogoproto.jsontag) = "issuer"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
