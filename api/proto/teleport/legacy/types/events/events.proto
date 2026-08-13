@@ -3233,6 +3233,10 @@ message AppSessionChunk {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Participants is the list of participants in a session.
+  // App sessions only have one participant but we keep it a repeated field
+  // to keep compatibility with other session end events.
+  repeated string Participants = 8 [(gogoproto.jsontag) = "participants,omitempty"];
 }
 
 // AppSessionRequest is an HTTP request and response.
