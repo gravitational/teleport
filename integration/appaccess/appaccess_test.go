@@ -753,6 +753,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppPublicAddr: p.rootAppPublicAddr,
 				AppName:       p.rootAppName,
 			},
+			Participants: []string{p.username},
 		}
 		return len(cmp.Diff(
 			expectedEvent,
@@ -760,6 +761,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+			cmpopts.IgnoreFields(apievents.AppMetadata{}, "AppLabels"),
 		)) == 0
 	})
 }
