@@ -978,13 +978,13 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 		case WithSSHCerts:
 			retKeyRing.Cert = keyRing.Cert
 		case WithKubeCerts:
-			retKeyRing.KubeTLSCredentials = keyRing.KubeTLSCredentials
+			retKeyRing.KubeTLSCredentials = maps.Clone(keyRing.KubeTLSCredentials)
 		case WithDBCerts:
-			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
+			retKeyRing.DBTLSCredentials = maps.Clone(keyRing.DBTLSCredentials)
 		case WithAppCerts:
-			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
+			retKeyRing.AppTLSCredentials = maps.Clone(keyRing.AppTLSCredentials)
 		case WithDesktopCerts:
-			retKeyRing.WindowsDesktopTLSCredentials = keyRing.WindowsDesktopTLSCredentials
+			retKeyRing.WindowsDesktopTLSCredentials = maps.Clone(keyRing.WindowsDesktopTLSCredentials)
 		}
 	}
 

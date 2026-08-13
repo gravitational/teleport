@@ -1971,6 +1971,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
 				authnHandler:  registered.webAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...any) {
 					require.ErrorContains(t, err, "can only request Kubernetes certificates")
@@ -1990,6 +1991,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
 				authnHandler:  registered.webAuthHandler,
 				verifyErr:     require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -2006,6 +2008,27 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
+				},
+			},
+		},
+		{
+			desc: "fail kube multi with user session scoped response",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:      tlsPub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...any) {
+					require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+					require.ErrorContains(t, err, "is not satisfied")
 				},
 			},
 		},
@@ -2085,6 +2108,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
 				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp := registered.webAuthHandler(t, challenge)
 					// Delete the session data to simulate that the session has expired.
@@ -2256,6 +2280,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
 				authnHandler:  registered.webAuthHandler,
 				verifyErr:     require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -2778,17 +2803,22 @@ type generateUserSingleUseCertsTestOpts struct {
 	initReq       *proto.UserCertsRequest
 	authnHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaAllowReuse mfav1.ChallengeAllowReuse
+	mfaScope      mfav1.ChallengeScope
 	verifyErr     require.ErrorAssertionFunc
 	verifyCert    func(*testing.T, *proto.Certs)
 }
 
 func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
+	scope := opts.mfaScope
+	if scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	}
 	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			Scope:      scope,
 			AllowReuse: opts.mfaAllowReuse,
 		},
 	})
@@ -5575,16 +5605,18 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				types.DefaultInstallerScriptName:                 installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
 			name:            "new default installers",
 			hasAgentRollout: true,
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.NewDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				types.DefaultInstallerScriptName:                 installer.NewDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
@@ -5593,9 +5625,10 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				"my-custom-installer": "echo test",
 			},
 			expectedInstallers: map[string]string{
-				"my-custom-installer":                   "echo test",
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				"my-custom-installer":                            "echo test",
+				types.DefaultInstallerScriptName:                 installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
@@ -5604,8 +5637,9 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				installers.InstallerScriptName: "echo test",
 			},
 			expectedInstallers: map[string]string{
-				installers.InstallerScriptName:          "echo test",
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptName:                   "echo test",
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 	}
@@ -7173,6 +7207,22 @@ func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
 		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
 		assertAppAccessDenied(t, got)
 		require.Empty(t, got.Spec.Deny.AppResources)
+	})
+
+	t.Run("allow expressions strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Allow.AppResourcesExpressions)
+	})
+
+	t.Run("deny expressions strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Deny.AppResourcesExpressions = []string{`path.match(literal("admin"))`}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Deny.AppResourcesExpressions)
 	})
 
 	t.Run("deny scopes to the role's own labels, not a blanket wildcard", func(t *testing.T) {

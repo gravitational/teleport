@@ -54,21 +54,32 @@ func (g *opensshServerV2TestingPrimitives) SetupTeleportFixtures(ctx context.Con
 }
 
 func (g *opensshServerV2TestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	node, err := types.NewNode(name, types.SubKindOpenSSHNode, opensshServerV2Spec, nil)
+	labels := map[string]string{}
+	if g.setup.OperatorMetadata().Scope != "" {
+		labels[reconcilers.OperatorIDLabel] = g.setup.OperatorMetadata().ID
+	}
+	node, err := types.NewNode(name, types.SubKindOpenSSHNode, opensshServerV2Spec, labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	node.SetOrigin(types.OriginKubernetes)
+	node.(*types.ServerV2).Scope = g.setup.OperatorMetadata().Scope
 	_, err = g.setup.TeleportClient.UpsertNode(ctx, node)
 	return trace.Wrap(err)
 }
 
 func (g *opensshServerV2TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Server, error) {
-	return g.setup.TeleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
+	return g.setup.TeleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name:  name,
+		Scope: g.setup.OperatorMetadata().Scope,
+	}.Build())
 }
 
 func (g *opensshServerV2TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	return trace.Wrap(g.setup.TeleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: name}.Build()))
+	return trace.Wrap(g.setup.TeleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  name,
+		Scope: g.setup.OperatorMetadata().Scope,
+	}.Build()))
 }
 
 func (g *opensshServerV2TestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
@@ -77,7 +88,8 @@ func (g *opensshServerV2TestingPrimitives) CreateKubernetesResource(ctx context.
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: resourcesv1.TeleportOpenSSHServerV2Spec(opensshServerV2Spec),
+		Spec:  resourcesv1.TeleportOpenSSHServerV2Spec(opensshServerV2Spec),
+		Scope: g.setup.OperatorMetadata().Scope,
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, node))
 }
@@ -134,4 +146,24 @@ func TestTeleportOpensshServerV2DeletionDrift(t *testing.T) {
 func TestTeleportOpensshServerV2Update(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
 	testlib.ResourceUpdateTestSynchronous[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test)
+}
+
+func TestScopedOpensshServerV2Creation(t *testing.T) {
+	test := &opensshServerV2TestingPrimitives{}
+	testlib.ResourceCreationSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test, testlib.WithScope(testScope))
+}
+
+func TestScopedOpensshServerV2Deletion(t *testing.T) {
+	test := &opensshServerV2TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test, testlib.WithScope(testScope))
+}
+
+func TestScopedOpensshServerV2DeletionDrift(t *testing.T) {
+	test := &opensshServerV2TestingPrimitives{}
+	testlib.ResourceDeletionDriftSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test, testlib.WithScope(testScope))
+}
+
+func TestScopedOpensshServerV2Update(t *testing.T) {
+	test := &opensshServerV2TestingPrimitives{}
+	testlib.ResourceUpdateTestSynchronous[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test, testlib.WithScope(testScope))
 }

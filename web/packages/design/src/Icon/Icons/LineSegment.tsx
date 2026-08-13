@@ -56,6 +56,7 @@ export const LineSegment = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-linesegment"
+
       {...otherProps}
       ref={ref}
     >

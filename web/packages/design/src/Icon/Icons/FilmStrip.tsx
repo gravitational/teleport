@@ -56,6 +56,7 @@ export const FilmStrip = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-filmstrip"
+
       {...otherProps}
       ref={ref}
     >

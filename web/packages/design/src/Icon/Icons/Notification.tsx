@@ -56,6 +56,7 @@ export const Notification = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-notification"
+
       {...otherProps}
       ref={ref}
     >

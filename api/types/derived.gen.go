@@ -1235,7 +1235,8 @@ func deriveTeleportEqual_65(this, that *RoleConditions) bool {
 			this.LinuxDesktopLabelsExpression == that.LinuxDesktopLabelsExpression &&
 			deriveTeleportEqual_62(this.BeamLabels, that.BeamLabels) &&
 			this.BeamLabelsExpression == that.BeamLabelsExpression &&
-			deriveTeleportEqual_110(this.AppResources, that.AppResources)
+			deriveTeleportEqual_110(this.AppResources, that.AppResources) &&
+			deriveTeleportEqual_2(this.AppResourcesExpressions, that.AppResourcesExpressions)
 }
 
 // deriveTeleportEqual_66 returns whether this and that are equal.
@@ -2094,7 +2095,15 @@ func deriveTeleportEqual_140(this, that *GitHubPermission) bool {
 func deriveTeleportEqual_141(this, that *AppResource) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			this.AllowAll == that.AllowAll
+			deriveTeleportEqual_2(this.Paths, that.Paths) &&
+			deriveTeleportEqual_2(this.Methods, that.Methods) &&
+			this.Where == that.Where &&
+			deriveTeleportEqual_2(this.AllowEncoded, that.AllowEncoded) &&
+			this.AllowAll == that.AllowAll &&
+			this.AllowCode == that.AllowCode &&
+			this.AllowReason == that.AllowReason &&
+			this.DenyCodeHint == that.DenyCodeHint &&
+			this.DenyReasonHint == that.DenyReasonHint
 }
 
 // deriveTeleportEqual_142 returns whether this and that are equal.

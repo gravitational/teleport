@@ -86,18 +86,18 @@ func DeduplicateAny[T any](in []T, compare func(T, T) bool) []T {
 // ContainSameUniqueElements returns true if the input slices contain the same
 // unique elements. Ordering and duplicates are ignored.
 func ContainSameUniqueElements[S ~[]E, E comparable](s1, s2 S) bool {
-	s1Dedup := Deduplicate(s1)
-	s2Dedup := Deduplicate(s2)
-
-	if len(s1Dedup) != len(s2Dedup) {
-		return false
+	set1 := make(map[E]struct{}, len(s1))
+	for _, v := range s1 {
+		set1[v] = struct{}{}
 	}
-	for i := range s1Dedup {
-		if !slices.Contains(s2Dedup, s1Dedup[i]) {
+	set2 := make(map[E]struct{}, len(s2))
+	for _, v := range s2 {
+		if _, ok := set1[v]; !ok {
 			return false
 		}
+		set2[v] = struct{}{}
 	}
-	return true
+	return len(set1) == len(set2)
 }
 
 // All checks if all elements of slice satisfy given predicate. If the slice is empty, it returns true.

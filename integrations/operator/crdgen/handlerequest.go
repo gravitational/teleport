@@ -172,11 +172,12 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5), legacyWithoutVersionInKindOverride()}},
 		// For backward compatibility in v15, it actually creates v5 roles though.
 		{name: "RoleV6", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
-		// Role V6 and V7 have their own Kubernetes kind
+		// Role V6 through V9 each get their own versioned Kubernetes
+		// kind, all built from the shared RoleV6 message.
 		{name: "RoleV6"},
-		// Role V7 and V8 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7)}},
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V8)}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V9)}},
 		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
 		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
 		{name: "SAMLConnectorV2", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
@@ -210,6 +211,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			opts: []resourceSchemaOption{
 				withNameOverride("OpenSSHServer"),
 				withAdditionalColumns(serverColumns),
+				withScope(),
 			},
 		},
 		{
@@ -217,6 +219,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			opts: []resourceSchemaOption{
 				withNameOverride("OpenSSHEICEServer"),
 				withAdditionalColumns(serverColumns),
+				withScope(),
 			},
 		},
 		{name: "TrustedClusterV2"},

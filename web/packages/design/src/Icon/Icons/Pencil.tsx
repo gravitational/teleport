@@ -56,6 +56,7 @@ export const Pencil = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-pencil"
+
       {...otherProps}
       ref={ref}
     >

@@ -534,16 +534,16 @@ func UpsertBot(
 			return nil, trace.Wrap(err, "converting unscoped bot to resources")
 		}
 	}
-	// If the bot already exists, we need to copy across the generation label.
-	// TODO(noah): When we fully deprecate generation labels, we also need to
-	// remove this - https://github.com/gravitational/teleport/issues/64484
+	// Preserve the legacy generation label if the existing user carries one.
+	// TODO(noah): DELETE IN v20 alongside the creation-time label write
+	// (see botToUserAndRole) - https://github.com/gravitational/teleport/issues/64484
 	if existingUser != nil {
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		if existingGeneration, ok := existingUser.GetLabel(types.BotGenerationLabel); ok {
 			meta := user.GetMetadata()
+			//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 			meta.Labels[types.BotGenerationLabel] = existingGeneration
 			user.SetMetadata(meta)
-		} else {
-			return nil, trace.BadParameter("unable to determine existing generation for bot due to missing label")
 		}
 	}
 
@@ -1005,6 +1005,7 @@ func StrongValidateBot(b *pb.Bot) error {
 // would allow for misconfiguration.
 var nonPropagatedLabels = set.New(
 	types.BotLabel,
+	//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 	types.BotGenerationLabel,
 	types.BotScopeLabel,
 )
@@ -1168,8 +1169,11 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// Then set these labels over the top - we exclude these when converting
 	// back.
 	userMeta.Labels[types.BotLabel] = bot.GetMetadata().GetName()
-	// We always set this to zero here - but in Upsert, we copy from the
-	// previous user before writing if necessary
+	// The generation counter now lives on the BotInstance, but v18 auth
+	// servers refuse to upsert a bot user without this label, so keep writing
+	// it while a v18 downgrade is supported.
+	// TODO(noah): DELETE IN v20 - https://github.com/gravitational/teleport/issues/64484
+	//nolint:staticcheck // deprecated, see above
 	userMeta.Labels[types.BotGenerationLabel] = "0"
 	// Clears scope label that user should not be able to set.
 	delete(userMeta.Labels, types.BotScopeLabel)
@@ -1220,8 +1224,9 @@ func scopedBotToUser(bot *pb.Bot, now time.Time, createdBy string) (types.User, 
 	// Then set these labels over the top - we exclude these when converting
 	// back.
 	userMeta.Labels[types.BotLabel] = bot.GetMetadata().GetName()
-	// We always set this to zero here - but in Upsert, we copy from the
-	// previous user before writing if necessary
+	// Kept for v18 downgrade compat, see botToUserAndRole.
+	// TODO(noah): DELETE IN v20 - https://github.com/gravitational/teleport/issues/64484
+	//nolint:staticcheck // deprecated, see above
 	userMeta.Labels[types.BotGenerationLabel] = "0"
 	userMeta.Labels[types.BotScopeLabel] = bot.GetScope()
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)

@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var (
@@ -140,8 +142,8 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	if err != nil {
 		return trace.Wrap(err, "checking existence of VNet NRPT registry key under group policy path")
 	}
-	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) ||
-		!slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) ||
+	if !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones) ||
+		!utils.ContainSameUniqueElements(cfg.dnsAddrs, state.configuredDNSAddrs) ||
 		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey ||
 		(doesGroupPolicyKeyExist && !vnetGroupPolicyNRPTKeyExists && len(cfg.dnsZones) > 0) {
 		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs, doesGroupPolicyKeyExist); err != nil {
@@ -220,10 +222,10 @@ func configureDNS(ctx context.Context, zones, nameservers []string, doesGroupPol
 	return nil
 }
 
-// hostIPv6Disabled checks whether IPv6 has been disabled on the host via the
+// platformHostIPv6Disabled checks whether IPv6 has been disabled on the host via the
 // DisabledComponents value under tcpip6ParametersKey. The setting is
 // host-wide, so the TUN device name is unused.
-func hostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+func platformHostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
 	// Bit 0x10 disables IPv6 on all non-tunnel interfaces, checking it also
 	// covers the 0xFF value that disables IPv6 entirely. Absent key or value
 	// means that IPv6 is enabled.

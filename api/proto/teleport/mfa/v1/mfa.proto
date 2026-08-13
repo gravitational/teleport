@@ -68,6 +68,9 @@ enum ChallengeScope {
   CHALLENGE_SCOPE_ADMIN_ACTION = 7;
   // Used for changing user's password.
   CHALLENGE_SCOPE_CHANGE_PASSWORD = 8;
+  // Used for reusable per-session MFA by the kube local proxy in multi-cluster mode,
+  // where one ceremony authorizes certificates for many Kubernetes clusters.
+  CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI = 9;
 }
 
 // ChallengeAllowReuse determines whether an MFA challenge response can be used

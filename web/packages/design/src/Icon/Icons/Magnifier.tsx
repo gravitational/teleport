@@ -56,6 +56,7 @@ export const Magnifier = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-magnifier"
+
       {...otherProps}
       ref={ref}
     >

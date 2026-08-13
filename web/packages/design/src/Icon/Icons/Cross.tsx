@@ -56,6 +56,7 @@ export const Cross = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cross"
+
       {...otherProps}
       ref={ref}
     >

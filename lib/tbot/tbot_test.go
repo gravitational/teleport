@@ -1945,9 +1945,13 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 	// long-running service, so the bot runs in daemon mode rather than oneshot.
 	tmpDir := t.TempDir()
 	jwtDir := t.TempDir()
+	// t.TempDir paths can exceed the Unix socket path limit on macOS.
+	socketDir, err := os.MkdirTemp("", "tbot-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	listenURL := url.URL{
 		Scheme: "unix",
-		Path:   filepath.Join(t.TempDir(), "workload.sock"),
+		Path:   filepath.Join(socketDir, "workload.sock"),
 	}
 	selector := bot.WorkloadIdentitySelector{
 		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),

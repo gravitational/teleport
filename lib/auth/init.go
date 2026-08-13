@@ -443,10 +443,6 @@ type InitConfig struct {
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
 
-	// AppAuthConfig is the service for storing and retrieving
-	// app auth config resources.
-	AppAuthConfig services.AppAuthConfig
-
 	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
 

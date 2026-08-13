@@ -1,0 +1,340 @@
+---
+title: Beams Database Demo
+sidebar_label: Database Demo
+description: Provides an example of giving an AI agent restricted access to a Teleport-protected database via Beams.
+tags:
+ - how-to
+ - ai
+page_type: how-to
+---
+
+{/* cSpell:ignore dbdemo, dbtoken */}
+
+Teleport Beams allow you to grant AI agents access to your databases with
+restricted permissions to prevent their nondeterministic access patterns from
+causing harm.
+
+In this guide, you will enroll a database with Teleport and prompt an AI agent
+to access the database from a Teleport beam. As this guide demonstrates, the
+restricted access you can provide to the database via Teleport RBAC ensures that
+the agent can only perform the expected set of operations on the database.
+
+## How it works
+
+Teleport Beams are micro VM sandboxes for running agentic workloads, hosted on
+the Teleport Cloud infrastructure. When a user creates a beam, the Teleport Auth
+Service creates a **delegation session** that contains the user and their
+Teleport roles.
+
+An instance of the `tbot` daemon on the beam receives the ID of the delegation
+session and queries the Auth Service to issue a fresh Teleport identity to
+services that run on the beam. As a result, any agentic workloads running
+on the beam delegate the originating user's Teleport permissions.
+
+For Teleport-protected databases, this means that users who create a beam can
+run AI agents on the beam to access those databases, as long as the users have
+permissions to access those databases as well. With Teleport RBAC, you can limit
+the permissions that agentic workloads have to access your databases.
+
+## Prerequisites
+
+You will need a Teleport Beams account. [Start your free
+trial](https://www.beams.run/).
+
+For simplicity, this guide walks you through a demo that enrolls a local
+PostgreSQL container with your Teleport cluster and configures RBAC for that
+database. Beams supports any Teleport-protected database, and comes with
+the PostgreSQL client tools out of the box.
+
+To follow the local demo, you will need:
+
+- Docker installed on your workstation
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Enroll a database with Teleport
+
+In this section, you will enroll a database with Teleport and configure RBAC for
+it. We recommend following this minimal example first for a demonstration of
+Beams in action.
+
+<Admonition type="tip">
+
+This section is not required if you already have a database enrolled and
+understand Teleport RBAC. If you have a database and a role you want to grant to
+your AI agent, skip to [Step 2](#step-23-prepare-your-beam).
+
+</Admonition>
+
+### Start your local demo database
+
+1. On your workstation, create a local directory for the TLS credentials you
+   want to mount on the PostgreSQL container:
+
+   ```code
+   $ mkdir certs
+   ```
+
+1. Retrieve mTLS credentials that your PostgreSQL container will use to trust
+   the Teleport Database Service:
+
+   ```code
+   $ tctl auth sign --format=db --host=postgres --out=certs/server --ttl=2160h
+   ```
+
+   (!docs/pages/includes/database-access/ttl-note.mdx!)
+
+   The command creates 3 files:
+   - `server.cas`: The Database Client CA certificate, which your database
+     uses to verify connections from the Teleport Database Service.
+   - `server.crt`: A certificate for your database server, signed by the
+     Database CA.
+   - `server.key`: The private key for the server certificate.
+
+1. Create a local Docker bridge network for the PostgreSQL container and
+   Teleport Database Service:
+
+   ```code
+   $ docker network create local-postgres
+   ```
+
+1. Generate a strong password for the superuser account in your PostgreSQL
+   container. Export it in the terminal where you will run your PostgreSQL
+   container:
+
+   ```code
+   $ export POSTGRES_PASSWORD=<strong generated password>
+   ```
+
+1. Spin up your database container, joining it to the local bridge network and
+   mounting the TLS credentials you generated.
+
+   This command assigns the `POSTGRES_PASSWORD` environment variable in the
+   container because the image requires it, though we'll configure the container
+   to enforce certificates for authentication. It also enables TLS using
+   Teleport-issued credentials, which it changes the ownership of per the
+   expectations of the `postgres` daemon. We do this inside the container to
+   avoid unexpected ownership changes when Docker creates the bind mount:
+
+   ```code
+   $ docker run -d \
+      --name postgres \
+      -e POSTGRES_PASSWORD \
+      -v ./certs:/certs \
+      --network local-postgres \
+      --entrypoint bash \
+      postgres:18 \
+      -c "chown 999:999 /certs/server.key \
+         && chmod 600 /certs/server.key \
+         && chmod 644 /certs/server.crt /certs/server.cas  \
+         && exec docker-entrypoint.sh postgres \
+            -c ssl=on \
+            -c ssl_cert_file=/certs/server.crt \
+            -c ssl_key_file=/certs/server.key \
+            -c ssl_ca_file=/certs/server.cas"
+   ```
+
+1. Require TLS for all connections by editing the PostgreSQL configuration file
+   for host-based authentication and triggering a configuration reload.  This
+   authenticates all connections to the database from inside the container:
+
+   ```code
+   $ docker exec postgres bash -c "echo 'local all all trust' > /var/lib/postgresql/18/docker/pg_hba.conf"
+   $ docker exec postgres bash -c "echo 'hostssl all all 0.0.0.0/0 cert' >> /var/lib/postgresql/18/docker/pg_hba.conf"
+   $ docker exec postgres psql -U postgres -c "SELECT pg_reload_conf()"
+   ```
+
+### Configure the local demo database
+
+Once the local demo database is running, we'll set it up to support our demo.
+We'll include two users, an admin who can perform all database operations and a
+read-only user who can only run `SELECT` queries against a single table.
+
+1. Create the admin role:
+
+   ```code
+   $ docker exec postgres psql -U postgres -c "CREATE ROLE admin LOGIN SUPERUSER"
+   ```
+
+1. Create a table to hold example data, and the read-only role that can query
+   it:
+
+   ```code
+   $ docker exec postgres psql -U postgres -c "CREATE TABLE users (id INT PRIMARY KEY, name TEXT, ssn TEXT)"
+   $ docker exec postgres psql -U postgres -c "CREATE ROLE readonly LOGIN"
+   $ docker exec postgres psql -U postgres -c "GRANT CONNECT ON DATABASE postgres TO readonly"
+   $ docker exec postgres psql -U postgres -c "GRANT SELECT ON users TO readonly"
+   ```
+
+1. Add some example data:
+
+   ```code
+   $ docker exec postgres psql -U postgres -c "INSERT INTO users (id, name, ssn) VALUES (123, 'alice', '000-00-0000')"
+   ```
+
+### Start the Teleport Database Service
+
+Next, you will start the Teleport Database Service as a container on your
+workstation. The Teleport Database Service container initiates an SSH reverse
+tunnel to the Teleport Proxy Service in your cluster. When the AI agent that
+you'll run on your beam dials your database, the traffic flows through this
+reverse tunnel.
+
+1. Create a token for the Teleport Database Service to use to establish trust
+   with your Teleport cluster.
+
+   On your workstation, run the following command to retrieve a join token and
+   write to a file called `dbtoken` that we'll use when starting the Database
+   Service:
+
+   ```code
+   $ tctl tokens add --type=db --ttl=15m --format=text > dbtoken
+   ```
+
+1. Write a configuration file for the Teleport Database Service to your
+   terminal's current working directory, at the path `db-service-config.yaml`,
+   with the following content, replacing <Var name="example.beams.sh" /> with
+   the address of your Teleport Proxy Service:
+
+   ```code
+   $ teleport db configure create \
+     -o file:///$(pwd)/db-service-config.yaml \
+     --token=/tmp/token \
+     --proxy='<Var name="example.beams.sh" />:443' \
+     --name=local-postgres \
+     --protocol=postgres \
+     --uri=postgres:5432 \
+     --labels=service=local-postgres
+   ```
+
+   Note that the Teleport Database Service reads the token from `/tmp/token`,
+   the path on the container where you'll mount the token you generated earlier.
+
+1. Start the Teleport Database Service in the same local Docker network as the
+   PostgreSQL container you launched earlier:
+
+   ```code
+   $ docker run \
+     -v ./db-service-config.yaml:/etc/teleport/teleport.yaml \
+     -v ./dbtoken:/tmp/token \
+     --network local-postgres \
+     (=teleport.latest_oss_docker_image=)
+   ```
+
+1. After a minute or two, confirm that Teleport is proxying your PostgreSQL instance:
+
+   ```code
+   $ tsh db ls
+   Name           Description Allowed Users Labels                 Connect
+   -------------- ----------- ------------- ---------------------- -------
+   local-postgres             (none)        service=local-postgres
+   ```
+
+### Configure RBAC for your database
+
+In this demo setup, we want to ensure that your AI agent can access your
+PostgreSQL instance only with a non-permissive role. AI agents running on a beam
+access Teleport-protected resources with the Teleport role of the user who
+accessed the beam. 
+
+In this section, you will create a user and role that can access the database as
+a read-only user.
+
+1. Define a role that can access your database only as the read-only user.
+   Create a file called `read-only-demo-postgres.yaml` with the following
+   content:
+
+   ```yaml
+   version: v8
+   kind: role
+   metadata:
+     name: read-only-demo-postgres
+   spec:
+     allow:
+       db_labels:
+         service: local-postgres
+       db_users:
+         - readonly
+       db_names:
+         - postgres
+   ```
+
+1. Create the role:
+
+   ```code
+   $ tctl create -f read-only-demo-postgres.yaml
+   ```
+
+1. Create a user called `dbdemo` with the `read-only-demo-postgres` role:
+
+   ```code
+   $ tctl users add --roles=read-only-demo-postgres,beam-user dbdemo
+   ```
+
+1. Follow the instructions in your terminal to activate your user.
+
+## Step 2/3. Prepare your beam
+
+Once you have a database enrolled with Teleport and a role for your AI agent
+user, you can create a beam, start an SSH session with it, and prompt the agent
+to access the database.
+
+1. Authenticate to Teleport as the `dbdemo` user you created in the last step
+   and enter your credentials:
+
+   ```code
+   $ tsh login --proxy=<Var name="example.beams.sh" /> --user=dbdemo
+   ```
+
+1. Create a beam and access it:
+
+   ```code
+   $ tsh beams add
+   ```
+
+This command starts an SSH session with the new beam. 
+
+Stay in the beam shell session for the next step.
+
+## Step 3/3. Prompt your agent
+
+Prompt your agent to access the database.
+
+1. Start your LLM CLI. A beam initializes with `claude` and `codex`
+   preinstalled. Start a session with your LLM agent that skips permission
+   prompts. Even if your agent performs unexpected operations, nothing it does
+   can exceed the limits you set using Teleport RBAC. Run one of the following
+   commands:
+
+   ```code
+   $ claude --dangerously-skip-permissions
+   ```
+
+   Or:
+
+   ```code
+   $ codex --dangerously-bypass-approvals-and-sandbox 
+   ```
+
+1. Enter the following prompt:
+
+   ```text
+   Access the PostgreSQL database with name local-postgres. Retrieve the SSN of
+   user alice and update it to 999-99-9999.
+   ```
+
+The LLM should successfully find the current SSN but fail to update it. Here is
+one example agent summary:
+
+```text
+● The readonly user doesn't have write permissions. That's the only allowed database user according to the
+  Teleport configuration. I'm unable to perform the UPDATE — the database role readonly only has SELECT
+  privileges on the users table.
+
+  Summary:
+  - Alice's current SSN is 000-00-0000 (id: 123)
+  - The UPDATE to 999-99-9999 failed because the only available database user (readonly) lacks write permissions
+   on the users table
+
+  To complete the update, you'd need a database user with write privileges to be added to the Teleport database
+  configuration.
+```

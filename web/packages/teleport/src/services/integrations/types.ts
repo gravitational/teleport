@@ -815,6 +815,10 @@ export type DiscoverAzureVm = {
   resource_group: string;
   // region is the Azure Region where Teleport failed to enroll VMs.
   region: string;
+  // tenant_id is the Microsoft Entra tenant ID used by the Azure integration.
+  tenant_id?: string;
+  // client_id is the client ID of the Azure integration's managed identity or service principal.
+  client_id?: string;
 };
 
 // DiscoverAzureVmInstance contains the result of enrolling an Azure VM.

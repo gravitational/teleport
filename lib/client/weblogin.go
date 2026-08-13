@@ -238,9 +238,6 @@ type HeadlessRequest struct {
 	Action string `json:"action"`
 	// MFAResponse is an MFA response used to authenticate the headless request.
 	MFAResponse *MFAChallengeResponse `json:"mfaResponse"`
-	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	// TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse
-	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.

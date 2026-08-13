@@ -56,6 +56,7 @@ export const Invoices = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-invoices"
+
       {...otherProps}
       ref={ref}
     >

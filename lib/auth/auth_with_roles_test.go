@@ -294,14 +294,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			var id authtest.TestIdentity
 			if test.renewable {
 				id = authtest.TestRenewableUser(user.GetName(), 0)
-
-				meta := user.GetMetadata()
-				meta.Labels = map[string]string{
-					types.BotGenerationLabel: "0",
-				}
-				user.SetMetadata(meta)
-				user, err = srv.Auth().UpsertUser(ctx, user)
-				require.NoError(t, err)
 			} else {
 				id = authtest.TestUser(user.GetName())
 			}
@@ -6472,6 +6464,164 @@ func TestListResources_ScopedApps(t *testing.T) {
 			}
 			if tc.req.NeedTotalCount {
 				require.Equal(t, len(tc.appNamesExpected), res.TotalCount)
+			}
+		})
+	}
+}
+
+func TestListResources_ScopedNodes(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/test"
+	const childScope = "/test/child"
+	const otherScope = "/other"
+
+	createNode := func(t *testing.T, name, scope string, labels map[string]string) {
+		t.Helper()
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+				Labels:    labels,
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: name + "-host",
+			},
+			Scope: scope,
+		}
+		_, err := srv.Auth().UpsertNode(t.Context(), node)
+		require.NoError(t, err)
+	}
+
+	// Create nodes in various scopes with differing labels.
+	createNode(t, "prod-node", scope, map[string]string{"env": "prod"})
+	createNode(t, "dev-node", scope, map[string]string{"env": "dev"})
+	createNode(t, "dev-child-node", childScope, map[string]string{"env": "dev"})
+	createNode(t, "other-scope-node", otherScope, map[string]string{"env": "prod"})
+	createNode(t, "unscoped-node", "", map[string]string{"env": "prod"})
+
+	sshLabels := func(env string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins: []string{"root"},
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{
+					Name:   "env",
+					Values: []string{env},
+				}.Build(),
+			},
+		}.Build()
+	}
+	sshLabelExpression := func(expr string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins:          []string{"root"},
+			LabelExpression: expr,
+		}.Build()
+	}
+
+	// scopedSSHUser creates a scope-pinned user whose scoped role grants the given ssh block.
+	scopedSSHUser := func(username, scope string, ssh *scopedaccessv1.ScopedRoleSSH) *auth.ScopedServerWithRoles {
+		return newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, username, scope,
+			scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Ssh:              ssh,
+			}.Build())
+	}
+
+	cases := []struct {
+		name              string
+		server            *auth.ScopedServerWithRoles
+		nodeNamesExpected []string
+		req               proto.ListResourcesRequest
+	}{
+		{
+			name:              "prod labels in scope " + scope,
+			server:            scopedSSHUser("node-test-prod-label", scope, sshLabels("prod")),
+			nodeNamesExpected: []string{"prod-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "dev label in " + scope,
+			server:            scopedSSHUser("node-test-dev-label", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "dev label expression in " + scope,
+			server:            scopedSSHUser("node-test-dev-expression", scope, sshLabelExpression(`contains(labels["env"], "dev")`)),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + scope,
+			server:            scopedSSHUser("node-test-prod-expression", scope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"prod-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + childScope,
+			server:            scopedSSHUser("node-test-child-prod-expr", childScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + otherScope,
+			server:            scopedSSHUser("node-other-prod-expression", otherScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"other-scope-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "fake pagination path returns nodes",
+			server:            scopedSSHUser("node-test-fake-pagination", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(t.Context(), tc.req)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(res.Resources))
+			for _, r := range res.Resources {
+				names = append(names, r.GetName())
+				require.NotEqual(t, "unscoped-node", r.GetName())
+			}
+
+			require.ElementsMatch(t, tc.nodeNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.nodeNamesExpected), res.TotalCount)
 			}
 		})
 	}
@@ -14260,7 +14410,11 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	client, err := srv.NewClient(ident)
 	require.NoError(t, err)
 
-	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	const (
+		kubeClusterName = "kube-cluster"
+		kubeHostName    = "kube-host"
+	)
+	createKubeServer(t, srv.Auth(), []string{kubeClusterName}, kubeHostName, scope)
 
 	scopedApp, err := types.NewAppV3(types.Metadata{
 		Name:   "test-app",
@@ -14275,6 +14429,17 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
 	require.NoError(t, err)
 
+	// wait for kube server to appear in the unified resource cache, otherwise tests can be flaky
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for ks, err := range srv.Auth().UnifiedResourceCache.KubernetesServers(t.Context(), services.UnifiedResourcesIterateParams{}) {
+			require.NoError(collectT, err)
+			if ks.GetCluster().GetName() == kubeClusterName && ks.GetHostID() == kubeHostName && ks.GetScope() == scope {
+				return
+			}
+		}
+		require.Fail(collectT, "kube cluster not found")
+	}, time.Second*10, time.Millisecond*10, "kube cluster %s.%s was never found in unified resource cache", kubeHostName, kubeClusterName)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -14288,7 +14453,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 			},
 		},
@@ -14300,7 +14465,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour * 24 * 7),
 			},
 			assertCert: func(t *testing.T, cert *x509.Certificate) {
@@ -14321,7 +14486,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          "some-other-user",
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 			},
 			assertErr: func(t *testing.T, err error) {
@@ -14337,7 +14502,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 				UseRoleRequests:   true,
 				RoleRequests:      []string{role.GetName()},

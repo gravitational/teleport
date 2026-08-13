@@ -1049,7 +1049,7 @@ type taskUpdater struct {
 	Log            *slog.Logger
 }
 
-func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType string) error {
+func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType, tenantID, clientID string) error {
 	task, err := usertasks.NewDiscoverAzureVMUserTask(
 		usertasks.TaskGroup{
 			Integration: integration,
@@ -1058,6 +1058,8 @@ func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType str
 		s.clock.Now().Add(2*s.PollInterval),
 		usertasksv1.DiscoverAzureVM_builder{
 			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			TenantId:  tenantID,
+			ClientId:  clientID,
 		}.Build(),
 	)
 	if err != nil {
@@ -1105,6 +1107,12 @@ func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *use
 	}
 	if newSpec.GetDiscoverAzureVm().GetInstances() == nil {
 		newSpec.GetDiscoverAzureVm().SetInstances(make(map[string]*usertasksv1.DiscoverAzureVMInstance))
+	}
+	if newSpec.GetDiscoverAzureVm().GetTenantId() == "" {
+		newSpec.GetDiscoverAzureVm().SetTenantId(oldSpec.GetDiscoverAzureVm().GetTenantId())
+	}
+	if newSpec.GetDiscoverAzureVm().GetClientId() == "" {
+		newSpec.GetDiscoverAzureVm().SetClientId(oldSpec.GetDiscoverAzureVm().GetClientId())
 	}
 	mergeExistingInstances(s, oldSpec.GetDiscoverAzureVm().GetInstances(), newSpec.GetDiscoverAzureVm().GetInstances())
 }

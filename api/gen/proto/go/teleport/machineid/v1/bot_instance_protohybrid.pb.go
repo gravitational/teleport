@@ -758,7 +758,10 @@ type BotInstanceStatusAuthentication struct {
 	// Deprecated: prefer using join_attrs.meta.join_token_name
 	JoinToken string `protobuf:"bytes,3,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	// The metadata sourced from the join method.
-	// Deprecated: prefer using join_attrs.
+	// Deprecated: prefer using join_attrs. No longer written since v19; only
+	// present on records written by older Auth Service versions.
+	//
+	// Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.
 	Metadata *structpb.Struct `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// On each renewal, this generation is incremented. For delegated join
 	// methods, this counter is not checked during renewal. For the `token` join
@@ -824,6 +827,7 @@ func (x *BotInstanceStatusAuthentication) GetJoinToken() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.
 func (x *BotInstanceStatusAuthentication) GetMetadata() *structpb.Struct {
 	if x != nil {
 		return x.Metadata
@@ -864,6 +868,7 @@ func (x *BotInstanceStatusAuthentication) SetJoinToken(v string) {
 	x.JoinToken = v
 }
 
+// Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.
 func (x *BotInstanceStatusAuthentication) SetMetadata(v *structpb.Struct) {
 	x.Metadata = v
 }
@@ -890,6 +895,7 @@ func (x *BotInstanceStatusAuthentication) HasAuthenticatedAt() bool {
 	return x.AuthenticatedAt != nil
 }
 
+// Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.
 func (x *BotInstanceStatusAuthentication) HasMetadata() bool {
 	if x == nil {
 		return false
@@ -908,6 +914,7 @@ func (x *BotInstanceStatusAuthentication) ClearAuthenticatedAt() {
 	x.AuthenticatedAt = nil
 }
 
+// Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.
 func (x *BotInstanceStatusAuthentication) ClearMetadata() {
 	x.Metadata = nil
 }
@@ -930,7 +937,10 @@ type BotInstanceStatusAuthentication_builder struct {
 	// Deprecated: prefer using join_attrs.meta.join_token_name
 	JoinToken string
 	// The metadata sourced from the join method.
-	// Deprecated: prefer using join_attrs.
+	// Deprecated: prefer using join_attrs. No longer written since v19; only
+	// present on records written by older Auth Service versions.
+	//
+	// Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.
 	Metadata *structpb.Struct
 	// On each renewal, this generation is incremented. For delegated join
 	// methods, this counter is not checked during renewal. For the `token` join
@@ -1362,14 +1372,14 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	" \x01(\tR\x0fexternalUpdater\x128\n" +
 	"\x18external_updater_version\x18\v \x01(\tR\x16externalUpdaterVersion\x127\n" +
 	"\fupdater_info\x18\f \x01(\v2\x14.types.UpdaterV2InfoR\vupdaterInfo\x122\n" +
-	"\x04kind\x18\r \x01(\x0e2\x1e.teleport.machineid.v1.BotKindR\x04kind\"\xf7\x02\n" +
+	"\x04kind\x18\r \x01(\x0e2\x1e.teleport.machineid.v1.BotKindR\x04kind\"\xfb\x02\n" +
 	"\x1fBotInstanceStatusAuthentication\x12E\n" +
 	"\x10authenticated_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0fauthenticatedAt\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
 	"joinMethod\x12\x1d\n" +
 	"\n" +
-	"join_token\x18\x03 \x01(\tR\tjoinToken\x123\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x17.google.protobuf.StructR\bmetadata\x12\x1e\n" +
+	"join_token\x18\x03 \x01(\tR\tjoinToken\x127\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x17.google.protobuf.StructB\x02\x18\x01R\bmetadata\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x05 \x01(\x05R\n" +
 	"generation\x12\x1d\n" +

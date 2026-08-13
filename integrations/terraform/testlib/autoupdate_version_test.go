@@ -17,11 +17,11 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -71,12 +71,8 @@ func (s *TerraformSuiteOSS) TestAutoUpdateVersion() {
 }
 
 func (s *TerraformSuiteOSS) TestImportAutoUpdateVersion() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_autoupdate_version"
-	id := "test_import"
-	name := r + "." + id
+	name := r + ".test"
 
 	testStartVersion := "1.2.3"
 	testTargetVersion := "1.2.4"
@@ -97,25 +93,24 @@ func (s *TerraformSuiteOSS) TestImportAutoUpdateVersion() {
 	)
 	require.NoError(s.T(), err)
 
-	autoUpdateVersion, err = s.client.CreateAutoUpdateVersion(ctx, autoUpdateVersion)
+	autoUpdateVersion, err = s.client.CreateAutoUpdateVersion(s.T().Context(), autoUpdateVersion)
 	require.NoError(s.T(), err)
 
-	require.Eventually(s.T(), func() bool {
-		autoUpdateVersionCurrent, err := s.client.GetAutoUpdateVersion(ctx)
-		require.NoError(s.T(), err)
-
-		return autoUpdateVersion.GetMetadata().GetRevision() != autoUpdateVersionCurrent.GetMetadata().GetName()
-	}, 5*time.Second, time.Second)
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		autoUpdateVersionCurrent, err := s.client.GetAutoUpdateVersion(s.T().Context())
+		require.NoError(t, err)
+		require.Equal(t, autoUpdateVersion.GetMetadata().GetRevision(), autoUpdateVersionCurrent.GetMetadata().GetRevision())
+	}, 15*time.Second, 100*time.Millisecond)
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
+				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "test" { }`,
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "autoupdate-version",
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "autoupdate_version", state[0].Attributes["kind"])
 					require.Equal(s.T(), testStartVersion, state[0].Attributes["spec.agents.start_version"])

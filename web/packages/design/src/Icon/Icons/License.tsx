@@ -56,6 +56,7 @@ export const License = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-license"
+
       {...otherProps}
       ref={ref}
     >

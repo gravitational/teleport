@@ -28,7 +28,7 @@ export class TerminalPage {
 
   constructor(private page: Page) {
     this.input = page.getByRole('textbox', { name: 'Terminal input' });
-    this.terminal = page.getByTestId('terminal');
+    this.terminal = page.locator('.xterm');
   }
 
   async waitForReady() {
@@ -37,6 +37,59 @@ export class TerminalPage {
 
   async exec(command: string) {
     await this.input.pressSequentially(command + '\n');
+  }
+
+  /**
+   * Executes a shell command in the terminal and waits for its completion.
+   * Appends an exit-code marker so output can be matched to this specific command.
+   *
+   * @returns The trimmed output of the command.
+   * @throws {Error} If the exit code cannot be parsed or is not 0.
+   */
+  async execAndWait(
+    command: string,
+    options: { timeout?: number } = {}
+  ): Promise<string> {
+    // Generate a unique marker per command
+    const marker = `__EXIT_${crypto.randomUUID().split('-').at(0)}__=`;
+    const fullCommand = `${command}; echo "${marker}$?"`;
+    const terminalRows = this.terminal.locator('.xterm-rows');
+
+    await this.input.pressSequentially(`${fullCommand}\n`);
+
+    // Wait for the marker plus the exit code
+    const markerWithExitCodeRegex = new RegExp(`${marker}\\d+`);
+    await expect(terminalRows).toContainText(markerWithExitCodeRegex, {
+      timeout: options?.timeout || TERMINAL_TIMEOUT,
+    });
+
+    const text = (await terminalRows.textContent()) || '';
+
+    const fullCommandIndex = text.lastIndexOf(fullCommand);
+    const markerIndex = text.lastIndexOf(marker);
+
+    // Extract output between the typed command and the exit marker
+    const output = text
+      .slice(fullCommandIndex + fullCommand.length, markerIndex)
+      .trim();
+
+    // Extract the exit code immediately following the marker
+    const exitCodeMatch = text
+      .slice(markerIndex + marker.length)
+      .match(/^(\d+)/);
+    if (!exitCodeMatch) {
+      throw new Error(`Could not find exit code, output: ${output}`);
+    }
+
+    const exitCode = Number(exitCodeMatch[1]);
+
+    if (exitCode !== 0) {
+      throw new Error(
+        `Command failed with ${exitCode} exit code, output: ${output}`
+      );
+    }
+
+    return output;
   }
 
   async waitForText(text: string) {
