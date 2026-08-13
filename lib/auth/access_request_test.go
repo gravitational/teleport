@@ -232,6 +232,113 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("submit_for_users review", func(t *testing.T) { testSubmitAccessReview_SubmitForUsers(t, testPack) })
 }
 
+func TestScheduledAccessRequestAssumption(t *testing.T) {
+	ctx := t.Context()
+	now := time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(now)
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	const requesterName = "scheduled-requester"
+	const requesterRoleName = "scheduled-requester-role"
+	const requestedRoleName = "scheduled-requested-role"
+
+	requesterRole, err := types.NewRole(requesterRoleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:       []string{requestedRoleName},
+				MaxDuration: types.Duration(services.MaxAccessDuration),
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, requesterRole)
+	require.NoError(t, err)
+
+	requestedRole, err := types.NewRole(requestedRoleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{Logins: []string{"root"}},
+	})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, requestedRole)
+	require.NoError(t, err)
+
+	user, err := types.NewUser(requesterName)
+	require.NoError(t, err)
+	user.SetRoles([]string{requesterRoleName})
+	_, err = tlsServer.Auth().UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	identity := authtest.TestUser(requesterName)
+	identity.TTL = 2 * time.Hour
+
+	requesterClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	start := now.Add(time.Hour)
+	duration := 20 * time.Minute
+	end := start.Add(duration)
+	req, err := services.NewAccessRequest(requesterName, requestedRoleName)
+	require.NoError(t, err)
+	req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+		Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: duration},
+	}})
+	req, err = requesterClient.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+	require.NoError(t, tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: req.GetName(),
+		State:     types.RequestState_APPROVED,
+	}))
+
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	generateCerts := func() (*proto.Certs, error) {
+		return requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			SSHPublicKey:   sshPubKey,
+			TLSPublicKey:   tlsPubKey,
+			Username:       requesterName,
+			Expires:        end.Add(time.Hour),
+			Format:         constants.CertificateFormatStandard,
+			AccessRequests: []string{req.GetName()},
+		})
+	}
+
+	_, err = generateCerts()
+	require.ErrorContains(t, err, "can not be assumed until")
+
+	clock.Advance(time.Hour)
+	certs, err := generateCerts()
+	require.NoError(t, err)
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	require.Equal(t, end, tlsCert.NotAfter)
+	sshCert, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+	require.Equal(t, uint64(end.Unix()), sshCert.ValidBefore)
+
+	_, err = generateCerts()
+	require.NoError(t, err, "scheduled requests remain reusable during their window")
+
+	clock.Advance(duration - time.Nanosecond)
+	_, err = generateCerts()
+	require.NoError(t, err)
+
+	clock.Advance(time.Nanosecond)
+	_, err = generateCerts()
+	require.ErrorContains(t, err, "has expired")
+
+	clock.Advance(time.Second)
+	_, err = generateCerts()
+	require.ErrorContains(t, err, "has expired")
+}
+
 // waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
 // repeatedly called with the contents of the access request cache until it returns true or a reasonably long timeout is exceeded. this is
 // similar to require.Eventually except that it is safe to use normal (test-failing) assertions within the supplied condition closure.

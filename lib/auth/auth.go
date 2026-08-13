@@ -5417,6 +5417,17 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 		return nil, trace.Wrap(err)
 	}
 
+	if scheduled := req.GetTiming().GetScheduled(); scheduled != nil {
+		now := a.GetClock().Now().UTC()
+		if now.Before(scheduled.Start) {
+			return nil, trace.BadParameter("access request %q can not be assumed until %v", accessRequestID, scheduled.Start)
+		}
+		if !now.Before(scheduled.Start.Add(scheduled.Duration)) {
+			return nil, trace.BadParameter("access request %q has expired", accessRequestID)
+		}
+		return req, nil
+	}
+
 	accessExpiry := req.GetAccessExpiry()
 	if accessExpiry.Before(a.GetClock().Now()) {
 		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
