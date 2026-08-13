@@ -123,6 +123,12 @@ type Stats struct {
 	OldestDeadLetterTime time.Time
 }
 
+// Sealer encrypts audit event payloads before they are written to disk.
+type Sealer interface {
+	Seal(ctx context.Context, plaintext []byte) (payload []byte, sealed bool, err error)
+	Close() error
+}
+
 // Handler is the function type that the caller of the auditqueue implements.
 // It will take a batch of items to forward to the inner EmitAuditEvent.
 // It will return the slice of items that were successfully delivered.

@@ -897,6 +897,9 @@ type ReadDiscoveryAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
 	// NodesGetter defines methods for fetching node resources.
 	services.NodesGetter
 	// GetKubernetesServers returns all registered kubernetes servers.
