@@ -454,7 +454,8 @@ type Server struct {
 	dynamicDiscoveryConfig   map[string]*discoveryconfig.DiscoveryConfig
 	dynamicDiscoveryConfigMu sync.RWMutex
 
-	tagSyncStatus         *tagSyncStatus
+	tagAWSSyncStatus      tagSyncStatus
+	tagAzureSyncStatus    tagSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
 	awsRDSResourcesStatus awsResourcesStatus
 	awsEKSResourcesStatus awsResourcesStatus
@@ -500,7 +501,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicTAGAWSFetchers:   make(map[string][]*aws_sync.Fetcher),
 		dynamicTAGAzureFetchers: make(map[string][]*azure_sync.Fetcher),
 		dynamicDiscoveryConfig:  make(map[string]*discoveryconfig.DiscoveryConfig),
-		tagSyncStatus:           newTagSyncStatus(),
 		awsEC2ResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEC2),
 		awsRDSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherRDS),
 		awsEKSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEKS),

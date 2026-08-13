@@ -53,12 +53,24 @@ type FetcherStatus interface {
 	IsFromDiscoveryConfig() bool
 }
 
+// asFetcherStatusSlice converts a slice of values that implement the
+// FetcherStatus interface into a slice of FetcherStatus.
+func asFetcherStatusSlice[T FetcherStatus](slice []T) []FetcherStatus {
+	result := make([]FetcherStatus, len(slice))
+	for i := range slice {
+		result[i] = slice[i]
+	}
+	return result
+}
+
 // updateDiscoveryConfigStatus updates the DiscoveryConfig Status field with the current in-memory status.
 // The status will be updated with the following matchers:
-// - AWS Sync (TAG) status
+// - TAG AWS Sync status
+// - TAG Azure Sync status
 // - AWS EC2 Auto Discover status
 // - AWS RDS Auto Discover status
 // - AWS EKS Auto Discover status
+// - Azure VMs Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 	for _, discoveryConfigName := range discoveryConfigNames {
 		// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
@@ -73,8 +85,11 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 			IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 		}
 
-		// Merge AWS or Azure Sync (TAG) status
-		discoveryConfigStatus = s.tagSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		// Merge TAG AWS Sync status
+		discoveryConfigStatus = s.tagAWSSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+
+		// Merge TAG Azure sync status
+		discoveryConfigStatus = s.tagAzureSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
 		// Merge AWS EC2 Instances (auto discovery) status
 		discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
@@ -112,22 +127,21 @@ func truncateErrorMessage(discoveryConfigStatus discoveryconfig.Status) *string 
 	return &newErrorMessage
 }
 
-// tagSyncStatus contains all the status for both AWS and Azure fetchers grouped by DiscoveryConfig.
+// tagSyncStatus contains the status of a single TAG sync loop, AWS or Azure,
+// grouped by DiscoveryConfig.
 type tagSyncStatus struct {
 	mu sync.RWMutex
-	// syncResults maps the DiscoveryConfig name to a AWS or Azure fetcher result.
-	// Each DiscoveryConfig might have multiple AWS or Azure matchers.
+	// syncResults maps a DiscoveryConfig name to one result per fetcher. A
+	// DiscoveryConfig might have multiple matchers for this cloud, and so
+	// multiple fetchers.
+	//
+	// Only the most recent iteration is held: results are replaced when an
+	// iteration starts, so the status describes the sync that is running or
+	// that last ran, rather than the history of every sync.
 	syncResults map[string][]tagSyncResult
 }
 
-// newTagSyncStatus creates a new sync status object for storing results from the last fetch
-func newTagSyncStatus() *tagSyncStatus {
-	return &tagSyncStatus{
-		syncResults: make(map[string][]tagSyncResult),
-	}
-}
-
-// tagSyncResult stores the result of the aws_sync Matchers for a given DiscoveryConfig.
+// tagSyncResult stores the result of one TAG fetcher for a given DiscoveryConfig.
 type tagSyncResult struct {
 	// state is the State for the DiscoveryConfigStatus.
 	// Allowed values are:
@@ -140,33 +154,68 @@ type tagSyncResult struct {
 	discoveredResources uint64
 }
 
-func (d *tagSyncStatus) syncFinished(fetcher FetcherStatus, pushErr error, lastUpdate time.Time) {
+// iterationStarted records the start of a sync iteration for the given
+// fetchers, discarding the results of the previous iteration. Fetchers that do
+// not come from a DiscoveryConfig are skipped: there is no Status to report for
+// them.
+func (d *tagSyncStatus) iterationStarted(fetchers []FetcherStatus, lastUpdate time.Time) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Only update the status for fetchers that are from the discovery config.
-	if !fetcher.IsFromDiscoveryConfig() {
-		return
+	d.syncResults = make(map[string][]tagSyncResult)
+	for _, fetcher := range fetchers {
+		// Only update the status for fetchers that are from the discovery config.
+		if !fetcher.IsFromDiscoveryConfig() {
+			continue
+		}
+
+		fetcherResult := tagSyncResult{
+			state:        discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
+			lastSyncTime: lastUpdate,
+		}
+
+		dcName := fetcher.DiscoveryConfigName()
+		d.syncResults[dcName] = append(d.syncResults[dcName], fetcherResult)
 	}
-
-	count, statusErr := fetcher.Status()
-	statusAndPushErr := trace.NewAggregate(statusErr, pushErr)
-
-	fetcherResult := tagSyncResult{
-		state:               discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING.String(),
-		lastSyncTime:        lastUpdate,
-		discoveredResources: count,
-	}
-
-	if statusAndPushErr != nil {
-		errorMessage := statusAndPushErr.Error()
-		fetcherResult.errorMessage = &errorMessage
-		fetcherResult.state = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR.String()
-	}
-
-	d.syncResults[fetcher.DiscoveryConfigName()] = append(d.syncResults[fetcher.DiscoveryConfigName()], fetcherResult)
 }
 
+// iterationFinished records the outcome of a sync iteration for the given
+// fetchers, replacing the results recorded when the iteration started. pushErr
+// is the error, if any, from pushing the fetched resources to Access Graph,
+// and so applies to every fetcher in the iteration.
+func (d *tagSyncStatus) iterationFinished(fetchers []FetcherStatus, pushErr error, lastUpdate time.Time) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.syncResults = make(map[string][]tagSyncResult)
+	for _, fetcher := range fetchers {
+		// Only update the status for fetchers that are from the discovery config.
+		if !fetcher.IsFromDiscoveryConfig() {
+			continue
+		}
+
+		count, statusErr := fetcher.Status()
+		statusAndPushErr := trace.NewAggregate(statusErr, pushErr)
+
+		fetcherResult := tagSyncResult{
+			state:               discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING.String(),
+			lastSyncTime:        lastUpdate,
+			discoveredResources: count,
+		}
+
+		if statusAndPushErr != nil {
+			errorMessage := statusAndPushErr.Error()
+			fetcherResult.errorMessage = &errorMessage
+			fetcherResult.state = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR.String()
+		}
+
+		dcName := fetcher.DiscoveryConfigName()
+		d.syncResults[dcName] = append(d.syncResults[dcName], fetcherResult)
+	}
+}
+
+// discoveryConfigs returns the names of the DiscoveryConfigs that the most
+// recent iteration reported on.
 func (d *tagSyncStatus) discoveryConfigs() []string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -178,27 +227,16 @@ func (d *tagSyncStatus) discoveryConfigs() []string {
 	return ret
 }
 
-func (d *tagSyncStatus) syncStarted(fetcher FetcherStatus, lastUpdate time.Time) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	// Only update the status for fetchers that are from the discovery config.
-	if !fetcher.IsFromDiscoveryConfig() {
-		return
-	}
-
-	fetcherResult := tagSyncResult{
-		state:        discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
-		lastSyncTime: lastUpdate,
-	}
-
-	d.syncResults[fetcher.DiscoveryConfigName()] = append(d.syncResults[fetcher.DiscoveryConfigName()], fetcherResult)
-}
-
+// mergeIntoGlobalStatus folds this sync's results for a DiscoveryConfig into
+// the status being assembled for it. A DiscoveryConfig has a single Status, so
+// every source of status adds its own resource counts and error messages to it,
+// and a failure reported by any one of them leaves the DiscoveryConfig in the
+// ERROR state.
 func (d *tagSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	awsStatusFetchers, found := d.syncResults[discoveryConfigName]
+	results, found := d.syncResults[discoveryConfigName]
 	if !found {
 		return existingStatus
 	}
@@ -207,22 +245,22 @@ func (d *tagSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existi
 	if existingStatus.ErrorMessage != nil {
 		statusErrorMessages = append(statusErrorMessages, *existingStatus.ErrorMessage)
 	}
-	for _, fetcher := range awsStatusFetchers {
-		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + fetcher.discoveredResources
+	for _, result := range results {
+		existingStatus.DiscoveredResources += result.discoveredResources
 
 		// Each DiscoveryConfigStatus has a global State and Error Message, but those are produced per Fetcher.
 		// We choose to keep the most informative states by favoring error states/messages.
-		if fetcher.errorMessage != nil {
-			statusErrorMessages = append(statusErrorMessages, *fetcher.errorMessage)
+		if result.errorMessage != nil {
+			statusErrorMessages = append(statusErrorMessages, *result.errorMessage)
 		}
 
 		if existingStatus.State != discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR.String() {
-			existingStatus.State = fetcher.state
+			existingStatus.State = result.state
 		}
 
 		// Keep the earliest sync time.
-		if existingStatus.LastSyncTime.After(fetcher.lastSyncTime) {
-			existingStatus.LastSyncTime = fetcher.lastSyncTime
+		if existingStatus.LastSyncTime.After(result.lastSyncTime) {
+			existingStatus.LastSyncTime = result.lastSyncTime
 		}
 	}
 

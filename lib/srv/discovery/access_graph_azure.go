@@ -64,10 +64,9 @@ func (s *Server) reconcileAccessGraphAzure(
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
-	for _, fetcher := range allFetchers {
-		s.tagSyncStatus.syncStarted(fetcher, s.clock.Now())
-	}
-	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
+	fetcherStatuses := asFetcherStatusSlice(allFetchers)
+	s.tagAzureSyncStatus.iterationStarted(fetcherStatuses, s.clock.Now())
+	for _, discoveryConfigName := range s.tagAzureSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
@@ -114,10 +113,8 @@ func (s *Server) reconcileAccessGraphAzure(
 	upsert, toDel := azuresync.ReconcileResults(currentTAGResources, result)
 	pushErr := azurePush(stream, upsert, toDel)
 
-	for _, fetcher := range allFetchers {
-		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
-	}
-	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
+	s.tagAzureSyncStatus.iterationFinished(fetcherStatuses, pushErr, s.clock.Now())
+	for _, discoveryConfigName := range s.tagAzureSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
