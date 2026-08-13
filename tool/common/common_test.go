@@ -275,6 +275,20 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 		require.Equal(t, "[\"/cluster/node/ssh_server (logins=)\"]", out)
 	})
 
+	t.Run("with a constraint variant this build does not know", func(t *testing.T) {
+		t.Parallel()
+
+		// A newer cluster's constraint variant decodes with nil Details; the
+		// display names its presence instead of rendering the resource as
+		// unconstrained.
+		rid := types.ResourceAccessID{
+			Id:          rids[1].Id,
+			Constraints: &types.ResourceConstraints{Version: types.V1},
+		}
+
+		require.Equal(t, "/cluster/node/ssh_server (unrecognized constraints)", FormatResourceAccessID(rid))
+	})
+
 	t.Run("with empty or nil list", func(t *testing.T) {
 		t.Parallel()
 

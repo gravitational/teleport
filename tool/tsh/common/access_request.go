@@ -883,9 +883,11 @@ func principalHeading(kind string) string {
 // hintConstraintSuffix builds the inline constraint suffix for the create
 // hint, covering every dimension with requestable values. A resource kind
 // whose constraints nothing can enforce yet gets no suffix, keyed off the same
-// map the Auth gate and the client pre-flight use, so a kind gains its hint at
-// the moment it gains a feature ID. Values escape the characters the inline
-// grammar treats specially: "\", ",", and "&".
+// map the client pre-flight uses, so a kind gains its hint at the moment it
+// gains a feature ID. Dimension keys the inline grammar cannot encode (a newer
+// cluster's) are skipped, so the hint never suggests a command this build's
+// own parser would reject. Values escape the characters the inline grammar
+// treats specially: "\", ",", and "&".
 func hintConstraintSuffix(resourceKind string, kinds []string, splits map[string]principalSplit) string {
 	if _, ok := componentfeatures.ConstraintFeatureForKind(resourceKind); !ok {
 		return ""
@@ -893,7 +895,7 @@ func hintConstraintSuffix(resourceKind string, kinds []string, splits map[string
 	var b strings.Builder
 	for _, kind := range kinds {
 		s := splits[kind]
-		if len(s.requestable) == 0 {
+		if len(s.requestable) == 0 || !common.InlineEncodableConstraintKey(kind) {
 			continue
 		}
 		escaped := make([]string, 0, len(s.requestable))

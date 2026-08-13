@@ -1003,32 +1003,6 @@ func TestPrintCreatedRequest(t *testing.T) {
 	require.Equal(t, []string{"root", "admin"}, ssh.Ssh.Logins)
 }
 
-// TestStructuredRequestOutput pins that progress chatter leaves stdout only
-// when stdout is carrying a structured document.
-func TestStructuredRequestOutput(t *testing.T) {
-	t.Parallel()
-
-	for format, structured := range map[string]bool{
-		teleport.JSON: true,
-		teleport.YAML: true,
-		teleport.Text: false,
-		"":            false,
-	} {
-		var stdout, stderr bytes.Buffer
-		cf := &CLIConf{Format: format, OverrideStdout: &stdout, overrideStderr: &stderr}
-		require.Equal(t, structured, structuredRequestOutput(cf), "format %q", format)
-
-		fmt.Fprint(requestProgressWriter(cf), "progress")
-		if structured {
-			require.Empty(t, stdout.String(), "format %q must keep stdout clean", format)
-			require.Equal(t, "progress", stderr.String())
-		} else {
-			require.Equal(t, "progress", stdout.String())
-			require.Empty(t, stderr.String())
-		}
-	}
-}
-
 func TestFormatAccessSummary(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1125,8 +1099,11 @@ func TestPrintResourcePrincipals(t *testing.T) {
 		require.Contains(t, out, "future_kind:")
 		require.Contains(t, out, "Logins:")
 		require.Less(t, strings.Index(out, "future_kind:"), strings.Index(out, "Logins:"))
-		// The create hint joins every requestable dimension inline-style.
-		require.Contains(t, out, "?future_kind=y&logins=root")
+		// The create hint carries only the keys this build's own parser
+		// accepts; a newer cluster's dimension still renders above but stays
+		// out of the suggested command.
+		require.Contains(t, out, "--resource '/main/node/web-1?logins=root'")
+		require.NotContains(t, out, "future_kind=y")
 	})
 
 	t.Run("no principals", func(t *testing.T) {

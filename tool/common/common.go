@@ -267,6 +267,12 @@ func FormatResourceAccessID(rid types.ResourceAccessID) string {
 	if constraints := formatConstraintPairs(rid.GetConstraints()); constraints != "" {
 		return fmt.Sprintf("%s (%s)", resourceIDString, constraints)
 	}
+	if c := rid.GetConstraints(); c != nil && c.GetDetails() == nil {
+		// A constraint variant this build does not know, from a newer cluster:
+		// name its presence rather than displaying the resource as
+		// unconstrained.
+		return fmt.Sprintf("%s (unrecognized constraints)", resourceIDString)
+	}
 	return resourceIDString
 }
 

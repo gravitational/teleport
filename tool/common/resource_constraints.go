@@ -19,7 +19,6 @@
 package common
 
 import (
-	"encoding/json"
 	"io"
 	"os"
 	"regexp"
@@ -47,27 +46,12 @@ var inlineConstraintRe = regexp.MustCompile(`\?[A-Za-z_][A-Za-z0-9_]*=`)
 //  2. inline query-form constraints appended after the ResourceID:
 //     /cluster/node/web-1?logins=root,admin
 //
-// JSON ResourceAccessIDs are not accepted here; they take the dedicated
-// --resource-json flag (ParseResourceJSONValues).
+// JSON is not accepted here; a JSON ResourceAccessIDList goes through
+// --resource-file (ParseResourceAccessIDListFile).
 func ParseResourceValues(values []string) ([]types.ResourceAccessID, error) {
 	out := make([]types.ResourceAccessID, 0, len(values))
 	for _, v := range values {
 		raid, err := parseResourceValue(v)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, raid)
-	}
-	return out, nil
-}
-
-// ParseResourceJSONValues parses --resource-json flag values, each a single
-// JSON ResourceAccessID: the canonical form for automation and the fallback
-// for values the inline form cannot express.
-func ParseResourceJSONValues(values []string) ([]types.ResourceAccessID, error) {
-	out := make([]types.ResourceAccessID, 0, len(values))
-	for _, v := range values {
-		raid, err := parseJSONResource(v)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -115,34 +99,9 @@ func ParseResourceAccessIDListFile(path string, stdin io.Reader) ([]types.Resour
 
 func parseResourceValue(value string) (types.ResourceAccessID, error) {
 	if strings.HasPrefix(strings.TrimSpace(value), "{") {
-		return types.ResourceAccessID{}, trace.BadParameter("--resource does not accept JSON; pass a JSON ResourceAccessID via --resource-json")
+		return types.ResourceAccessID{}, trace.BadParameter("--resource does not accept JSON; pass a JSON ResourceAccessIDList via --resource-file")
 	}
 	return parseInlineResource(value)
-}
-
-func parseJSONResource(value string) (types.ResourceAccessID, error) {
-	var raid types.ResourceAccessID
-	// ResourceConstraints carries a proto oneof and defines its own
-	// MarshalJSON/UnmarshalJSON, so a stdlib Unmarshal into ResourceAccessID
-	// round-trips the nested constraints correctly.
-	if err := json.Unmarshal([]byte(value), &raid); err != nil {
-		return types.ResourceAccessID{}, trace.BadParameter("invalid JSON resource %q: %v", value, err)
-	}
-	if err := raid.Id.CheckAndSetDefaults(); err != nil {
-		return types.ResourceAccessID{}, trace.Wrap(err)
-	}
-	if rc := raid.GetConstraints(); rc != nil {
-		if err := rc.CheckAndSetDefaults(); err != nil {
-			return types.ResourceAccessID{}, trace.Wrap(err)
-		}
-	}
-	if err := validateConstraintKind(raid); err != nil {
-		return types.ResourceAccessID{}, trace.Wrap(err)
-	}
-	if err := validateConstraintWildcards(raid.GetConstraints()); err != nil {
-		return types.ResourceAccessID{}, trace.Wrap(err)
-	}
-	return raid, nil
 }
 
 func parseInlineResource(value string) (types.ResourceAccessID, error) {
@@ -258,33 +217,20 @@ func splitConstraintPairs(suffix string) []string {
 	return append(pairs, suffix[start:])
 }
 
-// wildcardCapableKeys are inline keys whose dimension accepts a "*" value per
-// RFD 228 (db_users and db_names, and later azure_identities and
-// gcp_service_accounts, once their constraint variants are implemented). For
-// a key in this set, "*" must be the key's only value. No currently
-// implemented key is wildcard-capable, so the set is empty.
-var wildcardCapableKeys = map[string]bool{}
-
-// validateWildcardValues enforces RFD 228's wildcard rules for one key's
-// merged values: "*" is rejected outright for keys outside
-// wildcardCapableKeys, and for keys in the set it must stand alone.
+// validateWildcardValues rejects a "*" value for one key's merged values. No
+// implemented key's dimension is wildcard-capable; RFD 228 reserves wildcards
+// for dimensions like db_users and db_names, whose constraint variants add
+// the stand-alone-wildcard rule when they land.
 func validateWildcardValues(key string, vals []string) error {
-	hasWildcard := slices.Contains(vals, types.Wildcard)
-	if !hasWildcard {
-		return nil
-	}
-	if !wildcardCapableKeys[key] {
+	if slices.Contains(vals, types.Wildcard) {
 		return trace.BadParameter("constraint key %q does not accept a wildcard value", key)
-	}
-	if len(vals) > 1 {
-		return trace.BadParameter("a wildcard value for constraint key %q must be its only value", key)
 	}
 	return nil
 }
 
 // validateConstraintWildcards applies the same wildcard rules the inline form
-// enforces to an already built ResourceConstraints, so the JSON --resource and
-// --resource-file paths cannot smuggle in a "*" the inline form would reject.
+// enforces to an already built ResourceConstraints, so the --resource-file
+// path cannot smuggle in a "*" the inline form would reject.
 func validateConstraintWildcards(rc *types.ResourceConstraints) error {
 	if rc == nil {
 		return nil
@@ -315,6 +261,20 @@ var plannedConstraintKeys = map[string]bool{
 	"desktop_logins":       true,
 	"azure_identities":     true,
 	"gcp_service_accounts": true,
+}
+
+// InlineEncodableConstraintKey reports whether buildConstraintsFromSuffix
+// understands the given constraint key, i.e. whether an inline
+// "<key>=<values>" suffix using it parses on this build. Output that a client
+// is expected to feed back into --resource (such as the show-principals
+// create hint) must not emit keys outside this set, which a newer cluster's
+// principal dimensions may otherwise introduce.
+func InlineEncodableConstraintKey(key string) bool {
+	switch key {
+	case "logins", "role_arns":
+		return true
+	}
+	return false
 }
 
 // EscapeConstraintValue escapes the characters the inline constraint grammar

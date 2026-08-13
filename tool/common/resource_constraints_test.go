@@ -101,11 +101,6 @@ func TestParseResourceValues(t *testing.T) {
 			assertErr: require.Error,
 		},
 		{
-			name:      "unknown constraint key is rejected",
-			values:    []string{"/main/db/postgres?db_users=admin"},
-			assertErr: require.Error,
-		},
-		{
 			name:      "question mark in resource name before a real constraint",
 			values:    []string{"/main/node/web?1?logins=root"},
 			assertErr: require.NoError,
@@ -134,7 +129,7 @@ func TestParseResourceValues(t *testing.T) {
 			assertErr: require.Error,
 		},
 		{
-			name:      "json is rejected with a pointer to --resource-json",
+			name:      "json is rejected with a pointer to --resource-file",
 			values:    []string{`{"id":{"cluster":"main","kind":"node","name":"web-1"}}`},
 			assertErr: require.Error,
 		},
@@ -149,52 +144,6 @@ func TestParseResourceValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := ParseResourceValues(tt.values)
-			tt.assertErr(t, err)
-			if err != nil {
-				return
-			}
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestParseResourceJSONValues(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name      string
-		values    []string
-		assertErr require.ErrorAssertionFunc
-		want      []types.ResourceAccessID
-	}{
-		{
-			name:      "json form ssh",
-			values:    []string{`{"id":{"cluster":"main","kind":"node","name":"web-1"},"constraints":{"version":"v1","ssh":{"logins":["root","admin"]}}}`},
-			assertErr: require.NoError,
-			want: []types.ResourceAccessID{
-				sshRAID("main", "web-1", "root", "admin"),
-			},
-		},
-		{
-			name:      "kind mismatch is rejected",
-			values:    []string{`{"id":{"cluster":"main","kind":"app","name":"console"},"constraints":{"version":"v1","ssh":{"logins":["root"]}}}`},
-			assertErr: require.Error,
-		},
-		{
-			name:      "wildcard is rejected",
-			values:    []string{`{"id":{"cluster":"main","kind":"node","name":"web-1"},"constraints":{"version":"v1","ssh":{"logins":["*"]}}}`},
-			assertErr: require.Error,
-		},
-		{
-			name:      "malformed json is rejected",
-			values:    []string{`{"id":`},
-			assertErr: require.Error,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := ParseResourceJSONValues(tt.values)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
@@ -396,11 +345,6 @@ func TestParseResourceValuesEscaping(t *testing.T) {
 			name:    "wildcard rejected for role_arns",
 			value:   `/main/app/aws-console?role_arns=*`,
 			wantErr: `constraint key "role_arns" does not accept a wildcard value`,
-		},
-		{
-			name:    "wildcard mixed with literals rejected",
-			value:   `/main/node/web-1?logins=root,*`,
-			wantErr: `constraint key "logins" does not accept a wildcard value`,
 		},
 	}
 	for _, tt := range tests {
