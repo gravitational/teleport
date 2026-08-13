@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
+import Logging
 
 struct EnrollMobileDeviceDeepLink: Equatable {
 	var hostname: String
@@ -45,15 +46,14 @@ extension EnrollMobileDeviceDeepLink {
 	}
 }
 
-// MARK: - CustomDebugStringConvertible
+// MARK: - Logging
 
-extension EnrollMobileDeviceDeepLink: CustomDebugStringConvertible {
-	var debugDescription: String {
-		var components = URLComponents()
-		components.scheme = "https"
-		components.host = hostname
-		components.port = port
-		components.queryItems = [URLQueryItem(name: Self.enrollPairingTokenKey, value: enrollPairingToken)]
-		return components.debugDescription
+extension EnrollMobileDeviceDeepLink {
+	var logMetadata: Logger.Metadata {
+		[
+			"deepLink.type": "enrollMobileDevice",
+			"deepLink.hostname": "\(hostname)",
+			"deepLink.port": "\(port)",
+		]
 	}
 }

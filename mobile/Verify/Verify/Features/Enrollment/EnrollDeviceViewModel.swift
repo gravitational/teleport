@@ -16,15 +16,16 @@
 
 import Core
 import Dependencies
+import Foundation
+import Logging
 import Observation
-import OSLog
 import SQLiteData
 import SwiftNavigation
 
 @Observable
 @MainActor
 class EnrollDeviceViewModel {
-	static let logger = Logger.forType(EnrollDeviceViewModel.self)
+	private let logger = Logger.forType(EnrollDeviceViewModel.self)
 
 	var loadingState: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
@@ -84,12 +85,14 @@ class EnrollDeviceViewModel {
 				.fetchOne(db)
 			}
 
-			Self.logger.info("Successfully enrolled \(cluster.debugDescription)")
+			logger.info("Successfully enrolled cluster", metadata: cluster?.logMetadata)
 			delegate?.enrollDeviceViewModelDidEnrollCluster(self)
 
 			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
 		} catch {
-			Self.logger.error("Failed to request enrollment token: \(error)")
+			logger.error("Failed to request enrollment token", metadata: [
+				"error": .string(String(describing: error)),
+			])
 			loadingState = .failure(error)
 		}
 	}

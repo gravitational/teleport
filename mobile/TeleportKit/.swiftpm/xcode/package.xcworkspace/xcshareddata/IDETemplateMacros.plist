@@ -1,5 +1,11 @@
-// Teleport
-// Copyright (C) 2026 Gravitational, Inc.
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+   <key>FILEHEADER</key>
+   <string> Teleport
+// Copyright (C) ___YEAR___ Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -12,18 +18,6 @@
 // GNU Affero General Public License for more details.
 //
 // You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/
-
-import Logging
-
-extension Logger {
-	/// Creates a logger for a specific type.
-	static func forType<T>(_ type: T.Type) -> Logger {
-		Logger(label: String(describing: type))
-	}
-
-	/// Creates a logger for the file in which it is declared.
-	static func forFile(_ fileID: StaticString = #fileID) -> Logger {
-		Logger(label: "\(fileID)")
-	}
-}
+// along with this program.  If not, see http://www.gnu.org/licenses/</string>
+</dict>
+</plist>

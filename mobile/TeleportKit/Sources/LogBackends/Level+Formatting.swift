@@ -16,14 +16,29 @@
 
 import Logging
 
-extension Logger {
-	/// Creates a logger for a specific type.
-	static func forType<T>(_ type: T.Type) -> Logger {
-		Logger(label: String(describing: type))
+extension Logger.Level {
+	/// Formats the log level in a way that allows it to be easily distinguished in a console or a log file, using both
+	/// colors and text.
+	var formatted: String {
+		"\(indicator) [\(description.uppercased())]"
 	}
 
-	/// Creates a logger for the file in which it is declared.
-	static func forFile(_ fileID: StaticString = #fileID) -> Logger {
-		Logger(label: "\(fileID)")
+	private static let maxLevelStringLength = Logger.Level.allCases
+		.map(\.description.count)
+		.max() ?? 10 // Some reasonable default
+
+	private var indicator: String {
+		switch self {
+			case .trace:
+				"⚪️"
+			case .debug:
+				"🔵"
+			case .info, .notice:
+				"🟢"
+			case .warning:
+				"🟡"
+			case .error, .critical:
+				"🔴"
+		}
 	}
 }

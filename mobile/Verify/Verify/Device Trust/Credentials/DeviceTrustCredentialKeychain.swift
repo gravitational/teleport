@@ -15,7 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
-import OSLog
+import Logging
 import Security
 
 /// The versioned value stored as one Keychain item.
@@ -94,7 +94,9 @@ struct DeviceTrustCredentialKeychain {
 				throw DeviceTrustCredentialError.notFound
 
 			default:
-				logger.error("Could not load Device Trust credential from Keychain: \(status)")
+				logger.error("Could not load Device Trust credential from Keychain", metadata: [
+					"status": "\(status)",
+				])
 				throw DeviceTrustCredentialError.keychain(status: status)
 		}
 	}
@@ -121,7 +123,9 @@ struct DeviceTrustCredentialKeychain {
 
 		let status = SecItemAdd(attributes as CFDictionary, nil)
 		guard status == errSecSuccess else {
-			logger.error("Could not store Device Trust credential in Keychain: \(status)")
+			logger.error("Could not store Device Trust credential in Keychain", metadata: [
+				"status": "\(status)",
+			])
 			throw DeviceTrustCredentialError.keychain(status: status)
 		}
 	}
@@ -135,7 +139,9 @@ struct DeviceTrustCredentialKeychain {
 					return
 
 				default:
-					logger.error("Could not delete Device Trust credential from Keychain: \(status)")
+					logger.error("Could not delete Device Trust credential from Keychain", metadata: [
+						"status": "\(status)",
+					])
 					throw DeviceTrustCredentialError.keychain(status: status)
 			}
 		}
