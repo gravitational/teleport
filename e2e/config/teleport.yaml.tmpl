@@ -39,6 +39,12 @@ kubernetes_service:
 
 proxy_service:
   enabled: "yes"
+  # The web API's rate limiter buckets by client IP, so without this the whole run shares one bucket.
+  trust_x_forwarded_for: true
+  # The tests claim IPv6 addresses, and the proxy signs a PROXY header pairing that source with the destination
+  # of the connection it arrived on. That destination is whatever `localhost` resolves to, which is ::1 on some
+  # machines and 127.0.0.1 in CI containers. Downgrading covers the IPv4 case; signing would reject it outright.
+  proxy_protocol_allow_downgrade: true
   public_addr: localhost:{{ .ProxyPort }}
   acme: {}
   web_listen_addr: 0.0.0.0:{{ .ProxyPort }}

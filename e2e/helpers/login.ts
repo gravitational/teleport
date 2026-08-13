@@ -122,15 +122,23 @@ interface LoginFinishResponse {
 export async function directLogin(
   startUrl: string,
   username: string,
-  password: string
+  password: string,
+  clientIp?: string
 ): Promise<StorageState> {
   const url = new URL(startUrl);
+
+  // Claims this user's own bucket in the proxy's rate limiter, so bootstrapping N users doesn't drain the
+  // budget the tests then need.
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...(clientIp ? { 'x-forwarded-for': clientIp } : {}),
+  };
 
   const beginRes = await undiciFetch(
     new URL('/v1/webapi/mfa/login/begin', url).toString(),
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify({
         passwordless: false,
         user: username,
@@ -163,7 +171,7 @@ export async function directLogin(
     new URL('/v1/webapi/mfa/login/finishsession', url).toString(),
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify({
         user: username,
         webauthnAssertionResponse: assertion,

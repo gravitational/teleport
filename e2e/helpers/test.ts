@@ -20,9 +20,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { authStateFor } from './authState';
 import { canonicalUserKey } from './canonicalKey';
+import { testClientIp } from './clientIp';
 import { test as base } from './fixtures';
-import type { StorageState } from './login';
 import { PlayerPage } from './pages/Player';
 import { RecordingsPage } from './pages/Recordings';
 import { RolesPage } from './pages/Roles';
@@ -104,6 +105,20 @@ export interface LoginAsResult {
 }
 
 export const test = base.extend<E2EFixtures>({
+  extraHTTPHeaders: async ({ extraHTTPHeaders }, use, testInfo) => {
+    // Only the runner's own cluster is configured to trust X-Forwarded-For. Tagging a cluster we don't own
+    // (--teleport-url) would corrupt its client IPs, and E2E_USERS_FILE is set only when the runner
+    // bootstrapped this instance.
+    if (!process.env.E2E_USERS_FILE) {
+      await use(extraHTTPHeaders);
+      return;
+    }
+
+    await use({
+      ...extraHTTPHeaders,
+      'X-Forwarded-For': testClientIp(testInfo.testId),
+    });
+  },
   recordings: [[], { option: true }],
   user: [undefined as unknown as UserDefinition, { option: true }],
   users: [[], { option: true }],
@@ -140,8 +155,6 @@ export const test = base.extend<E2EFixtures>({
       );
     }
 
-    const browser = testInfo.project.name.split(':')[0];
-
     await use(async (index: number): Promise<LoginAsResult> => {
       const definition = users[index];
       if (!definition) {
@@ -160,9 +173,7 @@ export const test = base.extend<E2EFixtures>({
         );
       }
 
-      const state: StorageState = JSON.parse(
-        readFileSync(join(authDir, `${browser}-${name}.json`), 'utf-8')
-      );
+      const state = await authStateFor(name);
 
       const ctx = page.context();
       await ctx.clearCookies();
@@ -214,8 +225,8 @@ export const test = base.extend<E2EFixtures>({
   },
   storageState: async ({ username }, use, testInfo) => {
     // Connect tests drive login through the Electron app, and unauthenticated
-    // tests intentionally start without a session, so neither has a storage
-    // state file to load even when the test declares a user.
+    // tests intentionally start without a session, so neither needs a session
+    // minted even when the test declares a user.
     if (
       !username ||
       testInfo.project.name === 'connect' ||
@@ -225,9 +236,7 @@ export const test = base.extend<E2EFixtures>({
       return;
     }
 
-    const browser = testInfo.project.name.split(':')[0];
-
-    await use(join(authDir, `${browser}-${username}.json`));
+    await use(await authStateFor(username));
   },
   unifiedResourcesPage: async ({ page }, use) => {
     await use(new UnifiedResourcesPage(page));
