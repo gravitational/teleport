@@ -234,8 +234,6 @@ func TestRun_AcksDeliveredEvents(t *testing.T) {
 			runCtx, cancel := context.WithCancel(ctx)
 			t.Cleanup(cancel)
 
-			// Ack only the batch holding event 0. The batch holding event 1
-			// should be retried.
 			var calls atomic.Int32
 			handler := func(_ context.Context, items []Item) []Item {
 				if calls.Add(1) == 1 {

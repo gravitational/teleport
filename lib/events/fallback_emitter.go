@@ -71,6 +71,18 @@ type FallbackEmitterConfig struct {
 	AuditQueueCfg auditqueue.Config
 	// AuditQueueBackends is the ordered list of queue backends to try.
 	AuditQueueBackends []auditqueue.Kind
+	// Sealer is used to encrypt audit event batches before writing them to
+	// disk. The FallbackEmitter owns the Sealer and closes it.
+	Sealer auditqueue.Sealer
+	// Opener decrypts sealed batches at delivery time so their events can be
+	// emitted to Primary. The auth server holds its own decryption keys, which
+	// is why local decryption is possible here but not on agents.
+	Opener SealedBatchOpener
+}
+
+// SealedBatchOpener decrypts sealed audit event batches.
+type SealedBatchOpener interface {
+	DecryptBatch(ctx context.Context, payload []byte) ([]apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -94,6 +106,7 @@ type FallbackEmitter struct {
 	cancel          context.CancelFunc
 	deliveryTimeout time.Duration
 	wg              sync.WaitGroup
+	sealedWarnOnce  sync.Once
 }
 
 // NewFallbackEmitter returns a FallbackEmitter wrapping cfg.Primary.
@@ -108,6 +121,7 @@ func NewFallbackEmitter(cfg FallbackEmitterConfig) (*FallbackEmitter, error) {
 	var queue auditqueue.Queue
 	if cfg.EnableAuditQueue {
 		var err error
+		cfg.AuditQueueCfg.Sealer = cfg.Sealer
 		queue, err = makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -186,6 +200,8 @@ func (f *FallbackEmitter) fallbackToQueue(ctx context.Context, primaryErr error,
 // deliver is the queue.Run handler. It emits queued batches to the primary
 // backend and returns the subset that were fully delivered.
 func (f *FallbackEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
+	items, sealedItems := splitSealedItems(items)
+
 	var delivered []auditqueue.Item
 
 	ctx, cancel := context.WithTimeout(ctx, f.deliveryTimeout)
@@ -195,32 +211,68 @@ func (f *FallbackEmitter) deliver(ctx context.Context, items []auditqueue.Item) 
 		if ctx.Err() != nil {
 			return delivered
 		}
-		batchDelivered := true
-		for _, event := range item.Events {
-			if ctx.Err() != nil {
-				return delivered
-			}
-			if err := f.cfg.Primary.EmitAuditEvent(ctx, event); err != nil {
-				slog.ErrorContext(ctx, "Failed to re-emit queued audit event.", "error", err)
-				batchDelivered = false
-				break
-			}
+		if f.emitBatch(ctx, item.Events) {
+			delivered = append(delivered, item)
 		}
-		if batchDelivered {
+	}
+	return append(delivered, f.deliverSealed(ctx, sealedItems)...)
+}
+
+func (f *FallbackEmitter) deliverSealed(ctx context.Context, sealed []auditqueue.Item) []auditqueue.Item {
+	if len(sealed) == 0 {
+		return nil
+	}
+	if f.cfg.Opener == nil {
+		f.sealedWarnOnce.Do(func() {
+			slog.WarnContext(ctx,
+				"Sealed audit event batches cannot be delivered because no opener is configured. They will be retried.",
+			)
+		})
+		return nil
+	}
+
+	var delivered []auditqueue.Item
+	for _, item := range sealed {
+		if ctx.Err() != nil {
+			return delivered
+		}
+		batch, err := f.cfg.Opener.DecryptBatch(ctx, item.Payload)
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to decrypt sealed audit event batch from the fallback queue.", "error", err)
+			continue
+		}
+		if f.emitBatch(ctx, batch) {
 			delivered = append(delivered, item)
 		}
 	}
 	return delivered
 }
 
+func (f *FallbackEmitter) emitBatch(ctx context.Context, batch []apievents.AuditEvent) bool {
+	for _, event := range batch {
+		if ctx.Err() != nil {
+			return false
+		}
+		if err := f.cfg.Primary.EmitAuditEvent(ctx, event); err != nil {
+			slog.ErrorContext(ctx, "Failed to re-emit queued audit event.", "error", err)
+			return false
+		}
+	}
+	return true
+}
+
 // Close shuts down the background consumer and releases the queue.
 func (f *FallbackEmitter) Close() error {
 	f.cancel()
 	f.wg.Wait()
+	var errs []error
 	if f.queue != nil {
-		return trace.Wrap(f.queue.Close())
+		errs = append(errs, f.queue.Close())
 	}
-	return nil
+	if f.cfg.Sealer != nil {
+		errs = append(errs, f.cfg.Sealer.Close())
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // Shutdown makes a best effort attempt to flush pending audit events to the

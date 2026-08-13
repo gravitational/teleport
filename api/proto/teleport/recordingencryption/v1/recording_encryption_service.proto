@@ -31,6 +31,10 @@ service RecordingEncryptionService {
   // CompleteUploadRequest marks a multipart upload as complete.
   rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
 
+  // SubmitAuditQueueBatch delivers sealed batches of audit events from an
+  // agent's local audit queue.
+  rpc SubmitAuditQueueBatch(SubmitAuditQueueBatchRequest) returns (SubmitAuditQueueBatchResponse);
+
   // RotateKey rotates the key pair used for encrypting session recording data.
   rpc RotateKey(RotateKeyRequest) returns (RotateKeyResponse);
   // GetRotationState returns whether or not a rotation is in progress.
@@ -100,6 +104,35 @@ message CompleteUploadRequest {
 
 // The body of a CompleteUpload request.
 message CompleteUploadResponse {}
+
+// The payload encoding of a sealed audit queue batch.
+enum AuditQueueBatchFormat {
+  // An unspecified payload format. Requests with this format are rejected.
+  AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED = 0;
+  // An age-encrypted, marshaled batch of audit events.
+  AUDIT_QUEUE_BATCH_FORMAT_AGE_V1 = 1;
+}
+
+// One sealed audit event batch from an agent's local audit queue.
+message AuditQueueSealedBatch {
+  // The sealed batch payload. The plaintext is a marshaled batch of audit
+  // events; only the auth server holds the keys to decrypt it.
+  bytes payload = 1;
+  // The payload encoding.
+  AuditQueueBatchFormat format = 2;
+  // The number of audit events in the batch, reported by the agent for
+  // observability before decryption.
+  int64 event_count = 3;
+}
+
+// The request to deliver sealed audit event batches.
+message SubmitAuditQueueBatchRequest {
+  // The sealed batches to deliver.
+  repeated AuditQueueSealedBatch batches = 1;
+}
+
+// The return value of a SubmitAuditQueueBatch request.
+message SubmitAuditQueueBatchResponse {}
 
 // The body of a RotateKey request.
 message RotateKeyRequest {}

@@ -27,8 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+var _ events.SealedBatchSubmitter = (*authclient.Client)(nil)
 
 type fakeSRCWatcher struct {
 	events chan types.Event

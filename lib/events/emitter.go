@@ -25,14 +25,17 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/modules"
@@ -44,7 +47,9 @@ const (
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
 	// auditQueueDir is the directory where the audit queue resides.
-	auditQueueDir = "audit-queue"
+	auditQueueDir           = "audit-queue"
+	sealedSubmitConcurrency = 4 // Empirical testing found diminishing returns above 4.
+	sealedRowsPerRequest    = 8 // Empirical testing found diminishing returns above 8.
 )
 
 // AsyncEmitterConfig provides parameters for emitter
@@ -65,6 +70,15 @@ type AsyncEmitterConfig struct {
 	AuditQueueBackends []auditqueue.Kind
 	// Sealer is used to encrypt audit log events before writing them to disk.
 	Sealer auditqueue.Sealer
+	// SealedSubmitter delivers sealed audit event batches to the auth server.
+	SealedSubmitter SealedBatchSubmitter
+}
+
+// SealedBatchSubmitter delivers sealed audit event batches to the auth
+// server. A nil error means the whole batch was accepted. An error means the
+// whole batch must be retried.
+type SealedBatchSubmitter interface {
+	SubmitAuditQueueBatch(ctx context.Context, req *recordingencryptionv1pb.SubmitAuditQueueBatchRequest) error
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -173,6 +187,7 @@ type AsyncEmitter struct {
 	queue           auditqueue.Queue
 	deliveryTimeout time.Duration
 	wg              sync.WaitGroup
+	sealedWarnOnce  sync.Once
 }
 
 // Close closes emitter and cancels all in flight events.
@@ -231,11 +246,25 @@ func (a *AsyncEmitter) forward() {
 	}
 }
 
+func splitSealedItems(items []auditqueue.Item) (plain, sealed []auditqueue.Item) {
+	for _, item := range items {
+		if item.Sealed() {
+			sealed = append(sealed, item)
+			continue
+		}
+		plain = append(plain, item)
+	}
+	return plain, sealed
+}
+
 // deliver is the handler function passed to queue.Run. It must return a list of
 // the items it was able to successfully deliver.
 func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
 	ctx, cancel := context.WithTimeout(ctx, a.deliveryTimeout)
 	defer cancel()
+
+	items, sealedItems := splitSealedItems(items)
+	sealedDelivered := a.deliverSealed(ctx, sealedItems)
 
 	batchEmitter, _ := a.cfg.Inner.(apievents.BatchEmitter)
 
@@ -246,10 +275,10 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 		}
 		err := batchEmitter.EmitAuditEvents(ctx, events)
 		if err == nil {
-			return items
+			return append(items, sealedDelivered...)
 		}
 		if ctx.Err() != nil {
-			return nil
+			return sealedDelivered
 		}
 		slog.WarnContext(ctx, "Failed to emit audit events as a single request, falling back to per-batch delivery.", "error", err)
 	}
@@ -276,7 +305,96 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 			"error", firstErr,
 		)
 	}
-	return successfullyDelivered
+	return append(successfullyDelivered, sealedDelivered...)
+}
+
+func (a *AsyncEmitter) deliverSealed(ctx context.Context, sealed []auditqueue.Item) []auditqueue.Item {
+	if len(sealed) == 0 {
+		return nil
+	}
+	if a.cfg.SealedSubmitter == nil {
+		a.sealedWarnOnce.Do(func() {
+			slog.WarnContext(ctx,
+				"Sealed audit event batches cannot be delivered because no sealed batch submitter is configured. They will be retried.",
+			)
+		})
+		return nil
+	}
+
+	var mu sync.Mutex
+	var delivered []auditqueue.Item
+	var failed int
+	var firstErr error
+	var g errgroup.Group
+	g.SetLimit(sealedSubmitConcurrency)
+	for chunk := range slices.Chunk(sealed, sealedRowsPerRequest) {
+		if ctx.Err() != nil {
+			break
+		}
+		g.Go(func() error {
+			items, chunkFailed, chunkErr := a.submitSealedChunk(ctx, chunk)
+			mu.Lock()
+			defer mu.Unlock()
+			delivered = append(delivered, items...)
+			failed += chunkFailed
+			if firstErr == nil {
+				firstErr = chunkErr
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+	if failed > 0 && ctx.Err() == nil {
+		slog.ErrorContext(ctx, "Failed to submit sealed audit event batches.",
+			"count", failed,
+			"error", firstErr,
+		)
+	}
+	return delivered
+}
+
+func (a *AsyncEmitter) submitSealedChunk(ctx context.Context, chunk []auditqueue.Item) (delivered []auditqueue.Item, failed int, firstErr error) {
+	items := make([]auditqueue.Item, 0, len(chunk))
+	batches := make([]*recordingencryptionv1pb.AuditQueueSealedBatch, 0, len(chunk))
+	for _, item := range chunk {
+		format, ok := sealedWireFormat(item.Format)
+		if !ok {
+			failed++
+			if firstErr == nil {
+				firstErr = trace.BadParameter("sealed batch has unknown payload format %d", item.Format)
+			}
+			continue
+		}
+		items = append(items, item)
+		batches = append(batches, recordingencryptionv1pb.AuditQueueSealedBatch_builder{
+			Payload:    item.Payload,
+			Format:     format,
+			EventCount: int64(item.EventCount),
+		}.Build())
+	}
+	if len(batches) == 0 {
+		return nil, failed, firstErr
+	}
+	req := recordingencryptionv1pb.SubmitAuditQueueBatchRequest_builder{
+		Batches: batches,
+	}.Build()
+	if err := a.cfg.SealedSubmitter.SubmitAuditQueueBatch(ctx, req); err != nil {
+		failed += len(items)
+		if firstErr == nil {
+			firstErr = err
+		}
+		return nil, failed, firstErr
+	}
+	return items, failed, firstErr
+}
+
+func sealedWireFormat(format int) (recordingencryptionv1pb.AuditQueueBatchFormat, bool) {
+	switch format {
+	case auditqueue.FormatAgeV1:
+		return recordingencryptionv1pb.AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_AGE_V1, true
+	default:
+		return recordingencryptionv1pb.AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED, false
+	}
 }
 
 func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.BatchEmitter, item auditqueue.Item) error {

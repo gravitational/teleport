@@ -6651,6 +6651,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
 		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
 		OnUploadComplete:          cfg.AuthServer.OnUploadComplete,
+		KeyUnwrapper:              cfg.AuthServer.Services,
+		Emitter:                   cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -993,6 +993,13 @@ func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.Reco
 	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
 }
 
+// SubmitAuditQueueBatch delivers one sealed audit event batch to the auth
+// server.
+func (c *Client) SubmitAuditQueueBatch(ctx context.Context, req *recordingencryptionv1pb.SubmitAuditQueueBatchRequest) error {
+	_, err := c.RecordingEncryptionServiceClient().SubmitAuditQueueBatch(ctx, req)
+	return trace.Wrap(err)
+}
+
 // DelegationSessionServiceClient returns a client for the delegation session
 // service.
 func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
