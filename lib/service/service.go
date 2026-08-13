@@ -368,6 +368,11 @@ const (
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
 
+	// TeleportIdleEvent is emitted whenever a service has no work to perform.
+	// This could be the case of all dynamic resoruces being deleted for example,
+	// In which case the component should report as healthy/ready.
+	TeleportIdleEvent = "TeleportIdleEvent"
+
 	// TeleportStartingEvent is emitted when a service starts but is not ready yet.
 	// This helps with tracking that a service is expected to report ready.
 	// Without this Teleport will report ready as soon as the first service
@@ -836,6 +841,12 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 		} else {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
+	}
+}
+
+func (process *TeleportProcess) OnServiceIdle(component string) func() {
+	return func() {
+		process.BroadcastEvent(Event{Name: TeleportIdleEvent, Payload: component})
 	}
 }
 
@@ -7302,6 +7313,7 @@ func (process *TeleportProcess) initApps() {
 			CloudLabels:                 process.cloudLabels,
 			ResourceMatchers:            process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:                 process.OnHeartbeat(teleport.ComponentApp),
+			OnIdle:                      process.OnServiceIdle(teleport.ComponentApp),
 			ConnectedProxyGetter:        proxyGetter,
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,

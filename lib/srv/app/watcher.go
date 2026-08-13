@@ -62,6 +62,12 @@ func (s *Server) startReconciler(ctx context.Context) error {
 						s.c.OnReconcile(s.getApps())
 					}
 				}
+
+				// If post reconcilation there are no apps remaining, signal Idle
+				if s.c.OnIdle != nil && s.getAppsCount() == 0 {
+					s.c.OnIdle()
+				}
+
 			case <-ctx.Done():
 				s.log.DebugContext(ctx, "Reconciler done.")
 				return

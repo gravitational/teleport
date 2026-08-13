@@ -101,6 +101,7 @@ func TestWatcherDeleteLastDynamicAppAfterHeartbeatFailure(t *testing.T) {
 
 	reconcileCh := make(chan types.Apps, 8)
 	heartbeatCh := make(chan error, 8)
+	idleCh := make(chan struct{}, 8)
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		DisableDefaultApps: true,
 		InventoryHandle:    newFailingInventoryHandle(),
@@ -115,10 +116,14 @@ func TestWatcherDeleteLastDynamicAppAfterHeartbeatFailure(t *testing.T) {
 		OnHeartbeat: func(err error) {
 			heartbeatCh <- err
 		},
+		OnIdle: func() {
+			idleCh <- struct{}{}
+		},
 	})
 
 	requireReconciledAppNames(t, reconcileCh)
 	requireHeartbeatResult(t, heartbeatCh, false)
+	drainIdleEvents(idleCh)
 
 	app, err := makeDynamicApp("app1", map[string]string{"group": "a"})
 	require.NoError(t, err)
@@ -133,7 +138,7 @@ func TestWatcherDeleteLastDynamicAppAfterHeartbeatFailure(t *testing.T) {
 		appServers, err := s.authServer.AuthServer.GetApplicationServers(ctx, defaults.Namespace)
 		return err == nil && len(appServers) == 0
 	}, 10*time.Second, 100*time.Millisecond, "waiting for dynamic app heartbeat record to be absent")
-	requireHeartbeatResult(t, heartbeatCh, false)
+	requireIdleEvent(t, idleCh)
 }
 
 // TestWatcher verifies that app agent properly detects and applies
@@ -386,6 +391,26 @@ func drainHeartbeatResults(heartbeatCh <-chan error) {
 	for {
 		select {
 		case <-heartbeatCh:
+		default:
+			return
+		}
+	}
+}
+
+func requireIdleEvent(t *testing.T, idleCh <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-idleCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for app service idle event")
+	}
+}
+
+func drainIdleEvents(idleCh <-chan struct{}) {
+	for {
+		select {
+		case <-idleCh:
 		default:
 			return
 		}

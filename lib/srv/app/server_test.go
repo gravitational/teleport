@@ -146,6 +146,8 @@ type suiteConfig struct {
 	OnReconcile func(types.Apps)
 	// OnHeartbeat receives app resource heartbeat results.
 	OnHeartbeat func(error)
+	// OnIdle is called when app reconciliation leaves no proxied apps.
+	OnIdle func()
 	// InventoryHandle is used to send app heartbeats.
 	InventoryHandle inventory.DownstreamHandle
 	// Apps are the apps to configure.
@@ -453,6 +455,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		GetRotation:          testRotationGetter,
 		Apps:                 apps,
 		OnHeartbeat:          onHeartbeat,
+		OnIdle:               config.OnIdle,
 		ResourceMatchers:     config.ResourceMatchers,
 		OnReconcile:          config.OnReconcile,
 		CloudLabels:          config.CloudImporter,

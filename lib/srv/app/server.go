@@ -86,6 +86,8 @@ type Config struct {
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 
+	OnIdle func()
+
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 
@@ -478,6 +480,12 @@ func (s *Server) getApps() (apps types.Apps) {
 		apps = append(apps, app)
 	}
 	return apps
+}
+
+func (s *Server) getAppsCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.apps)
 }
 
 // Start starts proxying all registered apps.

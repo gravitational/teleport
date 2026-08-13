@@ -133,6 +133,15 @@ func (f *processState) update(now time.Time, event, component string) updateResu
 				return updateRecovered
 			}
 		}
+
+	case TeleportIdleEvent:
+		switch s.state {
+		case stateDegraded, stateRecovering:
+			// Idle event means we ignore the recovery time as all work
+			// should have been cancelled.
+			s.state = stateOK
+			return updateRecovered
+		}
 	}
 	return 0
 }

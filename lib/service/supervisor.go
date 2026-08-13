@@ -465,7 +465,7 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 		} else {
 			s.signalExit()
 		}
-	case TeleportDegradedEvent, TeleportOKEvent, TeleportStartingEvent:
+	case TeleportDegradedEvent, TeleportOKEvent, TeleportStartingEvent, TeleportIdleEvent:
 		componentName, ok := event.Payload.(string)
 		if !ok {
 			s.log.ErrorContext(s.closeContext, "Received event broadcast without component name, this is a bug!", "event", event.Name)
