@@ -25,6 +25,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { getPlatform, Platform } from 'design/platform';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
@@ -38,9 +39,6 @@ import useTeleport from 'teleport/useTeleport';
  */
 const LOCAL_PROXY_PORT = '3000';
 const localProxyURL = `http://127.0.0.1:${LOCAL_PROXY_PORT}`;
-
-const apiKeyComment =
-  'Any non-empty value works; Teleport swaps in the real key.';
 
 type EnvLine = { text: string; comment?: string };
 
@@ -75,8 +73,15 @@ type ProviderSpec = {
  */
 function getProviderSpec(
   format: LLMFormat,
-  provider: LLMProvider | undefined
+  provider: LLMProvider | undefined,
+  platform: Platform
 ): ProviderSpec {
+  // Windows shells (PowerShell, cmd) don't support `export`.
+  const exportEnv = (name: string, value: string) =>
+    platform === Platform.Windows
+      ? `$env:${name} = "${value}"`
+      : `export ${name}=${value}`;
+
   if (format === 'openai') {
     // A Bedrock-backed endpoint needs Codex's amazon-bedrock model provider:
     // its plain OpenAI provider sends a payload Bedrock rejects. That provider
@@ -99,8 +104,8 @@ function getProviderSpec(
       name: 'OpenAI',
       clientLabel: 'OpenAI client',
       envLines: [
-        { text: `export OPENAI_BASE_URL=${localProxyURL}/v1` },
-        { text: 'export OPENAI_API_KEY=teleport', comment: apiKeyComment },
+        { text: exportEnv('OPENAI_BASE_URL', `${localProxyURL}/v1`) },
+        { text: exportEnv('OPENAI_API_KEY', 'teleport') },
       ],
       runTitle: 'Start Codex.',
       runNote:
@@ -110,14 +115,19 @@ function getProviderSpec(
   }
 
   const envLines: EnvLine[] = [
-    { text: `export ANTHROPIC_BASE_URL=${localProxyURL}` },
-    { text: 'export ANTHROPIC_API_KEY=teleport', comment: apiKeyComment },
+    { text: exportEnv('ANTHROPIC_BASE_URL', localProxyURL) },
+    { text: exportEnv('ANTHROPIC_API_KEY', 'teleport') },
   ];
   if (provider === 'bedrock') {
-    envLines.push({
-      text: 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1',
-      comment: 'Required when the endpoint is served by Amazon Bedrock.',
-    });
+    envLines.push(
+      {
+        text: exportEnv('CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS', '1'),
+        comment: 'Required when the endpoint is served by Amazon Bedrock.',
+      },
+      { text: exportEnv('CLAUDE_CODE_USE_MANTLE', '1') },
+      { text: exportEnv('CLAUDE_CODE_SKIP_MANTLE_AUTH', '1') },
+      { text: exportEnv('ANTHROPIC_BEDROCK_MANTLE_BASE_URL', localProxyURL) }
+    );
   }
   return {
     name: 'Anthropic',
@@ -136,7 +146,7 @@ export function LLMAppConnectDialog(props: { app: App; onClose: () => void }) {
   const accessRequestId = ctx.storeUser.getAccessRequestId();
 
   const format: LLMFormat = app.llmFormat === 'openai' ? 'openai' : 'anthropic';
-  const spec = getProviderSpec(format, app.llmProvider);
+  const spec = getProviderSpec(format, app.llmProvider, getPlatform());
 
   let stepNumber = 1;
 

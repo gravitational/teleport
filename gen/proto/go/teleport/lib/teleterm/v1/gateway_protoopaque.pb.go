@@ -213,7 +213,7 @@ type Gateway_builder struct {
 	// local_port is the gateway address on localhost
 	LocalPort string
 	// protocol is the protocol used by the gateway. For databases, it matches the type of the
-	// database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+	// database that the gateway targets. For apps, it's one of "HTTP", "TCP", "MCP", or "LLM".
 	Protocol string
 	// target_subresource_name points at a subresource of the remote resource, for example a
 	// database name on a database server or a target port of a multi-port TCP app.

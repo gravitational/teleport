@@ -95,6 +95,12 @@ message App {
   // other involved components (Auth, Proxy). Used to determine if features like resource
   // constraints are available.
   repeated int32 supported_feature_ids = 15;
+  // llm_format is the inference API format of an LLM app, e.g. "anthropic" or
+  // "openai". Empty for non-LLM apps.
+  string llm_format = 16;
+  // llm_provider is the inference provider serving an LLM app, e.g.
+  // "anthropic", "openai" or "bedrock". Empty for non-LLM apps.
+  string llm_provider = 17;
 }
 
 // AwsRole describes AWS IAM role.

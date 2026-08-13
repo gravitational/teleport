@@ -113,6 +113,14 @@ export interface DocumentGateway extends DocumentBase {
    */
   targetProtocol?: string;
   /**
+   * llmFormat and llmProvider carry the LLM details of the proxied app when the document was
+   * created from a view that had the app resource at hand. When absent for an LLM gateway (e.g.
+   * the document was recreated from the connection list), the gateway view fetches the app
+   * instead.
+   */
+  llmFormat?: string;
+  llmProvider?: string;
+  /**
    * autoUserProvisioning contains auto-user provisioning information for this database gateway.
    * Its presence indicates that auto-user provisioning is enabled.
    */
@@ -337,6 +345,8 @@ export type CreateGatewayDocumentOpts = {
   port?: string;
   origin: DocumentOrigin;
   targetProtocol?: string;
+  llmFormat?: string;
+  llmProvider?: string;
   autoUserProvisioning: AutoUserProvisioning | undefined;
 };
 

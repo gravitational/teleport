@@ -20,6 +20,7 @@ import {
   ChangeEvent,
   ChangeEventHandler,
   PropsWithChildren,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -30,10 +31,12 @@ import styled from 'styled-components';
 
 import {
   Alert,
+  Box,
   ButtonSecondary,
   disappear,
   Flex,
   H1,
+  Indicator,
   LabelInput,
   Link,
   rotate360,
@@ -45,9 +48,15 @@ import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeSuccessAttempt,
+  mapAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import {
   formatPortRange,
   portRangeSeparator,
@@ -58,8 +67,12 @@ import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { setUpAppGateway } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
+import { getLlmSpec, LlmInstructions } from './LlmInstructions';
+
 export function AppGateway(props: {
   gateway: Gateway;
+  llmFormat?: string;
+  llmProvider?: string;
   disconnectAttempt: Attempt<void>;
   changeLocalPort(port: string): void;
   changeLocalPortAttempt: Attempt<void>;
@@ -70,6 +83,7 @@ export function AppGateway(props: {
   const { gateway } = props;
   const ctx = useAppContext();
   const { tshd } = ctx;
+  const { platform } = ctx.mainProcessClient.getRuntimeSettings();
   const { targetUri } = gateway;
   const logger = useLogger('AppGateway');
 
@@ -87,15 +101,8 @@ export function AppGateway(props: {
   const handleTargetPortChange =
     useDebouncedPortChangeHandler(changeTargetPort);
 
-  const isMcp = gateway.protocol === 'MCP';
-  const isHttpWebApp = gateway.protocol === 'HTTP';
-  let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (isHttpWebApp || isMcp) {
-    address = `http://${address}`;
-  }
-
-  // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
-  // app is multi-port or not in some other way.
+  // AppGateway doesn't have synchronous access to the app resource, so it has to decide whether
+  // the app is multi-port or not in some other way.
   // For multi-port apps, DocumentGateway comes with targetSubresourceName prefilled to the first
   // port number found in TCP ports. Single-port apps have this field empty.
   // So, if targetSubresourceName is present, then the app must be multi-port. In this case, the
@@ -105,27 +112,47 @@ export function AppGateway(props: {
     gateway.protocol === 'TCP' && gateway.targetSubresourceName;
   const targetPortRef = useRef<HTMLInputElement>(null);
 
-  const [tcpPortsAttempt, getTcpPorts] = useAsync(
+  const [appAttempt, fetchApp] = useAsync(
     useCallback(
       () =>
         retryWithRelogin(ctx, targetUri, () =>
           tshd
             .getApp({ appUri: targetUri })
-            .then(({ response }) => response.app.tcpPorts)
+            .then(({ response }) => response.app)
         ),
       [ctx, targetUri, tshd]
     )
   );
+
+  const isLlm = gateway.protocol === 'LLM';
+  const hasLlmDetailsFromDoc = !!props.llmFormat;
+  useEffect(() => {
+    if (isLlm && !hasLlmDetailsFromDoc && appAttempt.status === '') {
+      void fetchApp();
+    }
+  }, [isLlm, hasLlmDetailsFromDoc, appAttempt.status, fetchApp]);
+
+  const llmDetailsAttempt: Attempt<LlmDetails> = hasLlmDetailsFromDoc
+    ? makeSuccessAttempt({
+        llmFormat: props.llmFormat,
+        llmProvider: props.llmProvider || '',
+      })
+    : mapAttempt(appAttempt, app => ({
+        llmFormat: app.llmFormat,
+        llmProvider: app.llmProvider,
+      }));
+
+  const content = getGatewayContent(gateway, llmDetailsAttempt, platform);
   const currentTargetPort = parseInt(gateway.targetSubresourceName);
   const getTcpPortsForMenuLogin: () => Promise<LoginItem[]> =
     useCallback(async () => {
-      const [tcpPorts, error] = await getTcpPorts();
+      const [app, error] = await fetchApp();
 
       if (error) {
         throw error;
       }
 
-      return tcpPorts
+      return app.tcpPorts
         .filter(
           portRange =>
             // Filter out single-port port ranges that are equal to the current port.
@@ -135,7 +162,7 @@ export function AppGateway(props: {
           login: formatPortRange(portRange),
           url: '',
         }));
-    }, [getTcpPorts, currentTargetPort]);
+    }, [fetchApp, currentTargetPort]);
 
   const onPortRangeSelect = (_, formattedPortRange: string) => {
     const firstPort = formattedPortRange.split(portRangeSeparator)[0];
@@ -165,7 +192,7 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>{isMcp ? 'MCP Server Connection' : 'App Connection'}</H1>
+          <H1>{content.title}</H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -223,14 +250,7 @@ export function AppGateway(props: {
       </Flex>
 
       <Flex flexDirection="column" gap={2}>
-        <div>
-          <Text>
-            {isMcp
-              ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
-              : 'Access the app at:'}
-          </Text>
-          <TextSelectCopy mt={1} text={address} bash={false} />
-        </div>
+        {content.body}
 
         {changeLocalPortAttempt.status === 'error' && (
           <Alert details={changeLocalPortAttempt.statusText} m={0}>
@@ -244,25 +264,131 @@ export function AppGateway(props: {
           </Alert>
         )}
 
-        {tcpPortsAttempt.status === 'error' && (
-          <Alert kind="warning" details={tcpPortsAttempt.statusText} m={0}>
+        {!isLlm && appAttempt.status === 'error' && (
+          <Alert kind="warning" details={appAttempt.statusText} m={0}>
             Could not fetch available target ports
           </Alert>
         )}
 
-        <Text>
-          The connection is made through an authenticated proxy so no extra
-          credentials are necessary. See{' '}
-          <Link
-            href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
-            target="_blank"
-          >
-            the documentation
-          </Link>{' '}
-          for more details.
-        </Text>
+        {content.footer}
       </Flex>
     </Flex>
+  );
+}
+
+type LlmDetails = {
+  llmFormat: string;
+  llmProvider: string;
+};
+
+/**
+ * getGatewayContent is a central place that branches on the kind of app the
+ * gateway proxies. It returns the parts of the view that differ per kind,
+ * rendered by AppGateway into the shared structure.
+ */
+function getGatewayContent(
+  gateway: Gateway,
+  llmDetailsAttempt: Attempt<LlmDetails>,
+  platform: RuntimeSettings['platform']
+): {
+  title: string;
+  body: ReactNode;
+  footer?: ReactNode;
+} {
+  const address = `${gateway.localAddress}:${gateway.localPort}`;
+
+  switch (gateway.protocol) {
+    case 'MCP':
+      return {
+        title: 'MCP Server Connection',
+        body: (
+          <AddressInstructions
+            text={
+              'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
+            }
+            address={`http://${address}`}
+          />
+        ),
+        footer: <AuthenticatedProxyNote />,
+      };
+    case 'LLM': {
+      switch (llmDetailsAttempt.status) {
+        case 'success': {
+          const spec = getLlmSpec(
+            llmDetailsAttempt.data.llmFormat,
+            llmDetailsAttempt.data.llmProvider,
+            `http://${address}`,
+            platform
+          );
+          return {
+            title: `${spec.name} Inference Endpoint Connection`,
+            body: <LlmInstructions spec={spec} />,
+          };
+        }
+        case 'error':
+          return {
+            title: 'Inference Endpoint Connection',
+            body: (
+              <Alert details={llmDetailsAttempt.statusText} m={0}>
+                Could not fetch the app details
+              </Alert>
+            ),
+          };
+        default:
+          return {
+            title: 'Inference Endpoint Connection',
+            body: (
+              <Box textAlign="center">
+                <Indicator />
+              </Box>
+            ),
+          };
+      }
+    }
+    case 'HTTP':
+      return {
+        title: 'App Connection',
+        body: (
+          <AddressInstructions
+            text="Access the app at:"
+            address={`http://${address}`}
+          />
+        ),
+        footer: <AuthenticatedProxyNote />,
+      };
+    default:
+      return {
+        title: 'App Connection',
+        body: (
+          <AddressInstructions text="Access the app at:" address={address} />
+        ),
+        footer: <AuthenticatedProxyNote />,
+      };
+  }
+}
+
+function AddressInstructions(props: { text: string; address: string }) {
+  return (
+    <Box>
+      <Text>{props.text}</Text>
+      <TextSelectCopy mt={1} text={props.address} bash={false} />
+    </Box>
+  );
+}
+
+function AuthenticatedProxyNote() {
+  return (
+    <Text>
+      The connection is made through an authenticated proxy so no extra
+      credentials are necessary. See{' '}
+      <Link
+        href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
+        target="_blank"
+      >
+        the documentation
+      </Link>{' '}
+      for more details.
+    </Text>
   );
 }
 
