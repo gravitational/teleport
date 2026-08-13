@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
@@ -753,8 +754,14 @@ func TestLoginIdentityOut(t *testing.T) {
 
 	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, kubeClusterName, kubeClusterName)
 	require.NoError(t, err)
-	_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+	_, err = authServer.UpsertKubernetesServer(t.Context(), kubeServer)
 	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		servers, err := authServer.UnifiedResourceCache.GetKubernetesServers(t.Context())
+		require.NoError(tc, err)
+		require.Len(tc, servers, 1)
+	}, 30*time.Second, 100*time.Millisecond)
 
 	cases := []struct {
 		name               string
@@ -797,13 +804,16 @@ func TestLoginIdentityOut(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			identPath := filepath.Join(t.TempDir(), "ident")
 			if tt.requiresTLSRouting {
-				switchProxyListenerMode(t, authServer, types.ProxyListenerMode_Multiplex)
+				switchProxyListenerMode(t, authServer, proxyAddr.String(), types.ProxyListenerMode_Multiplex)
+			} else {
+				switchProxyListenerMode(t, authServer, proxyAddr.String(), types.ProxyListenerMode_Separate)
 			}
-			err = Run(context.Background(), append([]string{
+			err = Run(t.Context(), append([]string{
 				"login",
 				"--insecure",
 				"--debug",
@@ -817,20 +827,24 @@ func TestLoginIdentityOut(t *testing.T) {
 }
 
 // switchProxyListenerMode switches the proxy listener mode to the specified mode
-// and schedules a reversion to the previous value once the sub-test completes.
-func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.ProxyListenerMode) {
-	networkCfg, err := authServer.GetClusterNetworkingConfig(context.Background())
+// and waits for the proxy to observe the change.
+func switchProxyListenerMode(t *testing.T, authServer *auth.Server, proxyAddr string, mode types.ProxyListenerMode) {
+	networkCfg, err := authServer.GetClusterNetworkingConfig(t.Context())
 	require.NoError(t, err)
-	prevValue := networkCfg.GetProxyListenerMode()
 	networkCfg.SetProxyListenerMode(mode)
-	_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
+	_, err = authServer.UpsertClusterNetworkingConfig(t.Context(), networkCfg)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		networkCfg.SetProxyListenerMode(prevValue)
-		_, err = authServer.UpsertClusterNetworkingConfig(context.Background(), networkCfg)
-		require.NoError(t, err)
-	})
+	wantTLSRouting := mode == types.ProxyListenerMode_Multiplex
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		resp, err := webclient.Ping(&webclient.Config{
+			Context:   t.Context(),
+			ProxyAddr: proxyAddr,
+			Insecure:  true,
+		})
+		require.NoError(tc, err)
+		require.Equal(tc, wantTLSRouting, resp.Proxy.TLSRoutingEnabled)
+	}, 15*time.Second, 100*time.Millisecond)
 }
 
 // TestLoginScopeChangeClearsAgentKeys verifies that when the login scope changes
@@ -1319,6 +1333,101 @@ func TestPrintNodesAsText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			printNodesAsText(&buf, tt.nodes, tt.verbose)
+
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+
+			require.Equal(t, string(golden.Get(t)), buf.String())
+		})
+	}
+}
+
+// TestPrintNodesWithClusters verifies the expected behavior of recursive node listings.
+func TestPrintNodesWithClusters(t *testing.T) {
+	t.Parallel()
+
+	unscoped := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "unscoped-uuid",
+			Labels: map[string]string{
+				"env": "production",
+			},
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "1.2.3.4:22",
+			Hostname: "unscoped-host",
+		},
+		Version: types.V2,
+	}
+
+	scoped := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "scoped-uuid",
+			Labels: map[string]string{
+				"env": "staging",
+			},
+		},
+		Scope: "/west",
+		Spec: types.ServerSpecV2{
+			Addr:     "5.6.7.8:22",
+			Hostname: "scoped-host",
+		},
+		Version: types.V2,
+	}
+
+	unscopedListing := nodeListing{
+		Proxy:   "proxy.example.com:443",
+		Cluster: "root",
+		Node:    unscoped,
+	}
+	scopedListing := nodeListing{
+		Proxy:   "proxy.example.com:443",
+		Cluster: "leaf",
+		Node:    scoped,
+	}
+	mixedListings := []nodeListing{unscopedListing, scopedListing}
+
+	tests := []struct {
+		name    string
+		nodes   []nodeListing
+		verbose bool
+	}{
+		{
+			name:  "non-verbose unscoped",
+			nodes: []nodeListing{unscopedListing},
+		},
+		{
+			name:  "non-verbose scoped",
+			nodes: []nodeListing{scopedListing},
+		},
+		{
+			name:  "non-verbose mixed scopes",
+			nodes: mixedListings,
+		},
+		{
+			name:    "verbose unscoped",
+			nodes:   []nodeListing{unscopedListing},
+			verbose: true,
+		},
+		{
+			name:    "verbose scoped",
+			nodes:   []nodeListing{scopedListing},
+			verbose: true,
+		},
+		{
+			name:    "verbose mixed scopes",
+			nodes:   mixedListings,
+			verbose: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			require.NoError(t, printNodesWithClusters(tt.nodes, tt.verbose, &buf))
 
 			if golden.ShouldSet() {
 				golden.Set(t, buf.Bytes())

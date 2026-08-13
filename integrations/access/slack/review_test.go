@@ -22,6 +22,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -219,19 +221,40 @@ func TestResolveTeleportUser(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		app := &ReviewApp{
-			apiClient: authServer,
-			bot:       mockBot,
-			conf:      tt.reviewConfig,
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			app := &ReviewApp{
+				apiClient: authServer,
+				bot:       mockBot,
+				conf:      tt.reviewConfig,
+			}
 
-		got, err := app.resolveTeleportUser(t.Context(), tt.slackUID)
-		if tt.wantErr {
-			require.Error(t, err)
-			continue
-		}
-		require.NoError(t, err)
+			got, err := app.resolveTeleportUser(t.Context(), tt.slackUID)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-		require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, got)
+		})
 	}
+}
+
+func TestResolveReview_LongTerm(t *testing.T) {
+	authServer := newTestAuth(t, modulestest.OSSModules())
+
+	app := &ReviewApp{
+		apiClient: authServer,
+		bot:       &mockReviewBot{},
+	}
+
+	reqLongTerm, err := types.NewAccessRequest(uuid.NewString(), "test-user", "test-role")
+	require.NoError(t, err)
+	reqLongTerm.SetRequestKind(types.AccessRequestKind_LONG_TERM)
+
+	err = authServer.CreateAccessRequest(t.Context(), reqLongTerm)
+	require.NoError(t, err)
+
+	err = app.resolveReview(t.Context(), reqLongTerm.GetName(), "test-slack-uid", types.RequestState_APPROVED)
+	require.True(t, trace.IsAccessDenied(err))
 }

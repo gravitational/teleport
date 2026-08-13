@@ -81,6 +81,17 @@ documentation is available at https://support.atlassian.com/bitbucket-cloud/docs
 | `join.bitbucket.deployment_environment_uuid` | The UUID of the deployment environment the pipeline is running against. |
 | `join.bitbucket.branch_name`                 | The name of the branch the pipeline is running against.                 |
 
+### `join.bound_keypair`
+
+These attributes are present if the Bot joined using the Bound Keypair join
+method.
+
+| Field                               | Description                                                             |
+|-------------------------------------|-------------------------------------------------------------------------|
+| `join.bound_keypair.public_key`     | The bound public key verified during the join, in SSH authorized_keys format. |
+| `join.bound_keypair.recovery_mode`  | The join token's configured recovery mode, e.g. `standard` or `relaxed`. |
+| `join.bound_keypair.recovery_count` | The join token's recovery counter after the join.                       |
+
 ### `join.circleci`
 
 These attributes are present if the Bot joined using the CircleCI join method.

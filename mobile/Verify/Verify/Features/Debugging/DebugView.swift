@@ -17,16 +17,41 @@
 #if DEBUG
 
 	import SwiftUI
+	import SwiftUINavigation
 
 	/// DebugView serves as the entrypoint for in-development ideas, UI component catalogs, and any other bits that we
 	/// want to be able to see when testing on a device, but which we don't want to ship to customers.
 	///
 	/// - Note: DebugView and all its associated components should always be wrapped in `#if DEBUG` checks.
 	struct DebugView: View {
+		@Bindable
 		var viewModel: DebugViewModel
 
 		var body: some View {
-			Text("Placeholder for DebugView")
+			NavigationStack {
+				List {
+					Section("Settings") {
+						Button("Debug Settings", systemImage: "gearshape") {
+							viewModel.destination = .debugSettingsView(.init())
+						}
+					}
+					Section("Feature Demos") {
+						Button("Secure Enclave Storage", systemImage: "lock") {
+							viewModel.destination = .deviceTrustCredentialDemo(.init())
+						}
+					}
+				}
+				.navigationTitle("Debug")
+
+				// MARK: - Navigation
+
+				.navigationDestination(item: $viewModel.destination.deviceTrustCredentialDemo) { viewModel in
+					FeatureDemo.DeviceTrustCredentialView(viewModel: viewModel)
+				}
+				.navigationDestination(item: $viewModel.destination.debugSettingsView) { viewModel in
+					DebugSettingsView(viewModel: viewModel)
+				}
+			}
 		}
 	}
 

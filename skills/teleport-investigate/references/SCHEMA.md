@@ -29,7 +29,7 @@ event type. These are always present, so you can rely on them when projecting:
 | `event_source`     | string           | Source of the event.                                                                                                                      |
 | `action`           | string           | Action performed; mirrors `event_type` for Teleport-native events.                                                                        |
 | `status`           | string           | Outcome, e.g. `success`, `failure`.                                                                                                       |
-| `origin`           | string           | Event origin, e.g. `example.teleport.com`.                                                                                                |
+| `origin`           | string           | Event origin — the cluster name, e.g. `acme-prod`.                                                                                        |
 | `identity`         | object           | Actor: `{id, kind, name, token_id, user_agent}`.                                                                                          |
 | `target`           | object           | Object acted on: `{id, kind, location, resource}`.                                                                                        |
 | `location_details` | object           | Geo from IP: `{ip, city, region, country, latitude, longitude}`.                                                                          |

@@ -81,6 +81,8 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
+
+	MaybeDowngradeRoleVersionToV8 = maybeDowngradeRoleVersionToV8
 )
 
 func ServerWithModules(mt *modulestest.Modules) *Server {
@@ -166,7 +168,7 @@ func (a *Server) NewWebSession(
 	ctx context.Context,
 	req NewWebSessionRequest,
 	opts *newWebSessionOpts,
-) (types.WebSession, services.AccessChecker, error) {
+) (types.WebSession, *services.ScopedAccessCheckerContext, error) {
 	return a.newWebSession(ctx, req, opts)
 }
 

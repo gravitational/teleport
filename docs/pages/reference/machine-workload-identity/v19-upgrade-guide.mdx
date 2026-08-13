@@ -1,0 +1,39 @@
+---
+title: V19 Upgrade Guide
+description: An overview of breaking changes to Machine & Workload Identity in Teleport V19
+tags:
+ - conceptual
+ - mwi
+---
+
+This document explains any breaking changes to Machine & Workload Identity in
+Teleport V19 and provides guidance on how to navigate these changes.
+
+## Deprecation of `roles` configuration in `tbot`
+
+From V19.0.0, it is no longer possible to configure per-service role
+impersonation in `tbot`.
+
+You are impacted if your `tbot` configuration includes a service or output that
+contains a non-empty `roles` field. For example:
+
+```yaml
+services:
+- type: identity
+  roles: ["role1"]
+  destination:
+    type: directory
+    path: /opt/machine-id
+```
+
+Removing the `roles` field will result in the service or output utilizing all
+roles available to the Bot that `tbot` has authenticated as. Be aware that this
+may represent an increase in privileges if a subset of the Bot's roles were
+previously specified.
+
+If you require differing roles for different services or outputs, we recommend
+that you migrate to an approach that leverages distinct Bots with distinct sets
+of roles. You may run multiple instances of `tbot` on the same machine as long
+as they are configured to use different storage directories.
+
+For further assistance, reach out to the [Teleport support team](https://support.goteleport.com/hc/en-us).

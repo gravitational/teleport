@@ -72,7 +72,9 @@ type JoinAttrs struct {
 	// Attributes that are specific to the Env0 (`env0`) join method.
 	Env0 *JoinAttrsEnv0 `protobuf:"bytes,15,opt,name=env0,proto3" json:"env0,omitempty"`
 	// Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
-	GenericOidc   *JoinAttrsGenericOIDC `protobuf:"bytes,16,opt,name=generic_oidc,json=genericOidc,proto3" json:"generic_oidc,omitempty"`
+	GenericOidc *JoinAttrsGenericOIDC `protobuf:"bytes,16,opt,name=generic_oidc,json=genericOidc,proto3" json:"generic_oidc,omitempty"`
+	// Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.
+	BoundKeypair  *JoinAttrsBoundKeypair `protobuf:"bytes,17,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -214,6 +216,13 @@ func (x *JoinAttrs) GetGenericOidc() *JoinAttrsGenericOIDC {
 	return nil
 }
 
+func (x *JoinAttrs) GetBoundKeypair() *JoinAttrsBoundKeypair {
+	if x != nil {
+		return x.BoundKeypair
+	}
+	return nil
+}
+
 func (x *JoinAttrs) SetMeta(v *JoinAttrsMeta) {
 	x.Meta = v
 }
@@ -276,6 +285,10 @@ func (x *JoinAttrs) SetEnv0(v *JoinAttrsEnv0) {
 
 func (x *JoinAttrs) SetGenericOidc(v *JoinAttrsGenericOIDC) {
 	x.GenericOidc = v
+}
+
+func (x *JoinAttrs) SetBoundKeypair(v *JoinAttrsBoundKeypair) {
+	x.BoundKeypair = v
 }
 
 func (x *JoinAttrs) HasMeta() bool {
@@ -390,6 +403,13 @@ func (x *JoinAttrs) HasGenericOidc() bool {
 	return x.GenericOidc != nil
 }
 
+func (x *JoinAttrs) HasBoundKeypair() bool {
+	if x == nil {
+		return false
+	}
+	return x.BoundKeypair != nil
+}
+
 func (x *JoinAttrs) ClearMeta() {
 	x.Meta = nil
 }
@@ -454,6 +474,10 @@ func (x *JoinAttrs) ClearGenericOidc() {
 	x.GenericOidc = nil
 }
 
+func (x *JoinAttrs) ClearBoundKeypair() {
+	x.BoundKeypair = nil
+}
+
 type JoinAttrs_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -490,6 +514,8 @@ type JoinAttrs_builder struct {
 	Env0 *JoinAttrsEnv0
 	// Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
 	GenericOidc *JoinAttrsGenericOIDC
+	// Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.
+	BoundKeypair *JoinAttrsBoundKeypair
 }
 
 func (b0 JoinAttrs_builder) Build() *JoinAttrs {
@@ -512,6 +538,7 @@ func (b0 JoinAttrs_builder) Build() *JoinAttrs {
 	x.AzureDevops = b.AzureDevops
 	x.Env0 = b.Env0
 	x.GenericOidc = b.GenericOidc
+	x.BoundKeypair = b.BoundKeypair
 	return m0
 }
 
@@ -3246,11 +3273,107 @@ func (b0 JoinAttrsGenericOIDC_builder) Build() *JoinAttrsGenericOIDC {
 	return m0
 }
 
+// Attributes that are specific to the Bound Keypair (`bound_keypair`) join
+// method.
+type JoinAttrsBoundKeypair struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The bound public key verified during this join, in SSH authorized_keys
+	// format.
+	PublicKey string `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// The token's configured recovery mode, e.g. `standard` or `relaxed`.
+	RecoveryMode string `protobuf:"bytes,2,opt,name=recovery_mode,json=recoveryMode,proto3" json:"recovery_mode,omitempty"`
+	// The token's recovery counter after this join.
+	RecoveryCount uint32 `protobuf:"varint,3,opt,name=recovery_count,json=recoveryCount,proto3" json:"recovery_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinAttrsBoundKeypair) Reset() {
+	*x = JoinAttrsBoundKeypair{}
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAttrsBoundKeypair) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAttrsBoundKeypair) ProtoMessage() {}
+
+func (x *JoinAttrsBoundKeypair) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *JoinAttrsBoundKeypair) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *JoinAttrsBoundKeypair) GetRecoveryMode() string {
+	if x != nil {
+		return x.RecoveryMode
+	}
+	return ""
+}
+
+func (x *JoinAttrsBoundKeypair) GetRecoveryCount() uint32 {
+	if x != nil {
+		return x.RecoveryCount
+	}
+	return 0
+}
+
+func (x *JoinAttrsBoundKeypair) SetPublicKey(v string) {
+	x.PublicKey = v
+}
+
+func (x *JoinAttrsBoundKeypair) SetRecoveryMode(v string) {
+	x.RecoveryMode = v
+}
+
+func (x *JoinAttrsBoundKeypair) SetRecoveryCount(v uint32) {
+	x.RecoveryCount = v
+}
+
+type JoinAttrsBoundKeypair_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The bound public key verified during this join, in SSH authorized_keys
+	// format.
+	PublicKey string
+	// The token's configured recovery mode, e.g. `standard` or `relaxed`.
+	RecoveryMode string
+	// The token's recovery counter after this join.
+	RecoveryCount uint32
+}
+
+func (b0 JoinAttrsBoundKeypair_builder) Build() *JoinAttrsBoundKeypair {
+	m0 := &JoinAttrsBoundKeypair{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKey = b.PublicKey
+	x.RecoveryMode = b.RecoveryMode
+	x.RecoveryCount = b.RecoveryCount
+	return m0
+}
+
 var File_teleport_workloadidentity_v1_join_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xb1\t\n" +
+	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1cgoogle/protobuf/struct.proto\"\x8b\n" +
+	"\n" +
 	"\tJoinAttrs\x12?\n" +
 	"\x04meta\x18\x01 \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsMetaR\x04meta\x12E\n" +
 	"\x06gitlab\x18\x02 \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsGitLabR\x06gitlab\x12E\n" +
@@ -3270,7 +3393,8 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x06oracle\x18\r \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsOracleR\x06oracle\x12U\n" +
 	"\fazure_devops\x18\x0e \x01(\v22.teleport.workloadidentity.v1.JoinAttrsAzureDevopsR\vazureDevops\x12?\n" +
 	"\x04env0\x18\x0f \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsEnv0R\x04env0\x12U\n" +
-	"\fgeneric_oidc\x18\x10 \x01(\v22.teleport.workloadidentity.v1.JoinAttrsGenericOIDCR\vgenericOidc\"X\n" +
+	"\fgeneric_oidc\x18\x10 \x01(\v22.teleport.workloadidentity.v1.JoinAttrsGenericOIDCR\vgenericOidc\x12X\n" +
+	"\rbound_keypair\x18\x11 \x01(\v23.teleport.workloadidentity.v1.JoinAttrsBoundKeypairR\fboundKeypair\"X\n" +
 	"\rJoinAttrsMeta\x12&\n" +
 	"\x0fjoin_token_name\x18\x01 \x01(\tR\rjoinTokenName\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -3417,9 +3541,14 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x0edeployer_email\x18\f \x01(\tR\rdeployerEmail\x12\x19\n" +
 	"\benv0_tag\x18\r \x01(\tR\aenv0Tag\"G\n" +
 	"\x14JoinAttrsGenericOIDC\x12/\n" +
-	"\x06claims\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06claimsBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\x06claims\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06claims\"\x82\x01\n" +
+	"\x15JoinAttrsBoundKeypair\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x01 \x01(\tR\tpublicKey\x12#\n" +
+	"\rrecovery_mode\x18\x02 \x01(\tR\frecoveryMode\x12%\n" +
+	"\x0erecovery_count\x18\x03 \x01(\rR\rrecoveryCountBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
-var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrs)(nil),                         // 0: teleport.workloadidentity.v1.JoinAttrs
 	(*JoinAttrsMeta)(nil),                     // 1: teleport.workloadidentity.v1.JoinAttrsMeta
@@ -3442,7 +3571,8 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrsAzureDevopsPipeline)(nil),      // 18: teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
 	(*JoinAttrsEnv0)(nil),                     // 19: teleport.workloadidentity.v1.JoinAttrsEnv0
 	(*JoinAttrsGenericOIDC)(nil),              // 20: teleport.workloadidentity.v1.JoinAttrsGenericOIDC
-	(*structpb.Struct)(nil),                   // 21: google.protobuf.Struct
+	(*JoinAttrsBoundKeypair)(nil),             // 21: teleport.workloadidentity.v1.JoinAttrsBoundKeypair
+	(*structpb.Struct)(nil),                   // 22: google.protobuf.Struct
 }
 var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	1,  // 0: teleport.workloadidentity.v1.JoinAttrs.meta:type_name -> teleport.workloadidentity.v1.JoinAttrsMeta
@@ -3461,16 +3591,17 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	17, // 13: teleport.workloadidentity.v1.JoinAttrs.azure_devops:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevops
 	19, // 14: teleport.workloadidentity.v1.JoinAttrs.env0:type_name -> teleport.workloadidentity.v1.JoinAttrsEnv0
 	20, // 15: teleport.workloadidentity.v1.JoinAttrs.generic_oidc:type_name -> teleport.workloadidentity.v1.JoinAttrsGenericOIDC
-	11, // 16: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
-	14, // 17: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
-	13, // 18: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
-	18, // 19: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
-	21, // 20: teleport.workloadidentity.v1.JoinAttrsGenericOIDC.claims:type_name -> google.protobuf.Struct
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	21, // 16: teleport.workloadidentity.v1.JoinAttrs.bound_keypair:type_name -> teleport.workloadidentity.v1.JoinAttrsBoundKeypair
+	11, // 17: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
+	14, // 18: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
+	13, // 19: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
+	18, // 20: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
+	22, // 21: teleport.workloadidentity.v1.JoinAttrsGenericOIDC.claims:type_name -> google.protobuf.Struct
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_join_attrs_proto_init() }
@@ -3484,7 +3615,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

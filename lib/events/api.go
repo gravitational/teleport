@@ -712,6 +712,14 @@ const (
 	// awaiting approval. It is also emitted on failure (e.g. an invalid token),
 	// before any transition, in which case there is no associated user.
 	DeviceEnrollPairingRequestEvent = "device.enroll_pairing.request"
+	// DeviceEnrollPairingApproveEvent is emitted when the user approves an enroll
+	// pairing in the Web UI, which lets the device retrieve its enrollment token.
+	// It is also emitted on a failed approval attempt, for example one arriving
+	// after the pairing expired or was already approved.
+	DeviceEnrollPairingApproveEvent = "device.enroll_pairing.approve"
+	// DeviceEnrollPairingDenyEvent is emitted when the user denies an enroll
+	// pairing in the Web UI.
+	DeviceEnrollPairingDenyEvent = "device.enroll_pairing.deny"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -1013,22 +1021,6 @@ const (
 
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
-
-	// AppAuthConfigCreateEvent is emitted when an app auth config
-	// resource is created.
-	AppAuthConfigCreateEvent = "app_auth_config.create"
-	// AppAuthConfigUpdateEvent is emitted when an app auth config
-	// resource is updated.
-	AppAuthConfigUpdateEvent = "app_auth_config.update"
-	// AppAuthConfigDeleteEvent is emitted when an app auth config
-	// resource is deleted.
-	AppAuthConfigDeleteEvent = "app_auth_config.delete"
-	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
-	// succeeds.
-	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
-	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
-	// fails.
-	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
 
 	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
 	VnetConfigCreateEvent = "vnet.config.create"
@@ -1346,6 +1338,11 @@ type SearchEventsRequest struct {
 	StartKey string
 	// Search is an optional search query to filter events.
 	Search string
+	// BeamID optionally restricts results to events attributed to the given
+	// beam (matched against the event's user metadata beam_id). This filter is
+	// only supported by the Athena audit backend; other backends return a
+	// trace.NotImplemented error when it is set.
+	BeamID string
 }
 
 type SearchSessionEventsRequest struct {

@@ -56,6 +56,7 @@ export const Minus = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-minus"
+
       {...otherProps}
       ref={ref}
     >

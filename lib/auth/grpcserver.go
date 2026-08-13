@@ -55,7 +55,6 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
@@ -107,7 +106,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
-	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/clientiprestriction/clientiprestrictionv1"
@@ -1152,7 +1150,13 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 			)
 			return trace.Errorf("encountered unexpected role type")
 		}
-		if err := stream.Send(v6); err != nil {
+		// Send each role at a version the client understands. A client that
+		// does not know app_resources would read a v9 role as unrestricted.
+		downgraded, err := maybeDowngradeRole(stream.Context(), v6)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(downgraded); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1307,11 +1311,11 @@ func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, requ
 }
 
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caps, err := auth.ServerWithRoles.GetAccessCapabilities(ctx, *req)
+	caps, err := auth.ScopedServerWithRoles.GetAccessCapabilities(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2331,8 +2335,99 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	// A v18 client supports v8 roles at most, a v17 client v7.
+	// Downgrade in order, v9 to v8 to v7.
+	// App label stripping from the v9 to v8 persists down to v7.
+	// Only the last step is captured in TeleportDowngradedLabel.
+	role = maybeDowngradeRoleVersionToV8(ctx, role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedRoleV9Version = &semver.Version{Major: 19, Minor: 0, Patch: 0}
+
+// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 for agents below
+// minSupportedRoleV9Version (v19), which cannot enforce the v9 app
+// restriction. A plain v8 copy would grant unrestricted app access, so unless
+// the role already grants that (an allow_all rule), the copy moves its allow
+// app selector to the deny side. A pre-v19 agent cannot apply the finer v9
+// restriction, so it denies these apps outright, never granting more than v9
+// would, and no other v8 role can grant them either. Composing with
+// maybeDowngradeRoleVersionToV7 lets a v9 role reach a pre-v18 agent as v7.
+//
+// TODO(@juliaogris): Delete in v20.0.0 when pre-19 client support ends.
+func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	if role.GetVersion() != types.V9 {
+		return role
+	}
+	supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedRoleV9Version.String())
+	if supported || err != nil {
+		return role
+	}
+
+	// Deep-copy the role before mutating it. The same role is shared
+	// across client sessions when watchers notify about changes. Mutating
+	// the original races other readers.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V8
+
+	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
+	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) ||
+		len(role.Spec.Allow.AppResourcesExpressions) > 0 || len(role.Spec.Deny.AppResourcesExpressions) > 0 {
+		if denyDowngradedAppAccess(role) {
+			slog.WarnContext(ctx,
+				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
+				"role", role.GetName(), "client_version", clientVersion)
+		}
+		detail = "Allow app_labels are stripped and the role denies its own apps so it grants no app access on this client."
+	}
+	role.Spec.Allow.AppResources = nil
+	role.Spec.Deny.AppResources = nil
+	role.Spec.Allow.AppResourcesExpressions = nil
+	role.Spec.Deny.AppResourcesExpressions = nil
+
+	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+
+	return role
+}
+
+// denyDowngradedAppAccess moves the role's allow app labels and expression to
+// its deny app labels and expression. Allow requires both selectors to match
+// (AND) while deny requires either (OR), so a role setting both denies more
+// apps than it granted. A role that already denies apps by label falls back to
+// a wildcard deny, since two label maps cannot be OR-merged into one, and
+// reports it for the caller to log. Both are intentional, potential over-denies
+// for this version-skew edge case.
+func denyDowngradedAppAccess(role *types.RoleV6) (wildcardFallback bool) {
+	allowLabels := role.Spec.Allow.AppLabels
+	allowExpression := role.Spec.Allow.AppLabelsExpression
+	role.Spec.Allow.AppLabels = nil
+	role.Spec.Allow.AppLabelsExpression = ""
+
+	// Deny matches on either selector (OR), so an existing deny expression
+	// keeps applying next to these labels. Label maps have no such union, so
+	// the potentially over-denying wildcard is used instead.
+	switch {
+	case len(allowLabels) == 0:
+	case len(role.Spec.Deny.AppLabels) == 0:
+		role.Spec.Deny.AppLabels = allowLabels
+	default:
+		role.Spec.Deny.AppLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+		wildcardFallback = true
+	}
+
+	switch {
+	case allowExpression == "":
+	case role.Spec.Deny.AppLabelsExpression == "":
+		role.Spec.Deny.AppLabelsExpression = allowExpression
+	default:
+		role.Spec.Deny.AppLabelsExpression = "(" + role.Spec.Deny.AppLabelsExpression + ") || (" + allowExpression + ")"
+	}
+	return wildcardFallback
 }
 
 var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}
@@ -3932,11 +4027,11 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 
 // GetClusterAuditConfig gets cluster audit configuration.
 func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterAuditConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	auditConfig, err := auth.ServerWithRoles.GetClusterAuditConfig(ctx)
+	auditConfig, err := auth.ScopedServerWithRoles.GetClusterAuditConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4177,7 +4272,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 
 // GetLock retrieves a lock by name.
 func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*types.LockV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4194,7 +4289,7 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) (*authpb.GetLocksResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4223,7 +4318,7 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) 
 
 // ListLocks returns a page of locks matching a filter
 func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest) (*authpb.ListLocksResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5328,6 +5423,8 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
+			case installers.InstallerScriptNameWindowsAuthPackage:
+				return installer.DefaultWindowsAuthPackageInstaller, nil
 			}
 		}
 		return nil, trace.Wrap(err)
@@ -5357,8 +5454,9 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 
 	defaultInstallers := map[string]*types.InstallerV1{
-		types.DefaultInstallerScriptName:        defaultInstaller,
-		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+		types.DefaultInstallerScriptName:                 defaultInstaller,
+		installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller,
+		installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller,
 	}
 
 	for _, inst := range res {
@@ -5413,6 +5511,10 @@ func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end stri
 				}
 			}
 			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		if isInRange(installers.InstallerScriptNameWindowsAuthPackage, start, end) {
+			defaultInstallers = append(defaultInstallers, installer.DefaultWindowsAuthPackageInstaller)
 		}
 
 		// Sort in case the names change in the future as the streams must be sorted.
@@ -6519,7 +6621,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
 		Backend:    cfg.AuthServer.Services,
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6740,29 +6842,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	healthcheckconfigv1pb.RegisterHealthCheckConfigServiceServer(server, healthCheckConfigSvc)
-
-	appAuthConfigSvc, err := appauthconfigv1.NewService(appauthconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.AppAuthConfig,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	appauthconfigv1pb.RegisterAppAuthConfigServiceServer(server, appAuthConfigSvc)
-
-	appAuthConfigSessionsSvc, err := appauthconfigv1.NewSessionsService(appauthconfigv1.SessionsServiceConfig{
-		Authorizer:      cfg.Authorizer,
-		Reader:          cfg.AuthServer.Cache,
-		Emitter:         cfg.Emitter,
-		SessionsCreator: cfg.AuthServer,
-		UserGetter:      cfg.AuthServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	appauthconfigv1pb.RegisterAppAuthConfigSessionsServiceServer(server, appAuthConfigSessionsSvc)
 
 	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,

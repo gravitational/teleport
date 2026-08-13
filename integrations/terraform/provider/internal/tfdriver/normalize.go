@@ -20,6 +20,8 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 )
 
 // ResourceNormalizer prepares a Teleport resource before create and update.
@@ -95,7 +97,8 @@ func CheckAndSetDefaults[T any]() ResourceNormalizer[T] {
 	}
 }
 
-// ForceKind sets a Teleport resource kind on create and update.
+// ForceKind sets a Teleport resource kind on create and update using the
+// resource's SetKind method.
 func ForceKind[T any](kind string) ResourceNormalizer[T] {
 	return ResourceNormalizerFuncs[T]{
 		Create: func(_ context.Context, resource *T) error {
@@ -106,13 +109,58 @@ func ForceKind[T any](kind string) ResourceNormalizer[T] {
 			setter.SetKind(kind)
 			return nil
 		},
-		Update: func(ctx context.Context, resource *T) error {
+		Update: func(_ context.Context, resource *T) error {
 			setter, ok := any(resource).(interface{ SetKind(string) })
 			if !ok {
 				return trace.BadParameter("%T does not implement SetKind", resource)
 			}
 			setter.SetKind(kind)
 			return nil
+		},
+	}
+}
+
+// ForceKindFunc sets a Teleport resource kind on create and update using a
+// caller-supplied setter.
+func ForceKindFunc[T any](setKind func(*T)) ResourceNormalizer[T] {
+	setKindFunc := func(_ context.Context, resource *T) error {
+		setKind(resource)
+		return nil
+	}
+
+	return ResourceNormalizerFuncs[T]{
+		Create: setKindFunc,
+		Update: setKindFunc,
+	}
+}
+
+// ForceName sets a fixed resource name on create and update.
+func ForceName[T any](name string) ResourceNormalizer[T] {
+	set := func(resource *T) error {
+		r, ok := any(resource).(interface {
+			GetMetadata() *headerv1.Metadata
+			SetMetadata(*headerv1.Metadata)
+		})
+		if !ok {
+			return trace.BadParameter("%T does not expose header metadata", resource)
+		}
+
+		metadata := r.GetMetadata()
+		if metadata == nil {
+			metadata = &headerv1.Metadata{}
+			r.SetMetadata(metadata)
+		}
+		metadata.SetName(name)
+
+		return nil
+	}
+
+	return ResourceNormalizerFuncs[T]{
+		Create: func(_ context.Context, resource *T) error {
+			return set(resource)
+		},
+		Update: func(_ context.Context, resource *T) error {
+			return set(resource)
 		},
 	}
 }

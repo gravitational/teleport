@@ -83,34 +83,14 @@ func getToken(ctx context.Context, client *authclient.Client, ref services.Ref, 
 // The MFA ceremony cannot be done in this function because we don't know if
 // the caller already attempted one (e.g. tctl get all)
 func GetAllTokens(ctx context.Context, clt *authclient.Client) ([]types.ProvisionToken, error) {
-	// There are 3 tokens types:
-	// - provision tokens
-	// - static tokens
-	// - user tokens
-	// This endpoint returns all 3 for compatibility reasons.
-	// Before, all 3 tokens were returned by the same "GetTokens" RPC, now we are using
-	// separate RPCs, with pagination. However, we don't know if the auth we are talking
-	// to supports the new RPCs. As the static token one got introduced last, we
-	// try to use it.If it works, we consume the two other RPCs. If it doesn't,
-	// we fallback to the legacy all-in-one RPC.
-	var tokens []types.ProvisionToken
-
-	// Trying to get static tokens
+	// Provision, static, and user tokens are returned together for
+	// compatibility with the legacy all-in-one "GetTokens" RPC.
 	staticTokens, err := clt.GetStaticTokens(ctx)
-	if err != nil && !trace.IsNotImplemented(err) {
+	if err != nil {
 		return nil, trace.Wrap(err, "getting static tokens")
 	}
+	tokens := staticTokens.GetStaticTokens()
 
-	// TODO(hugoShaka): DELETE IN 19.0.0
-	if trace.IsNotImplemented(err) {
-		// We are connected to an old auth, that doesn't support the per-token type RPCs
-		// so we fallback to the legacy all-in-one RPC.
-		tokens, err := clt.GetTokens(ctx)
-		return tokens, trace.Wrap(err, "getting all tokens through the legacy RPC")
-	}
-
-	// We are connected to a modern auth, we must collect all 3 tokens types.
-	// Getting the provision tokens.
 	provisionTokens, err := stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
 			return clt.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
@@ -119,13 +99,9 @@ func GetAllTokens(ctx context.Context, clt *authclient.Client) ([]types.Provisio
 	if err != nil {
 		return nil, trace.Wrap(err, "getting provision tokens")
 	}
-	tokens = append(staticTokens.GetStaticTokens(), provisionTokens...)
+	tokens = append(tokens, provisionTokens...)
 
-	// Getting the user tokens.
 	userTokens, err := stream.Collect(clientutils.Resources(ctx, clt.ListResetPasswordTokens))
-	if err != nil && !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
 	if err != nil {
 		return nil, trace.Wrap(err, "getting user tokens")
 	}

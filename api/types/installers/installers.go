@@ -33,6 +33,10 @@ const InstallerScriptName = types.DefaultInstallerScriptName
 // installer script when agentless mode is enabled for a matcher
 const InstallerScriptNameAgentless = types.DefaultInstallerScriptNameAgentless
 
+// InstallerScriptNameWindowsAuthPackage is the name of the default populated Windows
+// auth package installer script
+const InstallerScriptNameWindowsAuthPackage = types.DefaultInstallerScriptNameWindowsAuthPackage
+
 // DefaultAgentlessInstaller represents a the default agentless installer script provided
 // by teleport
 var DefaultAgentlessInstaller = types.MustNewInstallerV1(InstallerScriptNameAgentless, defaultAgentlessInstallScript)
@@ -55,4 +59,26 @@ type Template struct {
 	// AzureClientID is the client ID of the managed identity to use when joining
 	// the cluster. Only applicable for the azure join method.
 	AzureClientID string
+	// AuthPackageVersion is the full version of Teleport auth package e.g. 18.9.2
+	AuthPackageVersion string
+	// RestartAfterEnrollment indicates whether the Windows auth package installer
+	// should schedule a system restart after enrollment. A restart is required
+	// for smartcard authentication to work, but the user may choose to restart
+	// later.
+	RestartAfterEnrollment bool
+	// WindowsInstallerDownloadFailure is the exit code for when the Windows
+	// auth package installer fails to download the authentication package.
+	WindowsInstallerDownloadFailure int
+	// WindowsInstallerExecutionFailure is the exit code for when the Windows
+	// auth package installer fails to execute the authentication package installer.
+	WindowsInstallerExecutionFailure int
+	// WindowsInstallerStagingDirUnsafe is the exit code for when the Windows
+	// auth package installer staging directory under %WINDIR%\SystemTemp is a
+	// reparse point (symlink or junction) and may redirect to an untrusted
+	// location.
+	WindowsInstallerStagingDirUnsafe int
+	// WindowsInstallerChecksumMismatch is the exit code for when the downloaded
+	// Windows authentication package installer fails SHA256 checksum
+	// verification against the checksum published alongside it.
+	WindowsInstallerChecksumMismatch int
 }

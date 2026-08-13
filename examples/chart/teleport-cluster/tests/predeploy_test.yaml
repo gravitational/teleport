@@ -4,6 +4,10 @@ templates:
   - auth/predeploy_config.yaml
   - auth/predeploy_serviceaccount.yaml
   - proxy.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: Deploys the auth-test config
     template: auth/predeploy_config.yaml

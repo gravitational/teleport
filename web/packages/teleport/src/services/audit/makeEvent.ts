@@ -1507,6 +1507,34 @@ export const formatters: Formatters = {
         ? `Device enrollment request failed${formatDevice(device)}: ${error}`
         : `Device enrollment request failed${formatDevice(device)}`,
   },
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE]: {
+    type: 'device.enroll_pairing.approve',
+    desc: 'Device Enroll Pairing Approved',
+    format: ({ user, device }) =>
+      `User [${user}] approved the device enrollment request${formatDevice(device)}`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE]: {
+    type: 'device.enroll_pairing.approve',
+    desc: 'Device Enroll Pairing Approval Failed',
+    format: ({ user, device, error }) => {
+      let msg = `User [${user}] failed to approve the device enrollment request${formatDevice(device)}`;
+      if (error) {
+        msg += `: ${error}`;
+      }
+      return msg;
+    },
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_DENY]: {
+    type: 'device.enroll_pairing.deny',
+    desc: 'Device Enroll Pairing Denied',
+    format: ({ user, device, error }) => {
+      let msg = `Device enrollment request for user [${user}] was denied${formatDevice(device)}`;
+      if (error) {
+        msg += `: ${error}`;
+      }
+      return msg;
+    },
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -2580,44 +2608,22 @@ export const formatters: Formatters = {
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
-    format: ({ user, client_ip_restrictions, success }) =>
-      success
-        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
-        : `User [${user}] has failed to update  Client IP Restrictions.`,
-  },
-  [eventCodes.APPAUTHCONFIG_CREATE]: {
-    type: 'app_auth_config.create',
-    desc: 'App Auth Config created',
-    format: ({ user, name }) => {
-      return `User [${user}] created the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_UPDATE]: {
-    type: 'app_auth_config.update',
-    desc: 'App Auth Config updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_DELETE]: {
-    type: 'app_auth_config.delete',
-    desc: 'App Auth Config deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
-    type: 'app_auth_config.verify.success',
-    desc: 'App authentication succeeded',
-    format: ({ user, app_name, app_auth_config }) => {
-      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
-    type: 'app_auth_config.verify.failure',
-    desc: 'App authentication failed',
-    format: ({ error, app_auth_config }) => {
-      return `App authentication using [${app_auth_config}] failed: ${error}`;
+    format: ({
+      user,
+      client_ip_restrictions,
+      success,
+      mode,
+      enforcement_expires,
+    }) => {
+      const modeStr = mode ? ` in [${mode}] mode` : '';
+      // The zero timestamp means no enforcement expiry was set.
+      const enforcementStr =
+        enforcement_expires && new Date(enforcement_expires).getFullYear() > 1
+          ? `, with enforcement expiring on [${enforcement_expires}]`
+          : '';
+      return success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}]${modeStr}${enforcementStr}.`
+        : `User [${user}] has failed to update Client IP Restrictions.`;
     },
   },
   [eventCodes.VNET_CONFIG_CREATE]: {

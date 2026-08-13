@@ -156,6 +156,8 @@ var eventsMap = map[string]apievents.AuditEvent{
 	DeviceWebTokenCreateEvent:                      &apievents.DeviceEvent2{},
 	DeviceAuthenticateConfirmEvent:                 &apievents.DeviceEvent2{},
 	DeviceEnrollPairingRequestEvent:                &apievents.DeviceEvent2{},
+	DeviceEnrollPairingApproveEvent:                &apievents.DeviceEvent2{},
+	DeviceEnrollPairingDenyEvent:                   &apievents.DeviceEvent2{},
 	LockCreatedEvent:                               &apievents.LockCreate{},
 	LockDeletedEvent:                               &apievents.LockDelete{},
 	RecoveryCodeGeneratedEvent:                     &apievents.RecoveryCodeGenerate{},
@@ -315,6 +317,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BeamsConfigCreateEvent:                        &apievents.BeamsConfigCreate{},
 	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
 	BeamsConfigDeleteEvent:                        &apievents.BeamsConfigDelete{},
+	ClientIPRestrictionsUpdateEvent:               &apievents.ClientIPRestrictionsUpdate{},
 }
 
 // TestJSON tests JSON marshal events

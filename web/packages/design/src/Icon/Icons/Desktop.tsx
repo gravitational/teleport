@@ -56,6 +56,7 @@ export const Desktop = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-desktop"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const MoreVert = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-morevert"
+
       {...otherProps}
       ref={ref}
     >

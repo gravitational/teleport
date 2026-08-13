@@ -78,6 +78,9 @@ beams@tidal-memory:~$ claude --dangerously-skip-permissions \
   "Connect to the HR database and tell me who hasn't had a pay raise in a while"
 ```
 
+For a quick demo of using Beams to run an untrusted agent workload against a
+database, see [Beams Database Demo](./databases.mdx).
+
 ### Sandboxed app development
 
 Check out a repo, spin up an AI coding assistant, and test against staging or
@@ -152,10 +155,10 @@ View your active beams:
 
 ```code
 $ tsh beams ls
-Name          URL                                      Expiry
-------------- ---------------------------------------- --------------------
-warm-orbit    https://warm-orbit.example.teleport.sh/  2027-02-05 22:04 UTC
-nimble-signal -                                        2027-02-06 12:15 UTC
+ID            URL                                      Region      Expires
+------------- ---------------------------------------- ----------- --------------------
+warm-orbit    https://warm-orbit.example.teleport.sh/  us-east-1   2027-02-05 22:04 UTC
+nimble-signal -                                        us-west-2   2027-02-06 12:15 UTC
 ```
 
 ### Running commands

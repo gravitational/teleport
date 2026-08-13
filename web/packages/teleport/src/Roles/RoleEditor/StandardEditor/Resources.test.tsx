@@ -29,6 +29,7 @@ import {
   DatabaseAccessSection,
   GitHubOrganizationAccessSection,
   KubernetesAccessSection,
+  LinuxDesktopAccessSection,
   ServerAccessSection,
   WindowsDesktopAccessSection,
 } from './Resources';
@@ -42,6 +43,8 @@ import {
   GitHubOrganizationAccessInputFields,
   KubernetesAccess,
   KubernetesAccessInputFields,
+  LinuxDesktopAccess,
+  LinuxDesktopAccessInputFields,
   newResourceAccess,
   ServerAccess,
   ServerAccessInputFields,
@@ -174,8 +177,10 @@ describe('KubernetesAccessSection', () => {
       createOptionText: 'Group: group2',
     });
 
-    await user.type(screen.getByPlaceholderText('label key'), 'some-key');
-    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+    await user.click(screen.getByPlaceholderText('label key'));
+    await user.paste('some-key');
+    await user.click(screen.getByPlaceholderText('label value'));
+    await user.paste('some-value');
 
     await selectEvent.create(screen.getByLabelText('Users'), 'joe', {
       createOptionText: 'User: joe',
@@ -195,11 +200,11 @@ describe('KubernetesAccessSection', () => {
     expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
     await selectEvent.select(screen.getByLabelText('Kind (plural)'), 'jobs');
     await user.clear(screen.getByLabelText('API Group *'));
-    await user.type(screen.getByLabelText('API Group *'), 'api-group-name');
+    await user.paste('api-group-name');
     await user.clear(screen.getByLabelText('Name *'));
-    await user.type(screen.getByLabelText('Name *'), 'job-name');
+    await user.paste('job-name');
     await user.clear(screen.getByLabelText('Namespace *'));
-    await user.type(screen.getByLabelText('Namespace *'), 'job-namespace');
+    await user.paste('job-namespace');
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'create',
       'delete',
@@ -243,17 +248,17 @@ describe('KubernetesAccessSection', () => {
       screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
     );
     await user.clear(screen.getByLabelText('Name *'));
-    await user.type(screen.getByLabelText('Name *'), 'res1');
+    await user.paste('res1');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
     );
     await user.clear(screen.getAllByLabelText('Name *')[1]);
-    await user.type(screen.getAllByLabelText('Name *')[1], 'res2');
+    await user.paste('res2');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
     );
     await user.clear(screen.getAllByLabelText('Name *')[2]);
-    await user.type(screen.getAllByLabelText('Name *')[2], 'res3');
+    await user.paste('res3');
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         resources: [
@@ -696,6 +701,73 @@ describe('WindowsDesktopAccessSection', () => {
       ],
       hideValidationErrors: true,
     } as WindowsDesktopAccess);
+  });
+
+  test('validation', async () => {
+    const { user, validator } = setup();
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+    act(() => validator.validate());
+    expect(
+      screen.getByPlaceholderText('label key')
+    ).toHaveAccessibleDescription('required');
+  });
+
+  test('hide all input fields', async () => {
+    setup({ labels: false, logins: false });
+    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('label value')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
+  });
+
+  test('hide one input field', async () => {
+    setup({ labels: true, logins: false });
+    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('LinuxDesktopAccessSection', () => {
+  const setup = (visibleInputFields?: LinuxDesktopAccessInputFields) => {
+    const onChange = jest.fn();
+    let validator: Validator;
+    render(
+      <StatefulSection<
+        LinuxDesktopAccess,
+        ResourceAccessValidationResult,
+        LinuxDesktopAccessInputFields
+      >
+        component={LinuxDesktopAccessSection}
+        defaultValue={newResourceAccess('linux_desktop', defaultRoleVersion)}
+        onChange={onChange}
+        validatorRef={v => {
+          validator = v;
+        }}
+        validate={validateResourceAccess}
+        visibleInputFields={visibleInputFields}
+      />
+    );
+    return { user: userEvent.setup(), onChange, validator };
+  };
+
+  test('editing', async () => {
+    const { user, onChange } = setup();
+    await user.type(screen.getByPlaceholderText('label key'), 'os');
+    await user.type(screen.getByPlaceholderText('label value'), 'ubuntu');
+    await selectEvent.create(screen.getByLabelText('Logins'), 'alice', {
+      createOptionText: 'Login: alice',
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'linux_desktop',
+      labels: [{ name: 'os', value: 'ubuntu' }],
+      logins: [
+        expect.objectContaining({ value: '{{internal.logins}}' }),
+        expect.objectContaining({ label: 'alice', value: 'alice' }),
+      ],
+      hideValidationErrors: true,
+    } as LinuxDesktopAccess);
   });
 
   test('validation', async () => {

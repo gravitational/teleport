@@ -184,7 +184,9 @@ test('toggle rendering of info guide panel', async () => {
 
   // render the component that has the guide info button
   fireEvent.click(screen.queryAllByText('Zero Trust Access')[0]);
-  fireEvent.click(screen.getByTestId(testFeature.route.path));
+  fireEvent.click(
+    screen.getByRole('link', { name: testFeature.navigationItem.title })
+  );
   expect(screen.getByText(/info guide title/i)).toBeInTheDocument();
 
   // test opening of panel
@@ -223,7 +225,9 @@ test('notification render and auto dismissal', async () => {
 
   // render the component that has the add note button
   fireEvent.click(screen.queryAllByText('Zero Trust Access')[0]);
-  fireEvent.click(screen.getByTestId(testFeature.route.path));
+  fireEvent.click(
+    screen.getByRole('link', { name: testFeature.navigationItem.title })
+  );
 
   expect(screen.queryAllByText(/some note/i)).toHaveLength(0);
 

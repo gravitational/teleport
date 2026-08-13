@@ -116,6 +116,8 @@ class InnerMenuActionIcon extends React.Component<
           anchorEl={this.anchorEl}
           open={open}
           onClose={this.onClose}
+          autoFocus
+          trapFocus
           transformOrigin={{
             vertical: 'top',
             horizontal: 'right',

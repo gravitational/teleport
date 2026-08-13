@@ -39,6 +39,7 @@ const props: Props = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: false,
+  scope: '',
 };
 
 export default {
@@ -82,6 +83,8 @@ export const Cloud = () => (
     onRecover={() => null}
   />
 );
+
+export const Scoped = () => <FormLogin {...props} scope="/dev/east" />;
 
 export const ServerError = () => {
   const attempt = {
@@ -274,15 +277,13 @@ export const IdentifierFirstRememberedUser = () => {
   return <FormLogin {...props} authProviders={ssoProviders} key={key} />;
 };
 
-IdentifierFirstRememberedUser.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.authConnectorsPath, async () => {
-        await delay(600); // Simulate loading state
-        return HttpResponse.json([connectorsResp]);
-      }),
-    ],
-  },
+IdentifierFirstRememberedUser.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.authConnectorsPath, async () => {
+      await delay(600); // Simulate loading state
+      return HttpResponse.json([connectorsResp]);
+    })
+  );
 };
 
 const connectorsResp = {

@@ -184,6 +184,48 @@ export function enableMswServer() {
   afterAll(() => server.close());
 }
 
+/**
+ * Mocks HTMLElement.prototype.offsetParent for the current test suite. Call
+ * this at the top level of a test file (or inside a describe block) that
+ * exercises code filtering out hidden elements by offsetParent, e.g. the focus
+ * trap in Modal.
+ */
+export function mockOffsetParent() {
+  let originalOffsetParent: PropertyDescriptor | undefined;
+
+  beforeAll(() => {
+    originalOffsetParent = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetParent'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      get(this: HTMLElement) {
+        // Walk up the ancestor chain — in real browsers, offsetParent is null when any
+        // ancestor has display: none.
+        let el: HTMLElement | null = this;
+        while (el) {
+          if (el.style.display === 'none') {
+            return null;
+          }
+          el = el.parentElement;
+        }
+        return this.parentElement;
+      },
+      configurable: true,
+    });
+  });
+
+  afterAll(() => {
+    if (originalOffsetParent) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetParent',
+        originalOffsetParent
+      );
+    }
+  });
+}
+
 export {
   act,
   screen,

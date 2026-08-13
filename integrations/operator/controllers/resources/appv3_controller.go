@@ -61,7 +61,7 @@ func (r appClient) Delete(ctx context.Context, key reconcilers.ResourceKey) erro
 }
 
 // NewAppV3Reconciler instantiates a new Kubernetes controller reconciling app v6 resources
-func NewAppV3Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewAppV3Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	appClient := &appClient{
 		teleportClient: tClient,
 	}

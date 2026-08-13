@@ -66,6 +66,12 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
+		return
+	}
+	
 
 	samlIdPServiceProvider := &apitypes.SAMLIdPServiceProviderV1{}
 	diags = tfschema.CopySAMLIdPServiceProviderV1FromTerraform(ctx, plan, samlIdPServiceProvider)
@@ -152,6 +158,8 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 	}
 
 	plan.Attrs["id"] = types.String{Value: samlIdPServiceProvider.Metadata.Name}
+	plan.Attrs["spec"] = specFromPlan
+	
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -212,6 +220,18 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
+		return
+	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error copying SAMLIdPServiceProvider spec", trace.Wrap(err), "saml_idp_service_provider"))
 		return
 	}
 
@@ -279,11 +299,15 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Errorf("Can not convert %T to SAMLIdPServiceProviderV1", samlIdPServiceProviderI), "saml_idp_service_provider"))
 		return
 	}
+	samlIdPServiceProvider = samlIdPServiceProviderResource
+
 	diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	plan.Attrs["spec"] = specFromPlan
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

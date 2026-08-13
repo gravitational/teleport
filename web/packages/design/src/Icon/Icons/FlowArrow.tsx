@@ -56,6 +56,7 @@ export const FlowArrow = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-flowarrow"
+
       {...otherProps}
       ref={ref}
     >

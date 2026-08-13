@@ -60,6 +60,7 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -681,7 +682,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	// the same scope. Issuance requires a single role to hold both grants.
 	splitRulesRole := createScopedWorkloadIdentityRole(
 		t, adminClient, "split-rules-role", scopedScope,
-		[]string{types.VerbReadNoSecrets, types.VerbList}, nil,
+		scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List), nil,
 	)
 	splitLabelsRole := createScopedWorkloadIdentityRole(
 		t, adminClient, "split-labels-role", scopedScope,
@@ -2175,7 +2176,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	scopedCreator := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-creator", grantedScope, types.VerbCreate)
+	scopedCreator := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-creator", grantedScope, scopedaccess.Create)
 	scopedCreatorClient, err := srv.NewClient(authtest.TestScopedUser(scopedCreator, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedCreatorClient.Close() })
@@ -2439,11 +2440,11 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-granted", grantedScope, types.VerbDelete)
+	grantedDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-granted", grantedScope, scopedaccess.Delete)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedDeleter, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-other", otherScope, types.VerbDelete)
+	otherDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-other", otherScope, scopedaccess.Delete)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherDeleter, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -2620,11 +2621,11 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-granted", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-granted", grantedScope, scopedaccess.Read, scopedaccess.List)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedReader, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-other", otherScope, types.VerbReadNoSecrets, types.VerbList)
+	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-other", otherScope, scopedaccess.Read, scopedaccess.List)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherReader, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -2799,11 +2800,11 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-granted", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-granted", grantedScope, scopedaccess.Read, scopedaccess.List)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedReader, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-other", otherScope, types.VerbReadNoSecrets, types.VerbList)
+	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-other", otherScope, scopedaccess.Read, scopedaccess.List)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherReader, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -2963,6 +2964,153 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	})
 }
 
+// TestResourceService_ListWorkloadIdentitiesScopeFilter covers the scope_filter
+// field on ListWorkloadIdentitiesV2 and the identity-based defaulting applied to
+// it. Kept separate from TestResourceService_ListWorkloadIdentities because that
+// test's count assertions depend on only unscoped fixtures existing.
+func TestResourceService_ListWorkloadIdentitiesScopeFilter(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	ctx := t.Context()
+
+	const grantedScope = "/scopes/granted"
+	const subScope = "/scopes/granted/sub"
+	const otherScope = "/scopes/other"
+
+	unscopedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"scope-filter-unscoped",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     []string{types.VerbRead, types.VerbList},
+			},
+		})
+	require.NoError(t, err)
+	unscopedClient, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = unscopedClient.Close() })
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+
+	scopedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scope-filter-scoped", grantedScope, scopedaccess.Read, scopedaccess.List)
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(scopedReader, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedClient.Close() })
+
+	// One fixture per scope of interest, each named after the scope it lives in.
+	_, err = srv.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:     types.KindWorkloadIdentity,
+		Version:  types.V1,
+		Metadata: headerv1.Metadata_builder{Name: "sf-unscoped"}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/sf-unscoped"}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	for name, scope := range map[string]string{
+		"sf-granted": grantedScope,
+		"sf-sub":     subScope,
+		"sf-other":   otherScope,
+	} {
+		_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity(name, scope, scope+"/_/"+name))
+		require.NoError(t, err)
+	}
+
+	listNames := func(t *testing.T, clt *authclient.Client, scopeFilter *scopesv1.Filter) []string {
+		t.Helper()
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(clt.GetConnection())
+		res, err := client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			PageSize:    100,
+			ScopeFilter: scopeFilter,
+		}.Build())
+		require.NoError(t, err)
+		var names []string
+		for _, wi := range res.GetWorkloadIdentities() {
+			names = append(names, wi.GetMetadata().GetName())
+		}
+		slices.Sort(names)
+		return names
+	}
+
+	t.Run("unscoped caller without a scope filter sees only unscoped", func(t *testing.T) {
+		require.Equal(t, []string{"sf-unscoped"}, listNames(t, unscopedClient, nil))
+	})
+
+	t.Run("unscoped caller with mode ALL sees every scope", func(t *testing.T) {
+		require.Equal(t,
+			[]string{"sf-granted", "sf-other", "sf-sub", "sf-unscoped"},
+			listNames(t, unscopedClient, scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
+		)
+	})
+
+	t.Run("unscoped caller can filter to an exact scope", func(t *testing.T) {
+		require.Equal(t, []string{"sf-granted"}, listNames(t, unscopedClient, scopesv1.Filter_builder{
+			Mode:  scopesv1.Mode_MODE_EXACT,
+			Scope: grantedScope,
+		}.Build()))
+	})
+
+	t.Run("unscoped caller can filter to a scope and its descendants", func(t *testing.T) {
+		require.Equal(t, []string{"sf-granted", "sf-sub"}, listNames(t, unscopedClient, scopesv1.Filter_builder{
+			Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+			Scope: grantedScope,
+		}.Build()))
+	})
+
+	t.Run("unscoped caller can filter to unscoped only", func(t *testing.T) {
+		require.Equal(t, []string{"sf-unscoped"}, listNames(t, unscopedClient, scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build()))
+	})
+
+	t.Run("scoped caller without a scope filter sees only its pinned scope", func(t *testing.T) {
+		require.Equal(t, []string{"sf-granted"}, listNames(t, scopedClient, nil))
+	})
+
+	t.Run("scoped caller with mode ALL is still limited by RBAC", func(t *testing.T) {
+		// Unlike a watch, a list does not rewrite mode ALL to DESCENDANTS@pin;
+		// the per-resource Decision confines the caller instead.
+		names := listNames(t, scopedClient, scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
+		require.Contains(t, names, "sf-granted")
+		require.NotContains(t, names, "sf-other")
+		require.NotContains(t, names, "sf-unscoped")
+	})
+
+	t.Run("malformed filter is rejected", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(unscopedClient.GetConnection())
+		_, err := client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
+		}.Build())
+		require.ErrorContains(t, err, "requires a non-empty scope")
+
+		// A scope without a mode must fail as malformed, not be resolved to the
+		// identity default (which would silently discard the scope).
+		_, err = client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			ScopeFilter: scopesv1.Filter_builder{Scope: grantedScope}.Build(),
+		}.Build())
+		require.ErrorContains(t, err, "without a mode")
+	})
+
+	t.Run("V1 lists every scope", func(t *testing.T) {
+		// V1 cannot express a filter, so the shim pins it to mode ALL.
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(unscopedClient.GetConnection())
+		res, err := client.ListWorkloadIdentities(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesRequest_builder{
+			PageSize: 100,
+		}.Build())
+		require.NoError(t, err)
+		var names []string
+		for _, wi := range res.GetWorkloadIdentities() {
+			names = append(names, wi.GetMetadata().GetName())
+		}
+		slices.Sort(names)
+		require.Equal(t, []string{"sf-granted", "sf-other", "sf-sub", "sf-unscoped"}, names)
+	})
+}
+
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
@@ -3030,11 +3178,11 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	grantedUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-granted", grantedScope, types.VerbUpdate)
+	grantedUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-granted", grantedScope, scopedaccess.Update)
 	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedUpdater, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = grantedClient.Close() })
-	otherUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-other", otherScope, types.VerbUpdate)
+	otherUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-other", otherScope, scopedaccess.Update)
 	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherUpdater, otherScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = otherClient.Close() })
@@ -3231,7 +3379,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	t.Cleanup(func() { _ = adminClient.Close() })
 	const grantedScope = "/scopes/granted"
 	const otherScope = "/scopes/other"
-	scopedUpserter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-upserter", grantedScope, types.VerbCreate, types.VerbUpdate)
+	scopedUpserter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-upserter", grantedScope, scopedaccess.Create, scopedaccess.Update)
 	scopedUpserterClient, err := srv.NewClient(authtest.TestScopedUser(scopedUpserter, grantedScope))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = scopedUpserterClient.Close() })
@@ -4617,7 +4765,7 @@ func newScopedWorkloadIdentityUser(
 	adminClient *authclient.Client,
 	username string,
 	scope string,
-	verbs ...string,
+	verbs ...scopedaccess.Verb,
 ) string {
 	t.Helper()
 	ctx := t.Context()
@@ -4636,7 +4784,7 @@ func newScopedWorkloadIdentityUser(
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindWorkloadIdentity},
-						Verbs:     verbs,
+						Verbs:     scopedaccess.EncodeScopedVerbs(verbs...),
 					}.Build(),
 				},
 			}.Build(),
@@ -4831,7 +4979,7 @@ func newScopedWorkloadIdentityIssuer(
 	t.Helper()
 	role := createScopedWorkloadIdentityRole(
 		t, adminClient, username+"-role", scope,
-		[]string{types.VerbReadNoSecrets, types.VerbList}, labels,
+		scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List), labels,
 	)
 	return createScopedWorkloadIdentityUser(t, srv, adminClient, username, scope, role)
 }

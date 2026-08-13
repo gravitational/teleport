@@ -175,6 +175,10 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+  organization?: {
+    includeUnits: string[];
+    excludeUnits: string[];
+  };
 };
 
 // IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
@@ -536,8 +540,25 @@ export type PluginEntraIdSpec = {
    * "enabled" state.
    */
   accessGraphEnabled: boolean;
+  /**
+   * syncIntervals is the Entra ID service sync intervals.
+   */
+  syncIntervals?: Partial<PluginEntraIdSyncIntervals>;
 };
 
+/**
+ * PluginEntraIdSyncIntervals defines Entra ID service sync intervals.
+ */
+export type PluginEntraIdSyncIntervals = {
+  /**
+   * Go duration string that configures delta sync interval.
+   */
+  delta: string;
+  /**
+   * Go duration string that configures full sync interval.
+   */
+  full: string;
+};
 /**
  * Filters defines plugin resource import filter input
  * param. Fields must be in sync with the [Inputs]
@@ -794,6 +815,10 @@ export type DiscoverAzureVm = {
   resource_group: string;
   // region is the Azure Region where Teleport failed to enroll VMs.
   region: string;
+  // tenant_id is the Microsoft Entra tenant ID used by the Azure integration.
+  tenant_id?: string;
+  // client_id is the client ID of the Azure integration's managed identity or service principal.
+  client_id?: string;
 };
 
 // DiscoverAzureVmInstance contains the result of enrolling an Azure VM.

@@ -34,10 +34,10 @@ export class UnifiedResourcesPage {
    */
   async connect(serverName: string, login: string) {
     const row = this.page
-      .locator('div')
-      .filter({ hasText: serverName })
+      .locator('li')
+      .filter({ has: this.page.getByText(serverName, { exact: true }) })
       .filter({ has: this.page.getByRole('button', { name: 'Connect' }) })
-      .first();
+      .last();
     await row.getByRole('button', { name: 'Connect' }).click();
 
     const popupPromise = this.page.waitForEvent('popup');
@@ -46,5 +46,15 @@ export class UnifiedResourcesPage {
     await popup.waitForLoadState('load');
 
     return new TerminalPage(popup);
+  }
+
+  async connectWithoutLogin(resourceName: string | RegExp): Promise<void> {
+    const locator = this.page
+      .locator('li')
+      .filter({ hasText: resourceName })
+      .filter({ has: this.page.getByRole('button', { name: 'Connect' }) })
+      .first();
+
+    await locator.getByRole('button', { name: 'Connect' }).click();
   }
 }

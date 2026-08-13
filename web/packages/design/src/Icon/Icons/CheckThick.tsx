@@ -56,6 +56,7 @@ export const CheckThick = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-checkthick"
+
       {...otherProps}
       ref={ref}
     >

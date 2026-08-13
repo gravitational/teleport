@@ -123,6 +123,9 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 }
 
 // DialContext implements ContextDialer.
+//
+// The returned conn has already completed its TLS handshake. When using it with
+// a http.Transport, wire it in as DialTLSContext not DialContext.
 func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	tlsConfig, err := d.getTLSConfig(ctx, addr)
 	if err != nil {

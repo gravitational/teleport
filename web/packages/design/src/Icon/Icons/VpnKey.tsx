@@ -56,6 +56,7 @@ export const VpnKey = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-vpnkey"
+
       {...otherProps}
       ref={ref}
     >

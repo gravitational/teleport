@@ -56,6 +56,7 @@ export const Clipboard = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-clipboard"
+
       {...otherProps}
       ref={ref}
     >
