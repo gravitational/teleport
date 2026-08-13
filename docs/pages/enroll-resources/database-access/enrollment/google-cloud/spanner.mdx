@@ -38,15 +38,12 @@ page_type: how-to
   with outbound HTTPS access to `spanner.googleapis.com:443`
 - (!docs/pages/includes/tctl.mdx!)
 
-<Admonition type="tip" title="Discover your GCP project and Spanner instance">
-If you are unsure of your GCP project ID or Spanner instance ID, run:
+To find your GCP project ID or Spanner instance ID, run:
 
 ```code
 $ gcloud config get-value project
 $ gcloud spanner instances list --format="table(name,displayName,state)"
 ```
-
-</Admonition>
 
 ## Step 1/6. Create service accounts
 
@@ -138,13 +135,11 @@ to impersonate the database user account.
 
 <TabItem label="gcloud CLI">
 
-<Admonition type="tip" title="Discover your Spanner instance ID">
+To find your Spanner instance ID, run:
 
 ```code
 $ gcloud spanner instances list --format="table(name,displayName,state)"
 ```
-
-</Admonition>
 
 ```code
 $ gcloud spanner instances add-iam-policy-binding <Var name="instance-id" /> \
@@ -212,9 +207,7 @@ bindings:
 
 ## Step 3/6. Install and configure the Teleport Database Service
 
-<Admonition type="note" title="Where to run commands">
 Run the commands in this step on the host where you will run the Teleport Database Service (e.g., a Compute Engine instance with outbound access to `spanner.googleapis.com:443`).
-</Admonition>
 
 (!docs/pages/includes/install-linux.mdx!)
 
@@ -229,14 +222,12 @@ or cloud-hosted Teleport Enterprise site.
 organization view at the top of the GCP dashboard.
 - <Var name="instance-id"/> The name of your Cloud Spanner instance.
 
-<Admonition type="tip" title="Discover placeholder values">
+To discover these placeholder values, run:
 
 ```code
 $ gcloud config get-value project
 $ gcloud spanner instances list --format="table(name,displayName,state)"
 ```
-
-</Admonition>
 
 ```code
 $ sudo teleport db configure create \
@@ -255,8 +246,7 @@ $ sudo teleport db configure create \
 
 (!docs/pages/includes/database-access/cloudsql_service_credentials.mdx serviceAccount="teleport-db-service"!)
 
-<Admonition type="tip" title="Recommended: use attached service accounts or workload identity">
-When running on a GCE instance, attach the `teleport-db-service` service account directly to the instance. This avoids creating and managing service account keys:
+When running on a GCE instance, we recommend attaching the `teleport-db-service` service account directly to the instance. This avoids creating and managing service account keys:
 
 ```code
 $ gcloud compute instances set-service-account <Var name="gce-instance-name" /> \
@@ -270,7 +260,6 @@ For workloads running outside of GCP (e.g., on-premises or other clouds), use
 instead of service account keys. Workload Identity Federation lets you exchange
 an external identity token for a short-lived GCP access token without storing
 long-lived credentials.
-</Admonition>
 
 ## Step 5/6. Start the Teleport Database Service
 
@@ -316,14 +305,12 @@ $ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="example
 Connect using the service account name (without the domain suffix):
 (Note: `--db-name` here refers to the specific database ID within your Spanner instance.)
 
-<Admonition type="tip" title="Discover your Spanner database name">
+To find your Spanner database name, run:
 
 ```code
 $ gcloud spanner databases list --instance=<Var name="instance-id" /> \
     --format="table(name,state)"
 ```
-
-</Admonition>
 
 ```code
 $ tsh db connect --db-user=spanner-user --db-name=database-name spanner-example

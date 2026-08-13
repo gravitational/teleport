@@ -71,9 +71,7 @@ spec:
         service_accounts: ["my-sa@my-project-id.iam.gserviceaccount.com"]
 ```
 
-<Admonition type="tip">
-
-To discover the values needed for this token configuration:
+To discover the values needed for this token configuration, run:
 
 ```code
 # Get your project ID
@@ -85,8 +83,6 @@ $ gcloud compute instances list --format="value(zone)" | sort -u
 # List service accounts attached to your instances
 $ gcloud compute instances list --format="value(serviceAccounts[0].email)" | sort -u
 ```
-
-</Admonition>
 
 Add your instance's project ID(s) to the `project_ids` field.
 Add the token to the Teleport cluster with:
@@ -197,9 +193,7 @@ at least one entry under `serviceAccounts`:
 $ gcloud compute instances describe --format="yaml(name,serviceAccounts)" <Var name="instance_name" description="Instance name" />
 ```
 
-<Admonition type="tip">
-
-To check all instances in your project at once for service account attachment:
+To check all instances in your project at once for service account attachment, run:
 
 ```code
 $ gcloud compute instances list \
@@ -209,8 +203,6 @@ $ gcloud compute instances list \
 
 Instances without a service account will show an empty `SERVICE_ACCOUNT` column
 and cannot be discovered by Teleport.
-
-</Admonition>
 
 ### Enable guest attributes on instances
 
@@ -272,14 +264,10 @@ will automatically be populated with the instance's host keys. If guest
 attributes were enabled after the instance was created, you must manually add
 the host keys to the guest attributes.
 
-<Admonition type="note">
-
 This is a one-time operation per instance. Once host keys are written to guest
 attributes, they persist across reboots. If you enabled guest attributes
 project-wide before creating instances, new instances will automatically
 populate their host keys and no manual action is needed.
-
-</Admonition>
 
 <Tabs>
 <TabItem label="Batch (all instances)">
@@ -310,10 +298,8 @@ populate their host keys and no manual action is needed.
   --metadata-from-file=startup-script="add-host-keys.sh"
   ```
 
-  <Admonition type="note">
   The startup script runs on each boot. After the host keys have been
   populated, you can remove it or leave it in place (it is idempotent).
-  </Admonition>
 </TabItem>
 <TabItem label="SSH (single instance)">
   Run the following command to add the host keys over SSH:
@@ -419,9 +405,7 @@ Static configuration while simpler at first, has less flexibility because enroll
           "env": "prod" # Match virtual machines where label:env=prod
   ```
 
-  <Admonition type="tip">
-
-  To discover the values needed for the matcher configuration:
+  To discover the values needed for the matcher configuration, run:
 
   ```code
   # Get your project ID
@@ -433,8 +417,6 @@ Static configuration while simpler at first, has less flexibility because enroll
   # List service accounts attached to target instances
   $ gcloud compute instances list --filter="labels.env=prod" --format="value(serviceAccounts[0].email)" | sort -u
   ```
-
-  </Admonition>
 
   Adjust the keys under `spec.gcp` to match your GCP environment,
   specifically the project IDs, locations, service accounts and labels you want to associate with the Discovery Service.

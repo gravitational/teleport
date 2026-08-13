@@ -34,21 +34,17 @@ page_type: how-to
   Service
 - (!docs/pages/includes/tctl.mdx!)
 
-<Admonition type="tip" title="Discover your GCP project ID">
-If you are unsure of your GCP project ID, run:
+To find your GCP project ID, run:
 
 ```code
 $ gcloud config get-value project
 ```
 
-</Admonition>
-
 ## Step 1/9. Create a service account for the Teleport Database Service
 
 (!docs/pages/includes/database-access/cloudsql-create-service-account-for-db-service.mdx !)
 
-<Admonition type="tip" title="CLI alternative">
-You can create the service account using the `gcloud` CLI instead of the Cloud Console:
+Alternatively, create the service account using the `gcloud` CLI:
 
 ```code
 $ gcloud iam service-accounts create teleport-db-service \
@@ -56,14 +52,11 @@ $ gcloud iam service-accounts create teleport-db-service \
     --project=<Var name="project-id" />
 ```
 
-</Admonition>
-
 ### (Optional) Grant permissions
 
 (!docs/pages/includes/database-access/cloudsql_grant_db_service_account.mdx!)
 
-<Admonition type="tip" title="CLI alternative">
-Grant the required Cloud SQL permissions to the Database Service account using the CLI:
+Alternatively, grant the required Cloud SQL permissions to the Database Service account using the `gcloud` CLI:
 
 ```code
 $ gcloud projects add-iam-policy-binding <Var name="project-id" /> \
@@ -74,8 +67,6 @@ $ gcloud projects add-iam-policy-binding <Var name="project-id" /> \
     --member="serviceAccount:teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com" \
     --role="roles/cloudsql.instanceUser"
 ```
-
-</Admonition>
 
 ### (Optional) Grant permission to check user type
 
@@ -101,16 +92,13 @@ The pre-defined "Cloud SQL Viewer" role has this permission, but also has other
 permissions that are not needed. Define and bind a custom role to the service
 account to follow the principle of least privilege.
 
-<Admonition type="tip" title="CLI alternative">
-To grant the Cloud SQL Viewer role (or a custom role with `cloudsql.users.get`):
+Alternatively, grant the Cloud SQL Viewer role (or a custom role with `cloudsql.users.get`) using the `gcloud` CLI:
 
 ```code
 $ gcloud projects add-iam-policy-binding <Var name="project-id" /> \
     --member="serviceAccount:teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com" \
     --role="roles/cloudsql.viewer"
 ```
-
-</Admonition>
 
 <Admonition type="note">
 Support for legacy one-time password authentication will be deprecated.
@@ -125,8 +113,7 @@ Teleport uses service accounts to connect to Cloud SQL databases.
 
 (!docs/pages/includes/database-access/cloudsql_create_db_user_account.mdx!)
 
-<Admonition type="tip" title="CLI alternative">
-Create the database user service account using the CLI:
+Alternatively, create the database user service account using the `gcloud` CLI:
 
 ```code
 $ gcloud iam service-accounts create cloudsql-user \
@@ -134,12 +121,9 @@ $ gcloud iam service-accounts create cloudsql-user \
     --project=<Var name="project-id" />
 ```
 
-</Admonition>
-
 (!docs/pages/includes/database-access/cloudsql_grant_db_user.mdx!)
 
-<Admonition type="tip" title="CLI alternative">
-Grant the Cloud SQL Instance User role to the database user service account:
+Alternatively, grant the Cloud SQL Instance User role to the database user service account using the `gcloud` CLI:
 
 ```code
 $ gcloud projects add-iam-policy-binding <Var name="project-id" /> \
@@ -147,12 +131,9 @@ $ gcloud projects add-iam-policy-binding <Var name="project-id" /> \
     --role="roles/cloudsql.instanceUser"
 ```
 
-</Admonition>
-
 (!docs/pages/includes/database-access/cloudsql-grant-impersonation.mdx!)
 
-<Admonition type="tip" title="CLI alternative">
-Grant the Database Service account permission to impersonate the database user account:
+Alternatively, grant the Database Service account permission to impersonate the database user account using the `gcloud` CLI:
 
 ```code
 $ gcloud iam service-accounts add-iam-policy-binding \
@@ -160,8 +141,6 @@ $ gcloud iam service-accounts add-iam-policy-binding \
     --member="serviceAccount:teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com" \
     --role="roles/iam.serviceAccountTokenCreator"
 ```
-
-</Admonition>
 
 <Checkpoint
   title="Verify service account impersonation"
@@ -196,15 +175,12 @@ with Cloud SQL MySQL instances.
 
 (!docs/pages/includes/database-access/cloudsql_enable_iam_auth.mdx type="MySQL" flag="cloudsql_iam_authentication" !)
 
-<Admonition type="tip" title="CLI alternative">
-Enable IAM authentication on your Cloud SQL MySQL instance:
+Alternatively, enable IAM authentication on your Cloud SQL MySQL instance using the `gcloud` CLI:
 
 ```code
 $ gcloud sql instances patch <Var name="instance-name" /> \
     --database-flags=cloudsql_iam_authentication=on
 ```
-
-</Admonition>
 
 ### (Optional) SSL mode "require trusted client certificates"
 
@@ -248,14 +224,11 @@ $ gcloud sql users create cloudsql-user@<Var name="project-id" />.iam.gserviceac
     --type=CLOUD_IAM_SERVICE_ACCOUNT
 ```
 
-<Admonition type="tip" title="Discover your Cloud SQL instance name">
-List your Cloud SQL instances:
+To find your Cloud SQL instance name, run:
 
 ```code
 $ gcloud sql instances list --format="table(name,databaseVersion,region,state)"
 ```
-
-</Admonition>
 
 </TabItem>
 </Tabs>
@@ -280,9 +253,7 @@ You should see a user with type `CLOUD_IAM_SERVICE_ACCOUNT` for your service acc
 
 ## Step 5/9. Configure the Teleport Database Service
 
-<Admonition type="note" title="Where to run commands">
 Run the commands in this step on the host where you will run the Teleport Database Service (e.g., a Compute Engine instance).
-</Admonition>
 
 ### Create a join token
 
