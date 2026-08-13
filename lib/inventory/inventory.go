@@ -294,12 +294,8 @@ func (h *downstreamHandle) autoEmitInstanceStatus() {
 		if status == nil {
 			return
 		}
-<<<<<<< HEAD
-		if err := sender.Send(h.CloseContext(), proto.InstanceStatus_builder{AuditQueue: status}.Build()); err != nil && !errors.Is(err, context.Canceled) {
-=======
 		msg := proto.InstanceStatus_builder{AuditQueue: status}.Build()
 		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
->>>>>>> kylekloberdanz/audit-event-batch
 			slog.WarnContext(h.CloseContext(), "Failed to send instance status", "error", err)
 		}
 	}
