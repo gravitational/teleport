@@ -133,6 +133,9 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 			)
 			continue
 		}
+		if err := services.ValidateRole(role); err != nil {
+			s.logger.WarnContext(ctx, "Role has invalid expressions", "role", role.GetName(), "error", err)
+		}
 
 		// if a filter was provided, skip roles that fail to match.
 		if req.Filter != nil && !req.Filter.Match(role) {
@@ -202,6 +205,7 @@ func (s *AccessService) AppendPutRoleActions(
 	role types.Role,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
+	// TODO(tangyatsu): move ValidateRole to the auth server layer when this function is implemented there.
 	if err := services.ValidateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,8 +233,15 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRole(item.Value,
+	role, err := services.UnmarshalRole(item.Value,
 		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.ValidateRole(role); err != nil {
+		s.logger.WarnContext(ctx, "Role has invalid expressions", "role", role.GetName(), "error", err)
+	}
+	return role, nil
 }
 
 // DeleteRole deletes a role from the backend

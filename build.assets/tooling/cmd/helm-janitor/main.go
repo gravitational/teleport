@@ -56,6 +56,11 @@ var charts = []Chart{
 		ReferencePath: "",
 	},
 	{
+		Name:          "teleport-proxy",
+		Path:          "examples/chart/teleport-proxy",
+		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.teleport-proxy.mdx",
+	},
+	{
 		Name:          "teleport-kube-agent",
 		Path:          "examples/chart/teleport-kube-agent",
 		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx",
@@ -130,6 +135,28 @@ var charts = []Chart{
 		Path:          "examples/chart/teleport-kube-updater",
 		ReferencePath: "",
 		IsLibrary:     true,
+	},
+	{
+		Name:          "teleport-util-lib",
+		Path:          "examples/chart/lib/teleport-util-lib",
+		ReferencePath: "",
+		IsLibrary:     true,
+	},
+	{
+		Name:          "teleport-util-lib-test",
+		Path:          "examples/chart/lib/teleport-util-lib-test",
+		ReferencePath: "",
+	},
+	{
+		Name:          "teleport-proxy-lib",
+		Path:          "examples/chart/lib/teleport-proxy-lib",
+		ReferencePath: "",
+		IsLibrary:     true,
+	},
+	{
+		Name:          "teleport-proxy-lib-test",
+		Path:          "examples/chart/lib/teleport-proxy-lib-test",
+		ReferencePath: "",
 	},
 }
 

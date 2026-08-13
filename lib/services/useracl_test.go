@@ -76,6 +76,10 @@ func TestNewUserACL(t *testing.T) {
 			Resources: []string{types.KindBeam},
 			Verbs:     RW(),
 		},
+		{
+			Resources: []string{types.KindMobileDevice},
+			Verbs:     []string{types.VerbCreateEnrollToken},
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies Access
@@ -126,6 +130,7 @@ func TestNewUserACL(t *testing.T) {
 
 	require.Empty(t, cmp.Diff(userContext.Billing, denied))
 	require.True(t, userContext.Clipboard)
+	require.Empty(t, userContext.WebTerminalClipboardMode)
 	require.True(t, userContext.DesktopSessionRecording)
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
@@ -140,6 +145,8 @@ func TestNewUserACL(t *testing.T) {
 
 	// beams should be denied without the Beams entitlement
 	require.Empty(t, cmp.Diff(userContext.Beam, denied))
+
+	require.True(t, userContext.MobileDevice.CreateEnrollToken)
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
@@ -197,6 +204,7 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.Bots, allowedRW))
 	require.True(t, userContext.Clipboard)
+	require.Empty(t, userContext.WebTerminalClipboardMode)
 	require.True(t, userContext.DesktopSessionRecording)
 
 	// cloud-specific asserts

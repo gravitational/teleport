@@ -20,19 +20,19 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -58,11 +58,15 @@ func (s *ServerCollection) WriteText(w io.Writer, verbose bool) error {
 	rows := make([][]string, 0, len(s.servers))
 	for _, se := range s.servers {
 		labels := common.FormatLabels(se.GetAllLabels(), verbose)
+		id := se.GetName()
+		if scope := se.GetScope(); scope != "" {
+			id = scopes.QualifiedName{Scope: scope, Name: se.GetName()}.String()
+		}
 		rows = append(rows, []string{
-			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
+			se.GetHostname(), id, se.GetAddr(), labels, se.GetTeleportVersion(),
 		})
 	}
-	headers := []string{"Host", "UUID", "Public Address", "Labels", "Version"}
+	headers := []string{"Host", "ID", "Public Address", "Labels", "Version"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
@@ -93,6 +97,52 @@ func serverHandler() Handler {
 	}
 }
 
+// serverScopedHandler returns a limited [ScopedHandler] for nodes that are registered with a scope. This is necessary to support
+// nodes being accessed with a mix of scoped and unscoped semantics.
+//
+// TODO(fspmmarshall/scopes): revisit this pattern. would it be better to represent handlers with mixed semantics in some more
+// unified manner?
+func serverScopedHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedNode,
+		deleteHandler: deleteScopedNode,
+		description:   "Represents an SSH instance in the cluster, either a Teleport SSH agent or OpenSSH",
+	}
+}
+
+func getScopedNode(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindNode, subKind)
+	}
+	if sqn == nil {
+		// this isn't expected to happen, the unscoped handler should catch anything that didn't include an explicit SQN, but there's no
+		// harm in falling back to the unscoped handler here.
+		return getServer(ctx, client, services.Ref{Kind: types.KindNode}, opts)
+	}
+	node, err := client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ServerCollection{servers: []types.Server{node}}, nil
+}
+
+func deleteScopedNode(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindNode, subKind)
+	}
+	if err := client.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("node %v has been deleted\n", sqn.String())
+	return nil
+}
+
 func createServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
 	server, err := services.UnmarshalServer(raw.Raw, types.KindNode, services.DisallowUnknown())
 	if err != nil {
@@ -100,7 +150,11 @@ func createServer(ctx context.Context, client *authclient.Client, raw services.U
 	}
 
 	name := server.GetName()
-	_, err = client.GetNode(ctx, server.GetNamespace(), name)
+	scope := server.GetScope()
+	_, err = client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Scope: scope,
+		Name:  name,
+	}.Build())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -117,64 +171,67 @@ func createServer(ctx context.Context, client *authclient.Client, raw services.U
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("node %q has been %s\n", name, upsertVerb(exists, opts.Force))
+	fmt.Printf("node %q has been %s\n", scopes.QualifiedName{Name: name, Scope: scope}.String(), upsertVerb(exists, opts.Force))
 	return nil
 }
 
 func deleteServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteNode(ctx, defaults.Namespace, ref.Name); err != nil {
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{Name: ref.Name}
+	}
+	if err := client.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("node %v has been deleted\n", ref.Name)
+	fmt.Printf("node %v has been deleted\n", sqn.String())
 	return nil
 }
 
 func getServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	var search []string
+	var sqn scopes.QualifiedName
 	if ref.Name != "" {
-		search = []string{ref.Name}
-	}
-
-	req := proto.ListUnifiedResourcesRequest{
-		Kinds:          []string{types.KindNode},
-		SearchKeywords: search,
-		SortBy:         types.SortBy{Field: types.ResourceKind},
-	}
-
-	var collection ServerCollection
-	for {
-		page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
+		var err error
+		sqn, err = scopes.ParseQualifiedName(ref.Name)
 		if err != nil {
+			sqn = scopes.QualifiedName{Name: ref.Name}
+		}
+
+		node, err := client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+			Scope: sqn.Scope,
+			Name:  sqn.Name,
+		}.Build())
+		switch {
+		case err == nil:
+			return NewServerCollection([]types.Server{node}), nil
+		case !trace.IsNotFound(err):
 			return nil, trace.Wrap(err)
 		}
-
-		for _, r := range page {
-			srv, ok := r.ResourceWithLabels.(types.Server)
-			if !ok {
-				slog.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
-				continue
-			}
-
-			if ref.Name == "" {
-				collection.servers = append(collection.servers, srv)
-				continue
-			}
-
-			if srv.GetName() == ref.Name || srv.GetHostname() == ref.Name {
-				collection.servers = []types.Server{srv}
-				return &collection, nil
-			}
-		}
-
-		req.StartKey = next
-		if req.StartKey == "" {
-			break
-		}
 	}
 
-	if len(collection.servers) == 0 && ref.Name != "" {
-		return nil, trace.NotFound("node with ID %q not found", ref.Name)
+	nodes, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+		return client.ListSSHServers(ctx, presencev1.ListSSHServersRequest_builder{
+			PageSize:    int32(pageSize),
+			PageToken:   pageToken,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &collection, nil
+	if ref.Name == "" {
+		return NewServerCollection(nodes), nil
+	}
+
+	// Nodes may be referenced by ID or by hostname, so hostname is supplied as
+	// an alternate name.
+	nodes = FilterBySQNOrDiscoveredName(nodes, sqn, types.Server.GetHostname)
+	if len(nodes) == 0 {
+		return nil, trace.NotFound("node with ID %q not found", sqn.String())
+	}
+
+	return NewServerCollection(nodes), nil
 }

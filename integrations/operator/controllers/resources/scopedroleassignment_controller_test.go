@@ -35,18 +35,19 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
-var scopedRoleAssignmentSpec = &accessv1.ScopedRoleAssignmentSpec{
+var scopedRoleAssignmentSpec = accessv1.ScopedRoleAssignmentSpec_builder{
 	User: "test-user",
 	Assignments: []*accessv1.Assignment{
-		{
-			Role:  "test-role",
-			Scope: "/staging",
-		},
+		accessv1.Assignment_builder{
+			Role:  scopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
+			Scope: testNestedScope,
+		}.Build(),
 	},
-}
+}.Build()
 
 type scopedRoleAssignmentTestingPrimitives struct {
 	setup *testSetup
@@ -62,30 +63,32 @@ func (g *scopedRoleAssignmentTestingPrimitives) SetupTeleportFixtures(ctx contex
 }
 
 func (g *scopedRoleAssignmentTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	assignment := &accessv1.ScopedRoleAssignment{
+	assignment := accessv1.ScopedRoleAssignment_builder{
 		Kind:    access.KindScopedRoleAssignment,
 		Version: types.V1,
 		SubKind: access.SubKindDynamic,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
-				types.OriginLabel: types.OriginKubernetes,
+				types.OriginLabel:           types.OriginKubernetes,
+				reconcilers.OperatorIDLabel: g.setup.OperatorMetadata().ID,
 			},
-		},
-		Scope: "/staging",
+		}.Build(),
+		Scope: testScope,
 		Spec:  scopedRoleAssignmentSpec,
-	}
-	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+	}.Build()
+	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, accessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: assignment,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 func (g *scopedRoleAssignmentTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*accessv1.ScopedRoleAssignment, error) {
-	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    name,
+		Scope:   g.setup.OperatorMetadata().Scope,
 		SubKind: access.SubKindDynamic,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,10 +96,11 @@ func (g *scopedRoleAssignmentTestingPrimitives) GetTeleportResource(ctx context.
 }
 
 func (g *scopedRoleAssignmentTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, accessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    name,
+		Scope:   g.setup.OperatorMetadata().Scope,
 		SubKind: access.SubKindDynamic,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
@@ -106,7 +110,7 @@ func (g *scopedRoleAssignmentTestingPrimitives) CreateKubernetesResource(ctx con
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  (*resourcesv1.TeleportScopedRoleAssignmentV1Spec)(scopedRoleAssignmentSpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, assignment))
@@ -138,10 +142,10 @@ func (g *scopedRoleAssignmentTestingPrimitives) ModifyKubernetesResource(ctx con
 		return trace.Wrap(err)
 	}
 	assignment.Spec.Assignments = []*accessv1.Assignment{
-		{
-			Role:  "test-role",
-			Scope: "/staging/aa",
-		},
+		accessv1.Assignment_builder{
+			Role:  scopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
+			Scope: testScope, // change from testNestedScope to testScope
+		}.Build(),
 	}
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, assignment))
 }
@@ -157,19 +161,39 @@ func (g *scopedRoleAssignmentTestingPrimitives) CompareTeleportAndKubernetesReso
 }
 
 func TestScopedRoleAssignmentCreation(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()))
+	testlib.ResourceCreationSynchronousTest[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
+		t,
+		resources.NewScopedRoleAssignmentV1Reconciler,
+		test,
+		testlib.WithResourceName(uuid.New().String()),
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }
 
 func TestScopedRoleAssignmentDeletionDrift(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()))
+	testlib.ResourceDeletionDriftSynchronousTest[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](t,
+		resources.NewScopedRoleAssignmentV1Reconciler,
+		test,
+		testlib.WithResourceName(uuid.New().String()),
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }
 
 func TestScopedRoleAssignmentUpdate(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()))
+	testlib.ResourceUpdateTestSynchronous[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
+		t,
+		resources.NewScopedRoleAssignmentV1Reconciler,
+		test,
+		testlib.WithResourceName(uuid.New().String()),
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }

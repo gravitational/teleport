@@ -52,6 +52,16 @@ func TestTunnelStrategyMarshalling(t *testing.T) {
 				},
 			}},
 		},
+		{
+			json: `{"agent_connection_count":2,"disconnect_threshold_seconds":60,"type":"proxy_peering"}`,
+			yaml: "agent_connection_count: 2\ndisconnect_threshold_seconds: 60\ntype: proxy_peering\n",
+			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
+				ProxyPeering: &ProxyPeeringTunnelStrategy{
+					AgentConnectionCount:       2,
+					DisconnectThresholdSeconds: 60,
+				},
+			}},
+		},
 	}
 
 	for _, tc := range tests {

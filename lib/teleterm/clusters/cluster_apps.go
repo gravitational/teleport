@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -62,7 +63,7 @@ func GetApp(ctx context.Context, authClient authclient.ClientI, appName string) 
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+			PredicateExpression: fmt.Sprintf(`name == %q`, appName),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -92,7 +93,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := result.KeyRing.AppTLSCert(routeToApp.Name)
+	appCert, err := result.KeyRing.AppTLSCert(scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope})
 	return appCert, trace.Wrap(err)
 }
 

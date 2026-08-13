@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	want := newValidatedMFAChallenge()
+	want.GetMetadata().SetName(chal.GetMetadata().GetName())
 	want.GetSpec().SetTargetCluster(targetCluster)
 
 	require.Empty(
@@ -112,6 +114,20 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr:       nil,
 		},
 		{
+			name:          "valid challenge with tls_session_id",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.GetSpec().SetPayload(
+					mfav2.SessionIdentifyingPayload_builder{
+						TlsSessionId: []byte("tls-session-id"),
+					}.Build(),
+				)
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
 			name:          "missing target cluster",
 			targetCluster: &emptyTargetCluster,
 			wantErr:       trace.BadParameter("param targetCluster must not be empty"),
@@ -157,7 +173,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav2.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
-				c.GetMetadata().Name = ""
+				c.GetMetadata().SetName("")
 				return c
 			}(),
 			wantErr: trace.BadParameter("name must be set"),
@@ -192,7 +208,20 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 				c.GetSpec().SetPayload(payload)
 				return c
 			}(),
-			wantErr: trace.BadParameter("ssh_session_id must be set"),
+			wantErr: trace.BadParameter("ssh_session_id must not be empty"),
+		},
+		{
+			name:          "empty tls_session_id",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				payload := mfav2.SessionIdentifyingPayload_builder{
+					TlsSessionId: []byte(""),
+				}.Build()
+				c.GetSpec().SetPayload(payload)
+				return c
+			}(),
+			wantErr: trace.BadParameter("tls_session_id must not be empty"),
 		},
 		{
 			name:          "missing source_cluster",
@@ -223,6 +252,16 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 				return c
 			}(),
 			wantErr: trace.BadParameter("username must be set"),
+		},
+		{
+			name:          "missing mfa_device.id",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.GetSpec().SetMfaDevice(mfav2.MFADevice_builder{Id: ""}.Build())
+				return c
+			}(),
+			wantErr: trace.BadParameter("mfa_device.id must be set"),
 		},
 		{
 			name:          "request target_cluster mismatch",
@@ -265,7 +304,7 @@ func TestMFAService_ListValidatedMFAChallenges_Success(t *testing.T) {
 		{name: "chal-3", username: "bob"},
 	} {
 		chal := newValidatedMFAChallenge()
-		chal.GetMetadata().Name = tc.name
+		chal.GetMetadata().SetName(tc.name)
 		chal.GetSpec().SetUsername(tc.username)
 
 		challenges = append(challenges, chal)
@@ -322,7 +361,7 @@ func TestMFAService_ListValidatedMFAChallenges_FilterByTargetCluster(t *testing.
 		{name: "chal-target-a-2", username: "bob", targetCluster: "leaf-a"},
 	} {
 		chal := newValidatedMFAChallenge()
-		chal.GetMetadata().Name = tc.name
+		chal.GetMetadata().SetName(tc.name)
 		chal.GetSpec().SetUsername(tc.username)
 		chal.GetSpec().SetTargetCluster(tc.targetCluster)
 
@@ -362,9 +401,9 @@ func newValidatedMFAChallenge() *mfav2.ValidatedMFAChallenge {
 	return mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "test-challenge",
-		},
+		Metadata: headerv1.Metadata_builder{
+			Name: "test-challenge-" + uuid.NewString(),
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload: mfav2.SessionIdentifyingPayload_builder{
 				SshSessionId: []byte("session-id"),
@@ -372,6 +411,9 @@ func newValidatedMFAChallenge() *mfav2.ValidatedMFAChallenge {
 			SourceCluster: "src",
 			TargetCluster: "tgt",
 			Username:      "alice",
+			MfaDevice: mfav2.MFADevice_builder{
+				Id: "device-id",
+			}.Build(),
 		}.Build(),
 	}.Build()
 }

@@ -34,6 +34,7 @@ import (
 // if no events are found.
 func TestConsumeSessionNoEventsFound(t *testing.T) {
 	sessionID := "test"
+	mockClient := &mockClient{}
 	j := NewSessionEventsJob(&App{
 		Config: &StartCmdConfig{},
 		State: &State{
@@ -41,11 +42,14 @@ func TestConsumeSessionNoEventsFound(t *testing.T) {
 				BasePath: t.TempDir(),
 			}),
 		},
-		client: &mockClient{},
+		client: mockClient,
 		log:    slog.Default(),
 	})
 	_, err := j.consumeSession(t.Context(), session{ID: sessionID})
 	require.NoError(t, err)
+
+	require.NotNil(t, mockClient.streamCtx)
+	require.ErrorIs(t, mockClient.streamCtx.Err(), context.Canceled)
 }
 
 // TestIngestSession tests that the ingestSession method returns without error if a malformed
@@ -94,11 +98,13 @@ func TestIngestSession(t *testing.T) {
 
 type mockClient struct {
 	client.Client
+	streamCtx context.Context
 }
 
 // StreamSessionEvents overrides the client.Client method to return a closed channel
 // to ensure that the consumeSession method returns without error if no events are found.
 func (m *mockClient) StreamUnstructuredSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan *auditlogpb.EventUnstructured, chan error) {
+	m.streamCtx = ctx
 	c := make(chan *auditlogpb.EventUnstructured)
 	e := make(chan error)
 	close(c)

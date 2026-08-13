@@ -156,12 +156,12 @@ status:
 	expected.Status = discoveryconfig.Status{
 		IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 			"integration": {
-				IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
-					AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+				IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+					AwsEc2: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
 						Found:  5,
 						Failed: 5,
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 	}

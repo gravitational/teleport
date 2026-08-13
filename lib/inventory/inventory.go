@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
@@ -97,8 +98,10 @@ type DownstreamSender interface {
 }
 
 type downstreamHandleOptions struct {
-	metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
-	clock          clockwork.Clock
+	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
+	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
+	clock                  clockwork.Clock
 }
 
 func (options *downstreamHandleOptions) SetDefaults() {
@@ -122,6 +125,18 @@ func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, er
 func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.clock = clock
+	}
+}
+
+func WithAuditQueueStatusGetter(getter func(ctx context.Context) *types.AuditQueueStatus) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.auditQueueStatusGetter = getter
+	}
+}
+
+func WithAuditQueueStatusSignal(signal <-chan struct{}) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.auditQueueStatusSignal = signal
 	}
 }
 
@@ -159,33 +174,38 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	}
 
 	handle := &downstreamHandle{
-		senderC:        make(chan DownstreamSender),
-		pingHandlers:   make(map[uint64]DownstreamPingHandler),
-		closeContext:   ctx,
-		cancel:         cancel,
-		metadataGetter: options.metadataGetter,
-		clock:          options.clock,
-		helloGetter:    cachedHelloGetter,
+		senderC:                make(chan DownstreamSender),
+		pingHandlers:           make(map[uint64]DownstreamPingHandler),
+		closeContext:           ctx,
+		cancel:                 cancel,
+		metadataGetter:         options.metadataGetter,
+		auditQueueStatusGetter: options.auditQueueStatusGetter,
+		auditQueueStatusSignal: options.auditQueueStatusSignal,
+		clock:                  options.clock,
+		helloGetter:            cachedHelloGetter,
 	}
 	go handle.run(fn)
 	go handle.autoEmitMetadata()
 	go handle.autoEmitGoodbye()
+	go handle.autoEmitInstanceStatus()
 	return handle, nil
 }
 
 type downstreamHandle struct {
-	sender            atomic.Pointer[downstreamSender]
-	mu                sync.Mutex
-	handlerNonce      uint64
-	pingHandlers      map[uint64]DownstreamPingHandler
-	senderC           chan DownstreamSender
-	closeContext      context.Context
-	cancel            context.CancelFunc
-	upstreamSSHLabels map[string]string
-	metadataGetter    func(ctx context.Context) (*metadata.Metadata, error)
-	clock             clockwork.Clock
-	helloGetter       HelloGetter
-	goodbye           atomic.Pointer[proto.UpstreamInventoryGoodbye]
+	sender                 atomic.Pointer[downstreamSender]
+	mu                     sync.Mutex
+	handlerNonce           uint64
+	pingHandlers           map[uint64]DownstreamPingHandler
+	senderC                chan DownstreamSender
+	closeContext           context.Context
+	cancel                 context.CancelFunc
+	upstreamSSHLabels      map[string]string
+	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
+	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
+	clock                  clockwork.Clock
+	helloGetter            HelloGetter
+	goodbye                atomic.Pointer[proto.UpstreamInventoryGoodbye]
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -231,7 +251,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		}
 		return
 	}
-	msg := &proto.UpstreamInventoryAgentMetadata{
+	msg := proto.UpstreamInventoryAgentMetadata_builder{
 		OS:                    md.OS,
 		OSVersion:             md.OSVersion,
 		HostArchitecture:      md.HostArchitecture,
@@ -240,7 +260,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		ContainerRuntime:      md.ContainerRuntime,
 		ContainerOrchestrator: md.ContainerOrchestrator,
 		CloudEnvironment:      md.CloudEnvironment,
-	}
+	}.Build()
 	for {
 		// Wait for stream to be opened.
 		var sender DownstreamSender
@@ -260,6 +280,53 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		case <-sender.Done():
 		case <-h.CloseContext().Done():
 			return
+		}
+	}
+}
+
+func (h *downstreamHandle) autoEmitInstanceStatus() {
+	if h.auditQueueStatusGetter == nil || h.auditQueueStatusSignal == nil {
+		return
+	}
+
+	send := func(sender DownstreamSender) {
+		status := h.auditQueueStatusGetter(h.CloseContext())
+		if status == nil {
+			return
+		}
+		msg := proto.InstanceStatus_builder{AuditQueue: status}.Build()
+		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
+			slog.WarnContext(h.CloseContext(), "Failed to send instance status", "error", err)
+		}
+	}
+
+	for {
+		var sender DownstreamSender
+		select {
+		case sender = <-h.Sender():
+		case <-h.CloseContext().Done():
+			return
+		}
+
+		if !sender.Hello().GetCapabilities().GetInstanceStatus() {
+			select {
+			case <-sender.Done():
+				continue
+			case <-h.CloseContext().Done():
+				return
+			}
+		}
+
+	streamLoop:
+		for {
+			send(sender)
+			select {
+			case <-h.auditQueueStatusSignal:
+			case <-sender.Done():
+				break streamLoop
+			case <-h.CloseContext().Done():
+				return
+			}
 		}
 	}
 }
@@ -374,7 +441,7 @@ func (h *downstreamHandle) handlePing(sender DownstreamSender, msg *proto.Downst
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.pingHandlers) == 0 {
-		slog.WarnContext(h.closeContext, "Got ping with no handlers registered", "ping_id", msg.ID)
+		slog.WarnContext(h.closeContext, "Got ping with no handlers registered", "ping_id", msg.GetID())
 		return
 	}
 	for _, handler := range h.pingHandlers {
@@ -398,8 +465,8 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 func (h *downstreamHandle) handleUpdateLabels(msg *proto.DownstreamInventoryUpdateLabels) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if msg.Kind == proto.LabelUpdateKind_SSHServerCloudLabels {
-		h.upstreamSSHLabels = msg.Labels
+	if msg.GetKind() == proto.LabelUpdateKind_SSHServerCloudLabels {
+		h.upstreamSSHLabels = msg.GetLabels()
 	}
 }
 
@@ -437,7 +504,7 @@ func (h *downstreamHandle) Close() error {
 // SendGoodbye crafts a goodbye message, save it, waits for a working stream and sends it to the auth.
 // If the downstreamHandle were to reconnect later, the h.autoEmitGoodbye routine would re-emit it.
 func (h *downstreamHandle) SetAndSendGoodbye(ctx context.Context, deleteResources bool, softReload bool) error {
-	goodbye := &proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources, SoftReload: softReload}
+	goodbye := proto.UpstreamInventoryGoodbye_builder{DeleteResources: deleteResources, SoftReload: softReload}.Build()
 	h.goodbye.Store(goodbye)
 
 	// Wait for an available stream
@@ -456,11 +523,11 @@ func (h *downstreamHandle) sendGoodbye(ctx context.Context, sender DownstreamSen
 		return trace.BadParameter("trying to send a nil goodbye, this is a bug")
 	}
 
-	capabilities := sender.Hello().Capabilities
+	capabilities := sender.Hello().GetCapabilities()
 	switch {
 	case capabilities == nil:
 		return nil
-	case !capabilities.AppCleanup:
+	case !capabilities.GetAppCleanup():
 		return nil
 	}
 
@@ -635,7 +702,7 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 }
 
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
-func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
+func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.UpstreamInventoryHello, authID string, auditQueueStatus *types.AuditQueueStatus) (types.Instance, error) {
 	var lastMeasurement *types.SystemClockMeasurement
 	if !i.pingResponse.systemClock.IsZero() {
 		lastMeasurement = &types.SystemClockMeasurement{
@@ -650,16 +717,17 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.Upstrea
 		services = append(services, types.SystemRole(s))
 	}
 
-	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:                 vc.Normalize(hello.Version),
+	instance, err := types.NewInstance(hello.GetServerID(), types.InstanceSpecV1{
+		Version:                 vc.Normalize(hello.GetVersion()),
 		Services:                services,
-		Hostname:                hello.Hostname,
+		Hostname:                hello.GetHostname(),
 		AuthID:                  authID,
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
 		LastMeasurement:         lastMeasurement,
 		UpdaterInfo:             hello.GetUpdaterInfo(),
+		AuditQueueStatus:        auditQueueStatus,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -686,8 +754,9 @@ type upstreamHandle struct {
 	hello            *proto.UpstreamInventoryHello
 	registrationTime time.Time
 
-	agentMetadata atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
-	goodbye       atomic.Pointer[proto.UpstreamInventoryGoodbye]
+	agentMetadata    atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
+	auditQueueStatus atomic.Pointer[types.AuditQueueStatus]
+	goodbye          atomic.Pointer[proto.UpstreamInventoryGoodbye]
 
 	pingC chan pingRequest
 
@@ -713,6 +782,9 @@ type upstreamHandle struct {
 	// relayServer, if set, is the current relay heartbeat.
 	relayServer *presencev1.RelayServer
 
+	// linuxDesktop, if set, is the current linux desktop heartbeat.
+	linuxDesktop *heartBeatInfo[*linuxdesktopv1.LinuxDesktop]
+
 	// relayServerErrorCount counts how many times in a row we have failed to
 	// keepalive the relay server heartbeat, or, if negative, signals that we
 	// have failed to upsert a new resource.
@@ -732,7 +804,7 @@ type upstreamHandle struct {
 }
 
 type resourceKey struct {
-	hostID, name string
+	hostID, name, scope string
 }
 
 type heartBeatInfo[T any] struct {
@@ -824,6 +896,18 @@ func (h *upstreamHandle) setAgentMetadata(agentMD *proto.UpstreamInventoryAgentM
 	h.agentMetadata.Store(agentMD)
 }
 
+// AuditQueueStatus returns the most recent audit-queue depth reported by this
+// instance, or nil if none has been reported.
+func (h *upstreamHandle) AuditQueueStatus() *types.AuditQueueStatus {
+	return h.auditQueueStatus.Load()
+}
+
+// setAuditQueueStatus stores the latest audit-queue depth reported by this
+// instance.
+func (h *upstreamHandle) setAuditQueueStatus(status *types.AuditQueueStatus) {
+	h.auditQueueStatus.Store(status)
+}
+
 // HasService is a helper for checking if a given service is associated with this
 // stream.
 func (h *upstreamHandle) HasService(service types.SystemRole) bool {
@@ -833,7 +917,7 @@ func (h *upstreamHandle) HasService(service types.SystemRole) bool {
 // HasControlPlaneService implements UpstreamHandle and returns true if at
 // least a control plane service is associated with this stream.
 func (h *upstreamHandle) HasControlPlaneService() bool {
-	for _, s := range h.hello.Services {
+	for _, s := range h.hello.GetServices() {
 		if types.SystemRole(s).IsControlPlane() {
 			return true
 		}
@@ -842,9 +926,9 @@ func (h *upstreamHandle) HasControlPlaneService() bool {
 }
 
 func (h *upstreamHandle) UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error {
-	req := &proto.DownstreamInventoryUpdateLabels{
+	req := proto.DownstreamInventoryUpdateLabels_builder{
 		Kind:   kind,
 		Labels: labels,
-	}
+	}.Build()
 	return trace.Wrap(h.Send(ctx, req))
 }

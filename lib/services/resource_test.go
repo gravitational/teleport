@@ -137,6 +137,13 @@ func TestParseShortcut(t *testing.T) {
 		"windows_desktop": {expectedOutput: types.KindWindowsDesktop},
 		"win_desktop":     {expectedOutput: types.KindWindowsDesktop},
 
+		"dynamic_windows_desktop": {expectedOutput: types.KindDynamicWindowsDesktop},
+		"dynamic_win_desktop":     {expectedOutput: types.KindDynamicWindowsDesktop},
+		"dynamic_desktop":         {expectedOutput: types.KindDynamicWindowsDesktop},
+
+		"linux_desktop":  {expectedOutput: types.KindLinuxDesktop},
+		"linux_desktops": {expectedOutput: types.KindLinuxDesktop},
+
 		"token":  {expectedOutput: types.KindToken},
 		"tokens": {expectedOutput: types.KindToken},
 
@@ -265,14 +272,14 @@ func Test_setResourceName(t *testing.T) {
 func TestProtoResourceRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	resource := &vnet.VnetConfig{
-		Metadata: &headerv1.Metadata{
+	resource := vnet.VnetConfig_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "vnet_config",
-		},
-		Spec: &vnet.VnetConfigSpec{
+		}.Build(),
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: "100.64.0.0/10",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, tc := range []struct {
 		desc          string

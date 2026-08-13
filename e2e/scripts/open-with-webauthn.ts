@@ -22,9 +22,6 @@
 //
 // Usage: pnpm exec tsx scripts/open-with-webauthn.ts <codegen|open> <url>
 
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
   chromium,
   firefox,
@@ -32,7 +29,9 @@ import {
   type BrowserContext,
 } from '@playwright/test';
 
+import { authStateFor } from '../helpers/authState';
 import { defaultUsername } from '../helpers/defaultUser';
+import type { StorageState } from '../helpers/login';
 import { mockWebAuthn } from '../helpers/webauthn';
 
 const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
@@ -59,20 +58,25 @@ if (!mode || !startURL) {
   process.exit(1);
 }
 
-const e2eDir =
-  process.env.E2E_DIR || join(dirname(fileURLToPath(import.meta.url)), '..');
 const browserName = (process.env.E2E_BROWSERS || 'chromium').split(',')[0];
 const browserTypes = { chromium, firefox, webkit };
 const browserType =
   browserTypes[browserName as keyof typeof browserTypes] ?? chromium;
 const username = defaultUsername();
-const storageStatePath = join(e2eDir, `.auth/${browserName}-${username}.json`);
+
+// Runs against an existing cluster have no bootstrapped credentials to log in with, so open without a session
+// rather than failing.
+let storageState: StorageState | undefined;
+if (process.env.E2E_USERS_FILE) {
+  storageState = await authStateFor(username);
+  info(`logged in as ${bold(username)}`);
+}
 
 info(`launching ${browserName} ${dim(`(mode: ${mode})`)}`);
 
 const browser = await browserType.launch({ headless: false });
 const context = await browser.newContext({
-  storageState: storageStatePath,
+  storageState,
   ignoreHTTPSErrors: true,
   viewport: null,
 });

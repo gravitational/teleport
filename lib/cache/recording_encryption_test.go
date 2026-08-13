@@ -26,16 +26,16 @@ import (
 )
 
 func newRecordingEncryption() *recordingencryptionv1.RecordingEncryption {
-	return &recordingencryptionv1.RecordingEncryption{
+	return recordingencryptionv1.RecordingEncryption_builder{
 		Kind:    types.KindRecordingEncryption,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameRecordingEncryption,
-		},
-		Spec: &recordingencryptionv1.RecordingEncryptionSpec{
+		}.Build(),
+		Spec: recordingencryptionv1.RecordingEncryptionSpec_builder{
 			ActiveKeyPairs: nil,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // TestRecordingEncryption tests that CRUD operations on the RecordingEncryption resource are

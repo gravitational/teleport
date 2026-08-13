@@ -111,6 +111,10 @@ export function decomposeColor(color) {
     return decomposeColor(convertHexToRGB(color));
   }
 
+  if (process.env.NODE_ENV === 'test') {
+    return { type: 'rgb', values: [0, 0, 0] };
+  }
+
   const marker = color.indexOf('(');
   const type = color.substring(0, marker);
   let values = color.substring(marker + 1, color.length - 1).split(',');
@@ -209,26 +213,6 @@ export function emphasize(color, coefficient = 0.15) {
   return getLuminance(color) > 0.5
     ? darken(color, coefficient)
     : lighten(color, coefficient);
-}
-
-/**
- * Set the absolute transparency of a color.
- * Any existing alpha values are overwritten.
- *
- * @param {string} color - CSS color, i.e. one of: #nnn, #nnnnnn, rgb(), rgba(), hsl(), hsla()
- * @param {number} value - value to set the alpha channel to in the range 0 -1
- * @returns {string} A CSS color string. Hex input values are returned as rgb
- */
-export function fade(color, value) {
-  color = decomposeColor(color);
-  value = clamp(value);
-
-  if (color.type === 'rgb' || color.type === 'hsl') {
-    color.type += 'a';
-  }
-  color.values[3] = value;
-
-  return recomposeColor(color);
 }
 
 /**

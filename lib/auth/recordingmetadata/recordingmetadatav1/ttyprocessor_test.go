@@ -49,13 +49,13 @@ func TestTTYRecordingProcessor(t *testing.T) {
 			events: generateBasicSession(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-				require.NotNil(t, metadata.Duration)
-				require.Equal(t, int32(80), metadata.StartCols)
-				require.Equal(t, int32(24), metadata.StartRows)
+				require.NotNil(t, metadata.GetDuration())
+				require.Equal(t, int32(80), metadata.GetStartCols())
+				require.Equal(t, int32(24), metadata.GetStartRows())
 			},
 			expectedThumbnail: func(t *testing.T, thumbnail *pb.SessionRecordingThumbnail) {
 				require.NotNil(t, thumbnail)
-				require.NotEmpty(t, thumbnail.Svg)
+				require.NotEmpty(t, thumbnail.GetSvg())
 			},
 		},
 		{
@@ -63,13 +63,13 @@ func TestTTYRecordingProcessor(t *testing.T) {
 			events: generateBasicSessionWithImmediateResize(startTime),
 			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
 				require.NotNil(t, metadata)
-				require.NotNil(t, metadata.Duration)
-				require.Equal(t, int32(100), metadata.StartCols)
-				require.Equal(t, int32(30), metadata.StartRows)
+				require.NotNil(t, metadata.GetDuration())
+				require.Equal(t, int32(100), metadata.GetStartCols())
+				require.Equal(t, int32(30), metadata.GetStartRows())
 			},
 			expectedThumbnail: func(t *testing.T, thumbnail *pb.SessionRecordingThumbnail) {
 				require.NotNil(t, thumbnail)
-				require.NotEmpty(t, thumbnail.Svg)
+				require.NotEmpty(t, thumbnail.GetSvg())
 			},
 		},
 		{
@@ -79,11 +79,11 @@ func TestTTYRecordingProcessor(t *testing.T) {
 				require.NotNil(t, metadata)
 
 				var hasResize bool
-				for _, event := range metadata.Events {
+				for _, event := range metadata.GetEvents() {
 					if resize := event.GetResize(); resize != nil {
 						hasResize = true
-						require.Equal(t, int32(120), resize.Cols)
-						require.Equal(t, int32(40), resize.Rows)
+						require.Equal(t, int32(120), resize.GetCols())
+						require.Equal(t, int32(40), resize.GetRows())
 					}
 				}
 				require.True(t, hasResize, "expected resize event")
@@ -96,12 +96,12 @@ func TestTTYRecordingProcessor(t *testing.T) {
 				require.NotNil(t, metadata)
 
 				var inactivityCount int
-				for _, event := range metadata.Events {
+				for _, event := range metadata.GetEvents() {
 					if event.GetInactivity() != nil {
 						inactivityCount++
 
-						require.Equal(t, 1*time.Second, event.StartOffset.AsDuration(), "inactivity should start at last activity time")
-						require.Equal(t, 21*time.Second, event.EndOffset.AsDuration(), "inactivity should end when activity resumes")
+						require.Equal(t, 1*time.Second, event.GetStartOffset().AsDuration(), "inactivity should start at last activity time")
+						require.Equal(t, 21*time.Second, event.GetEndOffset().AsDuration(), "inactivity should end when activity resumes")
 					}
 				}
 				require.Equal(t, 1, inactivityCount, "expected exactly one inactivity event")
@@ -114,19 +114,19 @@ func TestTTYRecordingProcessor(t *testing.T) {
 				require.NotNil(t, metadata)
 
 				joins := make(map[string]*pb.SessionRecordingEvent)
-				for _, event := range metadata.Events {
+				for _, event := range metadata.GetEvents() {
 					if join := event.GetJoin(); join != nil {
-						joins[join.User] = event
+						joins[join.GetUser()] = event
 					}
 				}
 
 				require.Len(t, joins, 2, "expected join events for alice and bob")
 
-				require.Equal(t, 2*time.Second, joins["alice"].StartOffset.AsDuration())
-				require.Equal(t, 6*time.Second, joins["alice"].EndOffset.AsDuration())
+				require.Equal(t, 2*time.Second, joins["alice"].GetStartOffset().AsDuration())
+				require.Equal(t, 6*time.Second, joins["alice"].GetEndOffset().AsDuration())
 
-				require.Equal(t, 4*time.Second, joins["bob"].StartOffset.AsDuration())
-				require.Equal(t, 10*time.Second, joins["bob"].EndOffset.AsDuration())
+				require.Equal(t, 4*time.Second, joins["bob"].GetStartOffset().AsDuration())
+				require.Equal(t, 10*time.Second, joins["bob"].GetEndOffset().AsDuration())
 			},
 		},
 	}

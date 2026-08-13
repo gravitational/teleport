@@ -26,6 +26,97 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
+const windowsAuthPackageScriptSetup = `$ErrorActionPreference = 'Stop'
+$ProgressPreference    = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$AuthPackageVersion = '{{.AuthPackageVersion}}'
+$CA = '{{getWindowsCA}}'`
+
+var windowsAuthPackageInstallerScript = `$InstallerName = "teleport-windows-auth-setup-v$AuthPackageVersion-amd64.exe"
+# Stage installer files under %WINDIR%\SystemTemp, which is only writable by
+# SYSTEM and Administrators.
+$SystemTemp    = Join-Path $env:WINDIR 'SystemTemp'
+
+# SystemTemp isn't guaranteed to exist on older builds.
+New-Item -ItemType Directory -Path $SystemTemp -Force | Out-Null
+
+# Refuse to stage under a redirected SystemTemp
+if ((Get-Item -LiteralPath $SystemTemp -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+	Write-Host "$SystemTemp is a reparse point, refusing to stage installer files there."
+	exit {{ .WindowsInstallerStagingDirUnsafe }}
+}
+
+$WorkDir       = Join-Path $SystemTemp ([System.Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $WorkDir | Out-Null
+$InstallerPath = Join-Path $WorkDir $InstallerName
+$CertPath      = Join-Path $WorkDir 'teleport.pem'
+
+Write-Host "Base64-decoding the embedded CA bundle and writing it to $CertPath..."
+[IO.File]::WriteAllBytes($CertPath, [Convert]::FromBase64String($CA))
+
+# Returns whether $TargetHost should be excluded from proxying by NO_PROXY list
+function Test-NoProxyMatch($TargetHost, $NoProxy) {
+	if (-not $NoProxy) { return $false }
+	foreach ($entry in $NoProxy -split ',') {
+		$entry = $entry.Trim()
+		if (-not $entry) { continue }
+		if ($entry -eq '*') { return $true }
+		$entry = $entry.TrimStart('.').ToLowerInvariant()
+		if ($TargetHost -eq $entry -or $TargetHost.EndsWith(".$entry")) { return $true }
+	}
+	return $false
+}
+
+$UseProxy = $env:HTTPS_PROXY -and -not (Test-NoProxyMatch 'cdn.teleport.dev' $env:NO_PROXY)
+
+Write-Host "Downloading authentication package installer ($InstallerName)..."
+try {
+	$dl = @{ Uri = "https://cdn.teleport.dev/$InstallerName"; OutFile = $InstallerPath; UseBasicParsing = $true }
+	if ($UseProxy) { $dl.Proxy = $env:HTTPS_PROXY }
+	Invoke-WebRequest @dl
+} catch {
+	Write-Host "Authentication package download failed: $_"
+	exit {{ .WindowsInstallerDownloadFailure }}
+}
+
+Write-Host "Downloading authentication package installer checksum..."
+$ChecksumPath = "$InstallerPath.sha256"
+try {
+	$cs = @{ Uri = "https://cdn.teleport.dev/$InstallerName.sha256"; OutFile = $ChecksumPath; UseBasicParsing = $true }
+	if ($UseProxy) { $cs.Proxy = $env:HTTPS_PROXY }
+	Invoke-WebRequest @cs
+} catch {
+	Write-Host "Authentication package checksum download failed: $_"
+	exit {{ .WindowsInstallerDownloadFailure }}
+}
+
+Write-Host "Verifying authentication package installer checksum..."
+$ExpectedHash = ((Get-Content -LiteralPath $ChecksumPath -Raw) -split '\s+' | Where-Object { $_ })[0].ToLowerInvariant()
+$ActualHash = (Get-FileHash -LiteralPath $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($ExpectedHash -ne $ActualHash) {
+	Write-Host "Authentication package checksum mismatch: expected $ExpectedHash, got $ActualHash"
+	exit {{ .WindowsInstallerChecksumMismatch }}
+}
+
+Write-Host "Running authentication package installer..."
+& $InstallerPath install --cert=$CertPath
+if ($LASTEXITCODE -ne 0) {
+	Write-Host "Authentication package installer failed (exit $LASTEXITCODE)"
+	exit {{ .WindowsInstallerExecutionFailure }}
+}
+
+{{if .RestartAfterEnrollment}}
+Write-Host "Scheduling a system restart in 60 seconds to complete the enrollment process"
+& shutdown.exe /r /t 60 /c "Restarting to complete Teleport enrollment process"
+{{else}}
+Write-Host "A reboot is required to complete installation."
+{{end}}`
+
+var DefaultWindowsAuthPackageInstaller = types.MustNewInstallerV1(
+	installers.InstallerScriptNameWindowsAuthPackage,
+	strings.Join([]string{windowsAuthPackageScriptSetup, windowsAuthPackageInstallerScript}, "\n\n"),
+)
+
 const (
 	scriptShebangAndSetOptions = `#!/usr/bin/env sh
 set -eu`
@@ -39,7 +130,8 @@ curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
 
 chmod +x "$TEMP_INSTALLER_SCRIPT"
 
-sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+envs=$(awk 'BEGIN { for (name in ENVIRON) if (name ~ /^[A-Za-z_][A-Za-z0-9_]*$/) { list = list sep name; sep = "," } print list }')
+sudo --preserve-env="$envs" "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
 rm "$TEMP_INSTALLER_SCRIPT"`
 )
 
@@ -67,7 +159,8 @@ set +x
 TELEPORT_BINARY=/usr/local/bin/teleport
 [ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
 
-sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
+envs=$(awk 'BEGIN { for (name in ENVIRON) if (name ~ /^[A-Za-z_][A-Za-z0-9_]*$/) { list = list sep name; sep = "," } print list }')
+sudo --preserve-env="$envs" "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
 
 	argsList = []string{
 		"install", "autodiscover-node",

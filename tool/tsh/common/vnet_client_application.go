@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -122,11 +123,11 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 	if err != nil {
 		return nil, trace.Wrap(err, "loading user profile")
 	}
-	dialOpts := &vnetv1.DialOptions{
+	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:            profile.WebProxyAddr,
 		AlpnConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
-	}
+	}.Build()
 	dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -297,7 +298,7 @@ func (p *vnetClientApplication) reissueAppCert(ctx context.Context, tc *client.T
 		return tls.Certificate{}, trace.Wrap(err, "logging in to app")
 	}
 
-	cert, err := keyRing.AppTLSCert(routeToApp.Name)
+	cert, err := keyRing.AppTLSCert(scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key")
 	}

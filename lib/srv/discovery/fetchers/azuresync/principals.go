@@ -75,12 +75,12 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 				trace.BadParameter("nil values on msgraph directory object: %v", res.dirObj))
 			continue
 		}
-		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
+		pbPrincipals = append(pbPrincipals, accessgraphv1alpha.AzurePrincipal_builder{
 			Id:             *res.dirObj.ID,
 			SubscriptionId: subscriptionID,
 			DisplayName:    *res.dirObj.DisplayName,
 			ObjectType:     res.metadata.objectType,
-		})
+		}.Build())
 	}
 	return pbPrincipals, trace.NewAggregate(fetchErrs...)
 }

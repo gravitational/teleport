@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
+	"github.com/gravitational/teleport/session/reexec/safefile"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -153,6 +154,10 @@ type ExecCommand struct {
 	// the subsystem name.
 	Command string `json:"command"`
 
+	// ForceLoginShell indicates if we should use login shell even when
+	// command is provided.
+	ForceLoginShell bool `json:"force_login_shell"`
+
 	// DestinationAddress is the target address to dial to.
 	DestinationAddress string `json:"dst_addr"`
 
@@ -198,6 +203,10 @@ type ExecCommand struct {
 
 	// IsTestStub is used by tests to mock the shell.
 	IsTestStub bool `json:"is_test_stub"`
+
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string `json:"test_login_shell"`
 
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
@@ -446,7 +455,10 @@ func RunCommand() (exitErr error, err error) {
 		defer pamContext.Close()
 
 		// Save off any environment variables that come from PAM.
-		pamEnvironment = pamContext.Environment()
+		pamEnvironment, err = pamContext.Environment()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
@@ -789,7 +801,10 @@ func RunNetworking() (code int, err error) {
 		}
 		defer pamContext.Close()
 
-		pamEnvironment = pamContext.Environment()
+		pamEnvironment, err = pamContext.Environment()
+		if err != nil {
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	// Once the PAM stack is called with parent process permissions, set the process uid
@@ -880,6 +895,7 @@ func RunNetworking() (code int, err error) {
 	go func() {
 		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
+		cancel()
 	}()
 
 	// Alert the parent process that the child process is ready and listening for networking requests.
@@ -964,6 +980,13 @@ func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networ
 		conn.Write([]byte(trace.Wrap(err, "failed to write networking file to control conn").Error()))
 		return nil
 	}
+
+	// Block for 30 seconds or until parent closes the request connection
+	// signaling it has a reference to the fd. This is to prevent the following
+	// race: child closes fd, but parent does not have reference to fd yet, and
+	// kernel comes and closes fd thinking it has 0 references.
+	<-ctx.Done()
+
 	return filePaths
 }
 
@@ -1208,28 +1231,48 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		return nil, trace.Wrap(err)
 	}
 
+	strIDs, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	suppGids := make([]int, len(strIDs))
+	for i, strID := range strIDs {
+		gid, err := strconv.Atoi(strID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		suppGids[i] = gid
+	}
+
 	prevUID := os.Geteuid()
 	prevGID := os.Getegid()
+	prevSuppGIDs, err := os.Getgroups()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	defer func() {
-		gidErr := syscall.Setegid(prevGID)
 		uidErr := syscall.Seteuid(prevUID)
-		if uidErr != nil || gidErr != nil {
+		gidErr := syscall.Setegid(prevGID)
+		suppGIDsErr := syscall.Setgroups(prevSuppGIDs)
+		if uidErr != nil || gidErr != nil || suppGIDsErr != nil {
 			file.Close()
-			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "error", err)
+			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "supp_gids_err", suppGIDsErr, "error", err)
 			os.Exit(reexecconstants.UnexpectedCredentials)
 		}
 	}()
 
+	if err := syscall.Setgroups(suppGids); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := syscall.Setegid(gid); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if err := syscall.Seteuid(uid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	file, err = os.Open(path)
+	file, err = safefile.OpenNoFollow(path)
 	return file, trace.ConvertSystemError(err)
 }
 
@@ -1257,6 +1300,11 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	}
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
+	}
+	// Tests may override the login shell so they don't run the real user's shell,
+	// which has side effects such as polluting the user's shell history.
+	if c.TestLoginShell != "" {
+		shellPath = c.TestLoginShell
 	}
 
 	// If a subsystem was requested, handle the known subsystems or error out;
@@ -1286,6 +1334,11 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 		// this is a login shell."
 		// https://github.com/openssh/openssh-portable/blob/master/session.c
 		cmd.Args = []string{"-" + filepath.Base(shellPath)}
+	} else if c.ForceLoginShell {
+		// Configure the shell to run in 'login' mode even though command
+		// was provided
+		cmd.Path = shellPath
+		cmd.Args = []string{"-" + filepath.Base(shellPath), "-c", c.Command}
 	} else {
 		// Execute commands like OpenSSH does:
 		// https://github.com/openssh/openssh-portable/blob/master/session.c
@@ -1903,13 +1956,20 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 
 	// Build the "teleport exec" command.
 	executor.Cmd = &exec.Cmd{
-		Stdin:      childFiles[0],
-		Stdout:     childFiles[1],
-		Stderr:     childFiles[2],
 		Path:       executable,
 		Args:       args,
 		Env:        *env,
 		ExtraFiles: childFiles[3:],
+	}
+
+	if childFiles[0] != nil {
+		executor.Cmd.Stdin = childFiles[0]
+	}
+	if childFiles[1] != nil {
+		executor.Cmd.Stdout = childFiles[1]
+	}
+	if childFiles[2] != nil {
+		executor.Cmd.Stderr = childFiles[2]
 	}
 
 	// Perform OS-specific tweaks to the command.

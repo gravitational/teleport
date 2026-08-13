@@ -56,6 +56,7 @@ export const Google = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-google"
+
       {...otherProps}
       ref={ref}
     >

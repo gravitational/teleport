@@ -24,8 +24,13 @@ import {
   CheckReportStatus,
   CommandAttempt,
   CommandAttemptStatus,
+  DNSReport,
+  DNSZoneResult,
+  DNSZoneStatus,
+  RecordResult,
   Report,
   RouteConflict,
+  VNetDNSReachability,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 export const makeReport = (props: Partial<Report> = {}): Report => ({
@@ -88,6 +93,44 @@ export const makeRouteConflict = (
   vnetDest: '100.64.0.1',
   interfaceName: 'utun5',
   interfaceApp: '',
+  ...props,
+});
+
+export const makeDNSReport = (props: Partial<DNSReport> = {}): DNSReport => ({
+  ipv4Reachability: makeVNetDNSReachability({ address: '100.64.0.2:53' }),
+  ipv6Reachability: makeVNetDNSReachability({
+    address: '[fdff:fd74:46c0::2]:53',
+  }),
+  zoneResults: [],
+  ...props,
+});
+
+export const makeVNetDNSReachability = (
+  props: Partial<VNetDNSReachability> = {}
+): VNetDNSReachability => ({
+  address: '[fdff:fd74:46c0::2]:53',
+  reachable: true,
+  respondedA: true,
+  respondedAaaa: true,
+  error: '',
+  ...props,
+});
+
+export const makeRecordResult = (
+  props: Partial<RecordResult> = {}
+): RecordResult => ({
+  status: DNSZoneStatus.DNS_ZONE_STATUS_OK,
+  observedIp: '',
+  error: '',
+  ...props,
+});
+
+export const makeDNSZoneResult = (
+  props: Partial<DNSZoneResult> = {}
+): DNSZoneResult => ({
+  zone: 'company.test',
+  aRecord: makeRecordResult(),
+  aaaaRecord: makeRecordResult(),
   ...props,
 });
 

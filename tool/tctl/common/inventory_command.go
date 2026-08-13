@@ -24,9 +24,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -62,6 +65,7 @@ type InventoryCommand struct {
 
 	upgrader    string
 	updateGroup string
+	sort        string
 
 	inventoryStatus *kingpin.CmdClause
 	inventoryList   *kingpin.CmdClause
@@ -75,16 +79,17 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary.")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
-	c.inventoryStatus.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
+	c.inventoryStatus.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
 	c.inventoryList.Flag("older-than", "Filter for older teleport versions").StringVar(&c.olderThan)
 	c.inventoryList.Flag("newer-than", "Filter for newer teleport versions").StringVar(&c.newerThan)
 	c.inventoryList.Flag("exact-version", "Filter output by teleport version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
-	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
+	c.inventoryList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
 	c.inventoryList.Flag("update-group", "Filter output by update group").StringVar(&c.updateGroup)
+	c.inventoryList.Flag("sort", "Sort output by column. Supported: audit-queue (largest audit queue backlog first, including dead-letter and corrupt events).").EnumVar(&c.sort, "", "audit-queue")
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
@@ -115,9 +120,9 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
-	rsp, err := client.GetInventoryStatus(ctx, &proto.InventoryStatusRequest{
+	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest_builder{
 		Connected: c.getConnected,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,10 +145,10 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 		}
 
 		printHierarchicalData(map[string]any{
-			"Versions":        toAnyMap(rsp.VersionCounts),
-			"Upgraders":       toAnyMap(rsp.UpgraderCounts),
-			"Services":        toAnyMap(rsp.ServiceCounts),
-			"Total Instances": rsp.InstanceCount,
+			"Versions":        toAnyMap(rsp.GetVersionCounts()),
+			"Upgraders":       toAnyMap(rsp.GetUpgraderCounts()),
+			"Services":        toAnyMap(rsp.GetServiceCounts()),
+			"Total Instances": rsp.GetInstanceCount(),
 		}, "  ", 0)
 	case teleport.JSON:
 		output, err := json.Marshal(rsp)
@@ -151,8 +156,12 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err, "marshaling inventory status to json")
 		}
 		fmt.Println(string(output))
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, rsp); err != nil {
+			return trace.Wrap(err, "marshaling inventory status to yaml")
+		}
 	default:
-		return trace.BadParameter("unknown format: %q", c.format)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	return nil
@@ -234,7 +243,11 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version", "Update Group"})
+		type instanceRow struct {
+			cells             []string
+			auditQueueBacklog int64
+		}
+		var rows []instanceRow
 		for instances.Next() {
 			instance := instances.Item()
 
@@ -264,19 +277,41 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				updateGroup = updateInfo.UpdateGroup
 			}
 
-			table.AddRow([]string{
-				instance.GetName(),
-				instance.GetHostname(),
-				strings.Join(services, ","),
-				instance.GetTeleportVersion(),
-				upgrader,
-				upgraderVersion,
-				updateGroup,
+			var auditQueueBacklog int64
+			auditQueue := formatAuditQueue(instance.GetAuditQueueStatus())
+			if aq := instance.GetAuditQueueStatus(); aq != nil {
+				auditQueueBacklog = aq.PendingCount + aq.DeadLetterCount + aq.CorruptCount
+			}
+
+			rows = append(rows, instanceRow{
+				auditQueueBacklog: auditQueueBacklog,
+				cells: []string{
+					instance.GetName(),
+					instance.GetHostname(),
+					strings.Join(services, ","),
+					instance.GetTeleportVersion(),
+					upgrader,
+					upgraderVersion,
+					updateGroup,
+					auditQueue,
+				},
 			})
 		}
 
 		if err := instances.Done(); err != nil {
 			return trace.Wrap(err)
+		}
+
+		if c.sort == "audit-queue" {
+			slices.SortStableFunc(rows, func(a, b instanceRow) int {
+				// Largest audit queue backlog first.
+				return cmp.Compare(b.auditQueueBacklog, a.auditQueueBacklog)
+			})
+		}
+
+		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version", "Update Group", "Audit Queue"})
+		for _, row := range rows {
+			table.AddRow(row.cells)
 		}
 
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
@@ -288,8 +323,39 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		fmt.Fprintf(os.Stdout, "\n")
 		return nil
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
+}
+
+const minDisplayedAuditQueueAge = 5 * time.Minute
+
+func formatAuditQueue(aq *types.AuditQueueStatus) string {
+	if aq == nil {
+		return ""
+	}
+	minAge := int64(minDisplayedAuditQueueAge.Seconds())
+	out := fmt.Sprintf("%d", aq.PendingCount)
+	if aq.OldestPendingAgeSeconds >= minAge {
+		out += fmt.Sprintf(" (oldest %s)", formatAge(aq.OldestPendingAgeSeconds))
+	}
+	if aq.DeadLetterCount > 0 {
+		out += fmt.Sprintf(" (%d DL", aq.DeadLetterCount)
+		if aq.OldestDeadLetterAgeSeconds >= minAge {
+			out += fmt.Sprintf(", oldest %s", formatAge(aq.OldestDeadLetterAgeSeconds))
+		}
+		out += ")"
+	}
+	if aq.CorruptCount > 0 {
+		out += fmt.Sprintf(" (%d corrupt)", aq.CorruptCount)
+	}
+	return out
+}
+
+// formatAge renders an age in seconds as a coarse duration, e.g. "5 minutes"
+// or "1 hour".
+func formatAge(seconds int64) string {
+	base := time.Unix(0, 0)
+	return strings.TrimSpace(humanize.RelTime(base, base.Add(time.Duration(seconds)*time.Second), "", ""))
 }
 
 func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {

@@ -570,7 +570,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
@@ -645,14 +645,18 @@ func TestLocalProxyRequirement(t *testing.T) {
 			wantTunnelReason: dbConnectRequireReasonTunnelFlag,
 		},
 	}
+
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err = authServer.UpsertAuthPreference(ctx, tt.clusterAuthPref)
+			created, err := authServer.UpsertAuthPreference(ctx, tt.clusterAuthPref)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				_, err = authServer.UpsertAuthPreference(ctx, defaultAuthPref)
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				got, err := authServer.GetAuthPreference(ctx)
 				require.NoError(t, err)
-			})
+				require.Empty(t, cmp.Diff(created, got))
+			}, 15*time.Second, 100*time.Millisecond)
+
 			cf := &CLIConf{
 				Context:         ctx,
 				TracingProvider: tracing.NoopProvider(),

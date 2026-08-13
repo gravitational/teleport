@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -735,7 +736,7 @@ func botIdentityFromToken(
 	cfg Config,
 	authClient *apiclient.Client,
 ) (*identity.Identity, error) {
-	_, span := tracer.Start(ctx, "botIdentityFromToken")
+	ctx, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
 
 	log.InfoContext(ctx, "Fetching bot identity using token")
@@ -813,6 +814,12 @@ func botIdentityFromToken(
 		}
 	case types.JoinMethodKubernetes:
 		params.KubernetesTokenPath = cfg.Onboarding.Kubernetes.TokenPath
+	case types.JoinMethodGenericOIDC:
+		params.GenericOIDCParams = join.GenericOIDCParams{
+			EnvVarName: cfg.Onboarding.GenericOIDC.Env,
+			Command:    cfg.Onboarding.GenericOIDC.Command,
+			Timeout:    cfg.Onboarding.GenericOIDC.Timeout,
+		}
 	}
 
 	result, err := joinclient.Join(ctx, params)
@@ -854,10 +861,10 @@ func botIdentityFromToken(
 // - Scoped, but tbot is not running in scoped mode.
 // - Unscoped, but tbot is running in scoped mode.
 func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) (string, error) {
-	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.Scope != ""
+	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.GetScope() != ""
 	identScope := ""
 	if identScoped {
-		identScope = tlsIdent.ScopePin.Scope
+		identScope = tlsIdent.ScopePin.GetScope()
 	}
 	if identScoped && !scoped {
 		return identScope, trace.BadParameter(

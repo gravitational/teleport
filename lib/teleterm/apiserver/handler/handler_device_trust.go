@@ -27,11 +27,11 @@ import (
 
 func (s *Handler) AuthenticateWebDevice(ctx context.Context, req *api.AuthenticateWebDeviceRequest) (*api.AuthenticateWebDeviceResponse, error) {
 	switch {
-	case req.RootClusterUri == "":
+	case req.GetRootClusterUri() == "":
 		return nil, trace.BadParameter("root_cluster_uri required")
-	case req.DeviceWebToken.GetId() == "":
+	case req.GetDeviceWebToken().GetId() == "":
 		return nil, trace.BadParameter("device_web_token.id required")
-	case req.DeviceWebToken.GetToken() == "":
+	case req.GetDeviceWebToken().GetToken() == "":
 		return nil, trace.BadParameter("device_web_token.token required")
 	}
 

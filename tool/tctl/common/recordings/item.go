@@ -46,13 +46,17 @@ func (i sessionItem) Title() string {
 	return fmt.Sprintf("[%s] %s", strings.ToUpper(sanitize(i.s.GetKind())), name)
 }
 
-// Description returns the secondary row text: "start • username • severity".
+// Description returns the secondary row text: "start • username • severity [• ⚠ needs review]".
 func (i sessionItem) Description() string {
 	start := "-"
 	if ts := i.s.GetSessionStart(); ts != nil {
 		start = ts.AsTime().UTC().Format("2006-01-02 15:04 UTC")
 	}
-	return fmt.Sprintf("%s  •  %s  •  %s", start, sanitize(i.s.GetUsername()), formatSeverity(i.s.GetSeverity()))
+	desc := fmt.Sprintf("%s  •  %s  •  %s", start, sanitize(i.s.GetUsername()), formatSeverity(i.s.GetSeverity()))
+	if len(i.s.GetNeedsFurtherReviewReasons()) > 0 {
+		desc += "  •  ⚠ needs review"
+	}
+	return desc
 }
 
 // FilterValue is used by the list's built-in filter.

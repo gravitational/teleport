@@ -21,7 +21,6 @@ package common
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -46,15 +45,17 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,7 +70,7 @@ type BotsCommand struct {
 	lockExpires string
 	lockTTL     time.Duration
 
-	botName            string
+	botName            scopes.QualifiedName
 	botRoles           string
 	tokenID            string
 	tokenTTL           time.Duration
@@ -117,7 +118,7 @@ type BotsCommand struct {
 // `bot instances add`
 func (c *BotsCommand) initSharedBotTokenFlags(cmd *kingpin.CmdClause) {
 	cmd.Flag("token", "The token to use, if any. If unset, a new single-use token will be created.").StringVar(&c.tokenID)
-	cmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	cmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	// TODO(timothyb89): Remove in v20 (optional)
 	cmd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
@@ -157,26 +158,26 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	bots := app.Command("bots", "Manage Machine & Workload Identity bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
-	c.botsList.Flag("format", "Output format.").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.botsAdd = bots.Command("add", "Add a new bot to the cluster.")
-	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
+	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().SetValue(&c.botName)
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").StringVar(&c.botRoles)
 	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
 	c.botsAdd.Flag("max-session-ttl", "Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.").DurationVar(&c.maxSessionTTL)
 	c.initSharedBotTokenFlags(c.botsAdd)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
-	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
+	c.botsRemove.Arg("name", "Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().SetValue(&c.botName)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
-	c.botsLock.Arg("name", "Name of an existing bot to lock.").Required().StringVar(&c.botName)
+	c.botsLock.Arg("name", "Name of an existing bot to lock. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().SetValue(&c.botName)
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
 
 	c.botsUpdate = bots.Command("update", "Update an existing bot.")
-	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
+	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().SetValue(&c.botName)
 	c.botsUpdate.Flag("set-roles", "Sets the bot's roles to the given comma-separated list, replacing any existing roles.").StringVar(&c.botRoles)
 	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
 	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
@@ -186,18 +187,18 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
 	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance.").Alias("get").Alias("describe")
-	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
+	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]. For an instance of a scoped bot, prefix the ID with the bot's scope: [scope]::[bot name]/[uuid].").Required().StringVar(&c.instanceID)
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
-	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
-	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form [scope]::[name]. If unset, lists instances from all bots.").SetValue(&c.botName)
+	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
 	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
 	c.botsInstancesList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("ascending").StringVar(&c.sortOrder)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
-	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
+	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().SetValue(&c.botName)
 	c.initSharedBotTokenFlags(c.botsInstancesAdd)
 
 	if c.stdout == nil {
@@ -268,33 +269,43 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 			return trace.Wrap(err)
 		}
 
-		bots = append(bots, resp.Bots...)
-		if resp.NextPageToken == "" {
+		bots = append(bots, resp.GetBots()...)
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(bots) == 0 {
 			fmt.Fprintln(c.stdout, "No bots found")
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
 		for _, u := range bots {
+			// Same-named bots in different scopes would otherwise be identical rows.
+			name := scopes.QualifiedName{Scope: u.GetScope(), Name: u.GetMetadata().GetName()}.String()
 			t.AddRow([]string{
-				u.Metadata.Name, u.Status.UserName, strings.Join(u.Spec.GetRoles(), ","),
+				name, u.GetStatus().GetUserName(), strings.Join(u.GetSpec().GetRoles(), ","),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
 
 		executableFileName := filepath.Base(os.Args[0])
 		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", executableFileName)
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(c.stdout, bots)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal bots")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(c.stdout, bots)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal bots")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -410,7 +421,7 @@ func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client bot
 	spec := types.ProvisionTokenSpecV2{
 		Roles:      types.SystemRoles{types.RoleBot},
 		JoinMethod: types.JoinMethodBoundKeypair,
-		BotName:    c.botName,
+		BotName:    c.botName.Name,
 		BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
 			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
 				InitialPublicKey:   initialPublicKey,
@@ -434,6 +445,10 @@ func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client bot
 
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) error {
+	if c.botName.Scope != "" {
+		return trace.Wrap(errScopedBotTokenUnsupported(c.botName, "creating"))
+	}
+
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -471,7 +486,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		tokenSpec := types.ProvisionTokenSpecV2{
 			Roles:      types.SystemRoles{types.RoleBot},
 			JoinMethod: types.JoinMethodToken,
-			BotName:    c.botName,
+			BotName:    c.botName.Name,
 		}
 		token, err = types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 		if err != nil {
@@ -494,9 +509,8 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 			return trace.BadParameter("token %q is not valid for role %q",
 				c.tokenID, types.RoleBot)
 		}
-		if token.GetBotName() != c.botName {
-			return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				c.tokenID, token.GetBotName(), c.botName)
+		if err := checkTokenBot(c.tokenID, token, c.botName); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -505,27 +519,27 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		maxSessionTTL = durationpb.New(c.maxSessionTTL)
 	}
 
-	bot := &machineidv1pb.Bot{
+	bot := machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: c.botName,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		Metadata: headerv1.Metadata_builder{
+			Name: c.botName.Name,
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: roles,
 			Traits: []*machineidv1pb.Trait{
-				{
+				machineidv1pb.Trait_builder{
 					Name:   constants.TraitLogins,
 					Values: flattenSlice(c.allowedLogins),
-				},
+				}.Build(),
 			},
 			MaxSessionTtl: maxSessionTTL,
-		},
-	}
+		}.Build(),
+	}.Build()
 
-	bot, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+	bot, err = client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
 		Bot: bot,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -534,10 +548,10 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
-	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
-		BotName: c.botName,
-	})
-	if err != nil {
+	if _, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
+		BotName: c.botName.Name,
+		Scope:   c.botName.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -552,7 +566,12 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(ctx, machineidv1.BotResourceName(c.botName), false)
+	resourceName, err := services.BotResourceName(c.botName)
+	if err != nil {
+		return trace.Wrap(err, "building bot resource name")
+	}
+
+	user, err := client.GetUser(ctx, resourceName, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -563,8 +582,10 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.BadParameter("User %q is not a bot user; use `tctl lock` directly to lock this user", user.GetName())
 	}
 
-	if botName != c.botName {
-		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), c.botName, botName)
+	// The name label alone is ambiguous now the same name may exist in many scopes.
+	found := scopes.QualifiedName{Scope: meta.Labels[types.BotScopeLabel], Name: botName}
+	if found != c.botName {
+		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), c.botName, found)
 	}
 
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
@@ -591,8 +612,8 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 // updating the field mask if any updates were made.
 func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	traits := map[string][]string{}
-	for _, t := range bot.Spec.GetTraits() {
-		traits[t.Name] = t.Values
+	for _, t := range bot.GetSpec().GetTraits() {
+		traits[t.GetName()] = t.GetValues()
 	}
 
 	currentLogins := set.New[string]()
@@ -630,13 +651,13 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 
 	traitsArray := []*machineidv1pb.Trait{}
 	for k, v := range traits {
-		traitsArray = append(traitsArray, &machineidv1pb.Trait{
+		traitsArray = append(traitsArray, machineidv1pb.Trait_builder{
 			Name:   k,
 			Values: v,
-		})
+		}.Build())
 	}
 
-	bot.Spec.Traits = traitsArray
+	bot.GetSpec().SetTraits(traitsArray)
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
 }
@@ -644,7 +665,7 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClient, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := set.New[string](bot.Spec.Roles...)
+	currentRoles := set.New[string](bot.GetSpec().GetRoles()...)
 
 	var desiredRoles set.Set[string]
 	if c.botRoles != "" {
@@ -673,16 +694,25 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClie
 		}
 	}
 
-	bot.Spec.Roles = desiredRolesArray
+	bot.GetSpec().SetRoles(desiredRolesArray)
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
 func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) error {
-	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
-		BotName: c.botName,
-	})
+	if c.botName.Scope != "" {
+		// Nothing this command can set is settable on a scoped bot, so the RPC
+		// would refuse the request anyway.
+		return trace.BadParameter(
+			"cannot update scoped bot %q: scoped bots have no updatable fields "+
+				"(roles are granted with scoped role assignments)", c.botName,
+		)
+	}
+
+	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+		BotName: c.botName.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -705,7 +735,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 	}
 
 	if c.maxSessionTTL > 0 {
-		bot.Spec.MaxSessionTtl = durationpb.New(c.maxSessionTTL)
+		bot.GetSpec().SetMaxSessionTtl(durationpb.New(c.maxSessionTTL))
 		if err := fieldMask.Append(&machineidv1pb.Bot{}, "spec.max_session_ttl"); err != nil {
 			return trace.Wrap(err)
 		}
@@ -716,33 +746,43 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 		return nil
 	}
 
-	_, err = client.BotServiceClient().UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
+	_, err = client.BotServiceClient().UpdateBot(ctx, machineidv1pb.UpdateBotRequest_builder{
 		Bot:        bot,
 		UpdateMask: fieldMask,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName)
+	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName.Name)
 
 	return nil
 }
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandClient) error {
+	botName, botScope := c.botName.Name, c.botName.Scope
+
+	// Exhaustive view, per the scope_filter field docs.
+	var scopeFilter *scopesv1.Filter
+	if botName == "" {
+		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()
+	}
+
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
-		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
+		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
 			PageSize:  int32(pageSize),
 			PageToken: pageToken,
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
-			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
-				BotName:    c.botName,
-				SearchTerm: c.search,
-				Query:      c.query,
-			},
-		})
+			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
+				BotName:     botName,
+				BotScope:    botScope,
+				SearchTerm:  c.search,
+				Query:       c.query,
+				ScopeFilter: scopeFilter,
+			}.Build(),
+		}.Build())
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}
 
@@ -750,11 +790,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		if c.query != "" {
 			return nil, trace.NotImplemented("fallback not supported for requests with a query")
 		}
+		if botScope != "" {
+			return nil, trace.NotImplemented("fallback not supported for requests with a bot scope")
+		}
 		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 			// Needed for backwards compatibility
 			//nolint:staticcheck // SA1019
-			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
-				FilterBotName:    c.botName,
+			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, machineidv1pb.ListBotInstancesRequest_builder{
+				FilterBotName:    botName,
 				PageSize:         int32(pageSize),
 				PageToken:        pageToken,
 				FilterSearchTerm: c.search,
@@ -762,7 +805,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 					Field:  c.sortIndex,
 					IsDesc: c.sortOrder == "descending",
 				},
-			})
+			}.Build())
 			return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 		}
 		return stream.Collect(clientutils.Resources(ctx, fallbackPageFunc))
@@ -773,7 +816,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		return trace.Wrap(err)
 	}
 
-	if c.format == teleport.JSON {
+	switch c.format {
+	case teleport.JSON, teleport.YAML:
 		// Wrap resource type so the correct protojson marshaling is used for
 		// timestamp fields.
 		wrappedInstances := make([]types.Resource, 0, len(instances))
@@ -782,16 +826,26 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 				wrappedInstances, types.ProtoResource153ToLegacy(instance),
 			)
 		}
-		err := utils.WriteJSONArray(c.stdout, wrappedInstances)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal bot instances")
+		if c.format == teleport.JSON {
+			err := utils.WriteJSONArray(c.stdout, wrappedInstances)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal bot instances")
+			}
+		} else {
+			err := utils.WriteYAML(c.stdout, wrappedInstances)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal bot instances")
+			}
 		}
 
 		return nil
+	case teleport.Text:
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if len(instances) == 0 {
-		if c.botName == "" {
+		if c.botName.Name == "" {
 			fmt.Fprintln(c.stdout, "No bot instances found.")
 		} else {
 			fmt.Fprintf(c.stdout, "No bot instances found with name %q.\n", c.botName)
@@ -808,42 +862,42 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		)
 
 		initialJoinMethod := cmp.Or(
-			i.Status.InitialAuthentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
-			i.Status.InitialAuthentication.JoinMethod,
+			i.GetStatus().GetInitialAuthentication().GetJoinAttrs().GetMeta().GetJoinMethod(),
+			i.GetStatus().GetInitialAuthentication().GetJoinMethod(),
 		)
 
-		lastSeen := i.Status.InitialAuthentication.AuthenticatedAt.AsTime()
+		lastSeen := i.GetStatus().GetInitialAuthentication().GetAuthenticatedAt().AsTime()
 
-		if len(i.Status.LatestAuthentications) > 0 {
-			auth := i.Status.LatestAuthentications[len(i.Status.LatestAuthentications)-1]
+		if len(i.GetStatus().GetLatestAuthentications()) > 0 {
+			auth := i.GetStatus().GetLatestAuthentications()[len(i.GetStatus().GetLatestAuthentications())-1]
 
 			authJM := cmp.Or(
 				auth.GetJoinAttrs().GetMeta().GetJoinMethod(),
-				auth.JoinMethod,
+				auth.GetJoinMethod(),
 			)
 			if authJM == initialJoinMethod {
 				joinMethod = authJM
 			} else {
 				// If the join method changed, show the original method and latest
-				joinMethod = fmt.Sprintf("%s (%s)", auth.JoinMethod, initialJoinMethod)
+				joinMethod = fmt.Sprintf("%s (%s)", auth.GetJoinMethod(), initialJoinMethod)
 			}
 
-			if auth.AuthenticatedAt.AsTime().After(lastSeen) {
-				lastSeen = auth.AuthenticatedAt.AsTime()
+			if auth.GetAuthenticatedAt().AsTime().After(lastSeen) {
+				lastSeen = auth.GetAuthenticatedAt().AsTime()
 			}
 		}
 
-		if len(i.Status.LatestHeartbeats) == 0 {
+		if len(i.GetStatus().GetLatestHeartbeats()) == 0 {
 			hostname = "-"
 			version = "-"
 		} else {
-			hb := i.Status.LatestHeartbeats[len(i.Status.LatestHeartbeats)-1]
+			hb := i.GetStatus().GetLatestHeartbeats()[len(i.GetStatus().GetLatestHeartbeats())-1]
 
-			hostname = hb.Hostname
-			version = hb.Version
+			hostname = hb.GetHostname()
+			version = hb.GetVersion()
 
-			if hb.RecordedAt.AsTime().After(lastSeen) {
-				lastSeen = hb.RecordedAt.AsTime()
+			if hb.GetRecordedAt().AsTime().After(lastSeen) {
+				lastSeen = hb.GetRecordedAt().AsTime()
 			}
 		}
 
@@ -852,8 +906,15 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			healthStatus = formatStatus(status, false) // Disable color, it messes with the table layout
 		}
 
+		// Instances of scoped bots are identified by the bot's scope-qualified
+		// name; instances of unscoped bots by the bot's bare name.
+		id := scopes.QualifiedName{
+			Scope: i.GetScope(),
+			Name:  i.GetSpec().GetBotName() + "/" + i.GetSpec().GetInstanceId(),
+		}.String()
+
 		t.AddRow([]string{
-			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
+			id, joinMethod,
 			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
@@ -862,7 +923,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
 
-	if c.botName != "" {
+	// 'bots instances add' refuses scoped bots, so don't advertise it for one.
+	if c.botName.Name != "" && c.botName.Scope == "" {
 		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, c.botName)
 	}
 
@@ -874,6 +936,10 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 	// A bit of a misnomer but makes the terminology a bit more consistent. This
 	// doesn't directly create a bot instance, but creates token that allows a
 	// bot to join, which creates a new instance.
+	if c.botName.Scope != "" {
+		return trace.Wrap(errScopedBotTokenUnsupported(c.botName, "onboarding an instance of"))
+	}
+
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -882,9 +948,9 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		return trace.Wrap(err)
 	}
 
-	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
-		BotName: c.botName,
-	})
+	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+		BotName: c.botName.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -906,7 +972,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		tokenSpec := types.ProvisionTokenSpecV2{
 			Roles:      types.SystemRoles{types.RoleBot},
 			JoinMethod: types.JoinMethodToken,
-			BotName:    c.botName,
+			BotName:    c.botName.Name,
 		}
 		token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 		if err != nil {
@@ -936,18 +1002,43 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		return trace.BadParameter("token %q is not valid for role %q",
 			c.tokenID, types.RoleBot)
 	}
-	if token.GetBotName() != c.botName {
-		return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-			c.tokenID, token.GetBotName(), c.botName)
+	if err := checkTokenBot(c.tokenID, token, c.botName); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(c.outputToken(ctx, client, bot, token))
 }
 
+// checkTokenBot verifies that the join token references the bot the caller
+// named, scope included.
+func checkTokenBot(tokenID string, token types.ProvisionToken, ref scopes.QualifiedName) error {
+	name, scope := token.GetBot()
+	if tokenBot := (scopes.QualifiedName{Scope: scope, Name: name}); tokenBot != ref {
+		return trace.BadParameter("token %q is valid for bot %q, not %q",
+			tokenID, tokenBot, ref)
+	}
+	return nil
+}
+
+// errScopedBotTokenUnsupported explains that the token-minting `tctl bots`
+// subcommands cannot serve a scoped bot: classic provision tokens can only
+// reference unscoped bots, and this command does not create scoped_tokens.
+func errScopedBotTokenUnsupported(ref scopes.QualifiedName, verb string) error {
+	return trace.BadParameter(
+		"%s a scoped bot is not supported by this command (got %q)\n"+
+			"hint: a scoped bot joins with a scoped token, which this command cannot create.\n"+
+			"  Apply one with 'tctl create -f': a scoped_token in scope %q with spec.bot: %q,\n"+
+			"  spec.usage_mode: bot, spec.roles: [Bot] and spec.join_method: bound_keypair.\n"+
+			"  The bot also needs a scoped role assignment applicable to its scope before it can join.",
+		verb, ref, ref.Scope, ref,
+	)
+}
+
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
 	"bold": bold,
 }).Parse(`Bot:    {{.instance.Spec.BotName}}
-ID:     {{.instance.Spec.InstanceId}}
+{{if .scope}}Scope:  {{.scope}}
+{{end}}ID:     {{.instance.Spec.InstanceId}}
 Status: {{.health_status}}
 
 Initial Authentication: {{.initial_authentication_table}}
@@ -962,40 +1053,41 @@ Services:
 To view a full, machine-readable record including past heartbeats and
 authentication records, run:
 
-> {{.executable}} get bot_instance/{{.instance.Spec.BotName}}/{{.instance.Spec.InstanceId}}
-
+> {{.executable}} get {{.get_ref}}
+{{if .can_add_instance}}
 To onboard a new instance for this bot, run:
 
 > {{.executable}} bots instances add {{.instance.Spec.BotName}}
-`))
+{{end}}`))
 
 func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandClient) error {
-	botName, instanceID, err := parseInstanceID(c.instanceID)
+	botScope, botName, instanceID, err := parseInstanceID(c.instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 		BotName:    botName,
 		InstanceId: instanceID,
-	})
+		BotScope:   botScope,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	initialAuthenticationTable := formatBotInstanceAuthentication(instance.Status.InitialAuthentication)
+	initialAuthenticationTable := formatBotInstanceAuthentication(instance.GetStatus().GetInitialAuthentication())
 
 	var latestAuthenticationTable string
-	if len(instance.Status.LatestAuthentications) > 0 {
-		latest := instance.Status.LatestAuthentications[len(instance.Status.LatestAuthentications)-1]
+	if len(instance.GetStatus().GetLatestAuthentications()) > 0 {
+		latest := instance.GetStatus().GetLatestAuthentications()[len(instance.GetStatus().GetLatestAuthentications())-1]
 		latestAuthenticationTable = formatBotInstanceAuthentication(latest)
 	} else {
 		latestAuthenticationTable = "No authentication records."
 	}
 
 	var heartbeatTable string
-	if len(instance.Status.LatestHeartbeats) > 0 {
-		latest := instance.Status.LatestHeartbeats[len(instance.Status.LatestHeartbeats)-1]
+	if len(instance.GetStatus().GetLatestHeartbeats()) > 0 {
+		latest := instance.GetStatus().GetLatestHeartbeats()[len(instance.GetStatus().GetLatestHeartbeats())-1]
 		heartbeatTable = formatBotInstanceHeartbeat(latest)
 	} else {
 		heartbeatTable = "No heartbeat records."
@@ -1011,9 +1103,22 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
 	}
 
+	// Only the two-argument form of 'tctl get' can carry a scope, so use it for
+	// scoped and unscoped alike rather than changing shape between them.
+	instanceRef := instance.GetSpec().GetBotName() + "/" + instance.GetSpec().GetInstanceId()
+	if scope := instance.GetScope(); scope != "" {
+		instanceRef = scopes.QualifiedName{Scope: scope, Name: instanceRef}.String()
+	}
+	getRef := types.KindBotInstance + " " + instanceRef
+
 	templateData := map[string]any{
-		"executable":                   os.Args[0],
-		"instance":                     instance,
+		"executable": os.Args[0],
+		"instance":   instance,
+		"scope":      instance.GetScope(),
+		"get_ref":    getRef,
+		// A bare name in the 'instances add' hint would target the same-named
+		// unscoped bot, and that command can't onboard a scoped bot anyway.
+		"can_add_instance":             instance.GetScope() == "",
 		"initial_authentication_table": initialAuthenticationTable,
 		"latest_authentication_table":  latestAuthenticationTable,
 		"heartbeat_table":              heartbeatTable,
@@ -1021,11 +1126,11 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		"services_table":               servicesTable,
 	}
 
-	return trace.Wrap(showMessageTemplate.Execute(os.Stdout, templateData))
+	return trace.Wrap(showMessageTemplate.Execute(c.stdout, templateData))
 }
 
-// botJSONResponse is a response generated by the `tctl bots add` family of
-// commands when the format is `json`
+// botJSONResponse is a structured response generated by the `tctl bots add`
+// family of commands when the format is `json` or `yaml`.
 type botJSONResponse struct {
 	UserName           string        `json:"user_name"`
 	RoleName           string        `json:"role_name"`
@@ -1061,7 +1166,8 @@ func (c *BotsCommand) outputToken(
 
 	secret, _ := uri.ToURL().User.Password()
 
-	if c.format == teleport.JSON {
+	switch c.format {
+	case teleport.JSON, teleport.YAML:
 		tokenTTL := time.Duration(0)
 		if exp := token.Expiry(); !exp.IsZero() {
 			tokenTTL = time.Until(exp)
@@ -1072,8 +1178,8 @@ func (c *BotsCommand) outputToken(
 		// when we called an older RPC. We've preserved it here to avoid
 		// breaking customer scripts.
 		response := botJSONResponse{
-			UserName: bot.Status.UserName,
-			RoleName: bot.Status.RoleName,
+			UserName: bot.GetStatus().GetUserName(),
+			RoleName: bot.GetStatus().GetRoleName(),
 			TokenID:  token.GetName(),
 			TokenTTL: tokenTTL,
 			JoinURI:  uri.String(),
@@ -1087,13 +1193,13 @@ func (c *BotsCommand) outputToken(
 			response.RegistrationSecret = secret
 		}
 
-		out, err := json.MarshalIndent(response, "", "  ")
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal CreateBot response")
+		if c.format == teleport.JSON {
+			return trace.Wrap(utils.WriteJSON(c.stdout, response), "failed to marshal CreateBot response")
 		}
-
-		fmt.Fprintln(c.stdout, string(out))
-		return nil
+		return trace.Wrap(utils.WriteYAML(c.stdout, response), "failed to marshal CreateBot response")
+	case teleport.Text:
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if c.legacy {
@@ -1193,16 +1299,18 @@ func splitEntries(flag string) []string {
 // a textual representation of a bot authentication record.
 func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuthentication) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Authenticated At:", record.AuthenticatedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.JoinMethod)})
-	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.JoinToken)})
-	var meta fmt.Stringer = record.Metadata
+	table.AddRow([]string{"Authenticated At:", record.GetAuthenticatedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.GetJoinMethod())})
+	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.GetJoinToken())})
+	//nolint:staticcheck // fallback for records written before join_attrs
+	// existed. TODO(noah): DELETE IN V20.0.0
+	var meta fmt.Stringer = record.GetMetadata()
 	if attrs := record.GetJoinAttrs(); attrs != nil {
 		meta = attrs
 	}
 	table.AddRow([]string{"Join Metadata:", meta.String()})
-	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
-	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
+	table.AddRow([]string{"Generation:", fmt.Sprint(record.GetGeneration())})
+	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.GetPublicKey()))})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
@@ -1211,15 +1319,15 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 // a textual representation of a bot heartbeat.
 func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Recorded At:", record.RecordedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.IsStartup)})
-	table.AddRow([]string{"Version:", record.Version})
-	table.AddRow([]string{"Hostname:", record.Hostname})
-	table.AddRow([]string{"Uptime:", record.Uptime.AsDuration().String()})
-	table.AddRow([]string{"Join Method:", record.JoinMethod})
-	table.AddRow([]string{"One Shot:", fmt.Sprint(record.OneShot)})
-	table.AddRow([]string{"Architecture:", record.Architecture})
-	table.AddRow([]string{"OS:", record.Os})
+	table.AddRow([]string{"Recorded At:", record.GetRecordedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.GetIsStartup())})
+	table.AddRow([]string{"Version:", record.GetVersion()})
+	table.AddRow([]string{"Hostname:", record.GetHostname()})
+	table.AddRow([]string{"Uptime:", record.GetUptime().AsDuration().String()})
+	table.AddRow([]string{"Join Method:", record.GetJoinMethod()})
+	table.AddRow([]string{"One Shot:", fmt.Sprint(record.GetOneShot())})
+	table.AddRow([]string{"Architecture:", record.GetArchitecture()})
+	table.AddRow([]string{"OS:", record.GetOs()})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
@@ -1287,14 +1395,25 @@ func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) s
 }
 
 // parseInstanceID converts an instance ID string in the form of
-// '[bot name]/[uuid]' to separate bot name and UUID strings.
-func parseInstanceID(s string) (name string, uuid string, err error) {
-	name, uuid, ok := strings.Cut(s, "/")
-	if !ok {
-		return "", "", trace.BadParameter("invalid bot instance syntax, must be: [bot name]/[uuid]")
+// [scope::][bot name]/[uuid] into its component parts. The scope prefix
+// addresses an instance of a scoped bot; scope is empty when the prefix is
+// absent.
+func parseInstanceID(s string) (scope string, name string, uuid string, err error) {
+	if before, after, ok := strings.Cut(s, scopes.QualifiedNameSeparator); ok {
+		if err := scopes.StrongValidate(before); err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+		scope, s = before, after
+	} else if scopes.MaybeSQN(s) {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
 	}
 
-	return
+	name, uuid, ok := strings.Cut(s, "/")
+	if !ok {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
+	}
+
+	return scope, name, uuid, nil
 }
 
 // indentString prefixes each line (ending with \n) with the provided prefix.

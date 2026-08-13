@@ -343,9 +343,9 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 		return nil
 	}()
 	if helloErr != nil {
-		_ = writeProto(controlStream, &relaytunnelv1alpha.ServerHello{
+		_ = writeProto(controlStream, relaytunnelv1alpha.ServerHello_builder{
 			Status: status.Convert(trail.ToGRPC(helloErr)).Proto(),
-		})
+		}.Build())
 		return trace.Wrap(helloErr)
 	}
 
@@ -357,9 +357,9 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 		// have advertised termination but before the load balancer has stopped
 		// sending connections our way
 		err := &trace.ConnectionProblemError{Message: "server is shutting down"}
-		_ = writeProto(controlStream, &relaytunnelv1alpha.ServerHello{
+		_ = writeProto(controlStream, relaytunnelv1alpha.ServerHello_builder{
 			Status: status.Convert(trail.ToGRPC(err)).Proto(),
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 	s.log.InfoContext(context.Background(), "new client connected", "client_id", clientID.Username, "tunnel_type", tunnelType)
@@ -368,12 +368,12 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 
 	controlStream.SetDeadline(time.Time{})
 
-	if err := writeProto(controlStream, &relaytunnelv1alpha.ServerHello{
+	if err := writeProto(controlStream, relaytunnelv1alpha.ServerHello_builder{
 		Status: nil, // i.e. status.Convert(error(nil)).Proto()
 
 		RelayGroup:            s.relayGroup,
 		TargetConnectionCount: s.targetConnectionCount,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -387,9 +387,9 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 		}
 
 		// currently the only message we have to send and we only send it once
-		_ = writeProto(controlStream, &relaytunnelv1alpha.ServerControl{
+		_ = writeProto(controlStream, relaytunnelv1alpha.ServerControl_builder{
 			Terminating: true,
-		})
+		}.Build())
 	}()
 
 	for {
@@ -517,10 +517,10 @@ func (c *yamuxServerConn) dial(ctx context.Context, src net.Addr, dst net.Addr) 
 	})
 	defer defuse()
 
-	req := &relaytunnelv1alpha.DialRequest{
+	req := relaytunnelv1alpha.DialRequest_builder{
 		Source:      addrToProto(src),
 		Destination: addrToProto(dst),
-	}
+	}.Build()
 	if err := writeProto(stream, req); err != nil {
 		defuse()
 		_ = stream.Close()

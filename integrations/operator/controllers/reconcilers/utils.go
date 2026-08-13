@@ -35,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	"github.com/gravitational/teleport/api/types/common"
 )
 
 const (
@@ -45,9 +47,13 @@ const (
 	ConditionReasonNoError                = "NoError"
 	ConditionReasonTeleportError          = "TeleportError"
 	ConditionReasonMutationError          = "MutationError"
+	ConditionReasonMatchingScope          = "MatchingScope"
+	ConditionReasonNonMatchingScope       = "NonMatchingScope"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
 	ConditionTypeValidStructure           = "ValidStructure"
+	ConditionTypeValidScope               = "ValidScope"
+	ConditionTypeUnscoped                 = "Unscoped"
 )
 
 // gvkFromScheme looks up the GVK from the runtime scheme.
@@ -76,7 +82,7 @@ func newKubeResource[K any]() K {
 	interfaceType := reflect.TypeOf(resource)
 	// If K is not a pointer we don't need to do anything
 	// If K is a pointer, new(K) is only initializing a nil pointer, we need to manually initialize its destination
-	if interfaceType.Kind() == reflect.Ptr {
+	if interfaceType.Kind() == reflect.Pointer {
 		// We create a new Value of the type pointed by K. reflect.New returns a pointer to this value
 		initializedResource := reflect.New(interfaceType.Elem())
 		// We cast back to K
@@ -162,7 +168,7 @@ type updateStatusConfig struct {
 	condition metav1.Condition
 }
 
-// updateStatus updates the Resource status but swallows the error if the update fails.
+// updateStatus updates the Resource status.
 func updateStatus(config updateStatusConfig) error {
 	// If the condition is empty, we don't want to update the status.
 	if config.condition == (metav1.Condition{}) {
@@ -204,4 +210,17 @@ func checkAnnotationFlag(object kclient.Object, flagName string, defaultValue bo
 		return defaultValue
 	}
 	return value
+}
+
+// setOriginLabelsForScoped sets the origin labels for a scoped resource.
+// Works in place.
+func updateScopedLabels(labels map[string]string, metadata OperatorMetadata, resourceMetadata customResourceMetadata) {
+	labels[common.OriginLabel] = common.OriginKubernetes
+	labels[OperatorIDLabel] = metadata.ID
+	labels[operatorOwnerLabel] = metadata.Owner
+	labels[operatorNamespaceLabel] = metadata.Namespace
+	labels[operatorTokenNameLabel] = metadata.TokenName
+	labels[customResourceNamespaceLabel] = resourceMetadata.namespace
+	labels[customResourceNameLabel] = resourceMetadata.name
+	labels[customResourceGVKLabel] = resourceMetadata.gvk
 }

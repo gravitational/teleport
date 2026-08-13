@@ -347,24 +347,31 @@ func TestTrimToMaxSize(t *testing.T) {
 					Code: "T2014I",
 					Type: "app.session.llm.request.success",
 				},
+				Status: Status{
+					Error:       strings.Repeat("A", 200),
+					UserMessage: strings.Repeat("B", 200),
+				},
 				Path:           strings.Repeat("/path", 20),
 				Method:         strings.Repeat("POST", 20),
 				RequestedModel: strings.Repeat("requested-model", 20),
-				// Models and provider comes from the app config and should not
-				// be trimmed.
+				Model:          strings.Repeat("model", 20),
+				// Provider comes from the app config and should not be trimmed.
 				Provider: "a-long-provider-name-not-trimmed",
-				Model:    "a-long-model-name-not-trimmed",
 			},
 			want: &AppSessionLLMRequest{
 				Metadata: Metadata{
 					Code: "T2014I",
 					Type: "app.session.llm.request.success",
 				},
-				Path:           "/path/path/path/",
-				Method:         "POSTPOSTPOSTPOST",
-				RequestedModel: "requested-modelr",
+				Status: Status{
+					Error:       "AAAAAAAAAAAA",
+					UserMessage: "BBBBBBBBBBBB",
+				},
+				Path:           "/path/path/p",
+				Method:         "POSTPOSTPOST",
+				RequestedModel: "requested-mo",
+				Model:          "modelmodelmo",
 				Provider:       "a-long-provider-name-not-trimmed",
-				Model:          "a-long-model-name-not-trimmed",
 			},
 		},
 	}

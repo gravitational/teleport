@@ -36,7 +36,7 @@ func (s *Handler) GetUserPreferences(ctx context.Context, req *api.GetUserPrefer
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetUserPreferencesResponse{UserPreferences: preferences}, nil
+	return api.GetUserPreferencesResponse_builder{UserPreferences: preferences}.Build(), nil
 }
 
 func (s *Handler) UpdateUserPreferences(ctx context.Context, req *api.UpdateUserPreferencesRequest) (*api.UpdateUserPreferencesResponse, error) {
@@ -50,7 +50,7 @@ func (s *Handler) UpdateUserPreferences(ctx context.Context, req *api.UpdateUser
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.UpdateUserPreferencesResponse{
+	return api.UpdateUserPreferencesResponse_builder{
 		UserPreferences: updated,
-	}, nil
+	}.Build(), nil
 }

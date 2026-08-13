@@ -41,6 +41,7 @@ type Clients struct {
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
 	AzureRunCommand         azure.RunCommandClient
+	AzureNetworkInterfaces  azure.NetworkInterfacesClient
 }
 
 var _ azure.Clients = (*Clients)(nil)
@@ -119,4 +120,9 @@ func (c *Clients) GetPostgresFlexServersClient(ctx context.Context, subscription
 // GetRunCommandClient returns an Azure Run Command client for the given subscription.
 func (c *Clients) GetRunCommandClient(ctx context.Context, subscription string) (azure.RunCommandClient, error) {
 	return c.AzureRunCommand, nil
+}
+
+// GetNetworkInterfacesClient returns an Azure Network Interfaces client for the given subscription.
+func (c *Clients) GetNetworkInterfacesClient(ctx context.Context, subscription string) (azure.NetworkInterfacesClient, error) {
+	return c.AzureNetworkInterfaces, nil
 }

@@ -122,6 +122,11 @@ func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase
 	}
 }
 
+// MFAChecker answers whether MFA is required for a target resource.
+type MFAChecker interface {
+	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+}
+
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
@@ -135,6 +140,7 @@ type ReissueParams struct {
 	RouteToDatabase       proto.RouteToDatabase
 	RouteToApp            proto.RouteToApp
 	RouteToWindowsDesktop proto.RouteToWindowsDesktop
+	RouteToLinuxDesktop   proto.RouteToLinuxDesktop
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -146,11 +152,12 @@ type ReissueParams struct {
 	// mimics LocalKeystore and remove this.
 	ExistingCreds *KeyRing
 
-	// MFACheck is optional parameter passed if MFA check was already done.
-	// It can be nil.
+	// MFACheck is RouteToCluster's answer to the MFA requirement check for this
+	// request's target resource, when the caller already has it.
 	MFACheck *proto.IsMFARequiredResponse
-	// AuthClient is the client used for the MFACheck that can be reused
-	AuthClient authclient.ClientI
+	// MFAChecker runs the MFA requirement check if given and MFACheck is nil.
+	// It must be a client of RouteToCluster's auth server, since only that cluster can answer the check.
+	MFAChecker MFAChecker
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
 	// TTL defines the maximum time-to-live for user certificates.
@@ -162,6 +169,13 @@ type ReissueParams struct {
 	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
 	// is required.
 	ReusableMFAResponse *proto.MFAAuthenticateResponse
+
+	// FailOnExpiredReusableMFAResponse makes IssueUserCertsWithMFA return
+	// [mfa.ErrExpiredReusableMFAResponse] when ReusableMFAResponse has
+	// expired, instead of falling back to a new MFA ceremony. Callers
+	// coordinating concurrent issuances use it to refresh the response once
+	// for all of them.
+	FailOnExpiredReusableMFAResponse bool
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -186,6 +200,10 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// Windows desktop means a request for a TLS certificate for access to a specific
 		// desktop, as specified by RouteToWindowsDesktop.
 		return proto.UserCertsRequest_WindowsDesktop
+	case p.RouteToLinuxDesktop.LinuxDesktop != "":
+		// Linux desktop means a request for a TLS certificate for access to a specific
+		// desktop, as specified by RouteToLinuxDesktop.
+		return proto.UserCertsRequest_LinuxDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -207,6 +225,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequir
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
 	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
+	case p.RouteToLinuxDesktop.LinuxDesktop != "":
+		req.Target = &proto.IsMFARequiredRequest_LinuxDesktop{LinuxDesktop: &p.RouteToLinuxDesktop}
 	default:
 		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
@@ -918,14 +938,26 @@ func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener
 		"remote_addr", remoteAddr,
 	)
 	log.InfoContext(ctx, "Starting remote port forwarding")
+	defer log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
 
-	for ctx.Err() == nil {
+	for {
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
-			if ctx.Err() == nil {
+			switch {
+			// Caller closed context to stop forwarding. For example the user
+			// ran "tsh ssh -N -R" then hit Ctrl-C.
+			case ctx.Err() != nil:
+				return
+			// The remote server closed the connection. For example, client_idle_timeout
+			// was hit.
+			case errors.Is(err, io.EOF):
+				return
+			// Accepting forwarded connection failed, but listener may still
+			// accept. For example, a transient network issue.
+			default:
 				log.ErrorContext(ctx, "Remote port forwarding failed", "error", err)
+				continue
 			}
-			continue
 		}
 
 		go func() {
@@ -934,7 +966,6 @@ func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener
 			}
 		}()
 	}
-	log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.

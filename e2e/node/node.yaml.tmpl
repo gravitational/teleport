@@ -1,7 +1,7 @@
 {{- /*gotype: github.com/gravitational/teleport/e2e/runner.TeleportNodeConfig */ -}}
 version: v3
 teleport:
-  nodename: docker-node
+  nodename: {{ .NodeName }}
   auth_token: foo
   data_dir: /var/lib/teleport
   log:
@@ -17,9 +17,13 @@ auth_service:
 ssh_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:{{ .SSHServerPort }}
-  public_addr: localhost:{{ .SSHServerPort }}
+  public_addr: {{ .SSHPublicHost }}:{{ .SSHServerPort }}
   labels:
     env: example
+{{- if .EnhancedRecording }}
+  enhanced_recording:
+    enabled: "yes"
+{{- end }}
 
 proxy_service:
   enabled: "no"

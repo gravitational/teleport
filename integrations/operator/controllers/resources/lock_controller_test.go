@@ -130,22 +130,30 @@ func (g *lockTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestLockCreation(t *testing.T) {
 	test := &lockTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewLockV2Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[
+		types.Lock, *resourcesv1.TeleportLockV2,
+	](t, resources.NewLockV2Reconciler, test)
 }
 
 func TestLockDeletion(t *testing.T) {
 	test := &lockTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewLockV2Reconciler, test)
+	testlib.ResourceDeletionSynchronousTest[
+		types.Lock, *resourcesv1.TeleportLockV2,
+	](t, resources.NewLockV2Reconciler, test)
 }
 
 func TestLockDeletionDrift(t *testing.T) {
 	test := &lockTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewLockV2Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[
+		types.Lock, *resourcesv1.TeleportLockV2,
+	](t, resources.NewLockV2Reconciler, test)
 }
 
 func TestLockUpdate(t *testing.T) {
 	test := &lockTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewLockV2Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[
+		types.Lock, *resourcesv1.TeleportLockV2,
+	](t, resources.NewLockV2Reconciler, test)
 }
 
 // TestLockMutateExisting tests CreatedAt and CreatedBy fields are persisted
@@ -187,7 +195,7 @@ func TestLockMutateExisting(t *testing.T) {
 	}
 	require.NoError(t, setup.K8sClient.Create(ctx, k8sLock))
 
-	reconciler, err := resources.NewLockV2Reconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := resources.NewLockV2Reconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	req := reconcile.Request{

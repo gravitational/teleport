@@ -51,6 +51,19 @@ export function deleteUser(username: string) {
   tctl('users', 'rm', username);
 }
 
+// Removes a user if present, swallowing only tctl's "not found" error so it can
+// be used to clean up before a test (and on retries) without failing when the
+// user doesn't exist yet.
+export function deleteUserIfExists(username: string) {
+  try {
+    tctl('users', 'rm', username);
+  } catch (err) {
+    if (!isNotFoundError(err)) {
+      throw err;
+    }
+  }
+}
+
 // Removes a resource (e.g. `role/test-role`) if it exists. Swallows only the
 // "not found" error tctl returns when the resource is absent; any other
 // failure (auth, network, etc.) is re-thrown so it doesn't get masked.

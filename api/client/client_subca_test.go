@@ -42,8 +42,8 @@ func TestClient_GetCertAuthorityOverride(t *testing.T) {
 
 	override := caOverrides[0]
 	overrideID := types.CertAuthorityOverrideID{
-		ClusterName: override.Metadata.Name,
-		CAType:      override.SubKind,
+		ClusterName: override.GetMetadata().Name,
+		CAType:      override.GetSubKind(),
 	}
 
 	tests := []struct {
@@ -166,7 +166,7 @@ func newClientForSubCATesting(t *testing.T) *Client {
 }
 
 var caOverrides = []*subcav1.CertAuthorityOverride{
-	{
+	subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.DatabaseClientCA),
 		Version: types.V1,
@@ -175,8 +175,8 @@ var caOverrides = []*subcav1.CertAuthorityOverride{
 			Revision: "1774a27d-977e-45a1-ac6a-dd8b7a8e0d8d",
 		},
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
-	},
-	{
+	}.Build(),
+	subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.WindowsCA),
 		Version: types.V1,
@@ -185,7 +185,7 @@ var caOverrides = []*subcav1.CertAuthorityOverride{
 			Revision: "511c8c23-03ea-44b2-81e5-62ddcd4d3445",
 		},
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
-	},
+	}.Build(),
 }
 
 // fakeSubCAService is a fake SubCAService implementation that returns
@@ -202,10 +202,10 @@ func (s *fakeSubCAService) GetCertAuthorityOverride(
 ) (*subcav1.GetCertAuthorityOverrideResponse, error) {
 	// Implement a simplistic Get. Input validation not performed.
 	for _, o := range s.overrides {
-		if o.SubKind == req.GetCaId().GetCaType() {
-			return &subcav1.GetCertAuthorityOverrideResponse{
+		if o.GetSubKind() == req.GetCaId().GetCaType() {
+			return subcav1.GetCertAuthorityOverrideResponse_builder{
 				CaOverride: o,
-			}, nil
+			}.Build(), nil
 		}
 	}
 	return nil, trace.NotFound("ca override not found")
@@ -216,7 +216,7 @@ func (s *fakeSubCAService) ListCertAuthorityOverride(
 	req *subcav1.ListCertAuthorityOverrideRequest,
 ) (*subcav1.ListCertAuthorityOverrideResponse, error) {
 	// Input filters are completely disregarded.
-	return &subcav1.ListCertAuthorityOverrideResponse{
+	return subcav1.ListCertAuthorityOverrideResponse_builder{
 		CaOverrides: s.overrides,
-	}, nil
+	}.Build(), nil
 }

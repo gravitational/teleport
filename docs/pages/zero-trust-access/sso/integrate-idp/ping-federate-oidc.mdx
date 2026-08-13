@@ -7,10 +7,11 @@ tags:
   - how-to
   - zero-trust
   - privileged-access
+page_type: how-to
 ---
 
-This guide explains how to configure PingFederate as a single sign-on
-(SSO) identity provider for Teleport using **OpenID Connect** (OIDC).
+In this guide, you will configure PingFederate as a single sign-on (SSO)
+identity provider for Teleport using **OpenID Connect** (OIDC).
 
 Teleport acts as the OIDC client (relying party) and PingFederate acts as the identity
 provider. When a user authenticates, Teleport redirects them to
@@ -141,7 +142,7 @@ metadata:
   name: developer
 spec:
   allow:
-    logins: ['ubuntu', 'ec2-user', '{{internal.username}}']
+    logins: ['ubuntu', 'ec2-user']
     node_labels:
       env: dev
     kubernetes_groups: ['developers']
@@ -151,9 +152,10 @@ spec:
     max_session_ttl: 8h
 ```
 
-``{{internal.username}}`` is a Teleport template variable that resolves to the authenticated
-user's Teleport username at login time. It allows the role to grant a login on the target host
-that matches the user's Teleport identity without hardcoding a username. Remove it if you want to restrict logins to only the explicitly listed values.
+This example grants the `ubuntu` and `ec2-user` logins to anyone with the
+`developer` role. If you'd rather grant a login that matches each user's own 
+Teleport username instead of a fixed list, you can add `{{user.metadata.name}}`
+to the logins list. This variable requires Teleport v18.7.6 or later.
 
 Apply the role:
 

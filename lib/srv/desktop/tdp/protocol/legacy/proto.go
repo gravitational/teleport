@@ -172,7 +172,7 @@ func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 	case TypeSharedDirectoryListResponse:
 		return decodeSharedDirectoryListResponse(in)
 	case TypeSharedDirectoryReadRequest:
-		return decodeSharedDirectoryReadRequest(in)
+		return decodeSharedDirectoryReadRequest(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryReadResponse:
 		return decodeSharedDirectoryReadResponse(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteRequest:
@@ -732,7 +732,9 @@ func (m MFA) Encode() ([]byte, error) {
 	} else if m.MFAAuthenticateResponse != nil {
 		switch t := m.MFAAuthenticateResponse.Response.(type) {
 		case *authproto.MFAAuthenticateResponse_Webauthn:
-			buff, err = json.Marshal(wantypes.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
+			buff, err = json.Marshal(mfatypes.MFAChallengeResponse{
+				WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()),
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1318,7 +1320,7 @@ func (s SharedDirectoryReadRequest) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest, error) {
+func decodeSharedDirectoryReadRequest(in io.Reader, maxLen uint32) (SharedDirectoryReadRequest, error) {
 	var completionID, directoryID, length uint32
 	var offset uint64
 
@@ -1345,6 +1347,10 @@ func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest,
 	err = binary.Read(in, binary.BigEndian, &length)
 	if err != nil {
 		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	if length > maxLen {
+		return SharedDirectoryReadRequest{}, tdp.FileReadWriteMaxLenErr
 	}
 
 	return SharedDirectoryReadRequest{

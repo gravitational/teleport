@@ -55,9 +55,9 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -106,9 +106,9 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
-	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
+	"github.com/gravitational/teleport/lib/auth/clientiprestriction/clientiprestrictionv1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -285,7 +285,7 @@ func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 
 // EmitAuditEvent emits audit event
 func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,6 +293,10 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Mark this event as forwarded from a remote instance so the auth server's
+	// fallback queue does not take ownership of it on a delivery failure. The
+	// originating instance retries from its own queue.
+	ctx = events.WithForwardedEmit(ctx)
 	err = auth.EmitAuditEvent(ctx, event)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -307,6 +311,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	constants.KeepAliveLinuxDesktop:          connectedResources.WithLabelValues(constants.KeepAliveLinuxDesktop),
 	teleport.ComponentRelay:                  connectedResources.WithLabelValues(teleport.ComponentRelay),
 }
 
@@ -355,7 +360,7 @@ func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServ
 
 // CreateAuditStream creates or resumes audit event stream
 func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStreamServer) error {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -377,7 +382,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 
 	var eventStream apievents.Stream
 	var sessionID session.ID
-	g.logger.DebugContext(stream.Context(), "CreateAuditStream connection", "identity", auth.User.GetName())
+	g.logger.DebugContext(stream.Context(), "CreateAuditStream connection", "identity", auth.scopedContext.DisplayName())
 	streamStart := time.Now()
 	processed := int64(0)
 	counter := 0
@@ -551,27 +556,21 @@ const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
-		// Support scoped identities calling the RPC by falling back to scoped
-		// authorizer check.
-		if errors.Is(err, services.ErrScopedIdentity) {
-			scopedAuth, err := g.scopedAuthenticate(stream.Context())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(WatchEvents(
-				watch,
-				stream,
-				scopedAuth.scopedContext.User.GetName(),
-				scopedAuth,
-				g.AuthServer.modules,
-			))
-		}
 		return trace.Wrap(err)
 	}
-
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, g.AuthServer.modules))
+	var componentName string
+	if auth.scopedContext.User != nil {
+		componentName = auth.scopedContext.User.GetName()
+	} else {
+		var isBuiltinServer bool
+		componentName, isBuiltinServer = getLocalServerID(auth.scopedContext.Identity)
+		if !isBuiltinServer {
+			return trace.BadParameter("could not derive component name from auth context")
+		}
+	}
+	return trace.Wrap(WatchEvents(watch, stream, componentName, auth, g.AuthServer.modules))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -709,28 +708,28 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	}
 
 	// deny access to scoped bots
-	if ident := auth.getIdentity(); ident.IsBot() && ident.ScopePin != nil {
+	if ident := auth.scopedContext.Identity.GetIdentity(); ident.IsBot() && ident.ScopePin != nil {
 		return nil, trace.AccessDenied("scoped bots can not generate user certs")
 	}
 
-	if err := validateUserCertsRequest(auth.ServerWithRoles, req); err != nil {
+	if err := validateUserCertsRequest(auth.ScopedServerWithRoles, req); err != nil {
 		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-		certs, err := g.generateUserSingleUseCerts(ctx, auth.ServerWithRoles, req)
+		certs, err := g.generateUserSingleUseCerts(ctx, auth.ScopedServerWithRoles, req)
 		return certs, trace.Wrap(err)
 	}
 
-	certs, err := auth.ServerWithRoles.GenerateUserCerts(ctx, *req)
+	certs, err := auth.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return certs, nil
 }
 
-func validateUserCertsRequest(srv *ServerWithRoles, req *authpb.UserCertsRequest) error {
+func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsRequest) error {
 	if err := validateCertUsage(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -738,6 +737,15 @@ func validateUserCertsRequest(srv *ServerWithRoles, req *authpb.UserCertsRequest
 	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
 		if req.Usage != authpb.UserCertsRequest_Database {
 			return trace.BadParameter("requester %s can only request database certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+	}
+
+	if req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+		if req.Usage != authpb.UserCertsRequest_Kubernetes {
+			return trace.BadParameter("requester %s can only request Kubernetes certificates", req.RequesterName)
 		}
 		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
@@ -792,6 +800,10 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 		if err := validateAccessGraphcertificateReq(req); err != nil {
 			return trace.Wrap(err)
 		}
+	case authpb.UserCertsRequest_LinuxDesktop:
+		if req.RouteToLinuxDesktop.LinuxDesktop == "" {
+			return trace.BadParameter("missing LinuxDesktop field in a linux-desktop-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
@@ -815,7 +827,7 @@ func validateAccessGraphcertificateReq(req *authpb.UserCertsRequest) error {
 }
 
 // generateUserSingleUseCerts issues single-use user certificates.
-func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *ServerWithRoles, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *ScopedServerWithRoles, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
 	setUserSingleUseCertsTTL(srv, req)
 
 	// We don't do MFA requirement validations here.
@@ -840,7 +852,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *Server
 }
 
 func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCertsRequest) (*authpb.Certs, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -852,7 +864,7 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCert
 	}
 	req.RemoteAddr = p.Addr.String()
 
-	certs, err := auth.ServerWithRoles.GenerateHostCerts(ctx, req)
+	certs, err := auth.GenerateHostCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -894,14 +906,15 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleApp:      constants.KeepAliveApp,
-	types.RoleDatabase: constants.KeepAliveDatabase,
-	types.RoleKube:     constants.KeepAliveKube,
-	types.RoleNode:     constants.KeepAliveNode,
+	types.RoleApp:          constants.KeepAliveApp,
+	types.RoleDatabase:     constants.KeepAliveDatabase,
+	types.RoleKube:         constants.KeepAliveKube,
+	types.RoleNode:         constants.KeepAliveNode,
+	types.RoleLinuxDesktop: constants.KeepAliveLinuxDesktop,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -922,7 +935,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// services that currently use ics for heartbeats are registered in the icsServiceToMetricName
 	// mapping for translation.
 	var metricServices []string
-	for _, service := range hello.Services {
+	for _, service := range hello.GetServices() {
 		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
@@ -1123,7 +1136,13 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 			)
 			return trace.Errorf("encountered unexpected role type")
 		}
-		if err := stream.Send(v6); err != nil {
+		// Send each role at a version the client understands. A client that
+		// does not know app_resources would read a v9 role as unrestricted.
+		downgraded, err := maybeDowngradeRole(stream.Context(), v6)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(downgraded); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1278,11 +1297,11 @@ func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, requ
 }
 
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caps, err := auth.ServerWithRoles.GetAccessCapabilities(ctx, *req)
+	caps, err := auth.ScopedServerWithRoles.GetAccessCapabilities(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1697,13 +1716,15 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 }
 
 // DeleteApplicationServer deletes an application server.
+//
+// Deprecated: Use DeleteAppServer from the presence service instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) DeleteApplicationServer(ctx context.Context, req *authpb.DeleteApplicationServerRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
-	if err != nil {
+	if err := auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -1918,7 +1939,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *authpb.DeleteAppSessionRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2004,7 +2025,7 @@ func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSC
 
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2020,6 +2041,7 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateA
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: types.CertAuthType(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2048,6 +2070,34 @@ func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSession
 
 	return &authpb.GetWebSessionResponse{
 		Session: sess,
+	}, nil
+}
+
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session.
+func (g *GRPCServer) ExtendWebSession(ctx context.Context, req *authpb.ExtendWebSessionRequest) (*authpb.ExtendWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := auth.ExtendWebSession(ctx, authclient.WebSessionReq{
+		User:            req.GetUser(),
+		PrevSessionID:   req.GetPrevSessionId(),
+		AccessRequestID: req.GetAccessRequestId(),
+		Switchback:      req.GetSwitchback(),
+		ReloadUser:      req.GetReloadUser(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessv2, ok := sess.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", sess)
+	}
+
+	return &authpb.ExtendWebSessionResponse{
+		Session: sessv2,
 	}, nil
 }
 
@@ -2222,12 +2272,15 @@ func (g *GRPCServer) UpsertKubernetesServer(ctx context.Context, req *authpb.Ups
 }
 
 // DeleteKubernetesServer deletes a kubernetes server.
+//
+// Deprecated: Use DeleteKubeServer in the presence service instead.
+// TODO (eriktate): remove in v20
 func (g *GRPCServer) DeleteKubernetesServer(ctx context.Context, req *authpb.DeleteKubernetesServerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteKubernetesServer(ctx, req.GetHostID(), req.GetName())
+	err = auth.DeleteKubernetesServer(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2268,8 +2321,99 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	// A v18 client supports v8 roles at most, a v17 client v7.
+	// Downgrade in order, v9 to v8 to v7.
+	// App label stripping from the v9 to v8 persists down to v7.
+	// Only the last step is captured in TeleportDowngradedLabel.
+	role = maybeDowngradeRoleVersionToV8(ctx, role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedRoleV9Version = &semver.Version{Major: 19, Minor: 0, Patch: 0}
+
+// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 for agents below
+// minSupportedRoleV9Version (v19), which cannot enforce the v9 app
+// restriction. A plain v8 copy would grant unrestricted app access, so unless
+// the role already grants that (an allow_all rule), the copy moves its allow
+// app selector to the deny side. A pre-v19 agent cannot apply the finer v9
+// restriction, so it denies these apps outright, never granting more than v9
+// would, and no other v8 role can grant them either. Composing with
+// maybeDowngradeRoleVersionToV7 lets a v9 role reach a pre-v18 agent as v7.
+//
+// TODO(@juliaogris): Delete in v20.0.0 when pre-19 client support ends.
+func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	if role.GetVersion() != types.V9 {
+		return role
+	}
+	supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedRoleV9Version.String())
+	if supported || err != nil {
+		return role
+	}
+
+	// Deep-copy the role before mutating it. The same role is shared
+	// across client sessions when watchers notify about changes. Mutating
+	// the original races other readers.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V8
+
+	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
+	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) ||
+		len(role.Spec.Allow.AppResourcesExpressions) > 0 || len(role.Spec.Deny.AppResourcesExpressions) > 0 {
+		if denyDowngradedAppAccess(role) {
+			slog.WarnContext(ctx,
+				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
+				"role", role.GetName(), "client_version", clientVersion)
+		}
+		detail = "Allow app_labels are stripped and the role denies its own apps so it grants no app access on this client."
+	}
+	role.Spec.Allow.AppResources = nil
+	role.Spec.Deny.AppResources = nil
+	role.Spec.Allow.AppResourcesExpressions = nil
+	role.Spec.Deny.AppResourcesExpressions = nil
+
+	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+
+	return role
+}
+
+// denyDowngradedAppAccess moves the role's allow app labels and expression to
+// its deny app labels and expression. Allow requires both selectors to match
+// (AND) while deny requires either (OR), so a role setting both denies more
+// apps than it granted. A role that already denies apps by label falls back to
+// a wildcard deny, since two label maps cannot be OR-merged into one, and
+// reports it for the caller to log. Both are intentional, potential over-denies
+// for this version-skew edge case.
+func denyDowngradedAppAccess(role *types.RoleV6) (wildcardFallback bool) {
+	allowLabels := role.Spec.Allow.AppLabels
+	allowExpression := role.Spec.Allow.AppLabelsExpression
+	role.Spec.Allow.AppLabels = nil
+	role.Spec.Allow.AppLabelsExpression = ""
+
+	// Deny matches on either selector (OR), so an existing deny expression
+	// keeps applying next to these labels. Label maps have no such union, so
+	// the potentially over-denying wildcard is used instead.
+	switch {
+	case len(allowLabels) == 0:
+	case len(role.Spec.Deny.AppLabels) == 0:
+		role.Spec.Deny.AppLabels = allowLabels
+	default:
+		role.Spec.Deny.AppLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+		wildcardFallback = true
+	}
+
+	switch {
+	case allowExpression == "":
+	case role.Spec.Deny.AppLabelsExpression == "":
+		role.Spec.Deny.AppLabelsExpression = allowExpression
+	default:
+		role.Spec.Deny.AppLabelsExpression = "(" + role.Spec.Deny.AppLabelsExpression + ") || (" + allowExpression + ")"
+	}
+	return wildcardFallback
 }
 
 var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}
@@ -2482,11 +2626,11 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*types.RoleV6, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleI, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
+	roleI, err := auth.GetRole(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2589,10 +2733,6 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	created, err := auth.ServerWithRoles.CreateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2628,10 +2768,6 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	updated, err := auth.ServerWithRoles.UpdateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2665,10 +2801,6 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
 	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
-	}
-
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	upserted, err := auth.ServerWithRoles.UpsertRole(ctx, req.Role)
@@ -2883,7 +3015,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	return trace.NotImplemented("method GenerateUserSingleUseCerts is deprecated, use GenerateUserCerts instead")
 }
 
-func setUserSingleUseCertsTTL(srv *ServerWithRoles, req *authpb.UserCertsRequest) {
+func setUserSingleUseCertsTTL(srv *ScopedServerWithRoles, req *authpb.UserCertsRequest) {
 	if !isCertWrittenToDiskFlow(req) {
 		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
 		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
@@ -2905,7 +3037,9 @@ func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
+			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
@@ -2924,7 +3058,7 @@ func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
 	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req authpb.UserCertsRequest) (*authpb.Certs, error) {
+func userSingleUseCertsGenerate(ctx context.Context, srv *ScopedServerWithRoles, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2938,9 +3072,9 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req a
 	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
 	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
-		certRequestPreviousIdentityExpires(srv.getIdentity().Expires),
+		certRequestPreviousIdentityExpires(srv.scopedContext.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
-		certRequestDeviceExtensions(srv.getIdentity().DeviceExtensions),
+		certRequestDeviceExtensions(srv.scopedContext.Identity.GetIdentity().DeviceExtensions),
 	}
 
 	// Generate the cert.
@@ -2955,7 +3089,7 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req a
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_LinuxDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -3807,60 +3941,6 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &emptypb.Empty{}, nil
 }
 
-// ListAuthServers returns a paginated list of auth servers.
-func (g *GRPCServer) ListAuthServers(ctx context.Context, req *presencev1pb.ListAuthServersRequest) (*presencev1pb.ListAuthServersResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, next, err := auth.ListAuthServers(ctx, int(req.PageSize), req.PageToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	serverV2s := make([]*types.ServerV2, 0, len(servers))
-	for _, server := range servers {
-		srv, ok := server.(*types.ServerV2)
-		if !ok {
-			return nil, trace.Errorf("encountered unexpected server type: %T", server)
-		}
-		serverV2s = append(serverV2s, srv)
-	}
-
-	return &presencev1pb.ListAuthServersResponse{
-		Servers:       serverV2s,
-		NextPageToken: next,
-	}, nil
-}
-
-// ListProxyServers returns a paginated list of proxy servers.
-func (g *GRPCServer) ListProxyServers(ctx context.Context, req *presencev1pb.ListProxyServersRequest) (*presencev1pb.ListProxyServersResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, next, err := auth.ListProxyServers(ctx, int(req.PageSize), req.PageToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	serverV2s := make([]*types.ServerV2, 0, len(servers))
-	for _, server := range servers {
-		srv, ok := server.(*types.ServerV2)
-		if !ok {
-			return nil, trace.Errorf("encountered unexpected server type: %T", server)
-		}
-		serverV2s = append(serverV2s, srv)
-	}
-
-	return &presencev1pb.ListProxyServersResponse{
-		Servers:       serverV2s,
-		NextPageToken: next,
-	}, nil
-}
-
 // GetNode retrieves a node by name and namespace.
 func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
 	if req.Namespace == "" {
@@ -3886,7 +3966,7 @@ func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespace
 
 // UpsertNode upserts a node.
 func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*types.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3900,7 +3980,7 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*typ
 	}
 	node.SetAddr(utils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
 
-	keepAlive, err := auth.ServerWithRoles.UpsertNode(ctx, node)
+	keepAlive, err := auth.UpsertNode(ctx, node)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3933,11 +4013,11 @@ func (g *GRPCServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInN
 
 // GetClusterAuditConfig gets cluster audit configuration.
 func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterAuditConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	auditConfig, err := auth.ServerWithRoles.GetClusterAuditConfig(ctx)
+	auditConfig, err := auth.ScopedServerWithRoles.GetClusterAuditConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3950,11 +4030,11 @@ func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	netConfig, err := auth.ServerWithRoles.GetClusterNetworkingConfig(ctx)
+	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3992,11 +4072,11 @@ func (g *GRPCServer) ResetClusterNetworkingConfig(ctx context.Context, _ *emptyp
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *emptypb.Empty) (*types.SessionRecordingConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	recConfig, err := auth.ServerWithRoles.GetSessionRecordingConfig(ctx)
+	recConfig, err := auth.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4178,7 +4258,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 
 // GetLock retrieves a lock by name.
 func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*types.LockV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4195,7 +4275,7 @@ func (g *GRPCServer) GetLock(ctx context.Context, req *authpb.GetLockRequest) (*
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) (*authpb.GetLocksResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4224,7 +4304,7 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) 
 
 // ListLocks returns a page of locks matching a filter
 func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest) (*authpb.ListLocksResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5006,51 +5086,21 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 
 // ListUnifiedResources retrieves a paginated list of unified resources.
 func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
-		if errors.Is(err, services.ErrScopedIdentity) {
-			// TODO(fspmarshall/scopes): Do away with this bifurcated implementation in favor of making ListUnifiedResources
-			// able to support scoped callers directly.
-			return g.scopedListUnifiedResources(ctx, req)
-		}
 		return nil, trace.Wrap(err)
 	}
-
 	return auth.ListUnifiedResources(ctx, req)
 }
 
-// scopedListUnifiedResources handles ListUnifiedResources requests for scoped identities. eventually we want to do away with
-// this in favor of fully porting over the ListUnifiedResources API to support scopes natively. for the time being, we use
-// this method to specifically make it possible to use 'tsh ls' with scoped credentials. usecases other than that are not
-// guaranteed to work properly at this time.
-func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+// ListResources retrieves a paginated list of resources.
+func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.scopedListUnifiedResources(ctx, req)
-}
-
-// ListResources retrieves a paginated list of resources.
-func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
-
-	var swr *ServerWithRoles
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-		scopedAuth, err := g.scopedAuthenticate(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		swr = scopedAuth.ServerWithRoles
-	} else {
-		swr = auth.ServerWithRoles
-	}
-
-	resp, err := swr.ListResources(ctx, *req)
+	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5069,38 +5119,11 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 }
 
 func (g *GRPCServer) GetSSHTargets(ctx context.Context, req *authpb.GetSSHTargetsRequest) (*authpb.GetSSHTargetsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		if errors.Is(err, services.ErrScopedIdentity) {
-			// NOTE: this pattern of having separate code paths for scoped identities is temporary. GetSSHTargets
-			// relies upon ListUnifiedResources internally, which hasn't yet been fully ported to support scopes.
-			// until that work is done, we need to have this separate code path to ensure that search_as_roles
-			// functions as expected for unscoped callers.
-			return g.scopedGetSSHTargets(ctx, req)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, err := auth.ServerWithRoles.GetSSHTargets(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rsp, nil
-}
-
-func (g *GRPCServer) scopedGetSSHTargets(ctx context.Context, req *authpb.GetSSHTargetsRequest) (*authpb.GetSSHTargetsResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rsp, err := auth.GetSSHTargets(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rsp, nil
+	return auth.GetSSHTargets(ctx, req)
 }
 
 // ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
@@ -5126,7 +5149,7 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5136,7 +5159,7 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.Creat
 		return nil, trace.BadParameter("missing SessionTracker from CreateSessionTrackerRequest")
 	}
 
-	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
+	tracker, err := auth.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5237,11 +5260,11 @@ func (g *GRPCServer) RemoveSessionTracker(ctx context.Context, req *authpb.Remov
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (g *GRPCServer) UpdateSessionTracker(ctx context.Context, req *authpb.UpdateSessionTrackerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpdateSessionTracker(ctx, req)
+	err = auth.UpdateSessionTracker(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5273,7 +5296,7 @@ func (g *GRPCServer) GetClusterCACert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.ServerWithRoles.GetClusterCACert(ctx)
+	return auth.GetClusterCACert(ctx)
 }
 
 // GetConnectionDiagnostic reads a connection diagnostic.
@@ -5386,6 +5409,8 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
+			case installers.InstallerScriptNameWindowsAuthPackage:
+				return installer.DefaultWindowsAuthPackageInstaller, nil
 			}
 		}
 		return nil, trace.Wrap(err)
@@ -5415,8 +5440,9 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 
 	defaultInstallers := map[string]*types.InstallerV1{
-		types.DefaultInstallerScriptName:        defaultInstaller,
-		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+		types.DefaultInstallerScriptName:                 defaultInstaller,
+		installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller,
+		installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller,
 	}
 
 	for _, inst := range res {
@@ -5471,6 +5497,10 @@ func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end stri
 				}
 			}
 			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		if isInRange(installers.InstallerScriptNameWindowsAuthPackage, start, end) {
+			defaultInstallers = append(defaultInstallers, installer.DefaultWindowsAuthPackageInstaller)
 		}
 
 		// Sort in case the names change in the future as the streams must be sorted.
@@ -5581,8 +5611,11 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *authpb.Appen
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
+//
+// Deprecated: Use GetKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5599,7 +5632,7 @@ func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.Resour
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5615,7 +5648,7 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5631,7 +5664,7 @@ func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5654,8 +5687,11 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5682,8 +5718,11 @@ func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.Lis
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
+//
+// Deprecated: Use DeleteKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5693,9 +5732,9 @@ func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.Res
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteAllKubernetesClusters removes all kubernetes cluster.
+// DeleteAllKubernetesClusters removes all accessible kubernetes cluster.
 func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6160,13 +6199,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	)
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Emitter:    cfg.Emitter,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "users.service"),
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Emitter:          cfg.Emitter,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "users.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6174,14 +6214,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usersv1pb.RegisterUsersServiceServer(server, usersService)
 
 	presenceService, err := presencev1.NewService(presencev1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		AuthServer: cfg.AuthServer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "presence.service"),
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		AuthServer:       cfg.AuthServer,
+		Backend:          cfg.AuthServer.Services,
+		Cache:            cfg.AuthServer.Cache,
+		Emitter:          cfg.Emitter,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "presence.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6206,6 +6247,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:          cfg.Emitter,
 		Clock:            cfg.AuthServer.GetClock(),
 		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -6238,11 +6280,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
 
 	spiffeFederationService, err := machineidv1.NewSPIFFEFederationService(machineidv1.SPIFFEFederationServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.SPIFFEFederations,
-		Cache:      cfg.AuthServer.Cache,
-		Clock:      cfg.AuthServer.GetClock(),
-		Emitter:    cfg.Emitter,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Backend:          cfg.AuthServer.Services.SPIFFEFederations,
+		Cache:            cfg.AuthServer.Cache,
+		Clock:            cfg.AuthServer.GetClock(),
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating SPIFFE federation service")
@@ -6250,11 +6293,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
 
 	workloadIdentityResourceService, err := workloadidentityv1.NewResourceService(&workloadidentityv1.ResourceServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.WorkloadIdentities,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Backend:          cfg.AuthServer.Services.WorkloadIdentities,
+		Cache:            cfg.AuthServer.Cache,
+		Emitter:          cfg.Emitter,
+		Clock:            cfg.AuthServer.GetClock(),
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity resource service")
@@ -6267,6 +6311,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
 		Authorizer:                 cfg.Authorizer,
+		ScopedAuthorizer:           cfg.ScopedAuthorizer,
 		Cache:                      cfg.AuthServer.Cache,
 		Emitter:                    cfg.Emitter,
 		Clock:                      cfg.AuthServer.GetClock(),
@@ -6365,6 +6410,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Writer:           cfg.AuthServer.scopedAccessBackend,
 		BackendReader:    cfg.AuthServer.scopedAccessBackend,
 		Logger:           logger,
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")
@@ -6375,6 +6421,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Backend:          cfg.AuthServer,
 		Logger:           logger,
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -6476,6 +6523,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			ScopedTokenService: cfg.AuthServer.Services,
 			OracleHTTPClient:   cfg.OracleHTTPClient,
 			Modules:            cfg.AuthServer.modules,
+			Emitter:            cfg.Emitter,
+			ScopesFeatures:     cfg.AuthServer.scopesFeatures,
+			AlertCreator:       cfg.AuthServer.UpsertClusterAlert,
 		}))
 	}
 
@@ -6557,7 +6607,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
 		Backend:    cfg.AuthServer.Services,
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6777,41 +6827,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	healthcheckconfigv1pb.RegisterHealthCheckConfigServiceServer(server, healthCheckConfigSvc)
 
-	appAuthConfigSvc, err := appauthconfigv1.NewService(appauthconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.AppAuthConfig,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	appauthconfigv1pb.RegisterAppAuthConfigServiceServer(server, appAuthConfigSvc)
-
-	appAuthConfigSessionsSvc, err := appauthconfigv1.NewSessionsService(appauthconfigv1.SessionsServiceConfig{
-		Authorizer:      cfg.Authorizer,
-		Reader:          cfg.AuthServer.Cache,
-		Emitter:         cfg.Emitter,
-		SessionsCreator: cfg.AuthServer,
-		UserGetter:      cfg.AuthServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	appauthconfigv1pb.RegisterAppAuthConfigSessionsServiceServer(server, appAuthConfigSessionsSvc)
-
 	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		AuthServer:       cfg.AuthServer,
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "instantiating issuancev1 service")
 	}
 	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
 
-	// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud
 	if !cfg.AuthServer.modules.Features().Cloud {
+		// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(server, workloadclusterv1.NewService())
+		// start a client IP restriction service that returns errors for all RPCs when not running on Teleport Cloud
+		clientiprestrictionv1pb.RegisterClientIPRestrictionServiceServer(server, clientiprestrictionv1.NewService())
 	}
 
 	return authServer, nil
@@ -6832,18 +6862,15 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	return &grpcContext{
 		Context: authContext,
 		ServerWithRoles: &ServerWithRoles{
-			authServer: g.AuthServer,
+			serverBase: serverBase{authServer: g.AuthServer, alog: g.AuthServer},
 			context:    *authContext,
-			alog:       g.AuthServer,
 		},
 	}, nil
 }
 
-// scopedGRPCContext servers the same role as [grpcContext] but for scoped identities. It is currently
-// a thin wrapper around [ServerWithRoles] since we don't have any need to embed an [authz.Context] yet,
-// but we may embed one in the future.
+// scopedGRPCContext serves the same role as [grpcContext] but for scoped identities.
 type scopedGRPCContext struct {
-	*ServerWithRoles
+	*ScopedServerWithRoles
 }
 
 // scopedAuthenticate functions similarly to authenticate but supports scoped identities. It returns an initialized auth server
@@ -6854,10 +6881,9 @@ func (g *GRPCServer) scopedAuthenticate(ctx context.Context) (*scopedGRPCContext
 		return nil, trace.Wrap(err)
 	}
 	return &scopedGRPCContext{
-		ServerWithRoles: &ServerWithRoles{
-			authServer:    g.AuthServer,
+		ScopedServerWithRoles: &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: g.AuthServer, alog: g.AuthServer},
 			scopedContext: authContext,
-			alog:          g.AuthServer,
 		},
 	}, nil
 }
@@ -6871,22 +6897,22 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	rawEvents, lastkey, err := auth.ServerWithRoles.SearchUnstructuredEvents(
 		ctx,
 		events.SearchEventsRequest{
-			From:       req.StartDate.AsTime(),
-			To:         req.EndDate.AsTime(),
-			EventTypes: req.EventTypes,
-			Limit:      int(req.Limit),
-			Order:      types.EventOrder(req.Order),
-			StartKey:   req.StartKey,
+			From:       req.GetStartDate().AsTime(),
+			To:         req.GetEndDate().AsTime(),
+			EventTypes: req.GetEventTypes(),
+			Limit:      int(req.GetLimit()),
+			Order:      types.EventOrder(req.GetOrder()),
+			StartKey:   req.GetStartKey(),
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &auditlogpb.EventsUnstructured{
+	return auditlogpb.EventsUnstructured_builder{
 		Items:   rawEvents,
 		LastKey: lastkey,
-	}, nil
+	}.Build(), nil
 }
 
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
@@ -6936,7 +6962,7 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 		return trace.Wrap(err)
 	}
 
-	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionId), int64(req.StartIndex))
+	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.GetSessionId()), int64(req.GetStartIndex()))
 
 	for {
 		select {

@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -78,14 +79,18 @@ func (b *scopedAccessCheckerBuilder) Check() error {
 	return nil
 }
 
-func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key roleCheckerKey) (*ScopedAccessChecker, error) {
-	if key == defaultImplicitRoleKey {
+func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key pinning.RoleAssignment) (*ScopedAccessChecker, error) {
+	if key == (pinning.RoleAssignment{}) {
 		return b.newDefaultImplicitChecker(ctx), nil
 	}
+	if key.RoleKind != pinning.RoleKindUser {
+		return nil, trace.BadParameter("cannot build checker for non-user role kind %q (this is a bug)", key.RoleKind)
+	}
 
-	rsp, err := b.reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: key.roleName,
-	})
+	rsp, err := b.reader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  key.RoleName,
+		Scope: key.RoleScope,
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, errMissingAssignedRole
@@ -96,16 +101,16 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	// verify that the role is enforceable at this enforcement point. if not, the assignment is
 	// skipped. this check is a critical part of the scopes security model and must always be
 	// performed prior to any enforcement logic related to a scoped role.
-	if !scopedaccess.RoleIsEnforceableAt(rsp.Role, scopes.EnforcementPoint{
-		ScopeOfOrigin: key.scopeOfOrigin,
-		ScopeOfEffect: key.scopeOfEffect,
+	if !scopedaccess.RoleIsEnforceableAt(rsp.GetRole(), scopes.EnforcementPoint{
+		ScopeOfOrigin: key.ScopeOfOrigin,
+		ScopeOfEffect: key.ScopeOfEffect,
 	}) {
 		return nil, errUnenforcceableAssignment
 	}
 
 	// Convert the scoped role to a classic role using the scope of effect.
 	// The scope of effect determines which resources this role's privileges apply to.
-	role, err := scopedaccess.ScopedRoleToRole(rsp.Role, key.scopeOfEffect)
+	role, err := scopedaccess.ScopedRoleToRole(rsp.GetRole(), key.ScopeOfEffect)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,37 +120,44 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 
 	// Create an access checker with this single role. Single-role evaluation is a core principle
 	// of the scoped access model - the first role that permits access determines all parameters.
-	checker := newAccessChecker(b.info, b.localCluster, NewRoleSet(role))
+	checker := newAccessChecker(b.info, b.localCluster, newScopedRoleSet(role))
 
 	return &ScopedAccessChecker{
-		scopeOfOrigin:       key.scopeOfOrigin,
-		scopeOfEffect:       key.scopeOfEffect,
-		role:                rsp.Role,
+		scopeOfOrigin:       key.ScopeOfOrigin,
+		scopeOfEffect:       key.ScopeOfEffect,
+		role:                rsp.GetRole(),
 		scopedCompatChecker: checker,
 	}, nil
 }
 
+// newScopedRoleSet builds the classic role set backing a scoped identity's compat checker. It exists
+// instead of [NewRoleSet] because that appends the classic default implicit role, which grants
+// secret-inclusive read; scoped identities get [newScopedImplicitRole] instead. Note that this must be
+// used for *every* scoped checker, since the implicit role is appended to each single-role checker.
+func newScopedRoleSet(roles ...types.Role) RoleSet {
+	return append(roles, newScopedImplicitRole())
+}
+
 // newDefaultImplicitChecker builds a scoped access checker representing the default implicit role. We rely on the privileges conferred
 // by the default implicit role always being "assigned" at root as if they came from a root scoped role assignment. We achieve this by
-// creating a fake scoped access checker that wraps an "empty" unscoped access checker. Since all unscoped access checkers automatically
-// include the default implicit role, this effectively simulates the presence of the default implicit role at root scope. Note that as
-// functionality of scoped roles further diverges from unscoped roles, we may need to revisit this approach in favor of defining our
-// own default implicit scoped role instead.
+// creating a fake scoped access checker that wraps an unscoped access checker holding only the scoped implicit role, which effectively
+// simulates the presence of the default implicit role at root scope. Note that as functionality of scoped roles further diverges from
+// unscoped roles, we may need to revisit this approach in favor of defining our own default implicit scoped role instead.
 func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context) *ScopedAccessChecker {
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       scopes.Root,
 		scopeOfEffect:       scopes.Root,
-		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, NewRoleSet()), // default implicit role definition is auto-populated by NewRoleSet()
-		role: &scopedaccessv1.ScopedRole{
-			Metadata: &headerv1.Metadata{
+		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, newScopedRoleSet()),
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: constants.DefaultImplicitRole,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopes.Root},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 }
 
@@ -186,6 +198,32 @@ func NewScopedAccessCheckerFromUnscoped(checker AccessChecker) *ScopedAccessChec
 	return &ScopedAccessChecker{unscopedChecker: checker}
 }
 
+// NewScopedAccessCheckerForSystemRole creates a ScopedAccessChecker for a single system role. Currently
+// the checker masquerades as a scoped role checker but pulls all meaningful functionality from the provided
+// unscoped access checker. This is the simplest way to achieve our desired effect of having scoped agent
+// system roles act like scoped roles, but is somewhat brittle. It only works right now because we happen
+// to still defer to the scopedCompatChecker for resource access checks. In the long run we may want to
+// consider providing true scoped role representations of system roles, or more likely representing the
+// system role presets in a format suitable for representation as a scoped or unscoped role.
+// TODO(fspmarshall/scopes): revisit our scoped system role strateg as described above.
+func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker) *ScopedAccessChecker {
+	return &ScopedAccessChecker{
+		scopeOfOrigin: scopes.Root,
+		scopeOfEffect: scopes.Root,
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
+				Name: "system/" + roleName,
+			}.Build(),
+			Scope:   scopes.Root,
+			Version: types.V1,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopes.Root},
+			}.Build(),
+		}.Build(),
+		scopedCompatChecker: checker,
+	}
+}
+
 // isScoped reports whether this checker operates on a scoped identity.
 func (c *ScopedAccessChecker) isScoped() bool {
 	return c.role != nil
@@ -201,6 +239,12 @@ func (c *ScopedAccessChecker) SSH() *SSHAccessChecker {
 // (users, groups, idle timeout, etc.) live on [KubeAccessChecker].
 func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
 	return &KubeAccessChecker{checker: c}
+}
+
+// App returns an app-specific access checker backed by this checker. All app-specific methods
+// live on [AppAccessChecker].
+func (c *ScopedAccessChecker) App() *AppAccessChecker {
+	return &AppAccessChecker{checker: c}
 }
 
 // AccessInfo returns the AccessInfo that this access checker is based on.
@@ -222,10 +266,13 @@ func (c *ScopedAccessChecker) Traits() wrappers.Traits {
 }
 
 // CheckAccessToRules verifies that *all* of a series of verbs are permitted for the specified resource.
-func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
+func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if !c.isScoped() {
 		return checkAccessToRulesImpl(c.unscopedChecker, ctx, resource, verbs...)
 	}
+	// XXX: the sanity of [NewScopedAccessCheckerForSystemRole] depends upon us continuing to defer to
+	// scopedCompatChecker for resource permission checks. Any revisiting of this strategy must take
+	// our scoped system role strategy into account.
 	return checkAccessToRulesImpl(c.scopedCompatChecker, ctx, resource, verbs...)
 }
 
@@ -240,6 +287,17 @@ func (c *ScopedAccessChecker) CheckAccessToRemoteCluster(cluster types.RemoteClu
 	// at the type-level. this has been implemented experimentally to explore the pattern of having the scoped access checker
 	// implement methods that always deny for unsupported features.
 	return trace.AccessDenied("remote cluster access is not permitted for scoped identities")
+}
+
+// CheckAccessToWorkloadIdentity checks access to a workload identity resource by
+// matching it against the WorkloadIdentityLabels granted by the checker's roles.
+// This is the scoped equivalent of the label-based access check used by the
+// unscoped issuance path.
+func (c *ScopedAccessChecker) CheckAccessToWorkloadIdentity(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	if !c.isScoped() {
+		return c.unscopedChecker.CheckAccess(types.Resource153ToResourceWithLabels(wi), AccessState{})
+	}
+	return c.scopedCompatChecker.CheckAccess(types.Resource153ToResourceWithLabels(wi), AccessState{})
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL for this role set.
@@ -293,12 +351,16 @@ func (c *ScopedAccessChecker) DelegationSessionID() string {
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.
-func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
+func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed rule check for %q, no verbs provided (this is a bug)", resource)
 	}
 	for _, verb := range verbs {
-		if err := checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, verb); err != nil {
+		classicVerb, err := verb.ClassicVerb()
+		if err != nil {
+			return trace.Wrap(err, "malformed rule check for %q", resource)
+		}
+		if err := checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, classicVerb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -306,12 +368,16 @@ func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource str
 }
 
 // checkMaybeHasAccessToRulesImpl returns an error if the checker definitely does not have access to the provided rules.
-func checkMaybeHasAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
+func checkMaybeHasAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...scopedaccess.Verb) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed maybe has access to rule check for %q, no verbs provided (this is a bug)", resource)
 	}
 	for _, verb := range verbs {
-		if err := checker.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, resource, verb); err != nil {
+		classicVerb, err := verb.ClassicVerb()
+		if err != nil {
+			return trace.Wrap(err, "malformed maybe has access to rule check for %q", resource)
+		}
+		if err := checker.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, resource, classicVerb); err != nil {
 			return trace.Wrap(err)
 		}
 	}

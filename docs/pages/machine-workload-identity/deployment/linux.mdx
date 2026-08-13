@@ -6,10 +6,11 @@ tags:
  - how-to
  - mwi
  - infrastructure-identity
+page_type: how-to
 ---
 
-This page explains how to deploy the Machine & Workload Identity agent, `tbot`,
-on a Linux host.
+In this guide, you will deploy the Machine & Workload Identity agent, `tbot`, on
+a Linux host.
 
 ## How it works
 
@@ -81,14 +82,15 @@ services: []
 Replace:
 - The `join_uri` field value with the joining URI printed by `tctl` in step 2.
 
-<Admonition type="note">
 The first time that `tbot` runs, the registration secret contained within the
 joining URI will be used to authenticate the first connection. After the first
 successful join, the registration secret is invalidated. You may remove it from
 the join URI (shown as `secret` in the example token) in your configuration file
 after the first run has completed, but there is no tangible security benefit to
 doing so.
-</Admonition>
+
+If the initial join fails (for example, due to a network or TLS error), the secret may already be consumed. Use `tctl bots instances add example` to
++generate a new join URI for the bot before retrying.
 
 ### Prepare the storage directory
 

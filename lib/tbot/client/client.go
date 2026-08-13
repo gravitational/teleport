@@ -182,7 +182,7 @@ func dialViaProxy(ctx context.Context, cfg Config) (*client.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              cfg.Resolver,
 		ClientConfig:          sshConfig,
 		Log:                   cfg.Logger,

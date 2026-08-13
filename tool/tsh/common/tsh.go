@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/shell"
@@ -279,9 +280,8 @@ type CLIConf struct {
 	DatabaseRoles string
 	// DatabaseCommand specifies the command to execute.
 	DatabaseCommand string
-
-	// AppName specifies proxied application name.
-	AppName string
+	// AppSQN specifies proxied application name and scope.
+	AppSQN scopes.QualifiedName
 	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
 	// Mainly used for debugging purpose so the flag should be hidden.
 	AppHTTPSTunnel bool
@@ -335,6 +335,10 @@ type CLIConf struct {
 	// IdentityFileOut. When false, user will be prompted before overwriting
 	// any files.
 	IdentityOverwrite bool
+
+	// ForceReauth when true makes `tsh login` re-authenticate even if the active
+	// profile is still valid.
+	ForceReauth bool
 
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
@@ -458,6 +462,8 @@ type CLIConf struct {
 
 	// OverrideStdout allows to switch standard output source for resource command. Used in tests.
 	OverrideStdout io.Writer
+	// proxyStatusOutputWriter is where human-oriented proxy status messages are written.
+	proxyStatusOutputWriter io.Writer
 	// overrideStderr allows to switch standard error source for resource command. Used in tests.
 	overrideStderr io.Writer
 	// overrideStdin allows to switch standard in source for resource command. Used in tests.
@@ -720,6 +726,24 @@ func (c *CLIConf) Stdout() io.Writer {
 	return os.Stdout
 }
 
+// ProxyStatusOutput returns the writer used for human-oriented proxy status
+// messages.
+//
+// This must be distinct from Stdout so that shell pipelines like
+// `echo 'kubectl config view' | tsh proxy kube my-cluster --exec | yq` can
+// suppress or redirect proxy status text without also changing the command's
+// actual stdout stream.
+func (c *CLIConf) ProxyStatusOutput() io.Writer {
+	if c.proxyStatusOutputWriter != nil {
+		return c.proxyStatusOutputWriter
+	}
+	// Note: See the proxyStatusOutputDefault constant used by
+	// configureProxyStatusOutput() for the real default. This return is just
+	// defensive code in case this function is called before
+	// configureProxyStatusOutput().
+	return os.Stderr
+}
+
 // Stderr returns the stderr writer.
 func (c *CLIConf) Stderr() io.Writer {
 	if c.overrideStderr != nil {
@@ -830,12 +854,19 @@ const (
 	awsRegionEnvVar           = "TELEPORT_AWS_REGION"
 	awsKeystoreEnvVar         = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar        = "TELEPORT_AWS_WORKGROUP"
+	awsLoginInteractive       = "TELEPORT_AWS_LOGIN_INTERACTIVE"
 	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar            = "TELEPORT_NO_RESUME"
 	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
 	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
+	proxyStatusOutputEnvVar   = "TELEPORT_PROXY_LOG_OUTPUT"
+
+	proxyStatusOutputDefault = "stderr"
+	proxyStatusOutputStdout  = "stdout"
+	proxyStatusOutputStderr  = "stderr"
+	proxyStatusOutputNone    = "none"
 
 	clusterHelp = "Specify the Teleport cluster to connect."
 	browserHelp = "Set to 'none' to suppress browser opening on login."
@@ -912,6 +943,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
+	proxyStatusOutput := proxyStatusOutputDefault
 
 	// configure CLI argument parser:
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
@@ -1051,7 +1083,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Use Interspersed(false) to forward all flags to AWS CLI.
 	aws := app.Command("aws", "Access AWS API.").Interspersed(false)
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
-	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials.").StringVar(&cf.Exec)
@@ -1064,18 +1096,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
-	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	azure.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 
 	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
 	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
-	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	gcloud.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	gcloud.Alias("gcp")
 
 	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
 	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
-	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
 	// Applications.
@@ -1089,20 +1121,24 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
-	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
+	appLogin.Arg("app", "App name to retrieve credentials for, as shown in `tsh apps ls`. Scoped apps use their scope-qualified name (\"/scope::name\").").Required().SetValue(&cf.AppSQN)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("env", "(For AWS CLI access only) Obtain credentials as plain text in order to load into environments variables. Required when using per-session MFA.").Hidden().BoolVar(&cf.AppLoginAWSEnvOutput)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
+	appLogin.Flag("interactive", "Prompt for AWS Roles interactively (--aws-role takes precedence).").Short('T').Default("true").Envar(awsLoginInteractive).BoolVar(&cf.Interactive)
 	appLogin.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
-	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
+	appLogout.Arg("app", "App to remove credentials for.").SetValue(&cf.AppSQN)
 	appConfig := apps.Command("config", "Print app connection information.")
-	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
+	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").SetValue(&cf.AppSQN)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
+	appLogins := apps.Command("logins", "List available logins for a Cloud console application.")
+	appLogins.Arg("app", "App name to list logins for. Currently only AWS is supported.").Required().SetValue(&cf.AppSQN)
+	appLogins.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
@@ -1113,11 +1149,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format \"5h30m40s\".").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
+	exportRecordings.Flag("encoder", "The video encoder to use.").Default("auto").EnumVar(&cf.Format, "ffmpeg", "avi", "auto")
 	exportRecordings.Flag("out", "Override output file name.").StringVar(&cf.OutFile)
+	exportRecordings.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	exportRecordings.Arg("session-id", "ID of the session to export.").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
+	proxy.Flag("proxy-log-output", fmt.Sprintf("Select where proxy status messages are printed. Defaults to %q, but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are %q, %q, and %q.", proxyStatusOutputDefault, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputDefault).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1140,30 +1179,30 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
-	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
+	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().SetValue(&cf.AppSQN)
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
-	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
+	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().SetValue(&cf.AppSQN)
 	proxyMCP.Flag("port", "Specifies the listening port used by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
-	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
-	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
 
 	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
-	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
@@ -1291,6 +1330,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).Short('f').StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
+	login.Flag("force", "Force re-authentication even if the current session is still valid.").BoolVar(&cf.ForceReauth)
 	login.Flag("request-roles", "Request one or more extra roles.").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles.").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request.").StringVar(&cf.SuggestedReviewers)
@@ -1682,6 +1722,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.Wrap(err)
 		}
 	}
+	if err := configureProxyStatusOutput(&cf, proxyStatusOutput); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
@@ -1875,6 +1918,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onAppLogout(&cf)
 	case appConfig.FullCommand():
 		err = onAppConfig(&cf)
+	case appLogins.FullCommand():
+		err = onAppLogins(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
 	case kube.ls.FullCommand():
@@ -2311,7 +2356,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 		currentScope := ""
 		if profile != nil && profile.ScopePin != nil {
-			currentScope = profile.ScopePin.Scope
+			currentScope = profile.ScopePin.GetScope()
 		}
 
 		return targetScope, targetScope != currentScope
@@ -2319,7 +2364,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 	// --scope not provided, inherit from profile.
 	if profile != nil && profile.ScopePin != nil {
-		return profile.ScopePin.Scope, false
+		return profile.ScopePin.GetScope(), false
 	}
 
 	return "", false
@@ -2387,6 +2432,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// On successful login, try to remove the tsh proxy ssh lockfile.
+	// This is just a safeguard in case a tsh process somehow hangs while
+	// holding the lock.
+	defer func() {
+		if err == nil {
+			if rmErr := os.Remove(GetProxySSHRetryerLockfilePath(cf.HomePath, tc.WebProxyHost())); rmErr != nil && !os.IsNotExist(rmErr) {
+				logger.WarnContext(cf.Context, "Failed to remove proxy ssh lockfile", "error", rmErr)
+			}
+		}
+	}()
+
 	// If the user requested tracing and the login succeeds (even if the user
 	// was already logged in) report the tracing client to the trace provider
 	// to that spans can be exported.
@@ -2417,7 +2473,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	// client is already logged in and profile is not expired and scope hasn't changed
-	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
+	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged && !cf.ForceReauth {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -3184,31 +3240,21 @@ func listNodesAllClusters(cf *CLIConf) error {
 }
 
 func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
-	var rows [][]string
-	var withScope bool
-	for _, n := range nodes {
-		if n.Node.GetScope() != "" {
-			withScope = true
-			break
-		}
-	}
+	withScope := slices.ContainsFunc(nodes, func(n nodeListing) bool { return n.Node.GetScope() != "" })
 
+	rows := make([][]string, 0, len(nodes))
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, withScope, verbose))
 	}
 
 	var t asciitable.Table
 	if verbose {
-		if withScope {
-			t = asciitable.MakeTable([]string{"Scope", "Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
-		} else {
-			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
-		}
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "SSH Server ID", "Hostname", "Address", "Labels"}, rows...)
 	} else {
 		if withScope {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "SSH Server ID", "Hostname", "Address", "Labels"}, rows, "Labels")
 		} else {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Hostname", "Address", "Labels"}, rows, "Labels")
 		}
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
@@ -3416,7 +3462,7 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbose bool) []string {
+func getNodeRow(proxy, cluster string, node types.Server, withScope, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
 		switch {
@@ -3431,17 +3477,14 @@ func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbos
 
 	row := make([]string, 0)
 
-	if withScope {
-		row = append(row, node.GetScope())
-	}
-
+	name := scopes.QualifiedName{Scope: node.GetScope(), Name: node.GetName()}.String()
 	if proxy != "" && cluster != "" {
 		row = append(row, proxy, cluster)
 	}
 
 	labels := common.FormatLabels(node.GetAllLabels(), verbose)
-	if verbose {
-		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), labels)
+	if verbose || withScope {
+		row = append(row, name, node.GetHostname(), getAddr(node), labels)
 	} else {
 		row = append(row, node.GetHostname(), getAddr(node), labels)
 	}
@@ -3449,34 +3492,26 @@ func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbos
 }
 
 func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool) error {
-	var rows [][]string
-	var withScope bool
-	for _, n := range nodes {
-		if n.GetScope() != "" {
-			withScope = true
-			break
-		}
-	}
+	withScope := slices.ContainsFunc(nodes, func(s T) bool { return s.GetScope() != "" })
+
+	rows := make([][]string, 0, len(nodes))
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow("", "", n, withScope, verbose))
 	}
+
 	var t asciitable.Table
 	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		if withScope {
-			t = asciitable.MakeTable([]string{"Scope", "Node Name", "Node ID", "Address", "Labels"}, rows...)
-		} else {
-			t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
-		}
+		t = asciitable.MakeTable([]string{"SSH Server ID", "Hostname", "Address", "Labels"}, rows...)
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
 		if withScope {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Node Name", "Address", "Labels"}, rows, "Labels")
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"SSH Server ID", "Hostname", "Address", "Labels"}, rows, "Labels")
 		} else {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Hostname", "Address", "Labels"}, rows, "Labels")
 		}
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
@@ -3550,14 +3585,18 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 			// incorrectly show multiple apps with the same name but from different clusters as active.
 			// However, to do this we'd need to double check if route.ClusterName always matches
 			// appListing.Cluster (and also fill out that field in showApps).
-			return route.Name == app.GetName()
+			return route.Name == app.GetName() && route.Scope == app.GetScope()
 		})
 
+		// Scoped apps are displayed (and referenced in login/proxy commands) by
+		// their scope-qualified name; unscoped apps keep their bare name.
+		displayName := scopes.QualifiedName{Scope: app.GetScope(), Name: app.GetName()}.String()
+
 		if isActive {
-			return fmt.Sprintf("> %s", app.GetName())
+			return fmt.Sprintf("> %s", displayName)
 		}
 
-		return app.GetName()
+		return displayName
 	}
 	getLabels := func(app types.Application) string {
 		return common.FormatLabels(app.GetAllLabels(), config.verbose)
@@ -4026,11 +4065,12 @@ func onListSessions(cf *CLIConf) error {
 	}
 
 	kinds := map[string]types.SessionKind{
-		"ssh":     types.SSHSessionKind,
-		"db":      types.DatabaseSessionKind,
-		"app":     types.AppSessionKind,
-		"desktop": types.WindowsDesktopSessionKind,
-		"k8s":     types.KubernetesSessionKind,
+		"ssh":          types.SSHSessionKind,
+		"db":           types.DatabaseSessionKind,
+		"app":          types.AppSessionKind,
+		"desktop":      types.WindowsDesktopSessionKind,
+		"linuxdesktop": types.LinuxDesktopSessionKind,
+		"k8s":          types.KubernetesSessionKind,
 		// tsh commands often use "kube" to mean kubernetes,
 		// so add an alias to make it more intuitive
 		"kube": types.KubernetesSessionKind,
@@ -4117,6 +4157,8 @@ func target(s types.SessionTracker) string {
 	case types.DatabaseSessionKind:
 		return s.GetDatabaseName()
 	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	case types.LinuxDesktopSessionKind:
 		return s.GetLogin() + "@" + s.GetDesktopName()
 	default:
 		return s.GetHostname()
@@ -4461,7 +4503,7 @@ func onResolve(cf *CLIConf) error {
 	// on the hostname of the server. Otherwise, this would end up listing
 	// the first two servers that the user has access to and yield unexpected results.
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+		req.PredicateExpression = fmt.Sprintf(`name == %q`, tc.Host)
 	}
 
 	// Only enable the re-authentication behavior if not invoked with `-q`. When
@@ -4892,7 +4934,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(hostUser, "=") {
-			labels, err = client.ParseLabelSpec(hostUser)
+			labels, err = parse.LabelSelectorSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -4919,7 +4961,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// explicitly passed --labels overrides user@labels positional arg form.
 	if cf.Labels != "" {
-		labels, err = client.ParseLabelSpec(cf.Labels)
+		labels, err = parse.LabelSelectorSpec(cf.Labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6484,6 +6526,25 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
+}
+
+func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) error {
+	// This should be unreachable because Kingpin validates the flag value against
+	// the allowed enum values.
+	if proxyStatusOutput == "" {
+		proxyStatusOutput = proxyStatusOutputDefault
+	}
+	switch proxyStatusOutput {
+	case proxyStatusOutputStdout:
+		cf.proxyStatusOutputWriter = cf.Stdout()
+	case proxyStatusOutputStderr:
+		cf.proxyStatusOutputWriter = cf.Stderr()
+	case proxyStatusOutputNone:
+		cf.proxyStatusOutputWriter = io.Discard
+	default:
+		return trace.BadParameter("unreachable code: proxyStatusOutput %q is not a known output destination", proxyStatusOutput)
+	}
+	return nil
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}

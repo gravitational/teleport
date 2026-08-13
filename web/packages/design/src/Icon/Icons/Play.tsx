@@ -56,6 +56,7 @@ export const Play = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-play"
+
       {...otherProps}
       ref={ref}
     >

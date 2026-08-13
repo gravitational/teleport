@@ -89,6 +89,7 @@ type ClusterClient interface {
 	ClusterName() string
 	RootClusterName() string
 	SessionSSHKeyRing(ctx context.Context, user string, target client.NodeDetails) (keyRing *client.KeyRing, completedMFA bool, err error)
+	PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (challengeName string, err error)
 }
 
 // RunUserProcess is the entry point called by all VNet client applications

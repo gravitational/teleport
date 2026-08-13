@@ -18,7 +18,7 @@
 
 import { login, logout } from '@gravitational/e2e/helpers/login';
 import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
-import { deleteUser } from '@gravitational/e2e/helpers/tctl';
+import { deleteUserIfExists } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 import { TestInfo } from '@playwright/test';
 
@@ -62,7 +62,14 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 });
 
+// Clean the user before each attempt (and after) so retries start clean rather
+// than failing on an already-registered user / consumed invite.
+// oxlint-disable-next-line no-empty-pattern
+test.beforeEach(({}, testInfo) => {
+  deleteUserIfExists(username(testInfo));
+});
+
 // oxlint-disable-next-line no-empty-pattern
 test.afterEach(({}, testInfo) => {
-  deleteUser(username(testInfo));
+  deleteUserIfExists(username(testInfo));
 });

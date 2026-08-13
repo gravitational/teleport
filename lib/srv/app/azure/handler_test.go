@@ -20,6 +20,13 @@ package azure
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,7 +34,166 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+type streamingTestBody struct {
+	remaining int64
+	started   *atomic.Bool
+	readEarly *atomic.Bool
+}
+
+func (b *streamingTestBody) Read(p []byte) (int, error) {
+	if !b.started.Load() {
+		b.readEarly.Store(true)
+	}
+	if b.remaining == 0 {
+		return 0, io.EOF
+	}
+	if int64(len(p)) > b.remaining {
+		p = p[:b.remaining]
+	}
+	for i := range p {
+		p[i] = 'x'
+	}
+	b.remaining -= int64(len(p))
+	return len(p), nil
+}
+
+func (b *streamingTestBody) Close() error { return nil }
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type noopAudit struct{}
+
+func (noopAudit) OnSessionStart(context.Context, string, *tlsca.Identity, types.Application) error {
+	return nil
+}
+
+func (noopAudit) OnSessionEnd(context.Context, string, *tlsca.Identity, types.Application) error {
+	return nil
+}
+
+func (noopAudit) OnSessionChunk(context.Context, string, string, *tlsca.Identity, types.Application) error {
+	return nil
+}
+
+func (noopAudit) OnRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+	return nil
+}
+
+func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+	return nil
+}
+
+func (noopAudit) OnLLMRequest(context.Context, *common.SessionContext, *http.Request, common.LLMRequest, common.LLMResponse) error {
+	return nil
+}
+
+func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
+	return nil
+}
+
+func TestForwarder_streamsLargeRequestBody(t *testing.T) {
+	t.Parallel()
+
+	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	clock := clockwork.NewRealClock()
+	jwtKey, err := jwt.New(&jwt.Config{
+		Clock:       clock,
+		PrivateKey:  clientKey,
+		ClusterName: types.TeleportAzureMSIEndpoint,
+	})
+	require.NoError(t, err)
+
+	const resource = "https://storage.azure.com/"
+	token, err := jwtKey.SignAzureToken(jwt.AzureTokenClaims{
+		TenantID: "tenant",
+		Resource: resource,
+	})
+	require.NoError(t, err)
+
+	var roundTripStarted atomic.Bool
+	var readBeforeRoundTrip atomic.Bool
+	wantSize := int64(teleport.MaxHTTPRequestSize + 1)
+
+	hnd, err := newAzureHandler(t.Context(), HandlerConfig{
+		Clock: clock,
+		RoundTripper: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			roundTripStarted.Store(true)
+
+			require.Equal(t, "https", req.URL.Scheme)
+			require.Equal(t, "account.blob.core.windows.net", req.URL.Host)
+			require.Equal(t, "account.blob.core.windows.net", req.Host)
+			require.Equal(t, "Bearer real-azure-token", req.Header.Get("Authorization"))
+
+			n, err := io.Copy(io.Discard, req.Body)
+			require.NoError(t, err)
+			require.Equal(t, wantSize, n)
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("ok")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+		getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
+			if managedIdentity != "azure-identity" {
+				return nil, trace.BadParameter("wrong managed identity %q", managedIdentity)
+			}
+			if scope != resource {
+				return nil, trace.BadParameter("wrong scope %q", scope)
+			}
+			return &azcore.AccessToken{Token: "real-azure-token"}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "https://teleport.local/container/blob", &streamingTestBody{
+		remaining: wantSize,
+		started:   &roundTripStarted,
+		readEarly: &readBeforeRoundTrip,
+	})
+	req.Header.Set("X-Forwarded-Host", "account.blob.core.windows.net")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{{PublicKey: clientKey.Public()}},
+	}
+
+	app, err := types.NewAppV3(types.Metadata{Name: "azure"}, types.AppSpecV3{Cloud: types.CloudAzure})
+	require.NoError(t, err)
+
+	req = common.WithSessionContext(req, &common.SessionContext{
+		Identity: &tlsca.Identity{
+			Username: "alice",
+			RouteToApp: tlsca.RouteToApp{
+				AzureIdentity: "azure-identity",
+			},
+		},
+		App:   app,
+		Audit: noopAudit{},
+	})
+
+	rec := httptest.NewRecorder()
+	hnd.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, roundTripStarted.Load())
+	require.False(t, readBeforeRoundTrip.Load(), "request body was read before forwarding")
+}
 
 func TestForwarder_getToken(t *testing.T) {
 	t.Parallel()

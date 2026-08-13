@@ -91,7 +91,7 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
-	chal.GetMetadata().Expires = timestamppb.New(time.Now().Add(ValidatedMFAChallengeExpiry))
+	chal.GetMetadata().SetExpires(timestamppb.New(time.Now().Add(ValidatedMFAChallengeExpiry)))
 
 	res, err := svc.CreateResource(ctx, chal)
 	if err != nil {
@@ -183,11 +183,11 @@ func UnmarshalValidatedMFAChallenge(b []byte, opts ...services.MarshalOption) (*
 		}
 
 		if cfg.Revision != "" {
-			metadata.Revision = cfg.Revision
+			metadata.SetRevision(cfg.Revision)
 		}
 
 		if !cfg.Expires.IsZero() {
-			metadata.Expires = timestamppb.New(cfg.Expires)
+			metadata.SetExpires(timestamppb.New(cfg.Expires))
 		}
 	}
 
@@ -211,26 +211,48 @@ func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 		return trace.BadParameter("spec must be set")
 	case chal.GetSpec().GetPayload() == nil:
 		return trace.BadParameter("payload must be set")
-	case len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0:
-		return trace.BadParameter("ssh_session_id must be set")
 	case chal.GetSpec().GetSourceCluster() == "":
 		return trace.BadParameter("source_cluster must be set")
 	case chal.GetSpec().GetTargetCluster() == "":
 		return trace.BadParameter("target_cluster must be set")
 	case chal.GetSpec().GetUsername() == "":
 		return trace.BadParameter("username must be set")
-	default:
-		return nil
+	case chal.GetSpec().GetMfaDevice().GetId() == "":
+		return trace.BadParameter("mfa_device.id must be set")
 	}
+
+	switch chal.GetSpec().GetPayload().WhichPayload() {
+	case mfav2.SessionIdentifyingPayload_SshSessionId_case:
+		if len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0 {
+			return trace.BadParameter("ssh_session_id must not be empty")
+		}
+
+	case mfav2.SessionIdentifyingPayload_TlsSessionId_case:
+		if len(chal.GetSpec().GetPayload().GetTlsSessionId()) == 0 {
+			return trace.BadParameter("tls_session_id must not be empty")
+		}
+
+	default:
+		// Fail close to avoid any potential auth bypasses.
+		return trace.BadParameter("missing or unknown payload type: %v", chal.GetSpec().GetPayload().WhichPayload())
+	}
+
+	return nil
 }
 
 type validatedMFAChallengeParser struct {
 	baseParser
+
+	filter types.ValidatedMFAChallengeFilter
 }
 
-func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+func newValidatedMFAChallengeParser(filter map[string]string) *validatedMFAChallengeParser {
+	var mfaFilter types.ValidatedMFAChallengeFilter
+	mfaFilter.FromMap(filter)
+
 	return &validatedMFAChallengeParser{
 		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+		filter:     mfaFilter,
 	}
 }
 
@@ -251,9 +273,9 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		chal = mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
 			}.Build(),
@@ -268,6 +290,10 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if !p.filter.Match(chal.GetSpec().GetTargetCluster()) {
+			return nil, nil
 		}
 
 	default:

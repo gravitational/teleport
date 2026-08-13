@@ -56,6 +56,7 @@ export const Unlock = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-unlock"
+
       {...otherProps}
       ref={ref}
     >

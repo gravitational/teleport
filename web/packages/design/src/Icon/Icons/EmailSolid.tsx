@@ -56,6 +56,7 @@ export const EmailSolid = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-emailsolid"
+
       {...otherProps}
       ref={ref}
     >

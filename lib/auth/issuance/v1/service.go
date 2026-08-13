@@ -27,6 +27,7 @@ import (
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -36,6 +37,8 @@ import (
 type authServer interface {
 	AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error)
 	GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error)
+	CreateAppSessionFromReq(ctx context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // Service implements teleport.issuance.v1.IssuanceService
@@ -60,12 +63,16 @@ type Service struct {
 	issuancev1pb.UnimplementedIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
 	authServer       authServer
+	// scopesFeatures dictates whether scoped certificate issuance is enabled.
+	scopesFeatures scopes.Features
 }
 
 // ServiceConfig is the config for instantiating a [Service].
 type ServiceConfig struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
 	AuthServer       authServer
+	// ScopesFeatures dictates which scoped issuance components are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // NewService returns a new [Service].
@@ -80,6 +87,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		authServer:       cfg.AuthServer,
+		scopesFeatures:   cfg.ScopesFeatures,
 	}, nil
 }
 
@@ -95,7 +103,7 @@ func (s *Service) IssueScopedBotCerts(
 ) (*issuancev1pb.IssueScopedBotCertsResponse, error) {
 	// Temporarily, we need to check that Scopes is enabled to derisk
 	// introduction of this RPC.
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.scopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -117,13 +125,17 @@ func (s *Service) IssueScopedBotCerts(
 		)
 	}
 	// Ensure at least one key is provided
-	if len(req.TlsPublicKey) == 0 && len(req.SshPublicKey) == 0 {
+	if len(req.GetTlsPublicKey()) == 0 && len(req.GetSshPublicKey()) == 0 {
 		return nil, trace.BadParameter("at least one of ssh_public_key or tls_public_key is required")
 	}
 
-	switch req.GetUsage().(type) {
-	case *issuancev1pb.IssueScopedBotCertsRequest_Identity:
-	// no special handling.
+	switch req.WhichUsage() {
+	case issuancev1pb.IssueScopedBotCertsRequest_Identity_case:
+		// no special handling.
+	case issuancev1pb.IssueScopedBotCertsRequest_App_case:
+		if err := validateUsageApp(req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.BadParameter(
 			"unsupported or unspecified usage variant",
@@ -144,7 +156,7 @@ func (s *Service) IssueScopedBotCerts(
 		)
 	case currentIdentity.DisallowReissue:
 		return nil, trace.AccessDenied("reissuance is prohibited")
-	case currentIdentity.ScopePin == nil || currentIdentity.ScopePin.Scope == "":
+	case currentIdentity.ScopePin == nil || currentIdentity.ScopePin.GetScope() == "":
 		return nil, trace.AccessDenied(
 			"scope pin missing, rpc can only be invoked by scoped identities",
 		)
@@ -173,7 +185,7 @@ func (s *Service) IssueScopedBotCerts(
 	// resource itself. In the future, we will allow "sub-pinning" where the
 	// resulting certs may be a descendant scope of the current scope and
 	// bot scope.
-	requestedScope := currentIdentity.ScopePin.Scope
+	requestedScope := currentIdentity.ScopePin.GetScope()
 	// Sanity check that the requested scope is still descendant or equiv to
 	// botScope - in case bot scope has changed.
 	if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(requestedScope) {
@@ -194,19 +206,8 @@ func (s *Service) IssueScopedBotCerts(
 		User:           user,
 		CheckerContext: checker,
 		TTL:            ttl,
-		SSHPublicKey:   req.SshPublicKey,
-		TLSPublicKey:   req.TlsPublicKey,
-
-		// Explicitly set BotInternal to false as these certs are intended for
-		// outputs/services and not use by the bot internally. This prevents
-		// using them further issuance.
-		BotInternal: false,
-		// Explicitly reject use for further issuance
-		DisallowReissue: true,
-
-		// We do not pass traits from the Bot user here. This is because we do
-		// not currently support traits for scoped Bots. Users shouldn't be able
-		// to set these due to validation but this acts as a back-stop.
+		SSHPublicKey:   req.GetSshPublicKey(),
+		TLSPublicKey:   req.GetTlsPublicKey(),
 
 		// Propagate certain attributes from current identity to generated
 		// certificates
@@ -214,8 +215,31 @@ func (s *Service) IssueScopedBotCerts(
 		LoginIP:        currentIdentity.LoginIP,
 		BotName:        currentIdentity.BotName,
 		BotInstanceID:  currentIdentity.BotInstanceID,
-		JoinToken:      currentIdentity.JoinToken,
+		// Derived from the bot user's label rather than copied from the
+		// current identity so that certs issued before the BotScope cert field
+		// existed still produce correctly-attributed output certs.
+		BotScope:  botScope,
+		JoinToken: currentIdentity.JoinToken,
 	}
+
+	// Apply per-usage alterations to the cert request.
+	switch req.WhichUsage() {
+	case issuancev1pb.IssueScopedBotCertsRequest_App_case:
+		if err := s.applyUsageApp(ctx, user, botScope, currentIdentity, req.GetApp(), ttl, &certReq); err != nil {
+			return nil, trace.Wrap(err, "configuring App Usage into the certificate request")
+		}
+	}
+
+	// Explicitly set BotInternal to false as these certs are intended for
+	// outputs/services and not use by the bot internally. This prevents
+	// using them further issuance.
+	certReq.BotInternal = false
+	// Explicitly reject use for further issuance
+	certReq.DisallowReissue = true
+	// We do not pass traits from the Bot user here. This is because we do
+	// not currently support traits for scoped Bots. Users shouldn't be able
+	// to set these due to validation but this acts as a back-stop.
+	certReq.Traits = nil
 
 	// nb(strideynet): One day, we'll want to pull more of the logic around
 	// cert generation into this package rather than invoking this via the
@@ -228,10 +252,10 @@ func (s *Service) IssueScopedBotCerts(
 	// We do not return any CAs. The Bot already has an internal identity and
 	// the ability to fetch/watch CAs. Returning CAs here would create confusion
 	// around where to correctly source CAs.
-	return &issuancev1pb.IssueScopedBotCertsResponse{
-		Certs: &issuancev1pb.Certs{
+	return issuancev1pb.IssueScopedBotCertsResponse_builder{
+		Certs: issuancev1pb.Certs_builder{
 			Tls: certs.TLS,
 			Ssh: certs.SSH,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }

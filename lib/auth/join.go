@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"maps"
@@ -30,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -47,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -135,12 +134,10 @@ func (a *Server) handleJoinFailure(
 		if pt != nil {
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
-			botJoinEvent.BotName = pt.GetBotName()
-
 			// We don't want to perform a backend fetch here, so we'll use the
 			// bot scope indicated in the token rather than the one embedded in
 			// the user.
-			botJoinEvent.Scope = pt.GetBotScope()
+			botJoinEvent.BotName, botJoinEvent.Scope = pt.GetBot()
 		}
 		evt = botJoinEvent
 	} else {
@@ -229,7 +226,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitHubJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Github = claims.JoinAttrs()
+			attrs.SetGithub(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -238,7 +235,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitLabJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Gitlab = claims.JoinAttrs()
+			attrs.SetGitlab(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -247,7 +244,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkCircleCIJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Circleci = claims.JoinAttrs()
+			attrs.SetCircleci(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -256,7 +253,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkKubernetesJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Kubernetes = claims.JoinAttrs()
+			attrs.SetKubernetes(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -265,7 +262,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGCPJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Gcp = claims.JoinAttrs()
+			attrs.SetGcp(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -274,7 +271,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkSpaceliftJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Spacelift = claims.JoinAttrs()
+			attrs.SetSpacelift(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -283,7 +280,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.TerraformCloud = claims.JoinAttrs()
+			attrs.SetTerraformCloud(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -292,7 +289,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Bitbucket = claims.JoinAttrs()
+			attrs.SetBitbucket(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -301,7 +298,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims.ForAudit()
-			attrs.AzureDevops = claims.JoinAttrs()
+			attrs.SetAzureDevops(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -318,11 +315,22 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, _, err = a.GenerateBotCertsForJoin(ctx, provisionToken, makeBotCertsParams(req, rawClaims, attrs))
+		var botInstanceID string
+		params := makeBotCertsParams(req, rawClaims, attrs)
+		certs, botInstanceID, err = a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.emitBotJoinEvent(ctx, provisionToken, params, botInstanceID)
 	} else {
-		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, makeHostCertsParams(req, rawClaims))
+		params := makeHostCertsParams(req, rawClaims)
+		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.emitJoinEvent(ctx, provisionToken, params)
 	}
-	return certs, trace.Wrap(err)
+	return certs, nil
 }
 
 func makeHostCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any) *join.HostCertsParams {
@@ -352,6 +360,14 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 	}
 }
 
+// botUserNameFromToken returns the name of the backing User resource for the
+// bot referenced by the given provision token.
+func botUserNameFromToken(token provision.Token) (string, error) {
+	botName, botScope := token.GetBot()
+	username, err := services.BotResourceName(scopes.QualifiedName{Scope: botScope, Name: botName})
+	return username, trace.Wrap(err)
+}
+
 // GenerateBotCertsForJoin generates and returns bot certificates as the result
 // of a cluster join attempt.
 func (a *Server) GenerateBotCertsForJoin(
@@ -361,7 +377,7 @@ func (a *Server) GenerateBotCertsForJoin(
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := token.GetBotName()
+	botName, tokenBotScope := token.GetBot()
 	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
@@ -388,63 +404,34 @@ func (a *Server) GenerateBotCertsForJoin(
 		expires = *params.Expires
 	}
 
-	// Construct a Join event to be sent later.
-	joinEvent := &apievents.BotJoin{
-		Metadata: apievents.Metadata{
-			Type: events.BotJoinEvent,
-			Code: events.BotJoinCode,
-		},
-		Status: apievents.Status{
-			Success: true,
-		},
-		BotName:   botName,
-		Method:    string(joinMethod),
-		TokenName: token.GetSafeName(),
-		UserName:  machineidv1.BotResourceName(botName),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: params.RemoteAddr,
-		},
-	}
-	var err error
-	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
-	if err != nil {
-		a.logger.WarnContext(
-			ctx,
-			"Unable to encode join attributes for join audit event",
-			"error", err,
-		)
-	}
-
 	// Prepare join attributes for encoding into the X509 cert and for inclusion
 	// in audit logs.
 	if params.Attrs == nil {
 		params.Attrs = &workloadidentityv1pb.JoinAttrs{}
 	}
-	params.Attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
+	params.Attrs.SetMeta(workloadidentityv1pb.JoinAttrsMeta_builder{
 		JoinMethod: string(joinMethod),
-	}
+	}.Build())
 	if joinMethod != types.JoinMethodToken {
-		params.Attrs.Meta.JoinTokenName = token.GetName()
+		params.Attrs.GetMeta().SetJoinTokenName(token.GetName())
 	}
 
-	auth := &machineidv1pb.BotInstanceStatusAuthentication{
+	auth := machineidv1pb.BotInstanceStatusAuthentication_builder{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
 		// secrets. Should we hash it?
-		JoinToken:  token.GetSafeName(),
+		JoinToken:  scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetSafeName()}.String(),
 		JoinMethod: string(token.GetJoinMethod()),
 		PublicKey:  params.PublicTLSKey,
 		JoinAttrs:  params.Attrs,
-	}
+	}.Build()
 
-	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
-	auth.Metadata, err = rawJoinAttrsToGoogleStruct(params.RawJoinClaims)
+	botUserName, err := botUserNameFromToken(token)
 	if err != nil {
-		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
+		return nil, "", trace.Wrap(err)
 	}
-
-	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+	user, err := a.GetUserOrLoginState(ctx, botUserName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -463,20 +450,17 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
-		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
 		if botScope != tokenBotScope {
 			a.logger.WarnContext(ctx, "bot scope must match token scope",
 				"token_scope", tokenBotScope,
 				"bot_scope", botScope,
 			)
-			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot_scope")
+			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot")
 		}
 
 		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {
 			return nil, "", trace.BadParameter("bot scope must be a equal to or descendant of its token's resource-level scope")
 		}
-
-		joinEvent.Scope = botScope
 	} else {
 		botScope, ok := user.GetLabel(types.BotScopeLabel)
 		if ok && botScope != "" {
@@ -487,7 +471,7 @@ func (a *Server) GenerateBotCertsForJoin(
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
 		botName,
-		machineidv1.BotResourceName(botName),
+		botUserName,
 		params.RemoteAddr,
 		params.PublicSSHKey,
 		params.PublicTLSKey,
@@ -502,7 +486,6 @@ func (a *Server) GenerateBotCertsForJoin(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	joinEvent.BotInstanceID = botInstanceID
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
@@ -519,9 +502,6 @@ func (a *Server) GenerateBotCertsForJoin(
 		"bot_name", botName,
 		"bot_instance", botInstanceID,
 	)
-	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit bot join event", "error", err)
-	}
 	return certs, botInstanceID, nil
 }
 
@@ -577,13 +557,75 @@ func (a *Server) GenerateHostCertsForJoin(
 			// plaintext and we don't automatically target locks at `token`-type
 			// tokens. Other join methods (especially bound_keypair) return the
 			// full token name.
-			JoinToken: token.GetSafeName(),
+			JoinToken: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetSafeName()}.String(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Emit audit event
+	return certs, nil
+}
+
+func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, params *join.BotCertsParams, botInstanceID string) {
+	botName, botScope := token.GetBot()
+	botUserName, err := botUserNameFromToken(token)
+	if err != nil {
+		// Best-effort: emit the event with the bare name rather than drop it.
+		a.logger.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
+		botUserName, _ = services.BotResourceName(scopes.QualifiedName{Name: botName})
+	}
+	joinEvent := &apievents.BotJoin{
+		Metadata: apievents.Metadata{
+			Type: events.BotJoinEvent,
+			Code: events.BotJoinCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		BotName:   botName,
+		Method:    string(token.GetJoinMethod()),
+		TokenName: token.GetSafeName(),
+		UserName:  botUserName,
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: params.RemoteAddr,
+		},
+		Scope:         botScope,
+		BotInstanceID: botInstanceID,
+	}
+
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
+	if err != nil {
+		a.logger.WarnContext(
+			ctx,
+			"Unable to encode join attributes for join audit event",
+			"error", err,
+		)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+		a.logger.WarnContext(ctx, "Failed to emit bot join event", "error", err)
+	}
+}
+
+func (a *Server) emitJoinEvent(ctx context.Context, token provision.Token, params *join.HostCertsParams) {
+	// instance certs include an additional field that specifies the list of
+	// all services authorized by the token.
+	var systemRoles types.SystemRoles
+	if params.SystemRole == types.RoleInstance {
+		systemRolesSet := make(map[types.SystemRole]struct{})
+		for _, r := range token.GetRoles() {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			}
+		}
+		for _, r := range params.AuthenticatedSystemRoles {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			}
+		}
+		systemRoles = types.SystemRoles(slices.Collect(maps.Keys(systemRolesSet)))
+	}
+
 	if params.SystemRole == types.RoleInstance {
 		a.logger.InfoContext(ctx, "Instance has joined the cluster",
 			"node_name", params.HostName,
@@ -615,7 +657,11 @@ func (a *Server) GenerateHostCertsForJoin(
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
 		},
+		Roles: systemRoles.StringSlice(),
+		Scope: token.GetAssignedScope(),
 	}
+
+	var err error
 	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
@@ -623,20 +669,4 @@ func (a *Server) GenerateHostCertsForJoin(
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
-	return certs, nil
-}
-
-func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
-	if in == nil {
-		return nil, nil
-	}
-	attrBytes, err := json.Marshal(in)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling join attributes")
-	}
-	out := &structpb.Struct{}
-	if err := out.UnmarshalJSON(attrBytes); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling join attributes")
-	}
-	return out, nil
 }

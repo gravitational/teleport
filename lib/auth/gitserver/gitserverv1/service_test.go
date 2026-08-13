@@ -66,7 +66,7 @@ func TestServiceAccess(t *testing.T) {
 			name:    "create verb not allowed",
 			checker: &fakeAccessChecker{ /*nothing allowed*/ },
 			run: func(t *testing.T, service *Service) {
-				_, err := service.CreateGitServer(ctx, &pb.CreateGitServerRequest{Server: org3})
+				_, err := service.CreateGitServer(ctx, pb.CreateGitServerRequest_builder{Server: org3}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -76,7 +76,7 @@ func TestServiceAccess(t *testing.T) {
 				allowVerbs: []string{types.VerbCreate},
 			},
 			run: func(t *testing.T, service *Service) {
-				_, err := service.CreateGitServer(ctx, &pb.CreateGitServerRequest{Server: org3})
+				_, err := service.CreateGitServer(ctx, pb.CreateGitServerRequest_builder{Server: org3}.Build())
 				require.NoError(t, err)
 			},
 		},
@@ -84,7 +84,7 @@ func TestServiceAccess(t *testing.T) {
 			name:    "get verb not allowed",
 			checker: &fakeAccessChecker{ /*nothing allowed*/ },
 			run: func(t *testing.T, service *Service) {
-				_, err := service.GetGitServer(ctx, &pb.GetGitServerRequest{Name: org1.GetName()})
+				_, err := service.GetGitServer(ctx, pb.GetGitServerRequest_builder{Name: org1.GetName()}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -94,7 +94,7 @@ func TestServiceAccess(t *testing.T) {
 				allowVerbs: []string{types.VerbRead},
 			},
 			run: func(t *testing.T, service *Service) {
-				_, err := service.GetGitServer(ctx, &pb.GetGitServerRequest{Name: org1.GetName()})
+				_, err := service.GetGitServer(ctx, pb.GetGitServerRequest_builder{Name: org1.GetName()}.Build())
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -105,7 +105,7 @@ func TestServiceAccess(t *testing.T) {
 				allowResource: true,
 			},
 			run: func(t *testing.T, service *Service) {
-				server, err := service.GetGitServer(ctx, &pb.GetGitServerRequest{Name: org1.GetName()})
+				server, err := service.GetGitServer(ctx, pb.GetGitServerRequest_builder{Name: org1.GetName()}.Build())
 				require.NoError(t, err)
 				require.Equal(t, "org1", server.GetGitHub().Organization)
 			},
@@ -129,7 +129,7 @@ func TestServiceAccess(t *testing.T) {
 			run: func(t *testing.T, service *Service) {
 				resp, err := service.ListGitServers(ctx, &pb.ListGitServersRequest{})
 				require.NoError(t, err)
-				require.Empty(t, resp.Servers)
+				require.Empty(t, resp.GetServers())
 			},
 		},
 		{
@@ -141,14 +141,14 @@ func TestServiceAccess(t *testing.T) {
 			run: func(t *testing.T, service *Service) {
 				resp, err := service.ListGitServers(ctx, &pb.ListGitServersRequest{})
 				require.NoError(t, err)
-				require.Len(t, resp.Servers, 2)
+				require.Len(t, resp.GetServers(), 2)
 			},
 		},
 		{
 			name:    "update verb not allowed",
 			checker: &fakeAccessChecker{ /*nothing allowed*/ },
 			run: func(t *testing.T, service *Service) {
-				_, err := service.UpdateGitServer(ctx, &pb.UpdateGitServerRequest{Server: org1})
+				_, err := service.UpdateGitServer(ctx, pb.UpdateGitServerRequest_builder{Server: org1}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -160,7 +160,7 @@ func TestServiceAccess(t *testing.T) {
 			run: func(t *testing.T, service *Service) {
 				org1WithRevision, err := service.cfg.Backend.GetGitServer(ctx, org1.GetName())
 				require.NoError(t, err)
-				_, err = service.UpdateGitServer(ctx, &pb.UpdateGitServerRequest{Server: org1WithRevision.(*types.ServerV2)})
+				_, err = service.UpdateGitServer(ctx, pb.UpdateGitServerRequest_builder{Server: org1WithRevision.(*types.ServerV2)}.Build())
 				require.NoError(t, err)
 			},
 		},
@@ -168,7 +168,7 @@ func TestServiceAccess(t *testing.T) {
 			name:    "upsert verb not allowed",
 			checker: &fakeAccessChecker{ /*nothing allowed*/ },
 			run: func(t *testing.T, service *Service) {
-				_, err := service.UpsertGitServer(ctx, &pb.UpsertGitServerRequest{Server: org3})
+				_, err := service.UpsertGitServer(ctx, pb.UpsertGitServerRequest_builder{Server: org3}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -178,7 +178,7 @@ func TestServiceAccess(t *testing.T) {
 				allowVerbs: []string{types.VerbCreate, types.VerbUpdate},
 			},
 			run: func(t *testing.T, service *Service) {
-				_, err := service.UpsertGitServer(ctx, &pb.UpsertGitServerRequest{Server: org3})
+				_, err := service.UpsertGitServer(ctx, pb.UpsertGitServerRequest_builder{Server: org3}.Build())
 				require.NoError(t, err)
 			},
 		},
@@ -186,7 +186,7 @@ func TestServiceAccess(t *testing.T) {
 			name:    "delete verb not allowed",
 			checker: &fakeAccessChecker{ /*nothing allowed*/ },
 			run: func(t *testing.T, service *Service) {
-				_, err := service.DeleteGitServer(ctx, &pb.DeleteGitServerRequest{Name: org1.GetName()})
+				_, err := service.DeleteGitServer(ctx, pb.DeleteGitServerRequest_builder{Name: org1.GetName()}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -196,7 +196,7 @@ func TestServiceAccess(t *testing.T) {
 				allowVerbs: []string{types.VerbDelete},
 			},
 			run: func(t *testing.T, service *Service) {
-				_, err := service.DeleteGitServer(ctx, &pb.DeleteGitServerRequest{Name: org1.GetName()})
+				_, err := service.DeleteGitServer(ctx, pb.DeleteGitServerRequest_builder{Name: org1.GetName()}.Build())
 				require.NoError(t, err)
 			},
 		},
@@ -207,10 +207,10 @@ func TestServiceAccess(t *testing.T) {
 				allowResource: true,
 			},
 			run: func(t *testing.T, service *Service) {
-				_, err := service.CreateGitHubAuthRequest(ctx, &pb.CreateGitHubAuthRequestRequest{
+				_, err := service.CreateGitHubAuthRequest(ctx, pb.CreateGitHubAuthRequestRequest_builder{
 					Request:      &types.GithubAuthRequest{},
 					Organization: org1.GetGitHub().Organization,
-				})
+				}.Build())
 				require.NoError(t, err)
 			},
 		},
@@ -220,10 +220,10 @@ func TestServiceAccess(t *testing.T) {
 				allowVerbs: []string{types.VerbRead, types.VerbList},
 			},
 			run: func(t *testing.T, service *Service) {
-				_, err := service.CreateGitHubAuthRequest(ctx, &pb.CreateGitHubAuthRequestRequest{
+				_, err := service.CreateGitHubAuthRequest(ctx, pb.CreateGitHubAuthRequestRequest_builder{
 					Request:      &types.GithubAuthRequest{},
 					Organization: org1.GetGitHub().Organization,
-				})
+				}.Build())
 				// Getting NotFound instead of AccessDenied.
 				require.True(t, trace.IsNotFound(err))
 			},

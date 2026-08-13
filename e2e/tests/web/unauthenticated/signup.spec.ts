@@ -17,7 +17,7 @@
  */
 
 import { signup } from '@gravitational/e2e/helpers/signup';
-import { deleteUser } from '@gravitational/e2e/helpers/tctl';
+import { deleteUserIfExists } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 import { TestInfo } from '@playwright/test';
 
@@ -37,6 +37,7 @@ test('verify that a user can sign up with webauthn and login', async ({
     .fill(username(testInfo));
   await page.getByRole('textbox', { name: 'Username' }).press('Tab');
   await page.getByRole('textbox', { name: 'Password' }).fill('passwordtest123');
+
   await page
     .getByTestId('userpassword')
     .getByRole('button', { name: 'Sign In' })
@@ -45,7 +46,14 @@ test('verify that a user can sign up with webauthn and login', async ({
   await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
 });
 
+// Clean the user before each attempt (and after) so retries start clean rather
+// than failing on an already-registered user / consumed invite.
+// oxlint-disable-next-line no-empty-pattern
+test.beforeEach(({}, testInfo) => {
+  deleteUserIfExists(username(testInfo));
+});
+
 // oxlint-disable-next-line no-empty-pattern
 test.afterEach(({}, testInfo) => {
-  deleteUser(username(testInfo));
+  deleteUserIfExists(username(testInfo));
 });

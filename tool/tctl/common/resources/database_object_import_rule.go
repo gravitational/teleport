@@ -74,7 +74,7 @@ func databaseObjectImportRuleHandler() Handler {
 func getDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, ref services.Ref, _ GetOpts) (Collection, error) {
 	remote := client.DatabaseObjectImportRuleClient()
 	if ref.Name != "" {
-		rule, err := remote.GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: ref.Name})
+		rule, err := remote.GetDatabaseObjectImportRule(ctx, dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest_builder{Name: ref.Name}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -83,10 +83,10 @@ func getDatabaseObjectImportRule(ctx context.Context, client *authclient.Client,
 
 	rules, err := stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, limit int, token string) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, string, error) {
-			resp, err := remote.ListDatabaseObjectImportRules(ctx, &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{
+			resp, err := remote.ListDatabaseObjectImportRules(ctx, dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest_builder{
 				PageSize:  int32(limit),
 				PageToken: token,
-			})
+			}.Build())
 
 			return resp.GetRules(), resp.GetNextPageToken(), trace.Wrap(err)
 		}))
@@ -102,18 +102,18 @@ func createDatabaseObjectImportRule(ctx context.Context, client *authclient.Clie
 		return trace.Wrap(err)
 	}
 	if opts.Force {
-		_, err = client.DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpsertDatabaseObjectImportRuleRequest{
+		_, err = client.DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule(ctx, dbobjectimportrulev1.UpsertDatabaseObjectImportRuleRequest_builder{
 			Rule: rule,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
 		return nil
 	}
-	_, err = client.DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.CreateDatabaseObjectImportRuleRequest{
+	_, err = client.DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule(ctx, dbobjectimportrulev1.CreateDatabaseObjectImportRuleRequest_builder{
 		Rule: rule,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,9 +127,9 @@ func updateDatabaseObjectImportRule(ctx context.Context, client *authclient.Clie
 		return trace.Wrap(err)
 	}
 
-	_, err = client.DatabaseObjectImportRuleClient().UpdateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpdateDatabaseObjectImportRuleRequest{
+	_, err = client.DatabaseObjectImportRuleClient().UpdateDatabaseObjectImportRule(ctx, dbobjectimportrulev1.UpdateDatabaseObjectImportRuleRequest_builder{
 		Rule: rule,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func updateDatabaseObjectImportRule(ctx context.Context, client *authclient.Clie
 }
 
 func deleteDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: ref.Name}); err != nil {
+	if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest_builder{Name: ref.Name}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("rule %q has been deleted\n", ref.Name)

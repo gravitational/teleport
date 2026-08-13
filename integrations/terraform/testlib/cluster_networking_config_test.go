@@ -17,7 +17,6 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -39,7 +38,7 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfigDataSource() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
 					resource.TestCheckResourceAttr(name, "version", "v2"),
-					resource.TestCheckResourceAttr(name, "id", "cluster-networking-config"),
+					resource.TestCheckResourceAttr(name, "id", "cluster_networking_config"),
 				),
 			},
 		},
@@ -58,8 +57,22 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfig() {
 				Config: s.getFixture("networking_config_0_set.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
-					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
-					resource.TestCheckResourceAttr(name, "spec.client_idle_timeout", "30m"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "metadata.labels.teleport.dev/origin", "dynamic"),
+					resource.TestCheckResourceAttr(name, "metadata.namespace", "default"),
+					resource.TestCheckResourceAttr(name, "spec.assist_command_execution_workers", "0"),
+					resource.TestCheckResourceAttr(name, "spec.case_insensitive_routing", "false"),
+					resource.TestCheckResourceAttr(name, "spec.client_idle_timeout", "0s"),
+					resource.TestCheckResourceAttr(name, "spec.idle_timeout_message", ""),
+					resource.TestCheckResourceAttr(name, "spec.keep_alive_count_max", "3"),
+					resource.TestCheckResourceAttr(name, "spec.keep_alive_interval", "5m0s"),
+					resource.TestCheckResourceAttr(name, "spec.proxy_listener_mode", "0"),
+					resource.TestCheckResourceAttr(name, "spec.proxy_ping_interval", "0s"),
+					resource.TestCheckResourceAttr(name, "spec.routing_strategy", "0"),
+					resource.TestCheckResourceAttr(name, "spec.session_control_timeout", "0s"),
+					resource.TestCheckResourceAttr(name, "spec.ssh_dial_timeout", "0s"),
+					resource.TestCheckResourceAttr(name, "spec.tunnel_strategy.agent_mesh.%", "1"),
+					resource.TestCheckResourceAttr(name, "spec.web_idle_timeout", "0s"),
 				),
 			},
 			{
@@ -70,7 +83,7 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfig() {
 				Config: s.getFixture("networking_config_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_networking_config"),
-					resource.TestCheckResourceAttr(name, "metadata.labels.example", "no"),
+					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
 					resource.TestCheckResourceAttr(name, "spec.client_idle_timeout", "1h"),
 				),
 			},
@@ -83,12 +96,8 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfig() {
 }
 
 func (s *TerraformSuiteOSS) TestImportClusterNetworkingConfig() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_cluster_networking_config"
-	id := "test_import"
-	name := r + "." + id
+	name := r + "." + "cluster_networking_config"
 
 	clusterNetworkingConfig := &types.ClusterNetworkingConfigV2{
 		Metadata: types.Metadata{},
@@ -99,14 +108,14 @@ func (s *TerraformSuiteOSS) TestImportClusterNetworkingConfig() {
 	err := clusterNetworkingConfig.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	clusterNetworkConfigBefore, err := s.client.GetClusterNetworkingConfig(ctx)
+	clusterNetworkConfigBefore, err := s.client.GetClusterNetworkingConfig(s.T().Context())
 	require.NoError(s.T(), err)
 
-	_, err = s.client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	_, err = s.client.UpsertClusterNetworkingConfig(s.T().Context(), clusterNetworkingConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		clusterNetworkConfigCurrent, err := s.client.GetClusterNetworkingConfig(ctx)
+		clusterNetworkConfigCurrent, err := s.client.GetClusterNetworkingConfig(s.T().Context())
 		require.NoError(s.T(), err)
 
 		return clusterNetworkConfigBefore.GetMetadata().Revision != clusterNetworkConfigCurrent.GetMetadata().Revision
@@ -117,10 +126,10 @@ func (s *TerraformSuiteOSS) TestImportClusterNetworkingConfig() {
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
+				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "cluster_networking_config" { }`,
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "cluster_networking_config",
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "cluster_networking_config", state[0].Attributes["kind"])
 					require.Equal(s.T(), "30s", state[0].Attributes["spec.client_idle_timeout"])

@@ -319,7 +319,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	handler := makeTDPSendAuditor(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
 	encoded, err := msg.Encode()
@@ -350,7 +350,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	png := &tdpb.PNGFrame{Data: maliciousPNG}
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPSendAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	handler := makeTDPSendAuditor(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* auditor */)
 	require.NoError(t, handler(png))
 
 	require.Nil(t, emitter.LastEvent())
@@ -367,7 +367,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	delay := func() int64 { return 0 }
-	handler := s.makeTDPReceiveAuditor(context.Background(), emitterPreparer, delay, nil /* auditor */)
+	handler := makeTDPReceiveAuditor(context.Background(), s, s.cfg.Clock, s.cfg.Logger, emitterPreparer, delay, nil /* auditor */)
 
 	msg := &tdpb.MouseButton{
 		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
@@ -394,8 +394,11 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPReceiveAuditor(
+	handler := makeTDPReceiveAuditor(
 		context.Background(),
+		s,
+		s.cfg.Clock,
+		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
 		audit,
@@ -416,7 +419,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
 	require.Equal(t, audit.sessionID, cs.SessionID)
-	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
+	require.Equal(t, audit.windowsDesktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
@@ -431,8 +434,11 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		},
 	}
 
-	handler := s.makeTDPSendAuditor(
+	handler := makeTDPSendAuditor(
 		context.Background(),
+		s,
+		s.cfg.Clock,
+		s.cfg.Logger,
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
 		audit,
@@ -451,7 +457,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.True(t, ok, "expected DesktopClipboardReceive, got %T", e)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
 	require.Equal(t, audit.sessionID, cs.SessionID)
-	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
+	require.Equal(t, audit.windowsDesktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
@@ -723,13 +729,13 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		// If targeting the Windows CA, without modifications, this should trigger
 		// a CRL update.
 		caOverride := env.NewOverrideForCA(t, ca, externalCA)
-		caOverride.Status = &subcav1.CertAuthorityOverrideStatus{
+		caOverride.SetStatus(subcav1.CertAuthorityOverrideStatus_builder{
 			PublicKeyHashToCrl: make(map[string]*subcav1.CertificateRevocationList),
-		}
-		for _, co := range caOverride.Spec.CertificateOverrides {
-			caOverride.Status.PublicKeyHashToCrl[co.PublicKey] = &subcav1.CertificateRevocationList{
+		}.Build())
+		for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+			caOverride.GetStatus().GetPublicKeyHashToCrl()[co.GetPublicKey()] = subcav1.CertificateRevocationList_builder{
 				Pem: "<insert PEM here>",
-			}
+			}.Build()
 		}
 
 		if modifyOverride != nil {
@@ -768,8 +774,8 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		// Create an empty Windows CA override.
 		// It should not trigger a CRL update, as the resource itself lacks CRLs.
 		upsertOverrideForCA(t, caID, func(caOverride *subcav1.CertAuthorityOverride) {
-			caOverride.Spec.CertificateOverrides = nil
-			caOverride.Status = nil
+			caOverride.GetSpec().SetCertificateOverrides(nil)
+			caOverride.ClearStatus()
 		})
 		waitForEvent(t)
 

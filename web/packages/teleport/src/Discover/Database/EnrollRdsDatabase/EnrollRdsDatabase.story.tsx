@@ -51,214 +51,194 @@ export default {
 };
 
 export const SelfHostedFlow = () => <Component />;
-SelfHostedFlow.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json({ databases: rdsInstances })
-      ),
-      http.get(databasesPathWithoutQuery, () =>
-        HttpResponse.json({ items: [rdsInstances[2]] })
-      ),
-      http.post(databasesPathWithoutQuery, () => HttpResponse.json({})),
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
-      http.get(cfg.api.databaseServicesPath, () =>
-        HttpResponse.json({
-          services: [{ name: 'test', matchers: { '*': ['*'] } }],
-        })
-      ),
-      http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
-      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
-    ],
-  },
+SelfHostedFlow.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsRdsDbListPath, () =>
+      HttpResponse.json({ databases: rdsInstances })
+    ),
+    http.get(databasesPathWithoutQuery, () =>
+      HttpResponse.json({ items: [rdsInstances[2]] })
+    ),
+    http.post(databasesPathWithoutQuery, () => HttpResponse.json({})),
+    http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+    http.get(cfg.api.databaseServicesPath, () =>
+      HttpResponse.json({
+        services: [{ name: 'test', matchers: { '*': ['*'] } }],
+      })
+    ),
+    http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
+    http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs }))
+  );
 };
 
 export const CloudFlow = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-CloudFlow.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json({ databases: rdsInstances })
-      ),
-      http.get(databasesPathWithoutQuery, () =>
-        HttpResponse.json({ items: [rdsInstances[2]] })
-      ),
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
-      http.get(cfg.api.databaseServicesPath, () =>
-        HttpResponse.json({
-          items: [
-            { name: 'test', resource_matchers: [{ labels: { '*': ['*'] } }] },
-          ],
-        })
-      ),
-      http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
-      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
-    ],
-  },
+CloudFlow.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsRdsDbListPath, () =>
+      HttpResponse.json({ databases: rdsInstances })
+    ),
+    http.get(databasesPathWithoutQuery, () =>
+      HttpResponse.json({ items: [rdsInstances[2]] })
+    ),
+    http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+    http.get(cfg.api.databaseServicesPath, () =>
+      HttpResponse.json({
+        items: [
+          { name: 'test', resource_matchers: [{ labels: { '*': ['*'] } }] },
+        ],
+      })
+    ),
+    http.get(cfg.api.databaseServicesPath, () => HttpResponse.json({})),
+    http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs }))
+  );
 };
 
 export const NoVpcs = () => {
   return <Component />;
 };
-NoVpcs.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json({ databases: [] })
-      ),
-      http.post(
-        cfg.api.awsDatabaseVpcsPath,
-        () => HttpResponse.json({ vpcs: [] }),
-        { once: true }
-      ),
-      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
-    ],
-  },
+NoVpcs.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsRdsDbListPath, () =>
+      HttpResponse.json({ databases: [] })
+    ),
+    http.post(
+      cfg.api.awsDatabaseVpcsPath,
+      () => HttpResponse.json({ vpcs: [] }),
+      { once: true }
+    ),
+    http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs }))
+  );
 };
 
 export const VpcError = () => {
   return <Component />;
 };
-VpcError.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.api.awsDatabaseVpcsPath,
-        () =>
-          HttpResponse.json(
-            {
-              error: { message: 'Whoops, error fetching required vpcs.' },
-            },
-            { status: 404 }
-          ),
-        { once: true }
-      ),
-    ],
-  },
+VpcError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(
+      cfg.api.awsDatabaseVpcsPath,
+      () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, error fetching required vpcs.' },
+          },
+          { status: 404 }
+        ),
+      { once: true }
+    )
+  );
 };
 
 export const SelectedVpcAlreadyExists = () => {
   return <Component />;
 };
-SelectedVpcAlreadyExists.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json({ databases: rdsInstances })
-      ),
-      http.get(databasesPathWithoutQuery, () =>
-        HttpResponse.json({ items: [rdsInstances[2]] })
-      ),
-      http.post(cfg.api.awsDatabaseVpcsPath, () =>
-        HttpResponse.json({
-          vpcs: [
-            {
-              id: 'Click me, then toggle ON auto enroll',
-              ecsServiceDashboardURL: 'http://some-dashboard-url',
-            },
-            {
-              id: 'vpc-1234',
-            },
-          ],
-        })
-      ),
-    ],
-  },
+SelectedVpcAlreadyExists.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsRdsDbListPath, () =>
+      HttpResponse.json({ databases: rdsInstances })
+    ),
+    http.get(databasesPathWithoutQuery, () =>
+      HttpResponse.json({ items: [rdsInstances[2]] })
+    ),
+    http.post(cfg.api.awsDatabaseVpcsPath, () =>
+      HttpResponse.json({
+        vpcs: [
+          {
+            id: 'Click me, then toggle ON auto enroll',
+            ecsServiceDashboardURL: 'http://some-dashboard-url',
+          },
+          {
+            id: 'vpc-1234',
+          },
+        ],
+      })
+    )
+  );
 };
 
 export const LoadingVpcs = () => {
   return <Component />;
 };
-LoadingVpcs.parameters = {
-  msw: {
-    handlers: [http.post(cfg.api.awsDatabaseVpcsPath, () => delay('infinite'))],
-  },
+LoadingVpcs.beforeEach = ({ msw }) => {
+  msw.use(http.post(cfg.api.awsDatabaseVpcsPath, () => delay('infinite')));
 };
 
 export const LoadingDatabases = () => {
   return <Component />;
 };
-LoadingDatabases.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsRdsDbListPath, () => delay('infinite')),
-      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
-    ],
-  },
+LoadingDatabases.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsRdsDbListPath, () => delay('infinite')),
+    http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs }))
+  );
 };
 
 export const WithAwsPermissionsError = () => <Component />;
-WithAwsPermissionsError.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.api.awsDatabaseVpcsPath,
-        () =>
-          HttpResponse.json(
-            {
-              message: 'StatusCode: 403, RequestID: operation error',
-            },
-            { status: 403 }
-          ),
-        { once: true }
-      ),
-      http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json({ databases: [] })
-      ),
-    ],
-  },
+WithAwsPermissionsError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(
+      cfg.api.awsDatabaseVpcsPath,
+      () =>
+        HttpResponse.json(
+          {
+            message: 'StatusCode: 403, RequestID: operation error',
+          },
+          { status: 403 }
+        ),
+      { once: true }
+    ),
+    http.post(cfg.api.awsDatabaseVpcsPath, () => HttpResponse.json({ vpcs })),
+    http.post(cfg.api.awsRdsDbListPath, () =>
+      HttpResponse.json({ databases: [] })
+    )
+  );
 };
 
 export const WithDbListError = () => <Component />;
-WithDbListError.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.awsDatabaseVpcsPath, () =>
-        HttpResponse.json({
-          vpcs,
-        })
-      ),
-      http.post(cfg.api.awsRdsDbListPath, () =>
-        HttpResponse.json(
-          {
-            message: 'Whoops, fetching aws databases error',
-          },
-          { status: 403 }
-        )
-      ),
-    ],
-  },
+WithDbListError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.awsDatabaseVpcsPath, () =>
+      HttpResponse.json({
+        vpcs,
+      })
+    ),
+    http.post(cfg.api.awsRdsDbListPath, () =>
+      HttpResponse.json(
+        {
+          message: 'Whoops, fetching aws databases error',
+        },
+        { status: 403 }
+      )
+    )
+  );
 };
 
 export const WithOneOfDbListError = () => <Component />;
-WithOneOfDbListError.parameters = {
-  msw: {
-    handlers: [
-      http.get(databasesPathWithoutQuery, () =>
-        HttpResponse.json({ items: [rdsInstances[2]] })
-      ),
-      http.post(databasesPathWithoutQuery, () => HttpResponse.json({})),
-      http.post(cfg.api.awsDatabaseVpcsPath, () =>
-        HttpResponse.json({
-          vpcs,
-        })
-      ),
-      http.post(cfg.api.awsRdsDbListPath, async req => {
-        return (await req.request.json())['rdsType'] === 'instance'
-          ? HttpResponse.json({ databases: rdsInstances })
-          : HttpResponse.json(
-              {
-                message: 'Whoops, fetching another aws databases error',
-              },
-              { status: 403 }
-            );
-      }),
-    ],
-  },
+WithOneOfDbListError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(databasesPathWithoutQuery, () =>
+      HttpResponse.json({ items: [rdsInstances[2]] })
+    ),
+    http.post(databasesPathWithoutQuery, () => HttpResponse.json({})),
+    http.post(cfg.api.awsDatabaseVpcsPath, () =>
+      HttpResponse.json({
+        vpcs,
+      })
+    ),
+    http.post(cfg.api.awsRdsDbListPath, async req => {
+      return (await req.request.json())['rdsType'] === 'instance'
+        ? HttpResponse.json({ databases: rdsInstances })
+        : HttpResponse.json(
+            {
+              message: 'Whoops, fetching another aws databases error',
+            },
+            { status: 403 }
+          );
+    })
+  );
 };
 
 const Component = () => {

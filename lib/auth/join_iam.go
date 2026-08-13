@@ -100,6 +100,7 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
+		Logger:                   a.logger,
 		Challenge:                challenge,
 		ProvisionToken:           provisionToken,
 		STSIdentityRequest:       req.StsIdentityRequest,
@@ -116,13 +117,21 @@ func (a *Server) RegisterUsingIAMMethod(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		params := makeBotCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity, &workloadidentityv1pb.JoinAttrs{
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity, workloadidentityv1pb.JoinAttrs_builder{
 			Iam: verifiedIdentity.JoinAttrs(),
-		})
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
-		return certs, trace.Wrap(err, "generating bot certs")
+		}.Build())
+		certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating bot certs")
+		}
+		a.emitBotJoinEvent(ctx, provisionToken, params, botInstanceID)
+		return certs, nil
 	}
 	params := makeHostCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity)
 	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err, "generating certs")
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certs")
+	}
+	a.emitJoinEvent(ctx, provisionToken, params)
+	return certs, nil
 }

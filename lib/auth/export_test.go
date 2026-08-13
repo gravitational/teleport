@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client"
@@ -82,6 +81,8 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
+
+	MaybeDowngradeRoleVersionToV8 = maybeDowngradeRoleVersionToV8
 )
 
 func ServerWithModules(mt *modulestest.Modules) *Server {
@@ -167,7 +168,7 @@ func (a *Server) NewWebSession(
 	ctx context.Context,
 	req NewWebSessionRequest,
 	opts *newWebSessionOpts,
-) (types.WebSession, services.AccessChecker, error) {
+) (types.WebSession, *services.ScopedAccessCheckerContext, error) {
 	return a.newWebSession(ctx, req, opts)
 }
 
@@ -223,10 +224,6 @@ func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeU
 	return a.changeUserAuthentication(ctx, req)
 }
 
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
-}
-
 func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
 	return createPresetUsers(ctx, buildType, um)
 }
@@ -268,24 +265,16 @@ func EmitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, me
 	emitSSOLoginFailureEvent(ctx, emitter, method, err, testFlow)
 }
 
-type UpsertServerRawReq = upsertServerRawReq
-
-func UpsertServer(srv *APIServer, auth presenceForAPIServer, role types.SystemRole, r *http.Request, p httprouter.Params) (any, error) {
-	return srv.upsertServer(auth, role, r, p)
-}
-
 func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzContext authz.Context) *ServerWithRoles {
 	return &ServerWithRoles{
-		authServer: srv,
-		alog:       alog,
+		serverBase: serverBase{authServer: srv, alog: alog},
 		context:    authzContext,
 	}
 }
 
-func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
-	return &ServerWithRoles{
-		authServer:    srv,
-		alog:          alog,
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ScopedServerWithRoles {
+	return &ScopedServerWithRoles{
+		serverBase:    serverBase{authServer: srv, alog: alog},
 		scopedContext: scopedContext,
 	}
 }

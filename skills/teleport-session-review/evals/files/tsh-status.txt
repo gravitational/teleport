@@ -1,0 +1,8 @@
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       auditor
+  Cluster:            teleport.example.com
+  Roles:              access, auditor, editor
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2026-06-05 09:00:00 -0700 PDT [valid for 12h0m]
+  Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty

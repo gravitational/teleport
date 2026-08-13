@@ -56,6 +56,7 @@ export const Camera = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-camera"
+
       {...otherProps}
       ref={ref}
     >

@@ -99,6 +99,13 @@ func TestSessionPostProcessor_Desktop(t *testing.T) {
 
 	summarizerProvider := summarizer.NewSessionSummarizerProvider()
 	sessionSummarizer := &fakeSummarizer{}
+	sessionSummarizer.On(
+		"SummarizeWindowsDesktop",
+		mock.Anything,
+		mock.MatchedBy(func(e *apievents.WindowsDesktopSessionEnd) bool {
+			return e.GetSessionID() == string(sessionID)
+		}),
+	).Return(nil).Once()
 	summarizerProvider.SetSummarizer(sessionSummarizer)
 
 	cfg := sessionpostprocessing.Config{
@@ -138,6 +145,11 @@ func (f *fakeSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apie
 }
 
 func (f *fakeSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (f *fakeSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
 	args := f.Called(ctx, sessionEndEvent)
 	return args.Error(0)
 }

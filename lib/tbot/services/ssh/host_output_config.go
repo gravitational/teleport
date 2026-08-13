@@ -52,9 +52,8 @@ type HostOutputConfig struct {
 	Name string `yaml:"name,omitempty"`
 	// Destination is where the credentials should be written to.
 	Destination destination.Destination `yaml:"destination"`
-	// Roles is the list of roles to request for the generated credentials.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	// Principals is a list of principals to request for the host cert.
 	Principals []string `yaml:"principals"`
@@ -87,6 +86,9 @@ func (o *HostOutputConfig) GetDestination() destination.Destination {
 }
 
 func (o *HostOutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(o.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", HostOutputServiceType)
 	}

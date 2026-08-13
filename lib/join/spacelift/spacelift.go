@@ -78,7 +78,7 @@ func (c *IDTokenClaims) GetSubject() string {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsSpacelift {
-	return &workloadidentityv1pb.JoinAttrsSpacelift{
+	return workloadidentityv1pb.JoinAttrsSpacelift_builder{
 		Sub:        c.Sub,
 		SpaceId:    c.SpaceID,
 		CallerType: c.CallerType,
@@ -86,7 +86,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsSpacelift {
 		RunType:    c.RunType,
 		RunId:      c.RunID,
 		Scope:      c.Scope,
-	}
+	}.Build()
 }
 
 // CheckIDTokenParams are parameters used to validate Spacelift OIDC tokens.

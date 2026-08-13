@@ -55,10 +55,6 @@ func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 	}
 	switch plugin := plugin.(type) {
 	case *types.PluginV1:
-		if err := plugin.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		var buf bytes.Buffer
 		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoRevision(cfg.PreserveRevision, plugin))
 		if err != nil {

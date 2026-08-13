@@ -20,6 +20,7 @@ import {
   createEventSection,
   createReferencePage,
   eventsWithoutExamples,
+  fixtureTypeMismatches,
   ReferencePageEventData,
   removeUnknowns,
 } from './gen-event-reference';
@@ -150,6 +151,210 @@ describe('removeUnknowns', () => {
 
   test.each(testCases)('$description', testCase => {
     expect(removeUnknowns(testCase.events, testCase.formatters)).toEqual(
+      testCase.expected
+    );
+  });
+});
+
+describe('fixtureTypeMismatches', () => {
+  const testCases = [
+    {
+      description: 'matching codes with mismatched types',
+      events: [
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has deleted a card',
+          codeDesc: 'Unknown',
+          code: 'ABC123',
+          raw: {
+            event: 'billing.delete_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
+          },
+        },
+      ],
+      formatters: {
+        ABC123: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
+        },
+      },
+      expected: [
+        {
+          fixtureType: 'billing.delete_card',
+          code: 'ABC123',
+          formatterType: 'billing.create_card',
+        },
+      ],
+    },
+    {
+      description: 'valid case with one event',
+      events: [
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has created a card',
+          codeDesc: 'Unknown',
+          code: 'ABC123',
+          raw: {
+            event: 'billing.create_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
+          },
+        },
+      ],
+      formatters: {
+        ABC123: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
+        },
+      },
+      expected: [],
+    },
+    {
+      description: 'valid case with event variations',
+      events: [
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has created a card',
+          codeDesc: 'Unknown',
+          code: 'ABC123',
+          raw: {
+            event: 'billing.create_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
+          },
+        },
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has failed to create',
+          codeDesc: 'Unknown',
+          code: 'ABC123E',
+          raw: {
+            event: 'billing.create_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123E',
+          },
+        },
+      ],
+      formatters: {
+        ABC123: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
+        },
+        ABC123E: {
+          type: 'billing.create_card',
+          desc: 'Card creation failure',
+          format: () => {
+            return 'Card created';
+          },
+        },
+      },
+      expected: [],
+    },
+    {
+      description: 'valid case with event variations and missing fixture',
+      events: [
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has created a card',
+          codeDesc: 'Unknown',
+          code: 'ABC123',
+          raw: {
+            event: 'billing.create_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
+          },
+        },
+      ],
+      formatters: {
+        ABC123: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
+        },
+        ABC123E: {
+          type: 'billing.create_card',
+          desc: 'Card creation failure',
+          format: () => {
+            return 'Card created';
+          },
+        },
+      },
+      expected: [],
+    },
+    {
+      description: 'valid case with event variations and missing formatter',
+      events: [
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has created a card',
+          codeDesc: 'Unknown',
+          code: 'ABC123',
+          raw: {
+            event: 'billing.create_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
+          },
+        },
+        {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has failed to create',
+          codeDesc: 'Unknown',
+          code: 'ABC123E',
+          raw: {
+            event: 'billing.create_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123E',
+          },
+        },
+      ],
+      formatters: {
+        ABC123: {
+          type: 'billing.create_card',
+          desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
+        },
+      },
+      expected: [],
+    },
+  ];
+
+  test.each(testCases)('$description', testCase => {
+    expect(fixtureTypeMismatches(testCase.events, testCase.formatters)).toEqual(
       testCase.expected
     );
   });

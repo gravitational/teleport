@@ -68,14 +68,14 @@ func TestReadChildError(t *testing.T) {
 			childErrIn: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec.\n",
 			context: &ErrorContext{
 				Login: "teleport-test-user-does-not-exist-reexec",
-				DecisionContext: &decisionpb.SSHAccessPermitContext{
+				DecisionContext: decisionpb.SSHAccessPermitContext_builder{
 					HostUserCreationAllowedBy: []*decisionpb.Determinant{
-						{Kind: "role", Name: "allow-role"},
+						decisionpb.Determinant_builder{Kind: "role", Name: "allow-role"}.Build(),
 					},
 					HostUserCreationDeniedBy: []*decisionpb.Determinant{
-						{Kind: "role", Name: "deny-role"},
+						decisionpb.Determinant_builder{Kind: "role", Name: "deny-role"}.Build(),
 					},
-				},
+				}.Build(),
 			},
 			wantChildErr: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec: host user creation denied by the following resources: [role: \"deny-role\"]\n",
 		},
@@ -84,14 +84,14 @@ func TestReadChildError(t *testing.T) {
 			childErrIn: "Failed to launch: failed to open PAM context: pam_start failed.\n",
 			context: &ErrorContext{
 				Login: "teleport-test-user-does-not-exist-pam",
-				DecisionContext: &decisionpb.SSHAccessPermitContext{
+				DecisionContext: decisionpb.SSHAccessPermitContext_builder{
 					HostUserCreationAllowedBy: []*decisionpb.Determinant{
-						{Kind: "role", Name: "allow-role"},
+						decisionpb.Determinant_builder{Kind: "role", Name: "allow-role"}.Build(),
 					},
 					HostUserCreationDeniedBy: []*decisionpb.Determinant{
-						{Kind: "role", Name: "deny-role"},
+						decisionpb.Determinant_builder{Kind: "role", Name: "deny-role"}.Build(),
 					},
-				},
+				}.Build(),
 			},
 			wantChildErr: "Failed to launch: failed to open PAM context: pam_start failed: host user creation denied by the following resources: [role: \"deny-role\"]\n",
 		},

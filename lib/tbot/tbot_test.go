@@ -32,6 +32,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -46,6 +47,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -65,8 +69,10 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -77,9 +83,11 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -90,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/sshca"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -103,6 +112,8 @@ import (
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -150,18 +161,18 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 	ctx := t.Context()
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	b, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: roles,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -171,7 +182,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		time.Now().Add(10*time.Minute),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
+			BotName: b.GetMetadata().GetName(),
 		})
 	require.NoError(t, err)
 	err = client.CreateToken(ctx, tok)
@@ -366,10 +377,6 @@ func TestBot(t *testing.T) {
 	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &identitysvc.OutputConfig{
-		Destination: &destination.Memory{},
-		Roles:       []string{mainRole},
-	}
 	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
@@ -411,7 +418,6 @@ func TestBot(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
-			identityOutputWithRoles,
 			appOutput,
 			dbOutput,
 			dbDiscoveredNameOutput,
@@ -439,7 +445,7 @@ func TestBot(t *testing.T) {
 		require.True(t, tlsIdent.Renewable)
 		require.False(t, tlsIdent.DisallowReissue)
 		require.Equal(t, uint64(1), tlsIdent.Generation)
-		require.ElementsMatch(t, []string{botResource.Status.RoleName}, tlsIdent.Groups)
+		require.ElementsMatch(t, []string{botResource.GetStatus().GetRoleName()}, tlsIdent.Groups)
 		// testenv cluster uses balanced-v1 suite, sanity check we generated an
 		// ECDSA key.
 		require.IsType(t, &ecdsa.PublicKey{}, botIdent.PrivateKey.Public())
@@ -448,28 +454,21 @@ func TestBot(t *testing.T) {
 	t.Run("output: identity", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
-		)
-	})
-
-	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(
-			t, tlsIdent, []string{mainRole}, botResource.Status.UserName, false,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
 		)
 	})
 
 	t.Run("output: identity with allow reissue", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithReissue.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, true,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), true,
 		)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
 		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
@@ -479,7 +478,7 @@ func TestBot(t *testing.T) {
 	t.Run("output: kubernetes discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeDiscoveredNameOutput.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
 		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
@@ -489,7 +488,7 @@ func TestBot(t *testing.T) {
 	t.Run("output: application", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
 		)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
@@ -500,7 +499,7 @@ func TestBot(t *testing.T) {
 	t.Run("output: database", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
 		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
@@ -518,7 +517,7 @@ func TestBot(t *testing.T) {
 	t.Run("output: database discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbDiscoveredNameOutput.GetDestination())
 		requireValidOutputTLSIdent(
-			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
 		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
@@ -1402,7 +1401,7 @@ func TestBotJoiningURI(t *testing.T) {
 // TestScopedBotSSH tests that a scoped bot can produce an identity output
 // with scope pins, and that the identity can be used to SSH to a scoped node.
 func TestScopedBotSSH(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	log := logtest.NewLogger()
@@ -1421,6 +1420,7 @@ func TestScopedBotSSH(t *testing.T) {
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1436,28 +1436,28 @@ func TestScopedBotSSH(t *testing.T) {
 
 	// Create a scoped role that grants SSH access.
 	scopedSvc := rootClient.ScopedAccessServiceClient()
-	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: scopedRoleName,
-			},
+			}.Build(),
 			Scope: scopeName,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopeName},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{currentUser.Username},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "*",
 							Values: []string{"*"},
-						},
+						}.Build(),
 					},
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
@@ -1466,10 +1466,10 @@ func TestScopedBotSSH(t *testing.T) {
 	// Start a second Teleport process as an SSH-only node, joining with the
 	// scoped token so the node gets scope "/test-scope".
 	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(nodeTokenResp.Token.Metadata.Name)
-	nodeCfg.SetTokenSecret(nodeTokenResp.Token.Status.Secret)
+	nodeCfg.SetToken(scopes.QualifiedName{Scope: scopeName, Name: jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret())}.String())
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1527,12 +1527,13 @@ func TestScopedBotSSH(t *testing.T) {
 	require.NoError(t, b.Run(ctx))
 
 	t.Run("identity certificates have scope pins", func(t *testing.T) {
-		expectedPin := &scopesv1.Pin{
+		expectedPin := scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopedRoleName}},
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
-		}
+		}.Build()
 
 		// Check TLS certificate.
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
@@ -1616,8 +1617,35 @@ func TestScopedBotSSH(t *testing.T) {
 		require.NoError(t, tc.AddKeyRing(keyRing))
 		require.NoError(t, tc.AddTrustedCA(ctx, hostCA))
 
+		startTime := time.Now()
+
 		require.NoError(t, tc.SSH(ctx, []string{"echo hello"}))
 		require.Equal(t, "hello\n", stdout.String())
+
+		auditEvents := helpers.WaitForAuditEventTypeWithBackoff(
+			t,
+			process.GetAuthServer(),
+			startTime,
+			events.SessionStartEvent,
+		)
+
+		require.Len(t, auditEvents, 1)
+		auditEvent := auditEvents[0]
+
+		require.IsType(t, &apievents.SessionStart{}, auditEvent)
+		sessionStart := auditEvent.(*apievents.SessionStart)
+
+		assert.Equal(t, botName, sessionStart.BotName)
+
+		expectedScopePin := apievents.ScopePin{
+			Scope: scopeName,
+			Assignments: map[string]*apievents.ScopePinnedAssignments{
+				scopeName: {
+					Roles: []string{scopedRoleName},
+				},
+			},
+		}
+		assert.Equal(t, &expectedScopePin, sessionStart.ScopePin)
 	})
 }
 
@@ -1626,8 +1654,8 @@ func TestScopedBotSSH(t *testing.T) {
 // discover a scoped Kubernetes cluster via selectors, and that a valid
 // kubeconfig is rendered.
 func TestScopedBotKubernetes(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	// TODO(eriktate): remove this skip once scoped kube agents work with agent scope pins
+	t.Skip("scoped kube currently requires agent scope pins which are not fully supported yet")
 	ctx := t.Context()
 	log := logtest.NewLogger()
 
@@ -1643,6 +1671,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithProxyKube(),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1656,25 +1685,25 @@ func TestScopedBotKubernetes(t *testing.T) {
 
 	// Create a scoped role that grants kube access (all clusters, system:masters).
 	scopedSvc := rootClient.ScopedAccessServiceClient()
-	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: scopedRoleName,
-			},
+			}.Build(),
 			Scope: scopeName,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopeName},
-				Kube: &scopedaccessv1.ScopedRoleKube{
+				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Labels: []*labelv1.Label{
-						{Name: "*", Values: []string{"*"}},
+						labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 					},
 					Groups: []string{"system:masters"},
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
@@ -1709,9 +1738,9 @@ func TestScopedBotKubernetes(t *testing.T) {
 	// Start a second Teleport process as a kube_service-only agent, joining
 	// with the scoped kube token.
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
+	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(kubeTokenResp.Token.Metadata.Name)
-	kubeNodeCfg.SetTokenSecret(kubeTokenResp.Token.Status.Secret)
+	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(kubeTokenResp.GetToken().GetMetadata().GetName(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
@@ -1771,12 +1800,13 @@ func TestScopedBotKubernetes(t *testing.T) {
 	require.NoError(t, b.Run(ctx))
 
 	t.Run("identity certificate has scope pins", func(t *testing.T) {
-		expectedPin := &scopesv1.Pin{
+		expectedPin := scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopedRoleName}},
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
-		}
+		}.Build()
 
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
 		require.NotNil(t, tlsIdent.ScopePin, "TLS identity should have a scope pin")
@@ -1824,15 +1854,223 @@ func TestScopedBotKubernetes(t *testing.T) {
 	})
 }
 
+// TestScopedBotWorkloadIdentity tests that a scoped bot can issue X.509 and
+// JWT SVIDs for a scoped WorkloadIdentity addressed by a scope-qualified name
+// selector ("<scope>::<name>"), via the x509/jwt file outputs and the SPIFFE
+// workload API. In scoped mode these services use the bot's internal scoped
+// identity (rather than a role-impersonated identity, which scoped bots cannot
+// mint) to call the issuance RPCs.
+func TestScopedBotWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-wi-issuer"
+		botName        = "scoped-wi-bot"
+		wiName         = "scoped-svc"
+		audience       = "example.com"
+	)
+
+	// Start the main Teleport process (auth + proxy).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
+
+	// Create a scoped role granting issuance using prod-labeled WorkloadIdentities.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
+					}.Build(),
+				},
+				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+
+	// Create a scoped WorkloadIdentity at the backend.
+	_, err = process.GetAuthServer().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:   wiName,
+			Labels: map[string]string{"env": "prod"},
+		}.Build(),
+		Scope: scopeName,
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: scopeName + "/_/" + wiName,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Configure tbot with workload-identity x509 and jwt outputs and a
+	// workload API listening on a unix socket, all addressing the
+	// WorkloadIdentity by scope-qualified name. The workload API is a
+	// long-running service, so the bot runs in daemon mode rather than oneshot.
+	tmpDir := t.TempDir()
+	jwtDir := t.TempDir()
+	// t.TempDir paths can exceed the Unix socket path limit on macOS.
+	socketDir, err := os.MkdirTemp("", "tbot-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
+	listenURL := url.URL{
+		Scheme: "unix",
+		Path:   filepath.Join(socketDir, "workload.sock"),
+	}
+	selector := bot.WorkloadIdentitySelector{
+		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			&workloadidentitysvc.X509OutputConfig{
+				Selector: selector,
+				Destination: &destination.Directory{
+					Path: tmpDir,
+				},
+			},
+			&workloadidentitysvc.JWTOutputConfig{
+				Selector: selector,
+				Destination: &destination.Directory{
+					Path: jwtDir,
+				},
+				Audiences: []string{audience},
+			},
+			&workloadidentitysvc.WorkloadAPIConfig{
+				Selector: selector,
+				Listen:   listenURL.String(),
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
+					},
+				},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	botConfig.Oneshot = false
+	b := New(botConfig, log)
+
+	botCtx, cancelBot := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		assert.NoError(t, b.Run(botCtx), "bot should not exit with error")
+	}()
+	t.Cleanup(func() {
+		cancelBot()
+		wg.Wait()
+	})
+
+	expectedSPIFFEID := "spiffe://" + clusterName + scopeName + "/_/" + wiName
+
+	t.Run("x509 output", func(t *testing.T) {
+		// The x509 output should write an SVID with a SPIFFE ID inside the
+		// bot's scope.
+		var svid *x509svid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			var err error
+			svid, err = x509svid.Load(
+				filepath.Join(tmpDir, internal.SVIDPEMPath),
+				filepath.Join(tmpDir, internal.SVIDKeyPEMPath),
+			)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, svid.ID.String())
+	})
+
+	t.Run("jwt output", func(t *testing.T) {
+		// The jwt output should write a JWT SVID with the same scoped SPIFFE
+		// ID.
+		var jwt *jwtsvid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			jwtBytes, err := os.ReadFile(filepath.Join(jwtDir, internal.JWTSVIDPath))
+			require.NoError(t, err)
+			jwt, err = jwtsvid.ParseInsecure(string(jwtBytes), []string{audience})
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, jwt.ID.String())
+	})
+
+	t.Run("workload api", func(t *testing.T) {
+		ctx := t.Context()
+
+		// X.509 and JWT SVIDs fetched over the workload API socket should
+		// carry the same scoped SPIFFE ID.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := os.Stat(listenURL.Path)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		apiClient, err := workloadapi.New(ctx, workloadapi.WithAddr(listenURL.String()))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = apiClient.Close() })
+
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClient(apiClient))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = source.Close() })
+		apiSVID, err := source.GetX509SVID()
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiSVID.ID.String())
+
+		apiJWTSVID, err := apiClient.FetchJWTSVID(ctx, jwtsvid.Params{
+			Audience: audience,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiJWTSVID.ID.String())
+	})
+}
+
 func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
 	t.Helper()
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, resp := range resps {
-			_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
-			})
+				Scope:   resp.GetAssignment().GetScope(),
+			}.Build())
 			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
@@ -1852,13 +2090,13 @@ func createScopedBot(
 	t.Helper()
 	ctx := t.Context()
 
-	_, err := rootClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{Name: botName},
+	_, err := rootClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Metadata: headerv1.Metadata_builder{Name: botName}.Build(),
 			Scope:    scopeName,
 			Spec:     &machineidv1pb.BotSpec{},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	botKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -1867,60 +2105,56 @@ func createScopedBot(
 	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
 	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
 
-	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-		Token: &joiningv1.ScopedToken{
+	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
+		Token: joiningv1.ScopedToken_builder{
 			Kind:     types.KindScopedToken,
 			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: botName + "-token"},
+			Metadata: headerv1.Metadata_builder{Name: botName + "-token"}.Build(),
 			Scope:    scopeName,
-			Spec: &joiningv1.ScopedTokenSpec{
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				BotName:    botName,
-				BotScope:   scopeName,
-				BoundKeypair: &joiningv1.BoundKeypairSpec{
-					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
+				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 						InitialPublicKey: botPublicKey,
-					},
-					Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
+					}.Build(),
+					Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
 						Limit: 10,
 						Mode:  "insecure",
-					},
-				},
-			},
-			Status: &joiningv1.ScopedTokenStatus{
-				Usage: &joiningv1.UsageStatus{
-					Status: &joiningv1.UsageStatus_BoundKeypair{
-						BoundKeypair: &joiningv1.BoundKeypairStatus{},
-					},
-				},
-			},
-		},
-	})
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			Status: joiningv1.ScopedTokenStatus_builder{
+				Usage: joiningv1.UsageStatus_builder{
+					BoundKeypair: &joiningv1.BoundKeypairStatus{},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	sraResp, err := rootClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	sraResp, err := rootClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:     scopedaccess.KindScopedRoleAssignment,
 			Version:  types.V1,
 			SubKind:  scopedaccess.SubKindDynamic,
-			Metadata: &headerv1.Metadata{Name: uuid.NewString()},
+			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
 			Scope:    scopeName,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  botName,
-				BotScope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRoleName, Scope: scopeName},
+					scopedaccessv1.Assignment_builder{Role: scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(), Scope: scopeName}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	waitForSRACache(t, process.GetAuthServer(), sraResp)
 
 	return &onboarding.Config{
-		TokenValue: botTokenResp.Token.Metadata.Name,
+		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodBoundKeypair,
 		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 			StaticPrivateKeyPath: botKeyPath,
@@ -1938,20 +2172,20 @@ func createScopedJoinToken(
 	role types.SystemRole,
 ) *joiningv1.CreateScopedTokenResponse {
 	t.Helper()
-	resp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: &joiningv1.ScopedToken{
+	resp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+		Token: joiningv1.ScopedToken_builder{
 			Kind:     types.KindScopedToken,
 			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: name},
+			Metadata: headerv1.Metadata_builder{Name: name}.Build(),
 			Scope:    scopeName,
-			Spec: &joiningv1.ScopedTokenSpec{
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				AssignedScope: scopeName,
 				Roles:         []string{role.String()},
 				JoinMethod:    string(types.JoinMethodToken),
 				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return resp
 }

@@ -23,9 +23,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -54,7 +56,10 @@ func (c *kubeServerCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			common.FormatResourceName(kube, verbose),
+			scopes.QualifiedName{
+				Scope: server.GetScope(),
+				Name:  common.FormatResourceName(kube, verbose),
+			}.String(),
 			labels,
 			server.GetTeleportVersion(),
 		})
@@ -93,7 +98,7 @@ func getKubeServer(ctx context.Context, client *authclient.Client, ref services.
 	altNameFn := func(r types.KubeServer) string {
 		return r.GetHostname()
 	}
-	servers = FilterByNameOrDiscoveredName(servers, ref.Name, altNameFn)
+	servers = FilterBySQNOrDiscoveredName(servers, scopes.QualifiedName{Name: ref.Name}, altNameFn)
 	if len(servers) == 0 {
 		return nil, trace.NotFound("Kubernetes server %q not found", ref.Name)
 	}
@@ -106,17 +111,81 @@ func deleteKubeServer(ctx context.Context, client *authclient.Client, ref servic
 		return trace.Wrap(err)
 	}
 	resDesc := "Kubernetes server"
-	servers = FilterByNameOrDiscoveredName(servers, ref.Name)
+	// this filters scoped servers out of the result set so that they aren't accidentally deleted
+	// along with their unscoped counterpart
+	servers = FilterBySQNOrDiscoveredName(servers, scopes.QualifiedName{Name: ref.Name})
 	name, err := GetOneResourceNameToDelete(servers, ref, resDesc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, s := range servers {
-		err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
+		err := client.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			// we omit scope here as an extra measure to prevent unintended deletion of scoped
+			// kube servers
+			HostId: s.GetHostID(),
+			Name:   name,
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	return nil
+}
+
+func scopedKubeServerHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedKubeServer,
+		deleteHandler: deleteScopedKubeServer,
+		description:   "Represents a Kubernetes service instance that proxies access to Kubernetes clusters.",
+	}
+}
+
+func getScopedKubeServer(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, _ GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindKubeServer, subKind)
+	}
+
+	servers, err := client.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if sqn == nil {
+		return NewKubeServerCollection(servers), nil
+	}
+
+	servers = FilterBySQNOrDiscoveredName(servers, *sqn)
+	if len(servers) == 0 {
+		return nil, trace.NotFound("Kubernetes server %q not found", sqn.String())
+	}
+	return NewKubeServerCollection(servers), nil
+}
+
+func deleteScopedKubeServer(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindKubeServer, subKind)
+	}
+
+	// Fetch first to verify scope before deleting.
+	servers, err := client.GetKubernetesServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	servers = FilterBySQNOrDiscoveredName(servers, sqn)
+	if len(servers) == 0 {
+		return trace.NotFound("Kubernetes server %q not found", sqn.String())
+	}
+
+	for _, server := range servers {
+		if err := client.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  server.GetScope(),
+			HostId: server.GetHostID(),
+			Name:   server.GetName(),
+		}.Build()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Printf("%v %q has been deleted\n", types.KindKubeServer, sqn.String())
 	return nil
 }

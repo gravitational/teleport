@@ -88,7 +88,7 @@ func (c *IDTokenClaims) GetSubject() string {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBitbucket {
-	return &workloadidentityv1pb.JoinAttrsBitbucket{
+	return workloadidentityv1pb.JoinAttrsBitbucket_builder{
 		Sub:                       c.Sub,
 		StepUuid:                  c.StepUUID,
 		RepositoryUuid:            c.RepositoryUUID,
@@ -96,7 +96,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBitbucket {
 		WorkspaceUuid:             c.WorkspaceUUID,
 		DeploymentEnvironmentUuid: c.DeploymentEnvironmentUUID,
 		BranchName:                c.BranchName,
-	}
+	}.Build()
 }
 
 // CheckIDTokenParams are parameters used to validate Bitbucket OIDC tokens.

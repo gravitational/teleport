@@ -70,7 +70,7 @@ export function UserReset({
           . This will generate a&nbsp;temporary URL which can be used to set up
           new authentication.
         </P2>
-        {cfg.isMfaEnabled() && (
+        {cfg.isMfaUserConfigurable() && (
           <P2>
             All{' '}
             {cfg.isPasswordlessEnabled()

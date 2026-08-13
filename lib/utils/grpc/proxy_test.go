@@ -64,7 +64,7 @@ func TestProxyBidiStream(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send a message.
-	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
 	require.NoError(t, err)
 
 	// Receive the server's response.
@@ -128,7 +128,7 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
-	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
 	require.NoError(t, err)
 	_, err = stream.Recv()
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
-	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
 	require.NoError(t, err)
 
 	// Drain the first response the server sent before returning.
@@ -176,7 +176,7 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 	//
 	// At this point, the Send returns either nil if the trailer wasn't propagated
 	// to the client yet or io.EOF if it was, so we skip asserting on err here.
-	_ = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("more")})
+	_ = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("more")}.Build())
 
 	// Server has returned nil. The client must see clean io.EOF, not a
 	// proxy-reshaped error and not a hang (which would surface as a
@@ -205,7 +205,7 @@ func TestProxyBidiStream_SurfacesClientRecvError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send a message larger than the proxy's MaxRecvMsgSize.
-	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte(strings.Repeat("x", 256))})
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte(strings.Repeat("x", 256))}.Build())
 	require.NoError(t, err)
 
 	_, err = stream.Recv()
@@ -238,7 +238,7 @@ func TestProxyBidiStream_SurfacesServerSendError(t *testing.T) {
 	// default 4MB), then tries to forward it to the fake server whose upstream
 	// connection caps sends at 64 bytes, triggering a local ResourceExhausted on
 	// the proxy's server.Send.
-	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte(strings.Repeat("x", 256))})
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte(strings.Repeat("x", 256))}.Build())
 	require.NoError(t, err)
 
 	_, err = stream.Recv()
@@ -267,7 +267,7 @@ func TestProxyBidiStream_ForwardsMetadata(t *testing.T) {
 	stream, err := client.ConnectToDesktop(ctx)
 	require.NoError(t, err)
 
-	err = stream.Send(&teletermv1.ConnectToDesktopRequest{Data: []byte("hello")})
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
 	require.NoError(t, err)
 
 	// Receive the server's first response; by this point the server has already
@@ -366,7 +366,7 @@ func (f *fakeServerSvc) ConnectToDesktop(stream teletermv1.TerminalService_Conne
 		if len(req.GetData()) == 0 {
 			return trace.BadParameter("empty data")
 		}
-		if err := stream.Send(&teletermv1.ConnectToDesktopResponse{Data: []byte("ack")}); err != nil {
+		if err := stream.Send(teletermv1.ConnectToDesktopResponse_builder{Data: []byte("ack")}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 		if f.returnAfterFirstResponse {

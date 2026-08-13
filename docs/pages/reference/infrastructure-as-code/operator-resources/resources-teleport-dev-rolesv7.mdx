@@ -1,6 +1,7 @@
 ---
 title: TeleportRoleV7
 description: Provides a comprehensive list of fields in the TeleportRoleV7 resource available through the Teleport Kubernetes operator
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -10,7 +11,7 @@ description: Provides a comprehensive list of fields in the TeleportRoleV7 resou
 need to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This guide is a comprehensive reference to the fields in the `TeleportRoleV7`
+This guide lists the fields in the `TeleportRoleV7`
 resource, which you can apply after installing the Teleport Kubernetes operator.
 
 
@@ -40,6 +41,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |account_assignments|[][object](#specallowaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
 |app_labels|[object](#specallowapp_labels)|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
+|app_resources|[][object](#specallowapp_resources-items)|AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.  This version implements allow_all only and rejects a rule that sets any other field. The other fields are declared so that version skew or a rollback cannot silently drop one and widen a role's access.|
+|app_resources_expressions|[]string|AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
 |beam_labels|[object](#specallowbeam_labels)|BeamLabels are used in the RBAC system to allow/deny access to beams.|
@@ -99,6 +102,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |key|string||
 |value|string||
+
+### spec.allow.app_resources items
+
+|Field|Type|Description|
+|---|---|---|
+|allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
+|allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.  This version declares the field but rejects a rule that sets it.|
+|allow_encoded|[]string|AllowEncoded lists the characters a request path may carry in percent-encoded form for the rule to match. The only supported value is "/", which allows the encoded slash, %2F or %2f.  This version declares the field but rejects a rule that sets it.|
+|allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.  This version declares the field but rejects a rule that sets it.|
+|deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.  This version declares the field but rejects a rule that sets it.|
+|deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.  This version declares the field but rejects a rule that sets it.|
+|methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.|
+|paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.  This version declares the field but rejects a rule that sets it.|
+|where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`  This version declares the field but rejects a rule that sets it.|
 
 ### spec.allow.beam_labels
 
@@ -328,6 +345,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |account_assignments|[][object](#specdenyaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
 |app_labels|[object](#specdenyapp_labels)|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
+|app_resources|[][object](#specdenyapp_resources-items)|AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.  This version implements allow_all only and rejects a rule that sets any other field. The other fields are declared so that version skew or a rollback cannot silently drop one and widen a role's access.|
+|app_resources_expressions|[]string|AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
 |beam_labels|[object](#specdenybeam_labels)|BeamLabels are used in the RBAC system to allow/deny access to beams.|
@@ -387,6 +406,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |key|string||
 |value|string||
+
+### spec.deny.app_resources items
+
+|Field|Type|Description|
+|---|---|---|
+|allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
+|allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.  This version declares the field but rejects a rule that sets it.|
+|allow_encoded|[]string|AllowEncoded lists the characters a request path may carry in percent-encoded form for the rule to match. The only supported value is "/", which allows the encoded slash, %2F or %2f.  This version declares the field but rejects a rule that sets it.|
+|allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.  This version declares the field but rejects a rule that sets it.|
+|deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.  This version declares the field but rejects a rule that sets it.|
+|deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.  This version declares the field but rejects a rule that sets it.|
+|methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.|
+|paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.  This version declares the field but rejects a rule that sets it.|
+|where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`  This version declares the field but rejects a rule that sets it.|
 
 ### spec.deny.beam_labels
 
@@ -644,6 +677,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
 |ssh_port_forwarding|[object](#specoptionsssh_port_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
+|web_terminal_clipboard_mode|string or integer|WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified. Can be either the string or the integer representation of each option.|
 
 ### spec.options.cert_extensions items
 

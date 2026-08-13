@@ -6,9 +6,11 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: troubleshooting
 ---
 
-This page describes common issues with Kubernetes and how to resolve them.
+This page describes common issues with Kubernetes and how to work around or
+resolve them.
 
 ## An agent failed to join a cluster due to "no authorities for hostname"
 
@@ -180,7 +182,7 @@ joinParams:
   method: "token"
   tokenName: "${TOKEN}"
 kubeClusterName: "${CLUSTER}"
-tags:
+labels:
   "type" : "autopilot"
 EOF
 # Install the helm chart with the values.yaml setting

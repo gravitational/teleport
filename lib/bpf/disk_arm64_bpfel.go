@@ -67,7 +67,7 @@ type diskSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type diskProgramSpecs struct {
-	DoFilpOpenExit   *ebpf.ProgramSpec `ebpf:"do_filp_open_exit"`
+	DoFileOpenExit   *ebpf.ProgramSpec `ebpf:"do_file_open_exit"`
 	SecurityFileOpen *ebpf.ProgramSpec `ebpf:"security_file_open"`
 }
 
@@ -137,13 +137,13 @@ type diskVariables struct {
 //
 // It can be passed to loadDiskObjects or ebpf.CollectionSpec.LoadAndAssign.
 type diskPrograms struct {
-	DoFilpOpenExit   *ebpf.Program `ebpf:"do_filp_open_exit"`
+	DoFileOpenExit   *ebpf.Program `ebpf:"do_file_open_exit"`
 	SecurityFileOpen *ebpf.Program `ebpf:"security_file_open"`
 }
 
 func (p *diskPrograms) Close() error {
 	return _DiskClose(
-		p.DoFilpOpenExit,
+		p.DoFileOpenExit,
 		p.SecurityFileOpen,
 	)
 }

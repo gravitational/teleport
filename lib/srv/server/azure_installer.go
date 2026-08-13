@@ -31,11 +31,14 @@ import (
 // AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
 type AzureInstallRequest struct {
-	Instances            []*azure.VirtualMachine
-	InstallerParams      *types.InstallerParams
-	ProxyAddrGetter      func(context.Context) (string, error)
-	Region               string
-	ResourceGroup        string
+	Instances       []*azure.VirtualMachine
+	InstallerParams *types.InstallerParams
+	ProxyAddrGetter func(context.Context) (string, error)
+	Region          string
+	ResourceGroup   string
+	// AcquireLease acquires a lease before the install request runs a command.
+	// This limits the number of installers that are run and polled concurrently.
+	AcquireLease         func(ctx context.Context) (release func(), err error)
 	OnRunCommandFinished func(result AzureInstallResult)
 }
 
@@ -54,8 +57,19 @@ func (r AzureInstallResult) Failure() bool {
 	return r.APIError != nil || (r.CommandResult != nil && r.CommandResult.Failure())
 }
 
-// Run initiates Teleport installation on a set of virtual machines and then blocks until the
-// commands have completed.
+func (req *AzureInstallRequest) RunWindowsAuthPackage(ctx context.Context, client azure.RunCommandClient) error {
+	// Azure treats scripts with the same content as the same invocation and
+	// won't run them more than once. This is fine when the installer script
+	// succeeds, but it makes troubleshooting much harder when it fails. To
+	// work around this, we generate a random string and append it as a comment
+	// to the script, forcing Azure to see each invocation as unique.
+	script, err := installerScriptWindowsAuthPackage(ctx, req.InstallerParams, withNonceComment(), withProxyAddrGetter(req.ProxyAddrGetter))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return req.run(ctx, client, script)
+}
+
 func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) error {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
@@ -66,19 +80,33 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return req.run(ctx, client, script)
+}
+
+// Run initiates Teleport installation on a set of virtual machines and then blocks until the
+// commands have completed.
+func (req *AzureInstallRequest) run(ctx context.Context, client azure.RunCommandClient, script string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
-	// hundreds of nodes at once.
-	// TODO (Tener): increase limit/make it configurable.
-	const azureParallelInstallLimit = 10
-	g.SetLimit(azureParallelInstallLimit)
+	if req.AcquireLease == nil {
+		// enforce an arbitrary limit if the caller didn't provide a lease func.
+		g.SetLimit(10)
+	}
 
 	for _, inst := range req.Instances {
 		g.Go(func() error {
 			// If the caller cancels, stop trying to run more commands.
 			if err := ctx.Err(); err != nil {
 				return err
+			}
+			if req.AcquireLease != nil {
+				release, err := req.AcquireLease(ctx)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer release()
 			}
 
 			runRequest := azure.RunCommandRequest{

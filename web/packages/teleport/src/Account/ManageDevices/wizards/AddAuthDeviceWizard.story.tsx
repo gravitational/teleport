@@ -86,15 +86,13 @@ export function CreateMfaAppQrCodeLoading() {
     <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />
   );
 }
-CreateMfaAppQrCodeLoading.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
-        async () => await delay('infinite')
-      ),
-    ],
-  },
+CreateMfaAppQrCodeLoading.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(
+      cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
+      async () => await delay('infinite')
+    )
+  );
 };
 
 export function CreateAuthenticatorAppQrCodeFailed() {
@@ -102,21 +100,17 @@ export function CreateAuthenticatorAppQrCodeFailed() {
     <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />
   );
 }
-CreateAuthenticatorAppQrCodeFailed.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
-        () =>
-          HttpResponse.json(
-            {
-              error: { message: 'Whoops, something went wrong.' },
-            },
-            { status: 500 }
-          )
-      ),
-    ],
-  },
+CreateAuthenticatorAppQrCodeFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'), () =>
+      HttpResponse.json(
+        {
+          error: { message: 'Whoops, something went wrong.' },
+        },
+        { status: 500 }
+      )
+    )
+  );
 };
 
 const dummyQrCode =
@@ -127,15 +121,12 @@ export function CreateAuthenticatorApp() {
     <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="totp" />
   );
 }
-CreateAuthenticatorApp.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
-        () => HttpResponse.json({ totp: { qrCode: dummyQrCode } })
-      ),
-    ],
-  },
+CreateAuthenticatorApp.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'), () =>
+      HttpResponse.json({ totp: { qrCode: dummyQrCode } })
+    )
+  );
 };
 
 export function SavePasskey() {

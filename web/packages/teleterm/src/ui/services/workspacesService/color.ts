@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resolveTeleportColor } from '@gravitational/design-system';
 import { z } from 'zod';
-
-import { dataVisualisationColors } from 'design/theme/themes/darkTheme';
 
 import Logger from 'teleterm/logger';
 
@@ -77,11 +76,23 @@ function getNextWorkspaceColor(
  * and we avoid confusing users with different shades of the same color.
  */
 export const workspaceColorMapping: Record<WorkspaceColor, string> = {
-  purple: dataVisualisationColors.primary.purple,
-  red: dataVisualisationColors.primary.abbey,
-  green: dataVisualisationColors.primary.caribbean,
-  yellow: dataVisualisationColors.primary.sunflower,
-  blue: dataVisualisationColors.primary.picton,
-  cyan: dataVisualisationColors.primary.cyan,
-  pink: dataVisualisationColors.primary.wednesdays,
+  purple: resolveTeleportColor(
+    'colors.dataVisualisation.primary.purple',
+    'dark'
+  ),
+  red: resolveTeleportColor('colors.dataVisualisation.primary.abbey', 'dark'),
+  green: resolveTeleportColor(
+    'colors.dataVisualisation.primary.caribbean',
+    'dark'
+  ),
+  yellow: resolveTeleportColor(
+    'colors.dataVisualisation.primary.sunflower',
+    'dark'
+  ),
+  blue: resolveTeleportColor('colors.dataVisualisation.primary.picton', 'dark'),
+  cyan: resolveTeleportColor('colors.dataVisualisation.primary.cyan', 'dark'),
+  pink: resolveTeleportColor(
+    'colors.dataVisualisation.primary.wednesdays',
+    'dark'
+  ),
 };

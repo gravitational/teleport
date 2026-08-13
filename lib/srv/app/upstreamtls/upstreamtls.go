@@ -25,29 +25,46 @@ import (
 	"log/slog"
 	"net/url"
 	"slices"
+	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls"
+	"google.golang.org/protobuf/types/known/durationpb"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CertificateAuthorityGetter used to retrieve CA public information.
-type CertificateAuthorityGetter interface {
+// AccessPoint is used to retrieve CA public information and the cluster auth
+// preference.
+type AccessPoint interface {
 	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
+	// GetAuthPreference returns the current cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
+}
+
+// WorkloadIdentityClientGetter used to retrieve Workload identity clients.
+type WorkloadIdentityClientGetter interface {
+	// WorkloadIdentityIssuanceClient returns an unadorned client for the
+	// workload identity service.
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 }
 
 // Options are the options used to configure the TLS.
 type Options struct {
 	// Logger is the slog.Logger used by the configurator.
 	Logger *slog.Logger
-	// CAGetter is the interface used to retrieve certificate authorities.
-	CAGetter CertificateAuthorityGetter
+	// AccessPoint is a caching client connected to the Auth Server.
+	AccessPoint AccessPoint
 	// ClusterName is the current cluster name.
 	ClusterName string
 	// App is the app being configured.
@@ -56,13 +73,20 @@ type Options struct {
 	CipherSuites []uint16
 	// InsecureMode indicates the service is running in insecure mode.
 	InsecureMode bool
+	// Clock is used to control time.
+	Clock clockwork.Clock
+	// WorkloadIdentityClientGetter is the interface used to retrieve Workload
+	// identity clients.
+	WorkloadIdentityClientGetter WorkloadIdentityClientGetter
+	// GetUserCertFunc is the function used to retrieve user certificate.
+	GetUserCertFunc func() ([]byte, error)
 }
 
 // CheckAndSetDefaults validates required fields and sets defaults for optional
 // ones.
 func (o *Options) CheckAndSetDefaults() error {
-	if o.CAGetter == nil {
-		return trace.BadParameter("CAGetter is required")
+	if o.AccessPoint == nil {
+		return trace.BadParameter("AccessPoint is required")
 	}
 	if o.ClusterName == "" {
 		return trace.BadParameter("ClusterName is required")
@@ -72,6 +96,15 @@ func (o *Options) CheckAndSetDefaults() error {
 	}
 	if o.Logger == nil {
 		o.Logger = slog.Default()
+	}
+	if o.Clock == nil {
+		o.Clock = clockwork.NewRealClock()
+	}
+	if o.WorkloadIdentityClientGetter == nil {
+		return trace.BadParameter("WorkloadIdentityClientGetter is required")
+	}
+	if o.GetUserCertFunc == nil {
+		return trace.BadParameter("GetUserCertFunc is required")
 	}
 	return nil
 }
@@ -87,15 +120,16 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	appTLS := cmp.Or(opts.App.GetTLS(), &types.AppTLS{})
+	log := opts.Logger.With("app", opts.App.GetName())
+	getCertsFunc := newGetClientCertFunc(log, opts, appTLS)
+
 	// Service-level insecure mode takes precedence over app configuration.
 	if opts.InsecureMode {
-		return configureTLSInsecure(opts.CipherSuites)
+		return configureTLSInsecure(opts.CipherSuites, getCertsFunc)
 	}
 
-	appTLS := cmp.Or(opts.App.GetTLS(), &types.AppTLS{})
-	logger := opts.Logger.With("app", opts.App.GetName())
-
-	caPool, err := newTLSCertPool(ctx, logger, opts.CAGetter, opts.ClusterName, appTLS.AllowedCas)
+	caPool, err := newTLSCertPool(ctx, log, opts.AccessPoint, opts.ClusterName, appTLS.AllowedCas)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,17 +140,17 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 		if err != nil {
 			return nil, trace.BadParameter("app contains an invalid tls.server_spiffe_id field: %v", err)
 		}
-		return configureTLSVerifyFull(opts.CipherSuites, caPool, opts.App.GetURI(), spiffeID, appTLS.ServerName)
+		return configureTLSVerifyFull(opts.CipherSuites, caPool, opts.App.GetURI(), spiffeID, appTLS.ServerName, getCertsFunc)
 	case types.AppTLSModeVerifySpiffeID:
 		spiffeID, err := spiffeid.FromString(appTLS.ServerSpiffeId)
 		if err != nil {
 			return nil, trace.BadParameter("app contains an invalid tls.server_spiffe_id field: %v", err)
 		}
-		return configureTLSSpiffeIDVerify(opts.CipherSuites, caPool, spiffeID)
+		return configureTLSSpiffeIDVerify(opts.CipherSuites, caPool, spiffeID, getCertsFunc)
 	case types.AppTLSModeVerifyServerName:
-		return configureTLSVerifyServerName(opts.CipherSuites, caPool, appTLS.ServerName)
+		return configureTLSVerifyServerName(opts.CipherSuites, caPool, appTLS.ServerName, getCertsFunc)
 	case types.AppTLSModeInsecure:
-		return configureTLSInsecure(opts.CipherSuites)
+		return configureTLSInsecure(opts.CipherSuites, getCertsFunc)
 	case "":
 		// Empty mode is returned by GetTLSMode() for app protocols that don't
 		// support TLS configuration. Return baseline tls.Config so callers
@@ -130,20 +164,22 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 	}
 }
 
-func configureTLSSpiffeIDVerify(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID) (*tls.Config, error) {
+func configureTLSSpiffeIDVerify(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID, getCertsFunc getClientCertFunc) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.ServerName = ""
+	tlsConfig.GetClientCertificate = getCertsFunc
 	// Skips server name verification.
 	tlsConfig.VerifyConnection = tlsVerifyPeerCertificateWithSPIFFE(tlsConfig.RootCAs, spiffeID, "")
 	return tlsConfig, nil
 }
 
-func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, appURI string, spiffeID spiffeid.ID, serverName string) (*tls.Config, error) {
+func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, appURI string, spiffeID spiffeid.ID, serverName string, getCertsFunc getClientCertFunc) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.GetClientCertificate = getCertsFunc
 
 	// Since we're providing a custom VerifyConnection we must ensure that
 	// server name is not empty, otherwise it would just skip the server name
@@ -168,18 +204,20 @@ func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, appURI
 
 // configureTLSVerifyServerName setups a TLS config with standard hostname
 // certificate match verification.
-func configureTLSVerifyServerName(cipherSuites []uint16, caPool *x509.CertPool, serverName string) (*tls.Config, error) {
+func configureTLSVerifyServerName(cipherSuites []uint16, caPool *x509.CertPool, serverName string, getCertsFunc getClientCertFunc) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
+	tlsConfig.GetClientCertificate = getCertsFunc
 	// In case the property is empty (default value), the standard library
 	// will pickup the appropriate hostname value.
 	tlsConfig.ServerName = serverName
 	return tlsConfig, nil
 }
 
-func configureTLSInsecure(cipherSuites []uint16) (*tls.Config, error) {
+func configureTLSInsecure(cipherSuites []uint16, getCertsFunc getClientCertFunc) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.GetClientCertificate = getCertsFunc
 	return tlsConfig, nil
 }
 
@@ -220,7 +258,7 @@ func tlsVerifyPeerCertificateWithSPIFFE(roots *x509.CertPool, spiffeID spiffeid.
 }
 
 // newTLSCertPool creates a new x509 cert pool using the list of allowed CAs.
-func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter CertificateAuthorityGetter, clusterName string, cas []string) (*x509.CertPool, error) {
+func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter AccessPoint, clusterName string, cas []string) (*x509.CertPool, error) {
 	// If no options are provided, use the host's root CA (default behavior).
 	// This is mainly to keep backwards compatibility for apps using TLS
 	// connections, and that doesn't configure the CA list.
@@ -265,7 +303,7 @@ func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter Certificate
 }
 
 // loadCACertificates takes a "CA alias" and resolve to Teleport CA certificates.
-func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, clusterName string, alias types.AppTLSInternalCA) (iter.Seq2[*x509.Certificate, error], error) {
+func loadCACertificates(ctx context.Context, getter AccessPoint, clusterName string, alias types.AppTLSInternalCA) (iter.Seq2[*x509.Certificate, error], error) {
 	var caType types.CertAuthType
 	switch alias {
 	case types.AppTLSInternalCAWorkloadIdentity:
@@ -286,4 +324,126 @@ func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, 
 	}
 
 	return services.GetX509Certs(ca), nil
+}
+
+// getClientCertFunc function compatible with [tls.Config.GetClientCertificate].
+type getClientCertFunc func(*tls.CertificateRequestInfo) (*tls.Certificate, error)
+
+// clientCertExpiryMargin is a small safety margin applied when deciding whether
+// a cached managed client certificate is still usable. It only needs to cover
+// clock skew between us and the upstream (the certificate is presented
+// immediately during the handshake), not act as a proactive renewal window.
+const clientCertExpiryMargin = time.Minute
+
+func newGetClientCertFunc(
+	log *slog.Logger,
+	opts Options,
+	appTLS *types.AppTLS,
+) getClientCertFunc {
+	if appTLS.ClientCertMode != types.AppClientCertModeManaged {
+		// We're ok returning nil function here since [tls.Config] checks before
+		// calling it, and a nil function would mean no client certificates will
+		// be used.
+		return nil
+	}
+
+	// Managed upstream client certificates are issued lazily during TLS
+	// handshakes and cached until they (effectively) expire.
+	//
+	// Serialize refreshes so concurrent handshakes on the same transport share
+	// one issuance request instead of stampeding the auth service.
+	//
+	// This is helpful for apps that use a TCP connection pool
+	// (basically apps served using HTTP client). For such apps, we reuse the
+	// certificate for new connections (when they are still valid).
+	//
+	// This also prevents services that close connections shortly to trigger a
+	// large amount of certificates generation, acting as a "certificate
+	// generation rate limiter".
+	var (
+		mu     sync.Mutex
+		cert   *tls.Certificate
+		expiry time.Time
+	)
+
+	return func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		ctx := cri.Context()
+		mu.Lock()
+		defer mu.Unlock()
+		if cert == nil || opts.Clock.Now().Add(clientCertExpiryMargin).After(expiry) {
+			log.DebugContext(ctx, "issuing client certificate")
+			// Use short-lived context from the handshake. So if the handshake
+			// is canceled the RPC is also canceled.
+			//
+			// Since we're holding the lock during the RPC call, this also helps
+			// unblocking other handshake calls.
+			newCert, notAfter, err := issueClientCertificate(ctx, opts)
+			if err != nil {
+				log.ErrorContext(ctx, "failed to issue certificates", "error", err)
+				// Do not fall back to the cached cert inside the expiry margin.
+				// Issuance failures may mean the app session is no longer valid,
+				// so failing closed is preferred over using unusable (expired
+				// with threshold) cached cert.
+				return nil, trace.Wrap(err)
+			}
+			cert, expiry = newCert, notAfter
+		}
+
+		// Certificate selection follows the same logic as standard library.
+		if err := cri.SupportsCertificate(cert); err != nil {
+			log.WarnContext(ctx, "server doesn't support generated certificate", "error", err)
+			// No acceptable certificate found. Don't send a certificate.
+			return new(tls.Certificate), nil
+		}
+
+		return cert, nil
+	}
+}
+
+func issueClientCertificate(ctx context.Context, opts Options) (*tls.Certificate, time.Time, error) {
+	userCert, err := opts.GetUserCertFunc()
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err, "unable to retrieve user certificate")
+	}
+
+	privateKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AccessPoint),
+		cryptosuites.AppClientCATLS)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	clt := opts.WorkloadIdentityClientGetter.WorkloadIdentityIssuanceClient()
+	resp, err := clt.IssueTeleportWorkloadIdentity(ctx, workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_builder{
+		X509SvidParams: workloadidentityv1pb.X509SVIDParams_builder{
+			PublicKey: pubBytes,
+		}.Build(),
+		RequestedTtl: durationpb.New(common.MaxSessionChunkDuration),
+		AppAccess: workloadidentityv1pb.AppAccessUsage_builder{
+			UserCertificate: userCert,
+		}.Build(),
+	}.Build())
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	cred := resp.GetCredential()
+	svid := cred.GetX509Svid()
+	if len(svid.GetCert()) == 0 {
+		return nil, time.Time{}, trace.BadParameter("workload identity issuance returned no X.509 SVID certificate")
+	}
+	// This is an unexpected behavior, and we're just being defensive and avoiding
+	// having a branch where the certificate cache never expires because the
+	// issuer didn't return an expiration time.
+	if cred.GetExpiresAt() == nil {
+		return nil, time.Time{}, trace.BadParameter("workload identity issuance returned no credential expiration time")
+	}
+	return &tls.Certificate{
+		Certificate: append([][]byte{svid.GetCert()}, svid.GetChain()...),
+		PrivateKey:  privateKey,
+	}, cred.GetExpiresAt().AsTime(), nil
 }

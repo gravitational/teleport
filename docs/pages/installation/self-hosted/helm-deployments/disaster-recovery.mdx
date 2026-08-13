@@ -6,11 +6,12 @@ tags:
  - how-to
  - platform-wide
  - aws
+page_type: how-to
 ---
 
 In case of an outage in your cloud provider region, you need to ensure that you
-can restore your Teleport cluster to working order. This guide provides an
-overview of a disaster recovery approach for self-hosted Teleport clusters.
+can restore your Teleport cluster to working order. In this guide, you will
+design a plan for disaster recovery in your self-hosted Teleport clusters.
 
 The guide assumes that your self-hosted Teleport cluster runs on Amazon Elastic
 Kubernetes Service and uses the `teleport-cluster` Helm chart. The
@@ -85,7 +86,7 @@ to plan your backup procedure.
 If the Teleport Auth Service in your cluster uses AWS Key Management Service for
 certificate authority private keys, you must replicate your keys to the new AWS
 region before reinstalling the `teleport-cluster` Helm chart. See the [AWS
-documentation](https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html")
+documentation](https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html)
 for information about using KMS keys in multiple regions. 
 
 Note that KMS support is only possible in the `teleport-cluster` Helm chart
@@ -196,6 +197,7 @@ Teleport](./aws.mdx#step-47-configure-tls-certificates-for-teleport).
 
    ```code
    $ helm install teleport-cluster teleport/teleport-cluster \
+     --namespace teleport \
      --version (=teleport.version=) \
      --values teleport-cluster-values.yaml
    ```
@@ -319,7 +321,7 @@ group-access
 
 Teleport grants access to certificate authority rotations using the
 `spec.allow.rules` field - on the `cert_authority` resource - so using role
-locking to impose a change freeze will also unintended certificate authority
+locking to impose a change freeze will also prevent unintended certificate authority
 rotations during the disaster recovery procedure.
 
 Create a lock using a `tctl lock` command. The following example locks the

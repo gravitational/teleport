@@ -208,7 +208,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 			limit:     req.Limit,
 			order:     req.Order,
 			startKey:  startKeyset,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search, beamID: req.BeamID},
 			sessionID: "",
 		})
 		return events, keyset, trace.Wrap(err)
@@ -220,7 +220,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		limit:     req.Limit,
 		order:     req.Order,
 		startKey:  startKeyset,
-		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
+		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search, beamID: req.BeamID},
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
@@ -229,12 +229,12 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
 // performance over ordering and filtering, and is intended for bulk export of events.
 func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
-	startTime := req.Date.AsTime()
+	startTime := req.GetDate().AsTime()
 	if startTime.IsZero() {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'date'"))
 	}
 
-	if req.Chunk == "" {
+	if req.GetChunk() == "" {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'chunk'"))
 	}
 
@@ -242,13 +242,13 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 
 	var cursor athenaExportCursor
 
-	if req.Cursor != "" {
-		if err := cursor.Decode(req.Cursor); err != nil {
+	if req.GetCursor() != "" {
+		if err := cursor.Decode(req.GetCursor()); err != nil {
 			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
 		}
 	}
 
-	evts := q.streamEventsFromChunk(ctx, date, req.Chunk)
+	evts := q.streamEventsFromChunk(ctx, date, req.GetChunk())
 
 	evts = stream.Skip(evts, int(cursor.pos))
 
@@ -259,7 +259,7 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 			q.logger.WarnContext(ctx, "skipping export of audit event due to failed decoding",
 				"error", err,
 				"date", date,
-				"chunk", req.Chunk,
+				"chunk", req.GetChunk(),
 				"pos", cursor.pos,
 			)
 			return nil, false
@@ -270,17 +270,17 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 			q.logger.WarnContext(ctx, "skipping export of audit event due to failed conversion to unstructured event",
 				"error", err,
 				"date", date,
-				"chunk", req.Chunk,
+				"chunk", req.GetChunk(),
 				"pos", cursor.pos,
 			)
 
 			return nil, false
 		}
 
-		return &auditlogpb.ExportEventUnstructured{
+		return auditlogpb.ExportEventUnstructured_builder{
 			Event:  unstructuredEvent,
 			Cursor: cursor.Encode(),
-		}, true
+		}.Build(), true
 	})
 }
 
@@ -312,7 +312,7 @@ func (c *athenaExportCursor) Decode(key string) error {
 // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
-	dt := req.Date.AsTime()
+	dt := req.GetDate().AsTime()
 	if dt.IsZero() {
 		return stream.Fail[*auditlogpb.EventExportChunk](trace.BadParameter("missing required parameter 'date'"))
 	}
@@ -378,9 +378,9 @@ func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 				continue
 			}
 
-			chunks = append(chunks, &auditlogpb.EventExportChunk{
+			chunks = append(chunks, auditlogpb.EventExportChunk_builder{
 				Chunk: chunkID,
-			})
+			}.Build())
 		}
 
 		return chunks, nil
@@ -664,6 +664,9 @@ type searchEventsFilter struct {
 	eventTypes []string
 	search     string
 	condition  utils.FieldsCondition
+	// beamID, when set, restricts results to events whose top-level
+	// event_data beam_id equals it (see prepareQuery).
+	beamID string
 }
 
 type queryBuilder struct {
@@ -746,6 +749,12 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 		for term := range strings.FieldsSeq(strings.ToLower(params.filter.search)) {
 			qb.Append(" AND strpos(lower(event_data), ?) > 0", withTicks(term))
 		}
+	}
+
+	if params.filter.beamID != "" {
+		// beam_id is not a dedicated column; it lives at the top level of the
+		// event_data JSON (UserMetadata is inlined into every event).
+		qb.Append(" AND json_extract_scalar(event_data, '$.beam_id') = ?", withTicks(params.filter.beamID))
 	}
 
 	if params.order == types.EventOrderAscending {

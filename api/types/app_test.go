@@ -437,6 +437,7 @@ func TestNewAppV3(t *testing.T) {
 		name    string
 		meta    Metadata
 		spec    AppSpecV3
+		scope   string
 		want    *AppV3
 		wantErr require.ErrorAssertionFunc
 	}{
@@ -767,14 +768,34 @@ func TestNewAppV3(t *testing.T) {
 			},
 			wantErr: require.Error,
 		},
+		{
+			name:  "set with scope",
+			meta:  Metadata{Name: "myapp"},
+			spec:  AppSpecV3{URI: "https://localhost:1337"},
+			scope: "/staging/test",
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myapp", Namespace: "default"},
+				Spec:     AppSpecV3{URI: "https://localhost:1337"},
+				Scope:    "/staging/test",
+			},
+			wantErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := NewAppV3(tt.meta, tt.spec)
+			actual, err := NewAppV3(tt.meta, tt.spec, tt.scope)
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, actual)
 		})
 	}
+
+	// TODO (williamo/scopes) temp test - delete this once we delete the variadic params for scopes.
+	t.Run("set with a multiple scopes", func(t *testing.T) {
+		_, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{URI: "https://localhost:1337"}, "/staging/test", "/prod/test")
+		require.ErrorContains(t, err, "expected at most 1 scope, got 2")
+	})
 }
 
 func TestPortRangesContains(t *testing.T) {
@@ -1019,8 +1040,8 @@ func TestLLMConfiguration(t *testing.T) {
 				spec.URI = SchemeLLMEndpoint + "://my-inference-endpoint"
 				return spec
 			},
-			"aws": func(spec AppSpecV3) AppSpecV3 {
-				spec.AWS = &AppAWS{ExternalID: "default-external-id"}
+			"non-bedrock aws configuration": func(spec AppSpecV3) AppSpecV3 {
+				spec.AWS = &AppAWS{Region: "us-west-2"}
 				return spec
 			},
 			"llm provider": func(spec AppSpecV3) AppSpecV3 {

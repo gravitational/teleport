@@ -39,7 +39,7 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ig, err := s.cache.GetIntegration(ctx, in.Integration)
+	ig, err := s.cache.GetIntegration(ctx, in.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -51,9 +51,9 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 
 	// Currently only public keys are exported.
 	caKeySetWithoutSecrets := caKeySet.WithoutSecrets()
-	return &integrationpb.ExportIntegrationCertAuthoritiesResponse{
+	return integrationpb.ExportIntegrationCertAuthoritiesResponse_builder{
 		CertAuthorities: &caKeySetWithoutSecrets,
-	}, nil
+	}.Build(), nil
 }
 
 func buildGitHubOAuthCredentials(idSecret *types.PluginIdSecretCredential) (*types.PluginStaticCredentialsV1, error) {

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/join/provision"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // JoinState is a signed JWT stored on joining clients alongside their usual
@@ -86,9 +87,12 @@ type JoinStateParams struct {
 }
 
 func (p *JoinStateParams) GetSubject() (string, error) {
+	botName, botScope := p.Token.GetBot()
 	switch {
-	case p.Token.GetBotName() != "":
-		return p.Token.GetBotName(), nil
+	case botName != "":
+		// Bots are namespaced by scope, so only the scope-qualified name
+		// identifies one uniquely. Unscoped bots keep the bare name.
+		return scopes.QualifiedName{Scope: botScope, Name: botName}.String(), nil
 	case p.HostID != "":
 		return p.HostID, nil
 	case p.Token.GetBoundKeypairStatus().BoundHostID != "":

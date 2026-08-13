@@ -62,17 +62,17 @@ type TeleportBotV1List struct {
 // [machineidv1.Bot] and implements the necessary interface methods used
 // by the TeleportResourceReconciler.
 func (l *TeleportBotV1) ToTeleport() *machineidv1.Bot {
-	resource := &machineidv1.Bot{
+	resource := machineidv1.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		},
+		}.Build(),
 		Spec:  (*machineidv1.BotSpec)(l.Spec),
 		Scope: l.Scope,
-	}
+	}.Build()
 	return resource
 }
 

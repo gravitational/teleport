@@ -104,10 +104,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	clusterName := conn.ClusterName()
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		ClusterName:    clusterName,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		ScopesFeatures: process.scopesFeatures,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -226,12 +227,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 				warnOnErr(process.ExitContext(), dbService.Shutdown(payloadContext(payload)), logger)
 			}
 		}
-		if asyncEmitter != nil {
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		}
 		if agentPool != nil {
 			agentPool.Stop()
 		}
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})

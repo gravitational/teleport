@@ -56,6 +56,7 @@ export const Speed = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-speed"
+
       {...otherProps}
       ref={ref}
     >

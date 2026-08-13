@@ -39,12 +39,12 @@ type workloadIdentityClient struct {
 
 // Get gets the Teleport WorkloadIdentity of a given name
 func (l workloadIdentityClient) Get(
-	ctx context.Context, name string,
+	ctx context.Context, key reconcilers.ResourceKey,
 ) (*workloadidentityv1.WorkloadIdentity, error) {
 	resp, err := l.teleportClient.
 		WorkloadIdentityResourceServiceClient().
 		GetWorkloadIdentity(
-			ctx, &workloadidentityv1.GetWorkloadIdentityRequest{Name: name},
+			ctx, workloadidentityv1.GetWorkloadIdentityRequest_builder{Name: key.Name}.Build(),
 		)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -60,9 +60,9 @@ func (l workloadIdentityClient) Create(
 		WorkloadIdentityResourceServiceClient().
 		CreateWorkloadIdentity(
 			ctx,
-			&workloadidentityv1.CreateWorkloadIdentityRequest{
+			workloadidentityv1.CreateWorkloadIdentityRequest_builder{
 				WorkloadIdentity: resource,
-			},
+			}.Build(),
 		)
 	return trace.Wrap(err)
 }
@@ -75,26 +75,26 @@ func (l workloadIdentityClient) Update(
 		WorkloadIdentityResourceServiceClient().
 		UpsertWorkloadIdentity(
 			ctx,
-			&workloadidentityv1.UpsertWorkloadIdentityRequest{
+			workloadidentityv1.UpsertWorkloadIdentityRequest_builder{
 				WorkloadIdentity: resource,
-			},
+			}.Build(),
 		)
 	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport WorkloadIdentity
-func (l workloadIdentityClient) Delete(ctx context.Context, name string) error {
+func (l workloadIdentityClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := l.teleportClient.
 		WorkloadIdentityResourceServiceClient().
 		DeleteWorkloadIdentity(
-			ctx, &workloadidentityv1.DeleteWorkloadIdentityRequest{Name: name},
+			ctx, workloadidentityv1.DeleteWorkloadIdentityRequest_builder{Name: key.Name}.Build(),
 		)
 	return trace.Wrap(err)
 }
 
 // NewWorkloadIdentityV1Reconciler instantiates a new Kubernetes controller
 // reconciling WorkloadIdentity resources
-func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	workloadIdentityClient := &workloadIdentityClient{
 		teleportClient: tClient,
 	}
@@ -104,6 +104,7 @@ func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Clie
 	](
 		client,
 		workloadIdentityClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

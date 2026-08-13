@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_rewriteAuthDetails(t *testing.T) {
@@ -183,4 +185,50 @@ func Test_generateJWTAndTraits(t *testing.T) {
 	require.Len(t, appTokenRequests, 6)
 	require.Equal(t, testCtx.Identity.Expires, appTokenRequests[4].Expires)
 	require.Equal(t, testCtx.Identity.Expires, appTokenRequests[5].Expires)
+}
+
+// TestServer_getSessionHandlerWithJWT_perUserCache verifies that if the user somehow can forge
+// their session ID, they can't access another user's cached session.
+func TestServer_getSessionHandlerWithJWT_perUserCache(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	role, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+
+	bob, err := types.NewUser("bob")
+	require.NoError(t, err)
+
+	aliceSessionCtx := setupTestContext(t, withUser(alice), withRole(role)).SessionCtx
+	bobSessionCtx := setupTestContext(t, withUser(bob), withRole(role)).SessionCtx
+
+	const sharedSessionID = "test_shared_session_id"
+	aliceSessionCtx.sessionID = sharedSessionID
+	bobSessionCtx.sessionID = sharedSessionID
+
+	srv, err := NewServer(ServerConfig{
+		Emitter:       &libevents.DiscardEmitter{},
+		ParentContext: t.Context(),
+		HostID:        "host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    &mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	aliceSessionHandler, err := srv.getSessionHandlerWithJWT(ctx, aliceSessionCtx)
+	require.NoError(t, err)
+
+	bobSessionHandler, err := srv.getSessionHandlerWithJWT(ctx, bobSessionCtx)
+	require.NoError(t, err)
+
+	// Verify that for different users, even the session ctx has the same sessionID, it is
+	// stored under a different cache key.
+	require.Equal(t, aliceSessionCtx.sessionID, bobSessionCtx.sessionID)
+	require.NotEqual(t, aliceSessionCtx.Identity.Username, bobSessionCtx.Identity.Username)
+	require.Equal(t, aliceSessionCtx, aliceSessionHandler.sessionCtx)
+	require.Equal(t, bobSessionCtx, bobSessionHandler.sessionCtx)
 }

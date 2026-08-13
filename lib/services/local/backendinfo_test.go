@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -46,19 +45,19 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	info := &backendinfo1pb.BackendInfo{
+	info := backendinfo1pb.BackendInfo_builder{
 		Kind:     types.KindBackendInfo,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: types.MetaNameBackendInfo},
-		Spec: &backendinfo1pb.BackendInfoSpec{
+		Metadata: headerv1.Metadata_builder{Name: types.MetaNameBackendInfo}.Build(),
+		Spec: backendinfo1pb.BackendInfoSpec_builder{
 			TeleportVersion: "1.2.3",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	created, err := service.CreateBackendInfo(ctx, info)
 	require.NoError(t, err)
 	diff := cmp.Diff(info, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -67,13 +66,13 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	got, err := service.GetBackendInfo(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(info, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	info.Spec.TeleportVersion = "3.2.1"
+	info.GetSpec().SetTeleportVersion("3.2.1")
 	updated, err := service.UpdateBackendInfo(ctx, info)
 	require.NoError(t, err)
 	require.NotEqual(t, got.GetSpec().GetTeleportVersion(), updated.GetSpec().GetTeleportVersion())

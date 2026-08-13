@@ -69,7 +69,7 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 			Resolver:              resolver,
 			ClientConfig:          clientConfig.SSH,
 			Log:                   cfg.Logger,

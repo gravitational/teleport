@@ -17,7 +17,6 @@
 package mfav2
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"log/slog"
@@ -25,9 +24,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
@@ -49,7 +49,7 @@ type AuthServer interface {
 	BeginSSOMFAChallenge(
 		ctx context.Context,
 		params mfatypes.BeginSSOMFAChallengeParams,
-	) (*proto.SSOChallenge, error)
+	) (*clientpb.SSOChallenge, error)
 
 	VerifySSOMFASession(
 		ctx context.Context,
@@ -393,16 +393,20 @@ func (s *Service) ValidateSessionChallenge(
 		mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: mfaResp.GetName(),
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
 					SshSessionId: details.Payload.SSHSessionID,
+					TlsSessionId: details.Payload.TLSSessionID,
 				}.Build(),
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
 				Username:      username,
+				MfaDevice: mfav2.MFADevice_builder{
+					Id: details.Device.Id,
+				}.Build(),
 			}.Build(),
 		}.Build(),
 	)
@@ -494,14 +498,15 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 	chal := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: req.GetName(),
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       req.GetPayload(),
 			SourceCluster: req.GetSourceCluster(),
 			TargetCluster: req.GetTargetCluster(),
 			Username:      req.GetUsername(),
+			MfaDevice:     req.GetMfaDevice(),
 		}.Build(),
 	}.Build()
 
@@ -560,14 +565,14 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.AccessDenied("request source cluster does not match validated challenge source cluster")
 	}
 
-	// Ensure the payload in the request matches the stored challenge payload for the same type.
-	reqSshSessionId := req.GetPayload().GetSshSessionId()
-	storedSshSessionId := chal.GetSpec().GetPayload().GetSshSessionId()
-	if !bytes.Equal(reqSshSessionId, storedSshSessionId) {
+	// Ensure all payload fields in the request match the stored challenge to prevent cross-session replay.
+	if !proto.Equal(req.GetPayload(), chal.GetSpec().GetPayload()) {
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		MfaDevice: chal.GetSpec().GetMfaDevice(),
+	}.Build(), nil
 }
 
 func validateCreateSessionChallengeRequest(req *mfav2.CreateSessionChallengeRequest) error {
@@ -857,8 +862,20 @@ func checkPayload(sip *mfav2.SessionIdentifyingPayload) error {
 		return trace.BadParameter("missing SessionIdentifyingPayload in request")
 	}
 
-	if len(sip.GetSshSessionId()) == 0 {
-		return trace.BadParameter("empty SshSessionId in payload")
+	switch sip.WhichPayload() {
+	case mfav2.SessionIdentifyingPayload_SshSessionId_case:
+		if len(sip.GetSshSessionId()) == 0 {
+			return trace.BadParameter("ssh_session_id must not be empty")
+		}
+
+	case mfav2.SessionIdentifyingPayload_TlsSessionId_case:
+		if len(sip.GetTlsSessionId()) == 0 {
+			return trace.BadParameter("tls_session_id must not be empty")
+		}
+
+	default:
+		// Fail close to avoid any potential auth bypasses.
+		return trace.BadParameter("missing or unknown payload type: %v", sip.WhichPayload())
 	}
 
 	return nil

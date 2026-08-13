@@ -5,13 +5,14 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 Ansible uses the OpenSSH client by default. Teleport supports SSH protocol and
 works as SSH jumphost.
 
-In this guide we will configure OpenSSH client to work with Teleport Proxy
-and run a sample ansible playbook.
+In this guide, you will configure OpenSSH client to work with Teleport Proxy and
+run a sample ansible playbook.
 
 ## How it works
 
@@ -29,6 +30,12 @@ servers.
 - `ssh` openssh tool
 - `ansible` >= (=ansible.min_version=)
 - Optional tool `jq` to process `JSON` output.
+
+<Admonition type="tip" title="Headless and automated environments">
+This guide uses interactive `tsh login`. For headless environments, CI/CD
+pipelines, or automation, use [Machine ID](../../machine-workload-identity/access-guides/ansible.mdx)
+(`tbot`) to issue short-lived credentials without interactive authentication.
+</Admonition>
 
 ## Step 1/3. Login and configure SSH
 

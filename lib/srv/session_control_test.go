@@ -116,9 +116,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 		},
 		TeleportUser: "alpaca",
 		Login:        "alpaca",
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-		},
+		}.Build(),
 	}
 
 	cfgWithDeviceMode := func(mode string) SessionControllerConfig {
@@ -183,10 +183,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 					MaxConnections:   1,
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.NoError(t, err)
@@ -231,10 +231,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 					MaxConnections:   1,
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.NoError(t, err)
@@ -269,10 +269,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 					MaxConnections:   1,
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.ErrorIs(t, err, trace.AccessDenied("lock in force"))
@@ -312,10 +312,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyHardwareKey),
 					MaxConnections:   1,
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.Error(t, err)
@@ -356,10 +356,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 					MaxConnections:   1,
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.Error(t, err)
@@ -408,10 +408,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 					MaxConnections:   0,
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.NoError(t, err)
@@ -482,15 +482,15 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					MaxConnections:   1,
 					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 					Preconditions: []*decisionpb.Precondition{
-						{
+						decisionpb.Precondition_builder{
 							Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.ErrorIs(t, err, authz.ErrIPPinningMismatch)

@@ -75,6 +75,7 @@ type Config struct {
 	AppSession              services.AppSessionReader
 	Applications            services.Applications
 	Beams                   services.BeamReader
+	BeamsConfig             services.BeamsConfigGetter
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -118,7 +119,6 @@ type Config struct {
 	HealthCheckConfig       services.HealthCheckConfigReader
 	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
-	AppAuthConfig           services.AppAuthConfigReader
 	Summarizer              services.Summarizer
 	SubCAService            services.SubCAServiceGetter
 }
@@ -168,6 +168,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Applications,
 		Beams:                   cfg.Beams,
+		BeamsConfig:             cfg.BeamsConfig,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
@@ -210,7 +211,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		BotInstanceService:      cfg.BotInstance,
 		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
-		AppAuthConfig:           cfg.AppAuthConfig,
 		Summarizer:              cfg.Summarizer,
 		SubCAService:            cfg.SubCAService,
 	}

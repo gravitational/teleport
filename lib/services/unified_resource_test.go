@@ -41,6 +41,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -210,7 +211,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	nodeUpdated := newNodeServer(t, "node1", "hostname1", "192.168.0.1:22", false /*tunnel*/)
 	_, err = clt.UpsertNode(ctx, nodeUpdated)
 	require.NoError(t, err)
-	err = clt.DeleteApplicationServer(ctx, defaults.Namespace, "app1-host-id", "app1")
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: "app1-host-id",
+		Name:   "app1",
+	}.Build())
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
@@ -981,6 +985,87 @@ func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.
 	})
 }
 
+func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	client := newClient(t)
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    client,
+		},
+		ResourceGetter: client,
+	})
+	require.NoError(t, err)
+
+	newScopedAppServer := func(scope string) *types.AppServerV3 {
+		app := newApp(t, "graf")
+		app.Scope = scope
+		srv, err := types.NewAppServerV3(types.Metadata{Name: "graf"}, types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App:    app,
+		}, scope)
+		require.NoError(t, err)
+		return srv
+	}
+
+	staging := newScopedAppServer("/staging")
+	prod := newScopedAppServer("/prod")
+	unscoped := newScopedAppServer("")
+
+	for _, srv := range []*types.AppServerV3{staging, prod, unscoped} {
+		_, err = client.UpsertApplicationServer(ctx, srv)
+		require.NoError(t, err)
+	}
+
+	getScopes := func(res []types.ResourceWithLabels) []string {
+		require.NoError(t, err)
+		scopes := []string{}
+		for _, r := range res {
+			appServer, ok := r.(types.AppServer)
+			require.True(t, ok, "expected types.AppServer, got %T", r)
+			scopes = append(scopes, appServer.GetScope())
+		}
+		return scopes
+	}
+
+	// All three same-named apps must be distinct entries.
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 3)
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// Deleting the staging app server (identified by hostID/name only, like the
+	// real deletion paths) must prune exactly the staging entry.
+	require.NoError(t, client.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: staging.Spec.HostID,
+		Name:   staging.GetName(),
+		Scope:  staging.GetScope(),
+	}.Build()))
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 2)
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// The unscoped app is still deletable through the legacy path.
+	require.NoError(t, client.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: unscoped.Spec.HostID,
+		Name:   unscoped.GetName(),
+		Scope:  unscoped.GetScope(),
+	}.Build()))
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		require.ElementsMatch(t, []string{"/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+}
+
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
@@ -1113,18 +1198,26 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteDatabaseServer(ctx, "default", dbServers[0].Spec.HostID, dbServers[0].GetName())
 	require.NoError(t, err)
 	dbServers = dbServers[1:]
-	err = clt.DeleteApplicationServer(ctx, "default", appServers[0].Spec.HostID, appServers[0].GetName())
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServers[0].Spec.HostID,
+		Name:   appServers[0].GetName(),
+		Scope:  appServers[0].GetScope(),
+	}.Build())
 	require.NoError(t, err)
 	appServers = appServers[1:]
 	err = clt.DeleteWindowsDesktop(ctx, desktops[0].Spec.HostID, desktops[0].GetName())
 	require.NoError(t, err)
 	desktops = desktops[1:]
-	err = clt.DeleteKubernetesServer(ctx, kubeServers[0].Spec.HostID, kubeServers[0].GetName())
+	err = clt.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  kubeServers[0].GetScope(),
+		HostId: kubeServers[0].Spec.HostID,
+		Name:   kubeServers[0].GetName(),
+	}.Build())
 	require.NoError(t, err)
 	kubeServers = kubeServers[1:]
 
 	// delete everything else
-	err = clt.DeleteNode(ctx, "default", node.GetName())
+	err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: node.GetName(), Scope: node.GetScope()}.Build())
 	require.NoError(t, err)
 	err = clt.DeleteSAMLIdPServiceProvider(ctx, samlapp.GetName())
 	require.NoError(t, err)
@@ -1151,7 +1244,11 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for _, appServer := range appServers {
-		err = clt.DeleteApplicationServer(ctx, "default", appServer.Spec.HostID, appServer.GetName())
+		err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: appServer.Spec.HostID,
+			Name:   appServer.GetName(),
+			Scope:  appServer.GetScope(),
+		}.Build())
 		require.NoError(t, err)
 	}
 	for _, desktop := range desktops {
@@ -1159,7 +1256,11 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for _, kubeServer := range kubeServers {
-		err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
+		err = clt.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  kubeServer.GetScope(),
+			HostId: kubeServer.GetHostID(),
+			Name:   kubeServer.GetName(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1200,32 +1301,32 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 	accountID := t.Name()
 
-	icAcct, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: t.Name(),
 			Labels: map[string]string{
 				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:          accountID,
 			Arn:         "arn:aws:sso:::account/" + accountID,
 			Name:        "Test AWS Account",
 			Description: "Used for testing",
 			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-				{
+				identitycenterv1.PermissionSetInfo_builder{
 					Name: "Alpha",
 					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-				},
-				{
+				}.Build(),
+				identitycenterv1.PermissionSetInfo_builder{
 					Name: "Beta",
 					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err, "creating Identity Center Account")
 	return icAcct
 }
@@ -1442,22 +1543,22 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create and upsert a Linux desktop
-	linuxDesktop1 := &linuxdesktopv1.LinuxDesktop{
+	linuxDesktop1 := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "linux-desktop-1",
 			Labels: map[string]string{
 				"env":    "production",
 				"region": "us-west-1",
 			},
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.1:22",
 			Hostname: "linux-host-1",
 			ProxyIds: []string{"proxy-1"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop1)
 	require.NoError(t, err)
 
@@ -1481,26 +1582,26 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	unwrapper, ok := resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
 	require.True(t, ok, "resource should be unwrappable to LinuxDesktop")
 	unwrapped := unwrapper.UnwrapT()
-	require.Equal(t, "linux-desktop-1", unwrapped.Metadata.Name)
-	require.Equal(t, "10.0.0.1:22", unwrapped.Spec.Addr)
-	require.Equal(t, "linux-host-1", unwrapped.Spec.Hostname)
+	require.Equal(t, "linux-desktop-1", unwrapped.GetMetadata().GetName())
+	require.Equal(t, "10.0.0.1:22", unwrapped.GetSpec().GetAddr())
+	require.Equal(t, "linux-host-1", unwrapped.GetSpec().GetHostname())
 
 	// Add a second Linux desktop
-	linuxDesktop2 := &linuxdesktopv1.LinuxDesktop{
+	linuxDesktop2 := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "linux-desktop-2",
 			Labels: map[string]string{
 				"env": "staging",
 			},
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.2:22",
 			Hostname: "linux-host-2",
 			ProxyIds: []string{"proxy-2"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop2)
 	require.NoError(t, err)
 
@@ -1549,20 +1650,20 @@ func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 	assert.Eventually(t, w.IsInitialized, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources cache initialization")
 
 	// Add a Linux desktop
-	linuxDesktop := &linuxdesktopv1.LinuxDesktop{
+	linuxDesktop := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "linux-desktop",
 			Labels: map[string]string{
 				"env": "test",
 			},
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.10:22",
 			Hostname: "test-host",
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop)
 	require.NoError(t, err)
 
@@ -1636,37 +1737,37 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 	}{
 		{
 			name: "basic linux desktop",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test-desktop",
 					Labels: map[string]string{
 						"env": "production",
 					},
-				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				}.Build(),
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "192.168.1.100:22",
 					Hostname: "desktop-host",
 					ProxyIds: []string{"proxy-1"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requiresRequest: false,
 			logins:          []string{"ubuntu", "root"},
 		},
 		{
 			name: "linux desktop requiring request",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "protected-desktop",
-				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				}.Build(),
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "10.0.0.50:22",
 					Hostname: "protected-host",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requiresRequest: true,
 			logins:          []string{"admin"},
 		},
@@ -1687,27 +1788,27 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			require.NotNil(t, wireDesktop, "paginated resource should contain LinuxDesktop")
 
 			// Verify fields match
-			require.Equal(t, tt.desktop.Kind, wireDesktop.Kind)
-			require.Equal(t, tt.desktop.Version, wireDesktop.Version)
-			require.Equal(t, tt.desktop.Metadata.Name, wireDesktop.Metadata.Name)
-			require.Equal(t, tt.desktop.Spec.Addr, wireDesktop.Addr)
-			require.Equal(t, tt.desktop.Spec.Hostname, wireDesktop.Hostname)
-			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIds)
+			require.Equal(t, tt.desktop.GetKind(), wireDesktop.Kind)
+			require.Equal(t, tt.desktop.GetVersion(), wireDesktop.Version)
+			require.Equal(t, tt.desktop.GetMetadata().GetName(), wireDesktop.Metadata.Name)
+			require.Equal(t, tt.desktop.GetSpec().GetAddr(), wireDesktop.Addr)
+			require.Equal(t, tt.desktop.GetSpec().GetHostname(), wireDesktop.Hostname)
+			require.Equal(t, tt.desktop.GetSpec().GetProxyIds(), wireDesktop.ProxyIds)
 			require.Equal(t, tt.requiresRequest, paginated.RequiresRequest)
 
 			// Test unpacking
 			unpacked := proto.UnpackLinuxDesktop(wireDesktop)
 			require.NotNil(t, unpacked)
 			require.Equal(t, types.KindLinuxDesktop, unpacked.GetKind())
-			require.Equal(t, tt.desktop.Metadata.Name, unpacked.GetName())
+			require.Equal(t, tt.desktop.GetMetadata().GetName(), unpacked.GetName())
 
 			// Verify it can be unwrapped back to the original type
 			unwrapper, ok := unpacked.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
 			require.True(t, ok, "unpacked resource should be unwrappable")
 			unpackedDesktop := unwrapper.UnwrapT()
-			require.Equal(t, tt.desktop.Metadata.Name, unpackedDesktop.Metadata.Name)
-			require.Equal(t, tt.desktop.Spec.Addr, unpackedDesktop.Spec.Addr)
-			require.Equal(t, tt.desktop.Spec.Hostname, unpackedDesktop.Spec.Hostname)
+			require.Equal(t, tt.desktop.GetMetadata().GetName(), unpackedDesktop.GetMetadata().GetName())
+			require.Equal(t, tt.desktop.GetSpec().GetAddr(), unpackedDesktop.GetSpec().GetAddr())
+			require.Equal(t, tt.desktop.GetSpec().GetHostname(), unpackedDesktop.GetSpec().GetHostname())
 		})
 	}
 }

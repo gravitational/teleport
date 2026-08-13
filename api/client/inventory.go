@@ -357,6 +357,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_StopHeartbeat{
 					StopHeartbeat: msg,
 				}
+			case *proto.InstanceStatus:
+				oneOf.Msg = &proto.UpstreamInventoryOneOf_InstanceStatus{
+					InstanceStatus: msg,
+				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
@@ -500,6 +504,8 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 			msg = oneOf.GetGoodbye()
 		case oneOf.GetStopHeartbeat() != nil:
 			msg = oneOf.GetStopHeartbeat()
+		case oneOf.GetInstanceStatus() != nil:
+			msg = oneOf.GetInstanceStatus()
 		default:
 			slog.WarnContext(stream.Context(), "received unknown upstream message", "message", oneOf)
 			continue

@@ -6,10 +6,13 @@ tags:
  - reference
  - zero-trust
  - infrastructure-identity
+page_type: reference
 ---
 
-Teleport assigns system-defined labels to protected databases. This guide
-describes the system-defined labels and how Teleport uses them.
+Teleport assigns system-defined labels to protected databases. 
+
+This page lists the labels that Teleport assigns to protected databases and
+describes how Teleport uses them.
 
 ## Origin
 
@@ -19,7 +22,7 @@ of the following values:
 | Label Value | Description |
 | - | - |
 | `cloud`   | database resources created by auto-discovery. |
-| `config`  | database resources manually defined in the `database_service.databases` section of `teleport.yaml`. |
+| `config`  | database resources manually defined in the `db_service.databases` section of `teleport.yaml`. |
 | `dynamic` | database resources created through [dynamic registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx) like `tctl create` command. |
 
 ## Auto-discovery
@@ -31,9 +34,10 @@ Amazon RDS instance.
 The following tags will override Teleport's default behavior if assigned to the
 original cloud resources:
 
-| Tag name | Description |
+| Tag or label name | Description |
 | - | - |
-| `TeleportDatabaseName`                   | Overrides the name of the discovered database. |
+| `TeleportDatabaseName`                   | (AWS and Azure) Overrides the name of the discovered database. |
+| `teleport-database-name`                 | (Google Cloud) Overrides the name of the discovered database. |
 | `teleport.dev/database_name`             | (AWS only, legacy) Overrides the name of the discovered database. `TeleportDatabaseName` is preferred. |
 | `teleport.dev/db-admin`                  | (AWS only) Specifies the name of the admin user for Automatic User Provisioning. |
 | `teleport.dev/db-admin-default-database` | (AWS only) Overrides the default database the admin user logs into for Automatic User Provisioning. |

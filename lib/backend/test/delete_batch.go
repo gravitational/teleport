@@ -19,6 +19,7 @@
 package test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -40,10 +41,6 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 		t.Skip("backend does not implement DeleteBatch; skipping DeleteBatch suite")
 	}
 
-	prefix := MakePrefix()
-	rangeStart := prefix("")
-	rangeEnd := backend.RangeEnd(prefix(""))
-
 	putItems := func(t *testing.T, items []backend.Item) {
 		t.Helper()
 		for _, item := range items {
@@ -52,7 +49,7 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 		}
 	}
 
-	newTestItems := func() []backend.Item {
+	newTestItems := func(prefix func(components ...string) backend.Key) []backend.Item {
 		return []backend.Item{
 			{Key: prefix("a"), Value: []byte("A"), Expires: time.Now().Add(1 * time.Hour)},
 			{Key: prefix("b"), Value: []byte("B")},
@@ -61,7 +58,11 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 	}
 
 	t.Run("delete batch items should be propagated in event stream", func(t *testing.T) {
-		items := newTestItems()
+		prefix := MakePrefix()
+		rangeStart := prefix("")
+		rangeEnd := backend.RangeEnd(prefix(""))
+
+		items := newTestItems(prefix)
 		putItems(t, items)
 
 		w, err := bk.NewWatcher(t.Context(), backend.Watch{})
@@ -83,7 +84,8 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 		err = deleter.DeleteBatch(t.Context(), keys)
 		require.NoError(t, err)
 
-		got := waitForDeleteEvents(t, w, len(keys), watchEventTimeout)
+		got := waitForDeleteEvents(t, w, len(keys), rangeStart, rangeEnd, watchEventTimeout)
+		slices.SortFunc(got, backend.Key.Compare)
 		require.Len(t, got, len(keys))
 		for i, key := range keys {
 			require.Equal(t, 0, key.Compare(got[i]))
@@ -96,7 +98,11 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 	})
 
 	t.Run("delete-then-verify-empty", func(t *testing.T) {
-		items := newTestItems()
+		prefix := MakePrefix()
+		rangeStart := prefix("")
+		rangeEnd := backend.RangeEnd(prefix(""))
+
+		items := newTestItems(prefix)
 		putItems(t, items)
 
 		// Verify items exist.
@@ -119,6 +125,8 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 	})
 
 	t.Run("delete-nonexistent-keys", func(t *testing.T) {
+		prefix := MakePrefix()
+
 		keys := []backend.Key{
 			prefix("nonexistent1"),
 			prefix("nonexistent2"),
@@ -139,7 +147,11 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 	})
 
 	t.Run("delete-partial-existing", func(t *testing.T) {
-		items := newTestItems()
+		prefix := MakePrefix()
+		rangeStart := prefix("")
+		rangeEnd := backend.RangeEnd(prefix(""))
+
+		items := newTestItems(prefix)
 		putItems(t, items)
 
 		// Delete a mix of existing and non-existing keys.
@@ -162,7 +174,7 @@ func runDeleteBatch(t *testing.T, newBackend Constructor) {
 	})
 }
 
-func waitForDeleteEvents(t *testing.T, w backend.Watcher, wantCount int, timeout time.Duration) []backend.Key {
+func waitForDeleteEvents(t *testing.T, w backend.Watcher, wantCount int, rangeStart backend.Key, rangeEnd backend.Key, timeout time.Duration) []backend.Key {
 	t.Helper()
 
 	var out []backend.Key
@@ -171,11 +183,8 @@ func waitForDeleteEvents(t *testing.T, w backend.Watcher, wantCount int, timeout
 
 	for len(out) < wantCount {
 		select {
-		case ev, ok := <-w.Events():
-			if !ok {
-				t.Fatalf("watcher closed before receiving all events: got=%d want=%d", len(out), wantCount)
-			}
-			if ev.Type == types.OpDelete {
+		case ev := <-w.Events():
+			if ev.Type == types.OpDelete && rangeStart.Compare(ev.Item.Key) <= 0 && ev.Item.Key.Compare(rangeEnd) <= 0 {
 				out = append(out, ev.Item.Key)
 			}
 		case <-deadline.C:

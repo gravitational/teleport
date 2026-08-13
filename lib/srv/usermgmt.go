@@ -295,12 +295,12 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUs
 	ctx := u.ctx
 	log := u.log.With(
 		"host_username", hostUser.Name,
-		"mode", ui.Mode,
+		"mode", ui.GetMode(),
 		"uid", hostUser.UID,
 		"gid", hostUser.GID,
 	)
 
-	if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP {
+	if ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_KEEP {
 		_, hasKeepGroup := hostUser.Groups[apiconstants.TeleportKeepGroup]
 		if !hasKeepGroup {
 			home, err := u.backend.GetDefaultHomeDirectory(hostUser.Name)
@@ -317,7 +317,7 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUs
 	}
 
 	return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		return trace.Wrap(u.backend.UpdateUser(hostUser.Name, ui.Groups, ui.Shell))
+		return trace.Wrap(u.backend.UpdateUser(hostUser.Name, ui.GetGroups(), ui.GetShell()))
 	}))
 }
 
@@ -350,21 +350,21 @@ func (u *HostUserManagement) resolveGID(username string, groups []string, gid st
 func (u *HostUserManagement) createUser(name string, ui *decisionpb.HostUsersInfo) error {
 	log := u.log.With(
 		"host_username", name,
-		"mode", ui.Mode,
-		"uid", ui.Uid,
-		"shell", ui.Shell,
+		"mode", ui.GetMode(),
+		"uid", ui.GetUid(),
+		"shell", ui.GetShell(),
 	)
 
-	log.DebugContext(u.ctx, "Attempting to create host user", "gid", ui.Gid)
+	log.DebugContext(u.ctx, "Attempting to create host user", "gid", ui.GetGid())
 
 	var err error
 	userOpts := host.UserOpts{
-		UID:   ui.Uid,
-		GID:   ui.Gid,
-		Shell: ui.Shell,
+		UID:   ui.GetUid(),
+		GID:   ui.GetGid(),
+		Shell: ui.GetShell(),
 	}
 
-	switch ui.Mode {
+	switch ui.GetMode() {
 	case decisionpb.HostUserMode_HOST_USER_MODE_KEEP, decisionpb.HostUserMode_HOST_USER_MODE_STATIC:
 		userOpts.Home, err = u.backend.GetDefaultHomeDirectory(name)
 		if err != nil {
@@ -373,19 +373,19 @@ func (u *HostUserManagement) createUser(name string, ui *decisionpb.HostUsersInf
 	}
 
 	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_DROP {
+		if ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_DROP {
 			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		userOpts.GID, err = u.resolveGID(name, ui.Groups, ui.Gid)
+		userOpts.GID, err = u.resolveGID(name, ui.GetGroups(), ui.GetGid())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		log.InfoContext(u.ctx, "Creating host user", "gid", userOpts.GID)
-		err = u.backend.CreateUser(name, ui.Groups, userOpts)
+		err = u.backend.CreateUser(name, ui.GetGroups(), userOpts)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
@@ -438,9 +438,9 @@ type HostUser struct {
 func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error) {
 	log := u.log.With(
 		"host_username", name,
-		"mode", ui.Mode,
-		"uid", ui.Uid,
-		"gid", ui.Gid,
+		"mode", ui.GetMode(),
+		"uid", ui.GetUid(),
+		"gid", ui.GetGid(),
 	)
 
 	var options upsertHostUserOptions
@@ -477,10 +477,10 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 	}
 
 	ui = apiutils.CloneProtoMsg(ui)
-	ui.Groups = groups
+	ui.SetGroups(groups)
 
 	var closer io.Closer
-	if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_DROP {
+	if ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_DROP {
 		closer = &userCloser{
 			username: name,
 			users:    u,
@@ -498,14 +498,14 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 	}
 
 	// nothing to update
-	if groups == nil && ui.Shell == "" {
+	if groups == nil && ui.GetShell() == "" {
 		return closer, nil
 	}
 
 	if groups == nil {
 		// only bother checking the user's current shell if we aren't already
 		// updating their groups
-		usingShell, err := u.backend.IsUsingShell(name, ui.Shell)
+		usingShell, err := u.backend.IsUsingShell(name, ui.GetShell())
 		if err != nil {
 			log.WarnContext(u.ctx, "Failed to check user's default shell", "error", err)
 		}
@@ -741,8 +741,8 @@ func (u *HostUserManagement) getHostUser(username string) (*HostUser, error) {
 
 func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostUsersInfo, takeOwnership bool) ([]string, error) {
 	// converting to a map since we need deduplication and arbitrary lookups
-	groups := make(map[string]struct{}, len(ui.Groups))
-	for _, group := range ui.Groups {
+	groups := make(map[string]struct{}, len(ui.GetGroups()))
+	for _, group := range ui.GetGroups() {
 		groups[group] = struct{}{}
 	}
 
@@ -757,7 +757,7 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 
 	// if we assign a teleport group, it will always coincide with the mode we're currently in, so we can compute it right away
 	teleportGroup := ""
-	switch ui.Mode {
+	switch ui.GetMode() {
 	case decisionpb.HostUserMode_HOST_USER_MODE_DROP:
 		teleportGroup = apiconstants.TeleportDropGroup
 	case decisionpb.HostUserMode_HOST_USER_MODE_KEEP:
@@ -777,12 +777,12 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 		_, hasDropGroup := hostUser.Groups[apiconstants.TeleportDropGroup]
 		_, hasKeepGroup := hostUser.Groups[apiconstants.TeleportKeepGroup]
 
-		migrateStaticUser := takeOwnership && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
-		migrateKeepUser := hasExplicitKeepGroup && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP
+		migrateStaticUser := takeOwnership && ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+		migrateKeepUser := hasExplicitKeepGroup && ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_KEEP
 
 		managedUser := hasKeepGroup || hasDropGroup
 		_, staticUser := hostUser.Groups[apiconstants.TeleportStaticGroup]
-		inStaticMode := ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+		inStaticMode := ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
 
 		if (inStaticMode && managedUser) || (!inStaticMode && staticUser) {
 			return nil, trace.Wrap(errStaticConversion)

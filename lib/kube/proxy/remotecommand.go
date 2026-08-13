@@ -32,12 +32,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+	"k8s.io/streaming/pkg/httpstream"
+	spdystream "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
@@ -388,6 +388,7 @@ func (*v4ProtocolHandler) waitForStreams(connContext context.Context, streams <-
 	remoteProxy := &remoteCommandProxy{}
 	receivedStreams := 0
 	replyChan := make(chan struct{})
+	seen := make(map[string]bool, 5)
 
 	stopCtx, cancel := context.WithCancel(connContext)
 	defer cancel()
@@ -396,21 +397,29 @@ WaitForStreams:
 		select {
 		case stream := <-streams:
 			streamType := stream.Headers().Get(StreamType)
+			if seen[streamType] {
+				return nil, trace.BadParameter("client opened duplicate %q stream", streamType)
+			}
 			switch streamType {
 			case StreamTypeError:
 				remoteProxy.writeStatus = v4WriteStatusFunc(stream)
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeStdin:
 				remoteProxy.stdinStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeStdout:
 				remoteProxy.stdoutStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeStderr:
 				remoteProxy.stderrStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeResize:
 				remoteProxy.resizeStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			default:
 				slog.WarnContext(stopCtx, "Ignoring unexpected stream type", "stream_type", streamType)
@@ -438,7 +447,10 @@ func (*v4ProtocolHandler) supportsTerminalResizing() bool { return true }
 func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan<- struct{}) {
 	select {
 	case <-replySent:
-		notify <- struct{}{}
+		select {
+		case notify <- struct{}{}:
+		case <-ctx.Done():
+		}
 	case <-ctx.Done():
 	}
 }

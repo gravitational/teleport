@@ -21,7 +21,6 @@ import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -29,6 +28,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
 } from 'design/utils/testing';
@@ -140,6 +140,52 @@ it('having only instances permissions should show warning banner', async () => {
       })
     ).toBeInTheDocument();
   });
+});
+
+it('type filter option should be disabled for bot instances when the user can only read instances', async () => {
+  server.use(listOnlyRegularInstances);
+  const { user } = renderComponent({
+    customAcl: makeAcl({
+      instances: {
+        ...defaultAccess,
+        list: true,
+        read: true,
+      },
+      botInstances: {
+        ...defaultAccess,
+        list: false,
+        read: false,
+      },
+    }),
+  });
+
+  await user.click(screen.getByRole('button', { name: /Type/i }));
+
+  expect(screen.getByTestId('option-instance')).toBeEnabled();
+  expect(screen.getByTestId('option-bot_instance')).toBeDisabled();
+});
+
+it('type filter option should be disabled for instances when the user can only read bot instances', async () => {
+  server.use(listOnlyBotInstances);
+  const { user } = renderComponent({
+    customAcl: makeAcl({
+      instances: {
+        ...defaultAccess,
+        list: false,
+        read: false,
+      },
+      botInstances: {
+        ...defaultAccess,
+        list: true,
+        read: true,
+      },
+    }),
+  });
+
+  await user.click(screen.getByRole('button', { name: /Type/i }));
+
+  expect(screen.getByTestId('option-instance')).toBeDisabled();
+  expect(screen.getByTestId('option-bot_instance')).toBeEnabled();
 });
 
 it('cache still initializing error should show correct error', async () => {
@@ -316,7 +362,7 @@ function makeWrapper(options: {
     return (
       <MemoryRouter initialEntries={[initialUrl]}>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <ContextProvider ctx={ctx}>
               <Routes>
                 <Route path={cfg.routes.instances} element={children} />

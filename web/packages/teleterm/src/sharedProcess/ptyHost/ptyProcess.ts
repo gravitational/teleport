@@ -24,6 +24,7 @@ import { promisify } from 'node:util';
 import * as nodePTY from 'node-pty';
 import which from 'which';
 
+import { getErrorMessage } from 'shared/utils/error';
 import { wait } from 'shared/utils/wait';
 
 import Logger from 'teleterm/logger';
@@ -80,7 +81,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       this._process = nodePTY.spawn(this.options.path, this.options.args, {
         cols,
         rows,
-        name: 'xterm-color',
+        name: 'xterm-256color',
         // HOME should be always defined. But just in case it isn't let's use the cwd from process.
         // https://unix.stackexchange.com/questions/123858
         cwd: this.options.cwd || getDefaultCwd(this.options.env),
@@ -257,11 +258,11 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     }
   }
 
-  private handleStartError(error: Error) {
+  private handleStartError(error: unknown) {
     const command = `${this.options.path} ${this.options.args.join(' ')}`;
     this.emit(
       TermEventEnum.StartError,
-      `Cannot execute ${command}: ${error.message}`
+      `Cannot execute ${command}: ${getErrorMessage(error)}`
     );
   }
 

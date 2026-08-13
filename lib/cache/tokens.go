@@ -67,7 +67,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.staticTokens)
@@ -128,32 +128,6 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 		},
 		watch: w,
 	}, nil
-}
-
-// GetTokens returns all active (non-expired) provisioning tokens
-// Deprecated: use [ListProvisionTokens] istead.
-// TODO(hugoShaka): DELETE IN 19.0.0
-func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
-	defer span.End()
-
-	rg, err := acquireReadGuard(c, c.collections.provisionTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		tokens, err := c.Config.Provisioner.GetTokens(ctx)
-		return tokens, trace.Wrap(err)
-	}
-
-	tokens := make([]types.ProvisionToken, 0, rg.store.len())
-	for t := range rg.store.resources(provisionTokenStoreNameIndex, "", "") {
-		tokens = append(tokens, t.Clone())
-	}
-
-	return tokens, nil
 }
 
 // GetToken finds and returns token by ID

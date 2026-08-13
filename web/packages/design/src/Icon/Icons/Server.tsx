@@ -56,6 +56,7 @@ export const Server = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-server"
+
       {...otherProps}
       ref={ref}
     >

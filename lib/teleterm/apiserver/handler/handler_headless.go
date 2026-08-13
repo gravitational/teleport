@@ -28,7 +28,7 @@ import (
 
 // UpdateHeadlessAuthenticationState logs in a user to a cluster
 func (s *Handler) UpdateHeadlessAuthenticationState(ctx context.Context, req *api.UpdateHeadlessAuthenticationStateRequest) (*api.UpdateHeadlessAuthenticationStateResponse, error) {
-	if err := s.DaemonService.UpdateHeadlessAuthenticationState(ctx, req.RootClusterUri, req.HeadlessAuthenticationId, req.State); err != nil {
+	if err := s.DaemonService.UpdateHeadlessAuthenticationState(ctx, req.GetRootClusterUri(), req.GetHeadlessAuthenticationId(), req.GetState()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -54,13 +54,13 @@ func newInferenceModelCollection(upstream services.Summarizer, w types.WatchKind
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.InferenceModel {
-			return &summarizerv1.InferenceModel{
+			return summarizerv1.InferenceModel_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -120,13 +120,13 @@ func newInferenceSecretCollection(upstream services.Summarizer, w types.WatchKin
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.InferenceSecret {
-			return &summarizerv1.InferenceSecret{
+			return summarizerv1.InferenceSecret_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -186,13 +186,13 @@ func newInferencePolicyCollection(upstream services.Summarizer, w types.WatchKin
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.InferencePolicy {
-			return &summarizerv1.InferencePolicy{
+			return summarizerv1.InferencePolicy_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -255,6 +255,99 @@ func (c *Cache) AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv
 	}
 }
 
+type classifierIndex struct{}
+
+var classifierNameIndex = classifierIndex{}
+
+func newClassifierCollection(upstream services.Summarizer, w types.WatchKind) (*collection[*summarizerv1.Classifier, classifierIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter Summarizer")
+	}
+
+	return &collection[*summarizerv1.Classifier, classifierIndex]{
+		store: newStore(
+			types.KindClassifier,
+			proto.CloneOf[*summarizerv1.Classifier],
+			map[classifierIndex]func(*summarizerv1.Classifier) string{
+				classifierNameIndex: func(r *summarizerv1.Classifier) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*summarizerv1.Classifier, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListClassifiers))
+			return out, trace.Wrap(err)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.Classifier {
+			return summarizerv1.Classifier_builder{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: headerv1.Metadata_builder{
+					Name: hdr.Metadata.Name,
+				}.Build(),
+			}.Build()
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetClassifier(ctx context.Context, name string) (*summarizerv1.Classifier, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetClassifier")
+	defer span.End()
+
+	getter := genericGetter[*summarizerv1.Classifier, classifierIndex]{
+		cache:       c,
+		collection:  c.collections.classifiers,
+		index:       classifierNameIndex,
+		upstreamGet: c.Config.Summarizer.GetClassifier,
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListClassifiers(ctx context.Context, pageSize int, pageToken string) ([]*summarizerv1.Classifier, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListClassifiers")
+	defer span.End()
+
+	lister := genericLister[*summarizerv1.Classifier, classifierIndex]{
+		cache:        c,
+		collection:   c.collections.classifiers,
+		index:        classifierNameIndex,
+		upstreamList: c.Config.Summarizer.ListClassifiers,
+		nextToken: func(t *summarizerv1.Classifier) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
+
+func (c *Cache) RangeClassifiers(ctx context.Context, start, end string) iter.Seq2[*summarizerv1.Classifier, error] {
+	lister := genericLister[*summarizerv1.Classifier, classifierIndex]{
+		cache:        c,
+		collection:   c.collections.classifiers,
+		index:        classifierNameIndex,
+		upstreamList: c.Config.Summarizer.ListClassifiers,
+		nextToken: func(t *summarizerv1.Classifier) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+
+	return func(yield func(*summarizerv1.Classifier, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeClassifiers")
+		defer span.End()
+
+		for classifier, err := range lister.Range(ctx, start, end) {
+			if !yield(classifier, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
 type retrievalModelIndex struct{}
 
 var retrievalModelNameIndex = retrievalModelIndex{}
@@ -284,13 +377,13 @@ func newRetrievalModelCollection(upstream services.Summarizer, w types.WatchKind
 			return []*summarizerv1.RetrievalModel{model}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.RetrievalModel {
-			return &summarizerv1.RetrievalModel{
+			return summarizerv1.RetrievalModel_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

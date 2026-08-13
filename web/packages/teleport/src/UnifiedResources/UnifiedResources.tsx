@@ -16,11 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState, type JSX } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type JSX,
+  type ReactNode,
+} from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import Box from 'design/Box';
+import Flex from 'design/Flex';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
@@ -38,6 +45,7 @@ import {
   getResourceId,
   openStatusInfoPanel,
 } from 'shared/components/UnifiedResources/shared/StatusInfo';
+import { useStore } from 'shared/libs/stores';
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
@@ -52,6 +60,7 @@ import {
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
+import { shouldHideInaccessibleFeatures } from 'teleport/features';
 import { useNoMinWidth } from 'teleport/Main';
 import {
   SamlAppActionProvider,
@@ -88,8 +97,24 @@ export const ResizingResourceWrapper = styled(Box)`
   padding-right: ${props => props.theme.space[3]}px;
 `;
 
+// expandDesktopKinds ensures that we include both Windows in Linux in every search that targets desktops
+function expandDesktopKinds(kinds?: string[]): string[] | undefined {
+  if (!kinds || kinds.length === 0) {
+    return kinds;
+  }
+
+  const hasWindowsDesktop = kinds.includes('windows_desktop');
+  const hasLinuxDesktop = kinds.includes('linux_desktop');
+
+  if (!hasWindowsDesktop && !hasLinuxDesktop) {
+    return kinds;
+  }
+
+  return Array.from(new Set([...kinds, 'windows_desktop', 'linux_desktop']));
+}
+
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
-  return [
+  const kinds: FilterKind[] = [
     {
       kind: 'node',
       disabled: !flags.nodes,
@@ -119,6 +144,13 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       disabled: !flags.applications,
     },
   ];
+
+  // When feature hiding is enabled, kinds the user can't access are removed from the filter entirely.
+  if (shouldHideInaccessibleFeatures(cfg)) {
+    return kinds.filter(kind => !kind.disabled);
+  }
+
+  return kinds;
 };
 
 export function ClusterResources({
@@ -128,6 +160,7 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
+  ctaSlot,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
@@ -139,8 +172,19 @@ export function ClusterResources({
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
+  /**
+   * Optional render-prop for rendering content (such as a CTA) that depends on
+   * the current resource list. It's given the number of currently displayed
+   * resources along with whether any filter or search is active, so the content
+   * can tell a genuinely empty cluster apart from a list emptied by filtering.
+   */
+  ctaSlot?: (props: {
+    resourceCount: number;
+    isFilterApplied: boolean;
+  }) => ReactNode;
 }) {
   const teleCtx = useTeleport();
+  const storeUser = useStore(teleCtx.storeUser);
   const flags = teleCtx.getFeatureFlags();
 
   useNoMinWidth();
@@ -188,6 +232,7 @@ export function ClusterResources({
   } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
+        const kinds = expandDesktopKinds(params.kinds);
         const response = await teleCtx.resourceService.fetchUnifiedResources(
           clusterId,
           {
@@ -195,7 +240,7 @@ export function ClusterResources({
             query: buildPredicateExpression(params.statuses, params.query),
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
-            kinds: params.kinds,
+            kinds,
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
@@ -275,6 +320,13 @@ export function ClusterResources({
     });
   }
 
+  const isFilterApplied =
+    !!params.search ||
+    !!params.query ||
+    !!params.pinnedOnly ||
+    !!params.kinds?.length ||
+    !!params.statuses?.length;
+
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
@@ -292,11 +344,15 @@ export function ClusterResources({
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
         ClusterDropdown={
-          <ClusterDropdown
-            clusterLoader={teleCtx.clusterService}
-            clusterId={clusterId}
-            onError={setLoadClusterError}
-          />
+          // TODO(bl-nero): Enable cluster dropdown for scoped sessions once
+          // it's supported on the backend.
+          storeUser.getScope() ? undefined : (
+            <ClusterDropdown
+              clusterLoader={teleCtx.clusterService}
+              clusterId={clusterId}
+              onError={setLoadClusterError}
+            />
+          )
         }
         NoResources={
           <Empty
@@ -340,6 +396,7 @@ export function ClusterResources({
           </>
         }
       />
+      {ctaSlot?.({ resourceCount: resources.length, isFilterApplied })}
     </>
   );
 }

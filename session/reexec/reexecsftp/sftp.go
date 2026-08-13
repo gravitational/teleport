@@ -38,6 +38,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
+	"github.com/gravitational/teleport/session/reexec/safefile"
 	"github.com/gravitational/teleport/session/sftputils"
 )
 
@@ -106,6 +107,14 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 		return nil
 	}
 
+	isDir, err := pathIsDir(req.Filepath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isDir {
+		return trace.Errorf("destination path %s is a directory, it must be a file", req.Filepath)
+	}
+
 	cleaned := path.Clean(filepath.ToSlash(req.Filepath))
 	if s.allowed.path != cleaned {
 		return trace.Errorf("operations are only allowed on %s, not %s", s.allowed.path, cleaned)
@@ -129,6 +138,18 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	}
 
 	return nil
+}
+
+func pathIsDir(path string) (bool, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, trace.Wrap(err)
+	}
+
+	return fi.IsDir(), nil
 }
 
 // OpenFile handles Open requests for both reading and writing. Required to
@@ -182,7 +203,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 	var err error
 	if s.allowed != nil {
 		// Files in moderated sessions may not include symlinks.
-		f, err = openFileNoFollow(req.Filepath, flags, 0o644)
+		f, err = safefile.OpenFileNoFollow(req.Filepath, flags, 0o644)
 	} else {
 		f, err = os.OpenFile(req.Filepath, flags, 0o644)
 	}
@@ -392,73 +413,6 @@ func openFD(fd uintptr, name string) (*os.File, error) {
 	return file, nil
 }
 
-// openAtAndClose opens a file under the parent directory without following
-// symlinks, then closes the parent file. The parent file will be
-// closed even if this function returns an error.
-func openAtAndClose(parent *os.File, name string, flags int, mode os.FileMode) (*os.File, error) {
-	defer parent.Close()
-	syscallConn, err := parent.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-	var childFd int
-	var openAtErr error
-	ctrlErr := syscallConn.Control(func(fd uintptr) {
-		for {
-			childFd, openAtErr = unix.Openat(int(fd), name, flags|unix.O_NOFOLLOW|unix.O_CLOEXEC, uint32(mode))
-			if !errors.Is(openAtErr, syscall.EINTR) {
-				return
-			}
-		}
-	})
-	if ctrlErr != nil {
-		return nil, ctrlErr
-	} else if openAtErr != nil {
-		return nil, openAtErr
-	}
-	return os.NewFile(uintptr(childFd), filepath.Join(parent.Name(), name)), nil
-}
-
-// openFileNoFollow opens a file without following symlinks in any part of the path.
-func openFileNoFollow(file string, flags int, mode os.FileMode) (*os.File, error) {
-	if !filepath.IsAbs(file) {
-		return nil, trace.BadParameter("file path must be absolute")
-	}
-	dir, filename := filepath.Split(file)
-	relDir, err := filepath.Rel(string(os.PathSeparator), dir)
-	if err != nil {
-		return nil, err
-	}
-	parent, err := os.OpenFile(string(os.PathSeparator), readOnlyPath, 0)
-	if err != nil {
-		return nil, err
-	}
-	// Open each directory one at a time to ensure no symlinks are followed.
-	for relDir != "" {
-		var part string
-		part, relDir, _ = strings.Cut(relDir, string(os.PathSeparator))
-		parent, err = openAtAndClose(parent, part, unix.O_DIRECTORY|readOnlyPath, 0)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Set nonblock so we don't hang in case file is a pipe.
-	f, err := openAtAndClose(parent, filename, flags|unix.O_NONBLOCK, mode)
-	if err != nil {
-		return nil, err
-	}
-	info, err := f.Stat()
-	if err != nil {
-		_ = f.Close()
-		return nil, err
-	}
-	if !info.Mode().IsRegular() {
-		_ = f.Close()
-		return nil, trace.BadParameter("path does not point to a regular file")
-	}
-	return f, nil
-}
-
 func chtimes(file *os.File, atime, mtime time.Time) error {
 	syscallConn, err := file.SyscallConn()
 	if err != nil {
@@ -492,7 +446,7 @@ func setstatNoFollow(file string, attrFlags sftp.FileAttrFlags, attrs *sftp.File
 		// Only open in write mode if needed to truncate.
 		mode = os.O_WRONLY
 	}
-	f, err := openFileNoFollow(file, mode, 0)
+	f, err := safefile.OpenFileNoFollow(file, mode, 0)
 	if err != nil {
 		return err
 	}
@@ -508,7 +462,9 @@ func setstatNoFollow(file string, attrFlags sftp.FileAttrFlags, attrs *sftp.File
 		}
 	}
 	if attrFlags.Permissions {
-		if err := f.Chmod(attrs.FileMode()); err != nil {
+		// Prevent setuid/setgid/sticky bits from being set.
+		mode := attrs.FileMode() & os.ModePerm
+		if err := f.Chmod(mode); err != nil {
 			return err
 		}
 	}

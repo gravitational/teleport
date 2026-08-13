@@ -109,11 +109,12 @@ export function UnhealthyStatusInfo({
           </Alert>
         )}
         <InfoParagraph>
-          {attempt.status === 'success' && !servers?.length && (
-            // Refresh might be required if all health checks passed
-            // while unified resources page has been stale.
-            <Text bold>No Results. Try refreshing the page.</Text>
-          )}
+          {attempt.status === 'success' &&
+            !servers?.length && (
+              // Refresh might be required if all health checks passed
+              // while unified resources page has been stale.
+              <Text bold>No Results. Try refreshing the page.</Text>
+            )}
           {attempt.status === 'success' && servers?.length > 0 && (
             <Box
               css={`
@@ -290,10 +291,12 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
         padding: ${p => p.theme.space[3]}px;
         border-left: 4px solid
           ${p => p.theme.colors.interactive.solid.alert.default};
-        ${index !== lastServerInList &&
-        css`
-          border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
-        `}
+        ${
+          index !== lastServerInList &&
+          css`
+            border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
+          `
+        }
       `}
     >
       <Text>

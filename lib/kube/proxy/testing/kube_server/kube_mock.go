@@ -48,9 +48,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	portforwardconstants "k8s.io/apimachinery/pkg/util/portforward"
 	apiremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
 	versionUtil "k8s.io/apimachinery/pkg/util/version"
@@ -58,6 +55,9 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/streaming/pkg/httpstream"
+	spdystream "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -305,6 +305,7 @@ func (s *KubeMockServer) setup() {
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/"+k.plural, s.withWriter(s.listCRDs(crd)))
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.getCRD(crd)))
 		router.Handle("DELETE /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.deleteCRD(crd)))
+		router.Handle("GET /apis/"+k.group+"/"+k.version+"/proxy/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.getCRD(crd)))
 	}
 
 	router.Handle("GET /version", s.withWriter(s.versionEndpoint))
@@ -852,7 +853,10 @@ func (*v4ProtocolHandler) supportsTerminalResizing() bool { return true }
 func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan<- struct{}) {
 	select {
 	case <-replySent:
-		notify <- struct{}{}
+		select {
+		case notify <- struct{}{}:
+		case <-ctx.Done():
+		}
 	case <-ctx.Done():
 	}
 }

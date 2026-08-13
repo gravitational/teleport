@@ -6,6 +6,7 @@ tags:
  - reference
  - zero-trust
  - infrastructure-identity
+page_type: reference
 ---
 
 The Teleport Database Service requires IAM permissions for various tasks
@@ -22,8 +23,9 @@ policies:
 $ teleport db configure aws print-iam --types rds,redshift --role teleport-db-service-role
 ```
 
-To learn more about IAM permissions for a specific type of database, refer to
-the related section below.
+This page lists the AWS IAM permissions required for protecting different
+databases with Teleport. To learn more about IAM permissions for a specific type
+of database, refer to the related section below.
 
 ## DocumentDB
 

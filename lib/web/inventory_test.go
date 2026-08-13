@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -112,51 +113,51 @@ func TestListUnifiedInstances(t *testing.T) {
 
 	// Create mock bot instances
 	bots := []*machineidv1.BotInstance{
-		{
-			Metadata: &headerv1.Metadata{Name: "bot-1"},
-			Spec: &machineidv1.BotInstanceSpec{
+		machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{Name: "bot-1"}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: "bot-1",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.7.0",
-					},
+					}.Build(),
 				},
-			},
-		},
-		{
-			Metadata: &headerv1.Metadata{Name: "bot-2"},
-			Spec: &machineidv1.BotInstanceSpec{
+			}.Build(),
+		}.Build(),
+		machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{Name: "bot-2"}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-2",
 				InstanceId: "bot-2",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.8.0",
-					},
+					}.Build(),
 				},
-			},
-		},
-		{
-			Metadata: &headerv1.Metadata{Name: "bot-3"},
-			Spec: &machineidv1.BotInstanceSpec{
+			}.Build(),
+		}.Build(),
+		machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{Name: "bot-3"}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-3",
 				InstanceId: "bot-3",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.9.0",
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 	for _, bot := range bots {
 		_, err := env.server.Auth().BotInstance.CreateBotInstance(ctx, bot)
@@ -241,4 +242,79 @@ func TestListUnifiedInstances(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &listResp))
 	require.Empty(t, listResp.Instances, "should find no items matching the search")
+}
+
+// TestListUnifiedInstancesPartialPermissions verifies how the list treats a user who can only read one of the two
+// instance kinds: with no type filter applied they still get a list of the kind they can read, while explicitly
+// filtering for a kind they can't read is an access denied error.
+func TestListUnifiedInstancesPartialPermissions(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	env := newWebPack(t, 1, func(cfg *WebPackOptions) {
+		cfg.enableAuthCache = true
+	})
+
+	require.NoError(t, env.server.Auth().UpsertInstance(ctx, &types.InstanceV1{
+		ResourceHeader: types.ResourceHeader{Metadata: types.Metadata{Name: "instance-1"}},
+		Spec:           types.InstanceSpecV1{Hostname: "host-1", Version: "18.1.0"},
+	}))
+	_, err := env.server.Auth().BotInstance.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
+		Metadata: headerv1.Metadata_builder{Name: "bot-1"}.Build(),
+		Spec:     machineidv1.BotInstanceSpec_builder{BotName: "bot-1", InstanceId: "bot-1"}.Build(),
+		Status:   machineidv1.BotInstanceStatus_builder{}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	packWithAccessTo := func(username string, kinds ...string) *authPack {
+		rules := make([]types.Rule, 0, len(kinds))
+		for _, kind := range kinds {
+			rules = append(rules, types.NewRule(kind, []string{types.VerbRead, types.VerbList}))
+		}
+		role, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+			Allow: types.RoleConditions{Rules: rules},
+		})
+		require.NoError(t, err)
+		return env.proxies[0].authPack(t, username, []types.Role{role})
+	}
+
+	instanceOnly := packWithAccessTo("instance-only", types.KindInstance)
+	botOnly := packWithAccessTo("bot-only", types.KindBotInstance)
+	noAccess := packWithAccessTo("no-access")
+
+	endpoint := instanceOnly.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "instances")
+
+	var listResp listUnifiedInstancesResponse
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := instanceOnly.clt.Get(ctx, endpoint, url.Values{})
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.NoError(t, json.Unmarshal(resp.Bytes(), &listResp))
+		assert.Len(t, listResp.Instances, 1)
+	}, 10*time.Second, 100*time.Millisecond, "inventory cache failed to become healthy and populated")
+	require.Equal(t, "instance-1", listResp.Instances[0].ID)
+
+	// A user who can only read bot instances gets the bot instance
+	resp, err := botOnly.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &listResp))
+	require.Len(t, listResp.Instances, 1)
+	require.Equal(t, "bot-1", listResp.Instances[0].ID)
+
+	// If the user explicitly applies a filter, they should get access denied error if they don't have the necessary permissions
+	_, err = instanceOnly.clt.Get(ctx, endpoint, url.Values{"types": []string{"bot_instance"}})
+	require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+	_, err = instanceOnly.clt.Get(ctx, endpoint, url.Values{"types": []string{"instance,bot_instance"}})
+	require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+
+	resp, err = instanceOnly.clt.Get(ctx, endpoint, url.Values{"types": []string{"instance"}})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &listResp))
+	require.Len(t, listResp.Instances, 1)
+	require.Equal(t, "instance-1", listResp.Instances[0].ID)
+
+	// A user who can read neither is denied
+	_, err = noAccess.clt.Get(ctx, endpoint, url.Values{})
+	require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 }

@@ -56,6 +56,7 @@ export const Hashtag = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-hashtag"
+
       {...otherProps}
       ref={ref}
     >

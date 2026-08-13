@@ -154,15 +154,15 @@ func convertPermissions(perms permissions.PermissionSet) (*Permissions, error) {
 	var errors []error
 	for permission, objects := range perms {
 		for _, obj := range objects {
-			if err := checkPgPermission(obj.GetSpec().ObjectKind, permission); err != nil {
+			if err := checkPgPermission(obj.GetSpec().GetObjectKind(), permission); err != nil {
 				errors = append(errors, err)
 				continue
 			}
-			if obj.GetSpec().ObjectKind == databaseobjectimportrule.ObjectKindTable {
+			if obj.GetSpec().GetObjectKind() == databaseobjectimportrule.ObjectKindTable {
 				out.Tables = append(out.Tables, TablePermission{
 					Privilege: permission,
-					Schema:    obj.GetSpec().Schema,
-					Table:     obj.GetSpec().Name,
+					Schema:    obj.GetSpec().GetSchema(),
+					Table:     obj.GetSpec().GetName(),
 				})
 			}
 		}

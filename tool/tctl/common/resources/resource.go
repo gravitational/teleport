@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -34,16 +33,14 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
+	// Note: scoped_role, scoped_role_assignment, and scoped_token are registered in
+	// ScopedHandlers() rather than here because they require scope-qualified names.
 	return map[string]Handler{
-		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
-		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
-		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
 		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
-		types.KindAppAuthConfig:                      appAuthConfigHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuditQuery:                         auditQueryHandler(),
 		types.KindAuthServer:                         authHandler(),
@@ -56,6 +53,8 @@ func Handlers() map[string]Handler {
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindCertAuthority:                      certAuthorityHandler(),
 		types.KindCertAuthorityOverride:              certAuthorityOverrideHandler(),
+		types.KindClassifier:                         classifierHandler(),
+		types.KindClientIPRestriction:                clientIPRestrictionHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
 		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
@@ -71,6 +70,7 @@ func Handlers() map[string]Handler {
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferencePolicy:                    inferencePolicyHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
+		types.KindIntegration:                        integrationHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindKubeServer:                         kubeServerHandler(),
 		types.KindKubernetesCluster:                  kubeClusterHandler(),
@@ -91,9 +91,11 @@ func Handlers() map[string]Handler {
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindStaticHostUser:                     staticHostUserHandler(),
 		types.KindToken:                              tokenHandler(),
+		types.KindTrustedCluster:                     trustedClusterHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindUserTask:                           userTasksHandler(),
+		types.KindBeamsConfig:                        beamsConfigHandler(),
 		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
 		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),

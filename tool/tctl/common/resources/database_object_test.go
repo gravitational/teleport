@@ -28,12 +28,12 @@ import (
 
 func makeDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
 	t.Helper()
-	r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+	r, err := databaseobject.NewDatabaseObject(name, dbobjectv1.DatabaseObjectSpec_builder{
 		Name:                name,
 		Protocol:            "postgres",
 		DatabaseServiceName: "pg",
 		ObjectKind:          "table",
-	})
+	}.Build())
 	require.NoError(t, err)
 	return r
 }

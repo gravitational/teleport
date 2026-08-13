@@ -275,9 +275,16 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 			fatal: false,
 		},
 		{
-			name: "rejects long SharedDirectoryReadRequest",
+			name: "rejects long SharedDirectoryReadRequest path",
 			msg: SharedDirectoryReadRequest{
 				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryReadRequest length",
+			msg: SharedDirectoryReadRequest{
+				Length: tdp.MaxFileReadWriteLength + 1,
 			},
 			fatal: false,
 		},

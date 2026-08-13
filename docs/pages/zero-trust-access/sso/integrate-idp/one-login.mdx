@@ -8,15 +8,16 @@ tags:
  - zero-trust
  - privileged-access
 enterprise: Enterprise SSO
+page_type: how-to
 ---
 
 import SquareIcon from "@version/docs/img/sso/onelogin/teleport.png"
 import RectangleIcon from "@version/docs/img/sso/onelogin/teleportlogo@2x.png"
 
-This guide will explain how to configure [OneLogin](https://www.onelogin.com/)
-to issue Teleport credentials to specific groups of users. When used in
-combination with role based access control (RBAC) it allows SSH administrators
-to define policies like:
+In this guide, you will configure [OneLogin](https://www.onelogin.com/) to issue
+Teleport credentials to specific groups of users. When used in combination with
+role based access control (RBAC) it allows SSH administrators to define policies
+like:
 
 - Only members of "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.

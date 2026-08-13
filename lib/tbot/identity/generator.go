@@ -107,7 +107,6 @@ type Generator struct {
 
 type generateOpts struct {
 	delegationSessionID  string
-	roles                []string
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
 	logger               *slog.Logger
@@ -120,23 +119,9 @@ type GenerateOption func(*generateOpts)
 
 // WithDelegation uses the given delegation session ID to generate certificates
 // associated with a *human* user and delegation session.
-//
-// Note: this option is mutually-exclusive with WithRoles.
 func WithDelegation(sessionID string) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.delegationSessionID = sessionID
-	}
-}
-
-// WithRoles sets the roles the generated identity should include.
-//
-// Generally, if the user did not specify any roles, it's best to leave this
-// empty and rely on the default behavior (of fetching all the bot's available
-// roles). If WithCurrentIdentity is provided, we'll default to using the roles
-// in its TLS certificate to avoid re-fetching them.
-func WithRoles(roles []string) GenerateOption {
-	return func(opts *generateOpts) {
-		opts.roles = roles
 	}
 }
 
@@ -256,22 +241,19 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	log := cmp.Or(o.logger, g.logger)
 
-	if len(o.roles) != 0 && o.delegationSessionID != "" {
-		return nil, trace.BadParameter("delegation sessions and explicit roles are mutually-exclusive")
-	}
-
-	if len(o.roles) == 0 {
-		if o.currentIdentity != nil {
-			// If the caller provided an impersonated identity, take its roles.
-			o.roles = o.currentIdentity.TLSIdentity.Groups
-		} else {
-			// Otherwise, fetch the bot identity's default roles.
-			var err error
-			if o.roles, err = g.botDefaultRoles(ctx); err != nil {
-				return nil, trace.Wrap(err, "fetching default roles")
-			}
-			log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", o.roles)
+	// If we have been provided an existing identity, we can copy the role set
+	// from that - otherwise, we'll fetch the role set.
+	var roles []string
+	if o.currentIdentity != nil {
+		// If the caller provided an impersonated identity, take its roles.
+		roles = o.currentIdentity.TLSIdentity.Groups
+	} else {
+		// Otherwise, fetch the bot identity's default roles.
+		var err error
+		if roles, err = g.botDefaultRoles(ctx); err != nil {
+			return nil, trace.Wrap(err, "fetching default roles")
 		}
+		log.DebugContext(ctx, "Using all roles available to the bot.", "roles", roles)
 	}
 
 	if o.currentIdentity == nil {
@@ -281,7 +263,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	req := proto.UserCertsRequest{
 		Username:       o.currentIdentity.X509Cert.Subject.CommonName,
 		Expires:        time.Now().Add(o.ttl),
-		RoleRequests:   o.roles,
+		RoleRequests:   roles,
 		RouteToCluster: o.currentIdentity.ClusterName,
 
 		// Make sure to specify this is an impersonated cert request. If unset,
@@ -408,47 +390,41 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 }
 
 func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
-	certReq := &delegationv1.GenerateCertsRequest{
+	certReq := delegationv1.GenerateCertsRequest_builder{
 		DelegationSessionId: o.delegationSessionID,
 		SshPublicKey:        req.SSHPublicKey,
 		TlsPublicKey:        req.TLSPublicKey,
 		Ttl:                 durationpb.New(o.ttl),
-	}
+	}.Build()
 	if req.GetRouteToCluster() != o.currentIdentity.ClusterName {
 		return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
 	}
 	switch {
 	case req.GetRouteToApp().Name != "":
 		route := req.GetRouteToApp()
-		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
-			RouteToApp: &delegationv1.RouteToApp{
-				Name:              route.GetName(),
-				PublicAddr:        route.GetPublicAddr(),
-				ClusterName:       route.GetClusterName(),
-				Uri:               route.GetURI(),
-				TargetPort:        route.GetTargetPort(),
-				AwsRoleArn:        route.GetAWSRoleARN(),
-				AzureIdentity:     route.GetAzureIdentity(),
-				GcpServiceAccount: route.GetGCPServiceAccount(),
-			},
-		}
+		certReq.SetRouteToApp(delegationv1.RouteToApp_builder{
+			Name:              route.GetName(),
+			PublicAddr:        route.GetPublicAddr(),
+			ClusterName:       route.GetClusterName(),
+			Uri:               route.GetURI(),
+			TargetPort:        route.GetTargetPort(),
+			AwsRoleArn:        route.GetAWSRoleARN(),
+			AzureIdentity:     route.GetAzureIdentity(),
+			GcpServiceAccount: route.GetGCPServiceAccount(),
+		}.Build())
 	case req.GetRouteToDatabase().ServiceName != "":
 		route := req.GetRouteToDatabase()
-		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
-			RouteToDatabase: &delegationv1.RouteToDatabase{
-				ServiceName: route.GetServiceName(),
-				Protocol:    route.GetProtocol(),
-				Username:    route.GetUsername(),
-				Database:    route.GetDatabase(),
-				Roles:       route.GetRoles(),
-			},
-		}
+		certReq.SetRouteToDatabase(delegationv1.RouteToDatabase_builder{
+			ServiceName: route.GetServiceName(),
+			Protocol:    route.GetProtocol(),
+			Username:    route.GetUsername(),
+			Database:    route.GetDatabase(),
+			Roles:       route.GetRoles(),
+		}.Build())
 	case req.GetKubernetesCluster() != "":
-		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
-			RouteToKubernetes: &delegationv1.RouteToKubernetes{
-				ClusterName: req.GetKubernetesCluster(),
-			},
-		}
+		certReq.SetRouteToKubernetes(delegationv1.RouteToKubernetes_builder{
+			ClusterName: req.GetKubernetesCluster(),
+		}.Build())
 	}
 	certsRsp, err := g.client.DelegationSessionServiceClient().
 		GenerateCerts(ctx, certReq)
@@ -470,10 +446,10 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 func (g *Generator) GenerateScoped(
 	ctx context.Context, ttl, renewalInterval time.Duration,
 ) (*Identity, error) {
-	req := &issuancev1pb.IssueScopedBotCertsRequest{
-		Ttl:   durationpb.New(ttl),
-		Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-	}
+	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
+		Ttl:      durationpb.New(ttl),
+		Identity: &issuancev1pb.UsageIdentity{},
+	}.Build()
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
 	key, err := cryptosuites.GenerateKey(ctx,
@@ -487,7 +463,7 @@ func (g *Generator) GenerateScoped(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.SshPublicKey = ssh.MarshalAuthorizedKey(sshPub)
+	req.SetSshPublicKey(ssh.MarshalAuthorizedKey(sshPub))
 
 	req.TlsPublicKey, err = keys.MarshalPublicKey(key.Public())
 	if err != nil {
@@ -525,10 +501,10 @@ func (g *Generator) GenerateScoped(
 
 	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
 		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  req.SshPublicKey,
+		PublicKeyBytes:  req.GetSshPublicKey(),
 	}, &proto.Certs{
-		SSH:        res.Certs.Ssh,
-		TLS:        res.Certs.Tls,
+		SSH:        res.GetCerts().GetSsh(),
+		TLS:        res.GetCerts().GetTls(),
 		TLSCACerts: tlsHostCAs,
 		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
 	})

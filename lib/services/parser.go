@@ -363,7 +363,7 @@ func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate 
 		ctx := context.Background()
 		// Expicitly check whether logging is enabled for the level
 		// to avoid formatting the message if the log won't be sampled.
-		if !slog.Default().Handler().Enabled(ctx, slevel) {
+		if slog.Default().Handler().Enabled(ctx, slevel) {
 			//nolint:sloglint // msg cannot be constant
 			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
 		}
@@ -480,7 +480,7 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.LinuxDesktopSessionEnd, *events.DatabaseSessionEnd, *events.AppSessionChunk:
 			session = ctx.Session
 		}
 		v, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -537,7 +537,7 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 }
 
 func getMissingEmptyFieldForSessionEnd(fields []string) (any, error) {
-	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}} {
+	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}, &events.AppSessionChunk{}} {
 		v, err := predicate.GetFieldByTag(emptySession, teleport.JSON, fields[1:])
 		if err == nil {
 			return v, nil

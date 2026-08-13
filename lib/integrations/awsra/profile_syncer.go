@@ -473,11 +473,11 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 			})
 			if err != nil {
 				if errors.Is(err, errDisabledProfile) {
-					logger.DebugContext(ctx, "Skipping profile", "profile_name", profile.Name, "error", err.Error())
+					logger.DebugContext(ctx, "Skipping profile", "profile_name", profile.GetName(), "error", err.Error())
 					continue
 				}
 
-				logger.WarnContext(ctx, "Failed to process profile", "profile_name", profile.Name, "error", err)
+				logger.WarnContext(ctx, "Failed to process profile", "profile_name", profile.GetName(), "error", err)
 				ret.profileErrors = append(ret.profileErrors, err)
 				continue
 			}
@@ -511,7 +511,7 @@ type processProfileRequest struct {
 }
 
 func processProfile(ctx context.Context, req processProfileRequest) error {
-	if !req.Profile.Enabled {
+	if !req.Profile.GetEnabled() {
 		return errDisabledProfile
 	}
 
@@ -524,14 +524,14 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 	if existing, ok := req.SeenAppNames[appName]; ok {
 		return trace.BadParameter(
 			"app name %q for profile %q conflicts with profile %q which was upserted first. Rename either profile or set the %q tag on one of them to a unique value.",
-			appName, req.Profile.Name, existing, types.AWSRolesAnywhereProfileNameOverrideLabel)
+			appName, req.Profile.GetName(), existing, types.AWSRolesAnywhereProfileNameOverrideLabel)
 	}
 
 	if _, err := req.Params.AppServerUpserter.UpsertApplicationServer(ctx, appServer); err != nil {
-		return trace.Wrap(err, "failed to upsert application server from profile %q", req.Profile.Name)
+		return trace.Wrap(err, "failed to upsert application server from profile %q", req.Profile.GetName())
 	}
 
-	req.SeenAppNames[appName] = req.Profile.Name
+	req.SeenAppNames[appName] = req.Profile.GetName()
 	return nil
 }
 
@@ -573,15 +573,15 @@ func sanitizeProfileName(name string) string {
 }
 
 func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integrationName string, proxyPublicAddr string) (types.AppServer, error) {
-	parsedProfileARN, err := arn.Parse(profile.Arn)
+	parsedProfileARN, err := arn.Parse(profile.GetArn())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applicationName := profile.Name
+	applicationName := profile.GetName()
 
-	labels := make(map[string]string, len(profile.Tags))
-	for tagKey, tagValue := range profile.Tags {
+	labels := make(map[string]string, len(profile.GetTags()))
+	for tagKey, tagValue := range profile.GetTags() {
 		labels["aws/"+tagKey] = tagValue
 
 		if tagKey == types.AWSRolesAnywhereProfileNameOverrideLabel {
@@ -596,7 +596,7 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 	if applicationName == "" {
 		return nil, trace.BadParameter(
 			"profile %q has no DNS-safe characters in its name; set the %q tag to override",
-			profile.Name, types.AWSRolesAnywhereProfileNameOverrideLabel)
+			profile.GetName(), types.AWSRolesAnywhereProfileNameOverrideLabel)
 	}
 	// Append the integration suffix so a tagger with iam:TagResource
 	// on one profile cannot pick a name that collides with another
@@ -607,7 +607,7 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 	labels[types.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[constants.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[types.IntegrationLabel] = integrationName
-	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.Arn
+	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.GetArn()
 
 	// TODO(marco): add origin label in v19: teleport.dev/origin: integration_awsrolesanywhere
 	// types.Metadata.CheckAndSetDefaults in v17 returns an error if the origin label is set to AWS Roles Anywhere.
@@ -632,8 +632,8 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 				PublicAddr:  appURL,
 				AWS: &types.AppAWS{
 					RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
-						ProfileARN:            profile.Arn,
-						AcceptRoleSessionName: profile.AcceptRoleSessionName,
+						ProfileARN:            profile.GetArn(),
+						AcceptRoleSessionName: profile.GetAcceptRoleSessionName(),
 					},
 				},
 			},

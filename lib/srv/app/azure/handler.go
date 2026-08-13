@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -129,9 +128,6 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 
 // RoundTrip handles incoming requests and forwards them to the proper API.
 func (s *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.Body != nil {
-		req.Body = utils.MaxBytesReader(w, req.Body, teleport.MaxHTTPRequestSize)
-	}
 	if err := s.serveHTTP(w, req); err != nil {
 		s.formatForwardResponseError(w, req, err)
 		return
@@ -169,6 +165,15 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 }
 
 // prepareForwardRequest prepares a request for forwarding, updating headers and target host. Several checks are made along the way.
+//
+// Do not read the request body but pass the reader as is, so that it streams.
+// In Azure there is a threshold (aka max_single_put_size) which changes how the
+// upload is performed. If the blob size is smaller than the threshold, the blob
+// is uploaded in a single request. If however it's bigger than the threshold,
+// it's uploaded in chunks.
+//
+// More details on the subject:
+// https://learn.microsoft.com/en-us/azure/storage/blobs/scalability-targets
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
@@ -177,19 +182,10 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}
 
-	payload, err := utils.GetAndReplaceRequestBody(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reqCopy, err := http.NewRequest(r.Method, r.URL.String(), bytes.NewReader(payload))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	reqCopy := r.Clone(r.Context())
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = forwardedHost
-	reqCopy.Header = r.Header.Clone()
+	reqCopy.Host = forwardedHost
 
 	err = s.replaceAuthHeaders(r, sessionCtx, reqCopy)
 	if err != nil {

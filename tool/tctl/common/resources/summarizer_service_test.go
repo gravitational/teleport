@@ -45,142 +45,142 @@ func registerMockSummarizerServiceServer(svc grpc.ServiceRegistrar) {
 }
 
 func (m *mockSummarizerServiceServer) ListInferenceModels(context.Context, *summarizerv1.ListInferenceModelsRequest) (*summarizerv1.ListInferenceModelsResponse, error) {
-	return &summarizerv1.ListInferenceModelsResponse{
+	return summarizerv1.ListInferenceModelsResponse_builder{
 		Models:        slices.Concat(slices.Collect(maps.Values(m.models))),
 		NextPageToken: "",
-	}, nil
+	}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) CreateInferenceModel(ctx context.Context, req *summarizerv1.CreateInferenceModelRequest) (*summarizerv1.CreateInferenceModelResponse, error) {
-	name := req.Model.Metadata.Name
+	name := req.GetModel().GetMetadata().GetName()
 	if _, exists := m.models[name]; exists {
 		return nil, trace.AlreadyExists("inference model %q already exists", name)
 	}
-	m.models[name] = req.Model
-	return &summarizerv1.CreateInferenceModelResponse{Model: req.Model}, nil
+	m.models[name] = req.GetModel()
+	return summarizerv1.CreateInferenceModelResponse_builder{Model: req.GetModel()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) GetInferenceModel(ctx context.Context, req *summarizerv1.GetInferenceModelRequest) (*summarizerv1.GetInferenceModelResponse, error) {
-	model, exists := m.models[req.Name]
+	model, exists := m.models[req.GetName()]
 	if !exists {
-		return nil, trace.NotFound("inference model %q not found", req.Name)
+		return nil, trace.NotFound("inference model %q not found", req.GetName())
 	}
-	return &summarizerv1.GetInferenceModelResponse{Model: model}, nil
+	return summarizerv1.GetInferenceModelResponse_builder{Model: model}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) UpdateInferenceModel(ctx context.Context, req *summarizerv1.UpdateInferenceModelRequest) (*summarizerv1.UpdateInferenceModelResponse, error) {
-	name := req.Model.Metadata.Name
+	name := req.GetModel().GetMetadata().GetName()
 	if _, exists := m.models[name]; !exists {
 		return nil, trace.NotFound("inference model %q not found", name)
 	}
-	req.Model.Metadata.Revision = uuid.NewString()
-	m.models[name] = req.Model
-	return &summarizerv1.UpdateInferenceModelResponse{Model: req.Model}, nil
+	req.GetModel().GetMetadata().SetRevision(uuid.NewString())
+	m.models[name] = req.GetModel()
+	return summarizerv1.UpdateInferenceModelResponse_builder{Model: req.GetModel()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) UpsertInferenceModel(ctx context.Context, req *summarizerv1.UpsertInferenceModelRequest) (*summarizerv1.UpsertInferenceModelResponse, error) {
-	m.models[req.Model.Metadata.Name] = req.Model
-	return &summarizerv1.UpsertInferenceModelResponse{Model: req.Model}, nil
+	m.models[req.GetModel().GetMetadata().GetName()] = req.GetModel()
+	return summarizerv1.UpsertInferenceModelResponse_builder{Model: req.GetModel()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) DeleteInferenceModel(ctx context.Context, req *summarizerv1.DeleteInferenceModelRequest) (*summarizerv1.DeleteInferenceModelResponse, error) {
-	if _, exists := m.models[req.Name]; !exists {
-		return nil, trace.NotFound("inference model %q not found", req.Name)
+	if _, exists := m.models[req.GetName()]; !exists {
+		return nil, trace.NotFound("inference model %q not found", req.GetName())
 	}
-	delete(m.models, req.Name)
+	delete(m.models, req.GetName())
 	return &summarizerv1.DeleteInferenceModelResponse{}, nil
 }
 
 func (m *mockSummarizerServiceServer) ListInferenceSecrets(context.Context, *summarizerv1.ListInferenceSecretsRequest) (*summarizerv1.ListInferenceSecretsResponse, error) {
-	return &summarizerv1.ListInferenceSecretsResponse{
+	return summarizerv1.ListInferenceSecretsResponse_builder{
 		Secrets:       slices.Concat(slices.Collect(maps.Values(m.secrets))),
 		NextPageToken: "",
-	}, nil
+	}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) CreateInferenceSecret(ctx context.Context, req *summarizerv1.CreateInferenceSecretRequest) (*summarizerv1.CreateInferenceSecretResponse, error) {
-	name := req.Secret.Metadata.Name
+	name := req.GetSecret().GetMetadata().GetName()
 	if _, exists := m.secrets[name]; exists {
 		return nil, trace.AlreadyExists("inference secret %q already exists", name)
 	}
-	m.secrets[name] = req.Secret
-	return &summarizerv1.CreateInferenceSecretResponse{Secret: req.Secret}, nil
+	m.secrets[name] = req.GetSecret()
+	return summarizerv1.CreateInferenceSecretResponse_builder{Secret: req.GetSecret()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) GetInferenceSecret(ctx context.Context, req *summarizerv1.GetInferenceSecretRequest) (*summarizerv1.GetInferenceSecretResponse, error) {
-	secret, exists := m.secrets[req.Name]
+	secret, exists := m.secrets[req.GetName()]
 	if !exists {
-		return nil, trace.NotFound("inference secret %q not found", req.Name)
+		return nil, trace.NotFound("inference secret %q not found", req.GetName())
 	}
-	return &summarizerv1.GetInferenceSecretResponse{Secret: secret}, nil
+	return summarizerv1.GetInferenceSecretResponse_builder{Secret: secret}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) UpdateInferenceSecret(ctx context.Context, req *summarizerv1.UpdateInferenceSecretRequest) (*summarizerv1.UpdateInferenceSecretResponse, error) {
-	name := req.Secret.Metadata.Name
+	name := req.GetSecret().GetMetadata().GetName()
 	if _, exists := m.secrets[name]; !exists {
 		return nil, trace.NotFound("inference secret %q not found", name)
 	}
-	req.Secret.Metadata.Revision = uuid.NewString()
-	m.secrets[name] = req.Secret
-	return &summarizerv1.UpdateInferenceSecretResponse{Secret: req.Secret}, nil
+	req.GetSecret().GetMetadata().SetRevision(uuid.NewString())
+	m.secrets[name] = req.GetSecret()
+	return summarizerv1.UpdateInferenceSecretResponse_builder{Secret: req.GetSecret()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) UpsertInferenceSecret(ctx context.Context, req *summarizerv1.UpsertInferenceSecretRequest) (*summarizerv1.UpsertInferenceSecretResponse, error) {
-	m.secrets[req.Secret.Metadata.Name] = req.Secret
-	return &summarizerv1.UpsertInferenceSecretResponse{Secret: req.Secret}, nil
+	m.secrets[req.GetSecret().GetMetadata().GetName()] = req.GetSecret()
+	return summarizerv1.UpsertInferenceSecretResponse_builder{Secret: req.GetSecret()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) DeleteInferenceSecret(ctx context.Context, req *summarizerv1.DeleteInferenceSecretRequest) (*summarizerv1.DeleteInferenceSecretResponse, error) {
-	if _, exists := m.secrets[req.Name]; !exists {
-		return nil, trace.NotFound("inference secret %q not found", req.Name)
+	if _, exists := m.secrets[req.GetName()]; !exists {
+		return nil, trace.NotFound("inference secret %q not found", req.GetName())
 	}
-	delete(m.secrets, req.Name)
+	delete(m.secrets, req.GetName())
 	return &summarizerv1.DeleteInferenceSecretResponse{}, nil
 }
 
 func (m *mockSummarizerServiceServer) ListInferencePolicies(context.Context, *summarizerv1.ListInferencePoliciesRequest) (*summarizerv1.ListInferencePoliciesResponse, error) {
-	return &summarizerv1.ListInferencePoliciesResponse{
+	return summarizerv1.ListInferencePoliciesResponse_builder{
 		Policies:      slices.Concat(slices.Collect(maps.Values(m.policies))),
 		NextPageToken: "",
-	}, nil
+	}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) CreateInferencePolicy(ctx context.Context, req *summarizerv1.CreateInferencePolicyRequest) (*summarizerv1.CreateInferencePolicyResponse, error) {
-	name := req.Policy.Metadata.Name
+	name := req.GetPolicy().GetMetadata().GetName()
 	if _, exists := m.policies[name]; exists {
 		return nil, trace.AlreadyExists("inference policy %q already exists", name)
 	}
-	m.policies[name] = req.Policy
-	return &summarizerv1.CreateInferencePolicyResponse{Policy: req.Policy}, nil
+	m.policies[name] = req.GetPolicy()
+	return summarizerv1.CreateInferencePolicyResponse_builder{Policy: req.GetPolicy()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) GetInferencePolicy(ctx context.Context, req *summarizerv1.GetInferencePolicyRequest) (*summarizerv1.GetInferencePolicyResponse, error) {
-	policy, exists := m.policies[req.Name]
+	policy, exists := m.policies[req.GetName()]
 	if !exists {
-		return nil, trace.NotFound("inference policy %q not found", req.Name)
+		return nil, trace.NotFound("inference policy %q not found", req.GetName())
 	}
-	return &summarizerv1.GetInferencePolicyResponse{Policy: policy}, nil
+	return summarizerv1.GetInferencePolicyResponse_builder{Policy: policy}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) UpdateInferencePolicy(ctx context.Context, req *summarizerv1.UpdateInferencePolicyRequest) (*summarizerv1.UpdateInferencePolicyResponse, error) {
-	name := req.Policy.Metadata.Name
+	name := req.GetPolicy().GetMetadata().GetName()
 	if _, exists := m.policies[name]; !exists {
 		return nil, trace.NotFound("inference policy %q not found", name)
 	}
-	req.Policy.Metadata.Revision = uuid.NewString()
-	m.policies[name] = req.Policy
-	return &summarizerv1.UpdateInferencePolicyResponse{Policy: req.Policy}, nil
+	req.GetPolicy().GetMetadata().SetRevision(uuid.NewString())
+	m.policies[name] = req.GetPolicy()
+	return summarizerv1.UpdateInferencePolicyResponse_builder{Policy: req.GetPolicy()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) UpsertInferencePolicy(ctx context.Context, req *summarizerv1.UpsertInferencePolicyRequest) (*summarizerv1.UpsertInferencePolicyResponse, error) {
-	m.policies[req.Policy.Metadata.Name] = req.Policy
-	return &summarizerv1.UpsertInferencePolicyResponse{Policy: req.Policy}, nil
+	m.policies[req.GetPolicy().GetMetadata().GetName()] = req.GetPolicy()
+	return summarizerv1.UpsertInferencePolicyResponse_builder{Policy: req.GetPolicy()}.Build(), nil
 }
 
 func (m *mockSummarizerServiceServer) DeleteInferencePolicy(ctx context.Context, req *summarizerv1.DeleteInferencePolicyRequest) (*summarizerv1.DeleteInferencePolicyResponse, error) {
-	if _, exists := m.policies[req.Name]; !exists {
-		return nil, trace.NotFound("inference policy %q not found", req.Name)
+	if _, exists := m.policies[req.GetName()]; !exists {
+		return nil, trace.NotFound("inference policy %q not found", req.GetName())
 	}
-	delete(m.policies, req.Name)
+	delete(m.policies, req.GetName())
 	return &summarizerv1.DeleteInferencePolicyResponse{}, nil
 }

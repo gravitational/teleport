@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
@@ -46,7 +46,6 @@ import userService, {
   type CreateUserVariables,
   type User,
 } from 'teleport/services/user';
-import { GetUsersQueryKey } from 'teleport/services/user/hooks';
 
 import UserTokenLink from './../UserTokenLink';
 
@@ -67,8 +66,6 @@ export function UserAddEdit({
 }: UserAddEditProps) {
   const ctx = useTeleport();
 
-  const queryClient = useQueryClient();
-
   const createUser = useMutation({
     mutationFn: async (variables: CreateUserVariables) => {
       const mfaResponse =
@@ -87,30 +84,13 @@ export function UserAddEdit({
         token,
       };
     },
-    onSuccess: ({ token, user }) => {
+    onSuccess: ({ token }) => {
       setToken(token);
-
-      queryClient.setQueryData(GetUsersQueryKey, previous => {
-        if (!previous) {
-          return [];
-        }
-
-        return [user, ...previous];
-      });
     },
   });
 
   const updateUser = useMutation({
     mutationFn: userService.updateUser,
-    onSuccess: data => {
-      queryClient.setQueryData(GetUsersQueryKey, previous => {
-        if (!previous) {
-          return [];
-        }
-
-        return [data, ...previous.filter(i => i.name !== data.name)];
-      });
-    },
   });
 
   const [name, setName] = useState(user.name);

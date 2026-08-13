@@ -29,6 +29,11 @@ import (
 // the cluster config and user roles.
 // It checks the cluster requirement using the enforcement mode, disregarding the
 // provenance of the binary if the mode is set.
+//
+// CalculateTrustedDeviceRequirement is NOT enforcing, its result is strictly
+// informative (for example, showing an UI icon based on requirement).
+// For device authorization see the Verify functions, like [VerifyTLSUser] or
+// [VerifySSHUser].
 func CalculateTrustedDeviceRequirement(
 	dt *types.DeviceTrust,
 	getRoles func() ([]types.Role, error),

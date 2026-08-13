@@ -66,9 +66,27 @@ const service = {
       .then(makeUser);
   },
 
-  // TODO(rudream): DELETE IN v21.0
+  /**
+   * @deprecated Use {@link service.fetchUsersV2} instead.
+   */
+  // TODO(rudream): DELETE IN v20.0
   fetchUsers(signal?: AbortSignal) {
     return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
+  },
+
+  /**
+   * fetchAllUsers fetches all users page by page until there are no more.
+   * Only use this in cases where all users are needed upfront, otherwise, use {@link service.fetchUsersV2}.
+   */
+  async fetchAllUsers(signal?: AbortSignal): Promise<User[]> {
+    const allUsers: User[] = [];
+    let startKey = '';
+    do {
+      const page = await service.fetchUsersV2({ limit: 200, startKey }, signal);
+      allUsers.push(...page.items);
+      startKey = page.startKey;
+    } while (startKey);
+    return allUsers;
   },
 
   async fetchUsersV2(
@@ -89,11 +107,11 @@ const service = {
       .catch(err => {
         // If this v2 paginated endpoint isn't found, fallback to the v1 endpoint but paginate locally in order to
         // maintain compatibility with the paginated table component which expects a paginated response.
-        // TODO(rudream): DELETE IN v21.0
+        // TODO(rudream): DELETE IN v20.0
         if (isPathNotFoundError(err)) {
-          return this.fetchUsers().then(users =>
-            makeUsersPageLocally(params, users)
-          );
+          return service
+            .fetchUsers()
+            .then(users => makeUsersPageLocally(params, users));
         } else {
           throw err;
         }
@@ -202,7 +220,7 @@ function withExcludedField(user: User, excludeUserField: ExcludeUserField) {
  * makeUsersPageLocally mocks a paginated response for users so that a list of all users
  * can be handled by a serverside paginated table component.
  */
-// TODO(rudream): DELETE IN v21.0
+// TODO(rudream): DELETE IN v20.0
 function makeUsersPageLocally(
   params: UrlListUsersParams,
   allUsers: User[]
@@ -210,18 +228,18 @@ function makeUsersPageLocally(
   items: User[];
   startKey: string;
 } {
-  if (params.search) {
+  if (params?.search) {
     allUsers = allUsers.filter(u =>
       u.name.toLowerCase().includes(params.search.toLowerCase())
     );
   }
 
-  if (params.startKey) {
+  if (params?.startKey) {
     const startIndex = allUsers.findIndex(p => p.name === params.startKey);
     allUsers = allUsers.slice(startIndex);
   }
 
-  const limit = params.limit || 200;
+  const limit = params?.limit || 200;
   const nextKey = allUsers.at(limit)?.name;
   allUsers = allUsers.slice(0, limit);
 

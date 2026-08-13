@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiconstants "github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -79,13 +80,13 @@ const (
 	ProtocolProxySSHGRPC Protocol = "teleport-proxy-ssh-grpc"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
-	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
+	ProtocolReverseTunnel Protocol = apiconstants.ALPNSNIProtocolReverseTunnel
 
 	// ProtocolReverseTunnelV2 is TLS ALPN protocol value used to indicate reversetunnel clients
 	// that are aware of proxy peering. This is only used on the client side to allow intermediate
 	// load balancers to make decisions based on the ALPN header. ProtocolReverseTunnel should still
 	// be included in the list of ALPN header for the proxy server to handle the connection properly.
-	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
+	ProtocolReverseTunnelV2 Protocol = apiconstants.ALPNSNIProtocolReverseTunnelV2
 
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"

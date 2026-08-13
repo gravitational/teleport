@@ -193,6 +193,7 @@ export function ResourceCard({
         showHoverState={visibleInputFields.hoverState}
       >
         <CardInnerContainer
+          showAllLabels={showAllLabels}
           showHoverState={visibleInputFields.hoverState}
           ref={innerContainer}
           p={3}
@@ -259,7 +260,9 @@ export function ResourceCard({
               <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
                 {ActionButton}
               </ResourceActionButtonWrapper>
-              {showResourceSelectedIcon && <ResourceSelectedIcon />}
+              {(typeof showResourceSelectedIcon === 'function'
+                ? showResourceSelectedIcon(labels)
+                : showResourceSelectedIcon) && <ResourceSelectedIcon />}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
@@ -376,11 +379,12 @@ const WarningRightEdgeBadgeIcon = ({
  * TODO(bl-nero): Known issue: this doesn't really work well with one-column
  * layout;
  */
-const CardContainer = styled(Box)<{
+const CardContainer = styled.li<{
   showingStatusInfo: boolean;
   showHoverState: boolean;
 }>`
   height: 110px;
+  list-style: none;
 
   position: relative;
   .resource-health-status-svg {
@@ -409,39 +413,25 @@ const CardOuterContainer = styled(Box)<{
   shouldDisplayWarning: boolean;
   showHoverState: boolean;
 }>`
-  border-radius: ${props => props.theme.radii[3]}px;
+  border-radius: ${({ theme }) => theme.radii[3]}px;
+  transition: all 150ms;
 
-  ${props =>
-    props.showAllLabels &&
+  ${({ showAllLabels, shouldDisplayWarning }) =>
+    showAllLabels &&
     css`
       position: absolute;
       left: 0;
       // The padding is required to show the WarningRightEdgeBadgeIcon
-      right: ${props.shouldDisplayWarning ? '28px' : 0};
+      right: ${shouldDisplayWarning ? '28px' : 0};
       z-index: 1;
     `}
-  transition: all 150ms;
 
-  ${p =>
-    p.showHoverState &&
+  ${({ showHoverState, showAllLabels, theme }) =>
+    (showHoverState || showAllLabels) &&
     css`
-      // Using double ampersand because of https://github.com/styled-components/styled-components/issues/3678.
-      ${CardContainer}:hover && {
-        background-color: ${props => props.theme.colors.levels.surface};
-
-        // We use a pseudo element for the shadow with position: absolute in order to prevent
-        // the shadow from increasing the size of the layout and causing scrollbar flicker.
-        &:after {
-          box-shadow: ${props => props.theme.boxShadow[3]};
-          border-radius: ${props => props.theme.radii[3]}px;
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          z-index: -1;
-          width: 100%;
-          height: 100%;
-        }
+      ${CardContainer}:hover & {
+        background-color: ${theme.colors.levels.surface};
+        box-shadow: ${theme.boxShadow[3]};
       }
     `}
 `;
@@ -456,7 +446,7 @@ const CardOuterContainer = styled(Box)<{
  * outer container.
  */
 const CardInnerContainer = styled(Flex)<
-  BackgroundColorProps & { showHoverState: boolean }
+  BackgroundColorProps & { showHoverState: boolean; showAllLabels?: boolean }
 >`
   border: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
@@ -480,12 +470,11 @@ const CardInnerContainer = styled(Flex)<
     css`
       border: 2px solid ${p.theme.colors.interactive.solid.alert.active};
     `}
-    
 
   &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     ${p =>
-      p.showHoverState &&
+      (p.showHoverState || p.showAllLabels) &&
       css`
         border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
       `}

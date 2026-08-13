@@ -148,6 +148,25 @@ onboarding:
     #
     # token_path: "./path/to/token"
 
+  # generic_oidc holds parameters specific to the "generic_oidc" join method and
+  # should be omitted when another join method is used.
+  generic_oidc:
+    # A command used to fetch a JWT. This can call a platform tool, a custom
+    # helper you write, or a tool like `curl` to fetch a JWT from an internal
+    # issuer. The first parameter is the executable to run, followed by any
+    # arguments. Commands have a default timeout of 1m, which can be overridden.
+    # Cannot be used with `env`.
+    command: ["example-command", "issue-jwt", "--audience=example.teleport.sh/token"]
+
+    # Overrides the default command timeout of 1m.
+    # timeout: 1m
+
+    # env is the name of an environment variable containing a JWT. This can be
+    # used instead of `command` if the JWT you wish to authenticate with is
+    # in an environment variable already. Cannot be used with `command`, and
+    # `timeout` is ignored if set.
+    # env: ENV_VAR_NAME
+
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
 # destination you specify here can only be accessed by `tbot`.
@@ -217,8 +236,8 @@ services:
 ## Output Services
 
 Output services define what actions `tbot` should take when it runs. They
-describe the format of the certificates to be generated, the roles used to
-generate the certificates, and the destination where they should be written.
+describe the format of the certificates to be generated and the destination
+where they should be written.
 
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
@@ -413,7 +432,6 @@ selectors:
       env: dev
 
 # The following configuration fields are available across most output types.
-# Note that `roles` are not supported for this output type.
 
 destination:
   type: directory
@@ -591,7 +609,7 @@ cluster_resources: true
 cluster_name_template: "{{.KubeName}}"
 
 # The following configuration fields are available across most output types.
-# Note that `roles` and `destination` are not supported for this output type.
+# Note that `destination` is not supported for this output type.
 
 # credential_ttl and renewal_interval override the credential TTL and renewal
 # interval for this specific output, so that you can make its certificates valid

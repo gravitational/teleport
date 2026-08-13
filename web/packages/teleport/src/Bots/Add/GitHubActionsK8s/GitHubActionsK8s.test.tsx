@@ -21,7 +21,6 @@ import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import selectEvent from 'react-select-event';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
@@ -30,6 +29,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -207,7 +207,7 @@ function makeWrapper(opts: { trackingEventId?: string }) {
     return (
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <InfoGuidePanelProvider>
               <ContentMinWidth>
                 <TrackingProvider initialEventId={trackingEventId}>

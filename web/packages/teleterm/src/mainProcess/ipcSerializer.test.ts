@@ -64,3 +64,17 @@ test('serializes and deserializes RPC error', () => {
     'is-resolvable-with-relogin': ['1'],
   });
 });
+
+test('serializing an already serialized RPC error preserves custom fields', () => {
+  const err = new RpcError('Session expired', 'UNAUTHENTICATED', {
+    'is-resolvable-with-relogin': ['1'],
+  });
+
+  const serialized = serializeError(err);
+  const serializedAgain = serializeError(structuredClone(serialized));
+
+  expect(serializedAgain['code']).toBe('UNAUTHENTICATED');
+  expect(serializedAgain['meta']).toEqual({
+    'is-resolvable-with-relogin': ['1'],
+  });
+});

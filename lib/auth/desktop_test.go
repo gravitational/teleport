@@ -117,16 +117,16 @@ func TestDesktopAccessCAOverrides(t *testing.T) {
 		ExternalRoot: externalCA,
 	}
 	caOverride := env.NewOverrideForCA(t, ca, nil)
-	override := caOverride.Spec.CertificateOverrides[0]
-	override.Disabled = false // enable
+	override := caOverride.GetSpec().GetCertificateOverrides()[0]
+	override.SetDisabled(false) // enable
 	_, err = authServer.CreateCertAuthorityOverride(t.Context(), caOverride)
 	require.NoError(t, err, "CreateCertAuthorityOverride errored")
-	overrideCert, err := tlsutils.ParseCertificatePEM([]byte(override.Certificate))
+	overrideCert, err := tlsutils.ParseCertificatePEM([]byte(override.GetCertificate()))
 	require.NoError(t, err)
 
 	t.Run("generate with override", func(t *testing.T) {
 		runTest(t, overrideCert, &proto.CAOverrideCertificateDetails{
-			PublicKeyHash: override.PublicKey,
+			PublicKeyHash: override.GetPublicKey(),
 		})
 	})
 }

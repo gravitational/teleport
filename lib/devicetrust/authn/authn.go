@@ -25,6 +25,7 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -77,13 +78,13 @@ func (c *Ceremony) Run(
 	}
 	// nil SSHSigner is okay.
 
-	resp, err := c.run(ctx, params.DevicesClient, &devicepb.AuthenticateDeviceInit{
-		UserCertificates: &devicepb.UserCertificates{
+	resp, err := c.run(ctx, params.DevicesClient, devicepb.AuthenticateDeviceInit_builder{
+		UserCertificates: devicepb.UserCertificates_builder{
 			// Forward only the SSH certificate, the TLS identity is part of the
 			// connection.
-			SshAuthorizedKey: params.Certs.SshAuthorizedKey,
-		},
-	}, params.SSHSigner)
+			SshAuthorizedKey: params.Certs.GetSshAuthorizedKey(),
+		}.Build(),
+	}.Build(), params.SSHSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,9 +117,9 @@ func (c *Ceremony) RunWeb(
 
 	// It's not necessary to sign with the SSH key for Device Trust Web, the SSH
 	// cert is implicitly trusted when it's taken directly from the web session.
-	resp, err := c.run(ctx, devicesClient, &devicepb.AuthenticateDeviceInit{
+	resp, err := c.run(ctx, devicesClient, devicepb.AuthenticateDeviceInit_builder{
 		DeviceWebToken: webToken,
-	}, nil /*sshSigner*/)
+	}.Build(), nil /*sshSigner*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,13 +156,11 @@ func (c *Ceremony) run(
 	defer stream.CloseSend()
 
 	// 1. Init.
-	init.CredentialId = cred.Id
-	init.DeviceData = cd
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_Init{
-			Init: init,
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	init.SetCredentialId(cred.GetId())
+	init.SetDeviceData(cd)
+	if err := stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		Init: proto.ValueOrDefault(init),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.
 		// All other errors are client-side errors and should be returned.
@@ -204,25 +203,23 @@ func (c *Ceremony) authenticateDeviceMacOS(
 	if chalResp == nil {
 		return trace.BadParameter("unexpected payload from server, expected AuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	sig, err := c.SignChallenge(chalResp.Challenge)
+	sig, err := c.SignChallenge(chalResp.GetChallenge())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	var sshSig []byte
 	if sshSigner != nil {
-		sshSig, err = challenge.Sign(chalResp.Challenge, sshSigner)
+		sshSig, err = challenge.Sign(chalResp.GetChallenge(), sshSigner)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature:    sig,
-				SshSignature: sshSig,
-			},
-		},
-	})
+	err = stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		ChallengeResponse: devicepb.AuthenticateDeviceChallengeResponse_builder{
+			Signature:    sig,
+			SshSignature: sshSig,
+		}.Build(),
+	}.Build())
 	if err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.
@@ -246,16 +243,14 @@ func (c *Ceremony) authenticateDeviceTPM(
 		return trace.Wrap(err)
 	}
 	if sshSigner != nil {
-		challengeResponse.SshSignature, err = challenge.Sign(tpmChallenge.AttestationNonce, sshSigner)
+		challengeResponse.SshSignature, err = challenge.Sign(tpmChallenge.GetAttestationNonce(), sshSigner)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: challengeResponse,
-		},
-	})
+	err = stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		TpmChallengeResponse: proto.ValueOrDefault(challengeResponse),
+	}.Build())
 	if err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.

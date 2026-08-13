@@ -29,16 +29,33 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 var testModules = &modulestest.Modules{
 	TestFeatures: modules.Features{
 		AdvancedAccessWorkflows: true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.OIDC:        {Enabled: true},
-			entitlements.SAML:        {Enabled: true},
-			entitlements.DeviceTrust: {Enabled: true},
-			entitlements.Policy:      {Enabled: true},
+			entitlements.OIDC:             {Enabled: true},
+			entitlements.SAML:             {Enabled: true},
+			entitlements.DeviceTrust:      {Enabled: true},
+			entitlements.Policy:           {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
+			entitlements.AccessLists:      {Enabled: true},
+		},
+	},
+}
+
+// testModulesCloud enables Cloud mode and the ClientIPRestrictions entitlement
+// so Cloud-only resources (which proxy to the Teleport Cloud API) are
+// registered and authorized. The plugin harness wires in a fake Cloud client
+// whenever Cloud is enabled (see plugin_ent_test.go).
+var testModulesCloud = &modulestest.Modules{
+	TestBuildType: modules.BuildEnterprise,
+	TestFeatures: modules.Features{
+		Cloud: true,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.ClientIPRestrictions: {Enabled: true},
 		},
 	},
 }
@@ -62,6 +79,50 @@ func TestTerraformEnterprise(t *testing.T) {
 				PluginRegistry: registry,
 				AuthConfig: authtest.AuthServerConfig{
 					Modules: testModules,
+				},
+			},
+		},
+	})
+}
+
+func TestTerraformEnterpriseScopedResources(t *testing.T) {
+	authPlugin, err := NewPlugin(testModules)
+	if trace.IsNotImplemented(err) {
+		t.Skip(entTestSkipMessage)
+	}
+	require.NoError(t, err)
+
+	registry := plugin.NewRegistry()
+	require.NoError(t, registry.Add(authPlugin))
+
+	suite.Run(t, &TerraformSuiteEnterpriseScopedResources{
+		TerraformBaseSuite: TerraformBaseSuite{
+			AuthHelper: &integration.MinimalAuthHelper{
+				PluginRegistry: registry,
+				AuthConfig: authtest.AuthServerConfig{
+					Modules:        testModules,
+					ScopesFeatures: scopes.Features{Enabled: true},
+				},
+			},
+		},
+	})
+}
+func TestTerraformEnterpriseCloud(t *testing.T) {
+	authPlugin, err := NewPlugin(testModulesCloud)
+	if trace.IsNotImplemented(err) {
+		t.Skip(entTestSkipMessage)
+	}
+	require.NoError(t, err)
+
+	registry := plugin.NewRegistry()
+	require.NoError(t, registry.Add(authPlugin))
+
+	suite.Run(t, &TerraformSuiteEnterpriseCloud{
+		TerraformBaseSuite: TerraformBaseSuite{
+			AuthHelper: &integration.MinimalAuthHelper{
+				PluginRegistry: registry,
+				AuthConfig: authtest.AuthServerConfig{
+					Modules: testModulesCloud,
 				},
 			},
 		},

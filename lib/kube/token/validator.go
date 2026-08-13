@@ -213,17 +213,17 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 		)
 	}
 
-	attrs := &workloadidentityv1pb.JoinAttrsKubernetes{
+	attrs := workloadidentityv1pb.JoinAttrsKubernetes_builder{
 		Subject: reviewResult.Status.User.Username,
-		ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+		ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 			Name:      serviceAccount,
 			Namespace: namespace,
-		},
-	}
+		}.Build(),
+	}.Build()
 	if podNamePresent && len(podName) == 1 {
-		attrs.Pod = &workloadidentityv1pb.JoinAttrsKubernetesPod{
+		attrs.SetPod(workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 			Name: podName[0],
-		}
+		}.Build())
 	}
 
 	return &ValidationResult{
@@ -300,7 +300,8 @@ func ValidateTokenWithJWKS(
 	}
 
 	// Ensure this is a pod-bound service account token
-	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" ||
+		claims.Kubernetes.ServiceAccount == nil || claims.Kubernetes.ServiceAccount.Name == "" {
 		return nil, trace.BadParameter("static_jwks joining requires the use of projected pod bound service account token")
 	}
 
@@ -324,16 +325,16 @@ func ValidateTokenWithJWKS(
 		Raw:      claims,
 		Type:     types.KubernetesJoinTypeStaticJWKS,
 		Username: claims.Subject,
-		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+		attrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
 			Subject: claims.Subject,
-			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 				Name: claims.Kubernetes.Pod.Name,
-			},
-			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+			}.Build(),
+			ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 				Name:      claims.Kubernetes.ServiceAccount.Name,
 				Namespace: claims.Kubernetes.Namespace,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
 		ServiceAccountNamespace: claims.Kubernetes.Namespace,
 	}, nil
@@ -341,7 +342,7 @@ func ValidateTokenWithJWKS(
 
 // NewKubernetesOIDCTokenValidator constructs a KubernetesOIDCTokenValidator.
 func NewKubernetesOIDCTokenValidator() (*KubernetesOIDCTokenValidator, error) {
-	validator, err := oidc.NewCachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims](clockwork.NewRealClock())
+	validator, err := oidc.NewCachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims, oidc.StandardValidatorKey](clockwork.NewRealClock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -354,7 +355,7 @@ func NewKubernetesOIDCTokenValidator() (*KubernetesOIDCTokenValidator, error) {
 // KubernetesOIDCTokenValidator is a validator that can validate Kubernetes
 // projected service account tokens against an external OIDC compatible IdP.
 type KubernetesOIDCTokenValidator struct {
-	validator *oidc.CachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims]
+	validator *oidc.CachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims, oidc.StandardValidatorKey]
 }
 
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
@@ -365,7 +366,7 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	validator, err := v.validator.GetValidator(ctx, issuerURL, clusterName)
+	validator, err := v.validator.GetValidatorWithKey(ctx, oidc.NewStandardValidatorKey(issuerURL, clusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -376,7 +377,8 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	}
 
 	// Ensure this is a pod-bound service account token
-	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" ||
+		claims.Kubernetes.ServiceAccount == nil || claims.Kubernetes.ServiceAccount.Name == "" {
 		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
 	}
 
@@ -392,15 +394,15 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 		Username:                claims.GetSubject(),
 		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
 		ServiceAccountNamespace: claims.Kubernetes.Namespace,
-		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+		attrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
 			Subject: claims.GetSubject(),
-			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 				Name: claims.Kubernetes.Pod.Name,
-			},
-			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+			}.Build(),
+			ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 				Name:      claims.Kubernetes.ServiceAccount.Name,
 				Namespace: claims.Kubernetes.Namespace,
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}, nil
 }

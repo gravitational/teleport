@@ -34,11 +34,11 @@ type Claims struct {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c Claims) JoinAttrs() *workloadidentityv1pb.JoinAttrsOracle {
-	return &workloadidentityv1pb.JoinAttrsOracle{
+	return workloadidentityv1pb.JoinAttrsOracle_builder{
 		TenancyId:     c.TenancyID,
 		CompartmentId: c.CompartmentID,
 		InstanceId:    c.InstanceID,
-	}
+	}.Build()
 }
 
 // Region extracts the region from an instance's claims.

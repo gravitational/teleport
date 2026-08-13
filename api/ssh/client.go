@@ -190,10 +190,7 @@ type ClientConfig struct {
 	Timeout time.Duration
 
 	// AuthCallback, if non-nil, is invoked before each authentication attempt.
-	//
-	// TODO(cthach): Enable when https://github.com/golang/go/issues/76146 is resolved and a new version of x/crypto/ssh
-	// is released.
-	// AuthCallback ssh.ClientAuthCallback
+	AuthCallback ssh.ClientAuthCallback
 }
 
 // SSHClientConfig builds a new [ssh.ClientConfig] from the client config.
@@ -215,6 +212,7 @@ func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 		Config:            c.SSHConfig,
 		User:              c.User,
 		Auth:              authMethods,
+		AuthCallback:      c.AuthCallback,
 		HostKeyCallback:   c.HostKeyCallback,
 		BannerCallback:    c.BannerCallback,
 		ClientVersion:     c.clientVersion(),
@@ -314,10 +312,8 @@ func NewClientConn(
 
 func (c ClientConfig) clientVersion() string {
 	switch {
-	// TODO(cthach): Set the in-band MFA feature flag using if AuthCallback is non-nil once
-	// https://github.com/golang/go/issues/76146 is resolved and a new version of x/crypto/ssh is released.
-	// case c.AuthCallback != nil:
-	// 	return clientVersionWithFeatures(InBandMFAFeature)
+	case c.AuthCallback != nil:
+		return ClientVersionWithFeatures(InBandMFAFeature)
 
 	default:
 		return DefaultClientVersion

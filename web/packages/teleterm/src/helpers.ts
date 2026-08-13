@@ -29,6 +29,7 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckReport,
+  DNSReport,
   RouteConflictReport,
   SSHConfigurationReport,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
@@ -207,6 +208,15 @@ export function reportOneOfIsSSHConfigurationReport(
   sshConfigurationReport: SSHConfigurationReport;
 } {
   return report.oneofKind === 'sshConfigurationReport';
+}
+
+export function reportOneOfIsDNSReport(
+  report: CheckReport['report']
+): report is {
+  oneofKind: 'dnsReport';
+  dnsReport: DNSReport;
+} {
+  return report.oneofKind === 'dnsReport';
 }
 
 export function statusOneOfIsWindowsServiceStatus(

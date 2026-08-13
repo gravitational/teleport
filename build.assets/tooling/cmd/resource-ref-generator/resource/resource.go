@@ -109,6 +109,14 @@ func NewSourceData(prefix string, rootPath string) (SourceData, error) {
 			return nil
 		}
 
+		// Skip protoopaque files. For API_HYBRID proto files, two versions are
+		// generated: a regular .pb.go with exported fields and a
+		// _protoopaque.pb.go with hidden fields. We only want to document the
+		// regular version with exported fields.
+		if strings.HasSuffix(info.Name(), "_protoopaque.pb.go") {
+			return nil
+		}
+
 		// Find the Go package path corresponding to the current file.
 		rel, err := filepath.Rel(rootPath, currentPath)
 		if err != nil {

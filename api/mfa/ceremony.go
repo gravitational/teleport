@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 
@@ -60,6 +61,14 @@ type CreateSessionChallengeFunc func(ctx context.Context, req *mfav2.CreateSessi
 // ValidateSessionChallengeFunc is a function that validates a session-bound MFA challenge.
 type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav2.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav2.ValidateSessionChallengeResponse, error)
 
+// isMFANotSupportedForClient reports whether err is the Auth server's response
+// indicating that the caller is not an end user and therefore cannot perform an
+// MFA ceremony.
+func isMFANotSupportedForClient(err error) bool {
+	return errors.Is(err, &ErrMFANotSupportedContextUser) ||
+		errors.Is(err, &ErrMFANotSupportedMFARequiredCheck)
+}
+
 // Run the MFA ceremony.
 //
 // req may be nil if ceremony.CreateAuthenticateChallenge does not require it, e.g. in
@@ -99,10 +108,10 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
 	if err != nil {
-		// CreateAuthenticateChallenge returns a bad parameter error when the client
-		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
-		// not supported error so the client knows when it can be ignored.
-		if trace.IsBadParameter(err) {
+		// CreateAuthenticateChallenge returns a "NotSupported" error when the client
+		// user is not a Teleport user - for example, the AdminRole. Treat this as an
+		// MFA not supported error so the client knows when it can be ignored.
+		if isMFANotSupportedForClient(err) {
 			return nil, &ErrMFANotSupported
 		}
 		return nil, trace.Wrap(err)
@@ -151,13 +160,6 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 		},
 	}
 
-	// Remove MFA resp from context if set. This way, the mfa required
-	// check will return true as long as MFA for admin actions is enabled,
-	// even if the current context has a reusable MFA. v18 server will
-	// return this requirement as expected.
-	// TODO(Joerger): DELETE IN v19.0.0
-	ceremonyCtx := ContextWithMFAResponse(ctx, nil)
-
-	resp, err := mfaCeremony(ceremonyCtx, challengeRequest, WithPromptReasonAdminAction())
+	resp, err := mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
 	return resp, trace.Wrap(err)
 }

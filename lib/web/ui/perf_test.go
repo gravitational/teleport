@@ -100,7 +100,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
+func insertServers(ctx context.Context, b *testing.B, svc services.PresenceInternal, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
 	for i := range labelCount {
@@ -127,7 +127,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
 		case types.KindProxy:
-			err = svc.UpsertProxy(ctx, server)
+			_, err = svc.UpsertProxyServer(ctx, server)
 		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(ctx, server)
 		default:

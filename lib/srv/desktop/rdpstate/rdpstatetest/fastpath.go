@@ -73,10 +73,17 @@ func WrapFastPathUpdate(updateCode byte, innerData []byte) []byte {
 	fpUpdate[0] = updateCode | SingleFragmentFlag
 	binary.LittleEndian.PutUint16(fpUpdate[1:], uint16(len(innerData)))
 
-	// FastPathHeader
 	body := slices.Concat(fpUpdate, innerData)
-	totalLen := 2 + len(body)
-	header := []byte{ActionFastPath, byte(totalLen)}
+
+	if oneByteLen := 1 + 1 + len(body); oneByteLen <= 0x7f {
+		header := []byte{ActionFastPath, byte(oneByteLen)}
+		return slices.Concat(header, body)
+	}
+
+	twoByteLen := 1 + 2 + len(body)
+	header := make([]byte, 3)
+	header[0] = ActionFastPath
+	binary.BigEndian.PutUint16(header[1:], uint16(twoByteLen)|0x8000)
 
 	return slices.Concat(header, body)
 }
@@ -94,12 +101,7 @@ func BuildBitmapPDU(left, top, w, h int, rgb565 uint16) []byte {
 	binary.LittleEndian.PutUint16(bitmapData[12:], 16) // bitsPerPixel
 	binary.LittleEndian.PutUint16(bitmapData[14:], 0)  // flags (uncompressed)
 
-	rowBytes := w * 2 // 2 bytes per pixel at 16bpp
-	if rowBytes%4 != 0 {
-		// rows must be 4-byte aligned
-		rowBytes += 4 - (rowBytes % 4)
-	}
-
+	rowBytes := w * 2 // 2 bytes per pixel at 16bpp, no scanline padding
 	pixelDataLen := rowBytes * h
 	binary.LittleEndian.PutUint16(bitmapData[16:], uint16(pixelDataLen))
 

@@ -56,6 +56,7 @@ export const ArrowsIn = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-arrowsin"
+
       {...otherProps}
       ref={ref}
     >

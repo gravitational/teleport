@@ -8,9 +8,7 @@
     "web/**/*.ts",
     "web/**/*.tsx",
     "web/**/*.js",
-    "web/**/*.jsx",
-    "../web/src/**/*.ts",
-    "../web/src/**/*.tsx"
+    "web/**/*.jsx"
   ],
   "references": [
     { "path": "./tsconfig.node.json" },

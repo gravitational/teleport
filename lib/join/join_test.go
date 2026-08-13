@@ -18,12 +18,15 @@ package join_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -33,9 +36,13 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joinv1proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
@@ -49,8 +56,10 @@ import (
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,38 +103,38 @@ func TestJoinToken(t *testing.T) {
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
 
 	// generate scoped tokens
-	scopedToken1 := &joiningv1.ScopedToken{
+	scopedToken1 := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Scope:   "/aa",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "scoped1",
-		},
-		Spec: &joiningv1.ScopedTokenSpec{
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "/aa/bb",
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		},
-		Status: &joiningv1.ScopedTokenStatus{
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret",
-		},
-	}
+		}.Build(),
+	}.Build()
 	scopedToken2 := proto.CloneOf(scopedToken1)
-	scopedToken2.Spec.AssignedScope = "/aa/cc"
-	scopedToken2.Metadata.Name = "scoped2"
+	scopedToken2.GetSpec().SetAssignedScope("/aa/cc")
+	scopedToken2.GetMetadata().SetName("scoped2")
 
 	scopedToken3 := proto.CloneOf(scopedToken1)
-	scopedToken3.Metadata.Name = "scoped3"
+	scopedToken3.GetMetadata().SetName("scoped3")
 
 	singleUseToken := proto.CloneOf(scopedToken1)
-	singleUseToken.Spec.UsageMode = string(joining.TokenUsageModeSingle)
-	singleUseToken.Metadata.Name = "scoped-single-use-1"
+	singleUseToken.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+	singleUseToken.GetMetadata().SetName("scoped-single-use-1")
 
 	for _, tok := range []*joiningv1.ScopedToken{scopedToken1, scopedToken2, scopedToken3, singleUseToken} {
-		_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		_, err = authService.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 			Token: tok,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -137,13 +146,13 @@ func TestJoinToken(t *testing.T) {
 	proxy.runGRPCServer(t, proxyListener)
 
 	t.Run("invalid token", func(t *testing.T) {
+		ctx := t.Context()
 		_, err := joinViaProxy(
-			t.Context(),
+			ctx,
 			"invalidtoken",
 			proxyListener.Addr(),
 		)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-		ctx := t.Context()
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			evt, err := authService.lastEvent(ctx, "instance.join")
 			require.NoError(t, err)
@@ -160,7 +169,8 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					Role: "Instance",
+					Role:     "Instance",
+					NodeName: "node",
 				},
 				evt,
 				protocmp.Transform(),
@@ -217,10 +227,11 @@ func TestJoinToken(t *testing.T) {
 	})
 
 	t.Run("join and rejoin with scoped token", func(t *testing.T) {
+		ctx := t.Context()
 		// Node initially joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxyWithSecret(
 			t.Context(),
-			scopedToken1.GetMetadata().GetName(),
+			scopes.QualifiedName{Scope: scopedToken1.GetScope(), Name: scopedToken1.GetMetadata().GetName()}.String(),
 			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
@@ -233,8 +244,39 @@ func TestJoinToken(t *testing.T) {
 			func(s string) bool { return s == types.RoleInstance.String() },
 		)
 		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
-
 		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.AgentScope)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: events.InstanceJoinEvent,
+						Code: events.InstanceJoinCode,
+					},
+					Status: apievents.Status{
+						Success: true,
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					HostID:    identity.ID.HostID(),
+					NodeName:  "node",
+					Role:      "Instance",
+					TokenName: scopedToken1.GetMetadata().GetName(),
+					Method:    scopedToken1.GetSpec().GetJoinMethod(),
+					Scope:     scopedToken1.GetSpec().GetAssignedScope(),
+					Roles:     scopedToken1.GetSpec().GetRoles(),
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join success event not found")
+
 		// Build an auth client with the new identity.
 		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
 		require.NoError(t, err)
@@ -249,7 +291,7 @@ func TestJoinToken(t *testing.T) {
 		// its original certificate and the new token.
 		newIdentity, err := rejoinViaAuthClientWithSecret(
 			t.Context(),
-			scopedToken3.GetMetadata().GetName(),
+			scopes.QualifiedName{Scope: scopedToken3.GetScope(), Name: scopedToken3.GetMetadata().GetName()}.String(),
 			scopedToken3.GetStatus().GetSecret(),
 			authClient,
 		)
@@ -272,7 +314,7 @@ func TestJoinToken(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxyWithSecret(
 			t.Context(),
-			scopedToken1.GetMetadata().GetName(),
+			scopes.QualifiedName{Scope: scopedToken1.GetScope(), Name: scopedToken1.GetMetadata().GetName()}.String(),
 			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
@@ -296,16 +338,17 @@ func TestJoinToken(t *testing.T) {
 		// Node cannot rejoin with a different token assigning a different scope.
 		_, err = rejoinViaAuthClient(
 			t.Context(),
-			scopedToken2.GetMetadata().GetName(),
+			scopes.QualifiedName{Scope: scopedToken2.GetScope(), Name: scopedToken2.GetMetadata().GetName()}.String(),
 			authClient,
 		)
 		require.Error(t, err)
 	})
 
 	t.Run("join and rejoin with bad token", func(t *testing.T) {
+		ctx := t.Context()
 		// Node joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxy(
-			t.Context(),
+			ctx,
 			token1.GetName(),
 			proxyListener.Addr(),
 		)
@@ -319,12 +362,11 @@ func TestJoinToken(t *testing.T) {
 
 		// Node the tries to rejoin with valid certs but an invalid token.
 		_, err = rejoinViaAuthClient(
-			t.Context(),
+			ctx,
 			"invalidtoken",
 			authClient,
 		)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-		ctx := t.Context()
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			evt, err := authService.lastEvent(ctx, "instance.join")
 			require.NoError(t, err)
@@ -341,25 +383,32 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					Role: "Instance",
+					HostID:   identity.ID.HostID(),
+					Role:     "Instance",
+					NodeName: "node",
+					Roles:    slices.DeleteFunc(token1.GetRoles().StringSlice(), func(role string) bool { return role == types.RoleInstance.String() }),
 				},
 				evt,
 				protocmp.Transform(),
 				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
 					return key == "Time" || key == "ID"
 				}),
+				// sort roles so the diff is deterministic
+				cmpopts.SortSlices(strings.Compare),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
 	})
 
 	t.Run("join with single use scoped token", func(t *testing.T) {
+		ctx := t.Context()
 		identity, err := joinViaProxyWithSecret(
 			t.Context(),
-			singleUseToken.GetMetadata().GetName(),
+			scopes.QualifiedName{Scope: singleUseToken.GetScope(), Name: singleUseToken.GetMetadata().GetName()}.String(),
 			singleUseToken.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
+
 		// Make sure the result contains a host ID and expected certificate roles.
 		require.NotEmpty(t, identity.ID.HostUUID)
 		require.Equal(t, types.RoleInstance, identity.ID.Role)
@@ -373,11 +422,43 @@ func TestJoinToken(t *testing.T) {
 		// ensure subsequent join attempts fail
 		_, err = joinViaProxyWithSecret(
 			t.Context(),
-			singleUseToken.GetMetadata().GetName(),
+			scopes.QualifiedName{Scope: singleUseToken.GetScope(), Name: singleUseToken.GetMetadata().GetName()}.String(),
 			singleUseToken.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
+
+		// Make sure the instance.join limit audit event is emitted
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinLimitCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "scoped token usage exhausted",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Method:    string(types.JoinMethodToken),
+					NodeName:  "node",
+					Role:      "Instance",
+					Roles:     singleUseToken.GetSpec().GetRoles(),
+					TokenName: singleUseToken.GetMetadata().GetName(),
+					Scope:     singleUseToken.GetSpec().GetAssignedScope(),
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID" || key == "HostID"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
 	})
 
 	for i, tc := range []struct {
@@ -390,7 +471,7 @@ func TestJoinToken(t *testing.T) {
 		{
 			name: "join after upsert modifies assigned scope",
 			updateTokenFunc: func(token *joiningv1.ScopedToken) {
-				token.Spec.AssignedScope = "/aa/cc"
+				token.GetSpec().SetAssignedScope("/aa/cc")
 			},
 			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
 				require.Error(t, err)
@@ -399,7 +480,7 @@ func TestJoinToken(t *testing.T) {
 		{
 			name: "join after upsert preserves assigned scope",
 			updateTokenFunc: func(token *joiningv1.ScopedToken) {
-				token.Metadata.Labels = map[string]string{"env": "updated"}
+				token.GetMetadata().SetLabels(map[string]string{"env": "updated"})
 			},
 			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
 				require.NoError(t, err)
@@ -410,32 +491,32 @@ func TestJoinToken(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			token := &joiningv1.ScopedToken{
+			token := joiningv1.ScopedToken_builder{
 				Kind:    types.KindScopedToken,
 				Version: types.V1,
 				Scope:   "/aa",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: fmt.Sprintf("upsertcheck%d", i),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
+				}.Build(),
+				Status: joiningv1.ScopedTokenStatus_builder{
 					Secret: "somesecret",
-				},
-			}
-			_, err := authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				}.Build(),
+			}.Build()
+			_, err := authService.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: token,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			// Join with the original assigned scope.
 			identity, err := joinViaProxyWithSecret(
 				t.Context(),
-				token.GetMetadata().GetName(),
+				scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
 				token.GetStatus().GetSecret(),
 				proxyListener.Addr(),
 			)
@@ -443,17 +524,18 @@ func TestJoinToken(t *testing.T) {
 			require.Equal(t, "/aa/bb", identity.AgentScope)
 
 			// Change and upsert token
-			fetchedRes, err := authService.Auth().GetScopedToken(t.Context(), &joiningv1.GetScopedTokenRequest{
+			fetchedRes, err := authService.Auth().GetScopedToken(t.Context(), joiningv1.GetScopedTokenRequest_builder{
 				Name:       token.GetMetadata().GetName(),
+				Scope:      token.GetScope(),
 				WithSecret: true,
-			})
+			}.Build())
 			require.NoError(t, err)
 			updatedToken := proto.CloneOf(fetchedRes.GetToken())
 			tc.updateTokenFunc(updatedToken)
 
-			_, err = authService.Auth().UpsertScopedToken(t.Context(), &joiningv1.UpsertScopedTokenRequest{
+			_, err = authService.Auth().UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{
 				Token: updatedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			// Attempt to rejoin using the identity from the first join.
@@ -464,13 +546,173 @@ func TestJoinToken(t *testing.T) {
 
 			newIdentity, err := rejoinViaAuthClientWithSecret(
 				t.Context(),
-				token.GetMetadata().GetName(),
+				scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
 				token.GetStatus().GetSecret(),
 				authClient,
 			)
 			tc.assertRejoinExpectation(t, newIdentity, err)
 		})
 	}
+
+	t.Run("rejected join records sanitized node name", func(t *testing.T) {
+		ctx := t.Context()
+		// The join is rejected before host params are received, so the node name
+		// on the audit event comes from the advisory (untrusted) ClientInit
+		// value and must be sanitized. \x00 is stripped to '_'.
+		_, err := joinclient.Join(ctx, joinclient.JoinParams{
+			Token: "invalidtoken",
+			ID: state.IdentityID{
+				Role:     types.RoleInstance,
+				NodeName: "node\x00name",
+			},
+			ProxyServer: utils.NetAddr{
+				AddrNetwork: proxyListener.Addr().Network(),
+				Addr:        proxyListener.Addr().String(),
+			},
+			// The proxy's TLS cert for the test is not trusted.
+			Insecure: true,
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "token expired or not found",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Role:     "Instance",
+					NodeName: "node_name",
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, 15*time.Second, 100*time.Millisecond, "expected instance.join failed event not found")
+	})
+}
+
+// startOutdatedClientJoin sets up an auth service and proxy, opens a Join stream
+// over the proxy-forwarded path reporting a version two majors behind (below the
+// minimum supported version), and sends a ClientInit. It returns the stream and
+// auth service so callers can assert on the outcome.
+func startOutdatedClientJoin(t *testing.T) (stream messages.ClientStream, authService *fakeAuthService) {
+	t.Helper()
+
+	// The proxy joins with this token and so does the outdated node below.
+	token, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleInstance, types.RoleProxy},
+	})
+	require.NoError(t, err)
+
+	authService = newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token))
+
+	proxy := newFakeProxy(authService)
+	proxy.join(t)
+	proxyListener := bufconn.Listen(1024)
+	t.Cleanup(func() { proxyListener.Close() })
+	proxy.runGRPCServer(t, proxyListener)
+
+	conn, err := grpc.NewClient("passthrough:///bufconn",
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return proxyListener.DialContext(ctx)
+		}),
+		// Decodes trace errors from the server so IsAccessDenied works on the rejection.
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	joinClient := joinv1.NewClientFromConn(conn)
+
+	// Report a version two majors behind, which is below the minimum supported
+	// version. The version interceptor honors a version already set on the
+	// outgoing context, so this value reaches the proxy unchanged.
+	oldVersion := semver.Version{Major: api.VersionMajor - 2}.String()
+	ctx := metadata.AppendToOutgoingContext(t.Context(), "version", oldVersion)
+
+	stream, err = joinClient.Join(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, stream.Send(&messages.ClientInit{
+		TokenName:  token.GetName(),
+		SystemRole: types.RoleInstance.String(),
+	}))
+
+	return stream, authService
+}
+
+// TestJoinRejectsOutdatedClient asserts a too-old client is rejected before any
+// credentials are issued, over the proxy-forwarded path. The auth middleware's
+// version gate can't cover it, since it sees the proxy's version.
+func TestJoinRejectsOutdatedClient(t *testing.T) {
+	t.Parallel()
+
+	stream, authService := startOutdatedClientJoin(t)
+
+	// The very first response is the rejection, confirming the check runs before
+	// any credentials are issued (no ServerInit precedes it).
+	_, err := stream.Recv()
+	require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
+	// Assert only that the minimum version is surfaced, not the exact wording,
+	// so the test survives copy edits to the rejection message.
+	minVersion := semver.Version{Major: api.VersionMajor - 1}.String()
+	require.ErrorContains(t, err, minVersion)
+
+	evt, err := authService.lastEvent(t.Context(), events.InstanceJoinEvent)
+	require.NoError(t, err)
+	instanceJoin, ok := evt.(*apievents.InstanceJoin)
+	require.True(t, ok, "got %T, expected *apievents.InstanceJoin", evt)
+	require.Contains(t, instanceJoin.Status.Error, minVersion)
+	// Clear the asserted error so the structural comparison below doesn't couple
+	// to the exact message wording.
+	instanceJoin.Status.Error = ""
+	require.Empty(t, cmp.Diff(
+		&apievents.InstanceJoin{
+			Metadata: apievents.Metadata{
+				Type: events.InstanceJoinEvent,
+				Code: events.InstanceJoinFailureCode,
+			},
+			Status: apievents.Status{
+				Success: false,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: "bufconn",
+			},
+			Role: types.RoleInstance.String(),
+		},
+		instanceJoin,
+		protocmp.Transform(),
+		cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+			return key == "Time" || key == "ID"
+		}),
+	))
+}
+
+// TestJoinAllowsOutdatedClientWithOverride asserts that when the env variable
+// "TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes" is set, the join-time version check
+// is disabled, so an outdated client proceeds to the normal join flow instead
+// of being rejected.
+func TestJoinAllowsOutdatedClientWithOverride(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+
+	stream, _ := startOutdatedClientJoin(t)
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.IsType(t, &messages.ServerInit{}, resp)
 }
 
 // TestJoinError asserts that attempts to join with an invalid token return an
@@ -606,10 +848,15 @@ type fakeAuthService struct {
 }
 
 func newFakeAuthService(t *testing.T) *fakeAuthService {
+	return newFakeAuthServiceWithScopesFeatures(t, scopes.Features{Enabled: true})
+}
+
+func newFakeAuthServiceWithScopesFeatures(t *testing.T, features scopes.Features) *fakeAuthService {
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:         t.TempDir(),
-			ClusterName: "testcluster",
+			Dir:            t.TempDir(),
+			ClusterName:    "testcluster",
+			ScopesFeatures: features,
 		},
 	})
 	require.NoError(t, err)
@@ -627,7 +874,7 @@ func lastEvent(ctx context.Context, auditLog events.AuditLogger, clock clockwork
 		From:       clock.Now().Add(-time.Hour),
 		To:         clock.Now().Add(time.Hour),
 		EventTypes: []string{eventType},
-		Limit:      1,
+		Limit:      3,
 		Order:      types.EventOrderDescending,
 	})
 	if err != nil {
@@ -665,7 +912,6 @@ func (p *fakeProxy) join(t *testing.T) {
 		AdditionalPrincipals: []string{"127.0.0.1"},
 	})
 	require.NoError(t, err)
-
 	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
 	require.NoError(t, err)
 	p.identity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
@@ -752,6 +998,15 @@ func rejoinViaAuthClientWithSecret(
 	tokenSecret string,
 	authClient authjoin.AuthJoinClient,
 ) (*state.Identity, error) {
+	return joinViaAuthClientWithSecret(ctx, token, tokenSecret, authClient)
+}
+
+func joinViaAuthClientWithSecret(
+	ctx context.Context,
+	token string,
+	tokenSecret string,
+	authClient authjoin.AuthJoinClient,
+) (*state.Identity, error) {
 	joinResult, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token:       token,
 		TokenSecret: tokenSecret,
@@ -770,4 +1025,103 @@ func rejoinViaAuthClientWithSecret(
 		return nil, trace.Wrap(err)
 	}
 	return state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+}
+
+func TestStaticScopedTokensAreValidated(t *testing.T) {
+	t.Parallel()
+
+	expired := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name           string
+		role           types.SystemRole
+		expires        *timestamppb.Timestamp
+		features       scopes.Features
+		wantErr        string
+		wantTokenScope string
+	}{
+		{
+			name:     "expired token is rejected",
+			role:     types.RoleNode,
+			expires:  timestamppb.New(expired),
+			features: scopes.Features{Enabled: true},
+			wantErr:  joining.ErrTokenExpired.Error(),
+		},
+		{
+			name:     "agent pin role gate is enforced",
+			role:     types.RoleApp,
+			features: scopes.Features{Enabled: true},
+			wantErr:  "scoped token cannot be used to join [App] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes",
+		},
+		{
+			name:           "valid token is accepted",
+			role:           types.RoleNode,
+			features:       scopes.Features{Enabled: true},
+			wantTokenScope: "/test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			token := joiningv1.ScopedToken_builder{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name:    "static-token",
+					Expires: tt.expires,
+				}.Build(),
+				Scope: scopes.Root,
+				Spec: joiningv1.ScopedTokenSpec_builder{
+					AssignedScope: "/test",
+					Roles:         []string{string(tt.role)},
+					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				}.Build(),
+				Status: joiningv1.ScopedTokenStatus_builder{
+					Secret: "secret",
+				}.Build(),
+			}.Build()
+
+			authService := newFakeAuthServiceWithScopesFeatures(t, tt.features)
+			require.NoError(t, authService.Auth().SetStaticScopedTokens(t.Context(), joiningv1.StaticScopedTokens_builder{
+				Kind:    types.KindStaticScopedTokens,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: types.MetaNameStaticScopedTokens,
+				}.Build(),
+				Scope: scopes.Root,
+				Spec: joiningv1.StaticScopedTokensSpec_builder{
+					Tokens: []*joiningv1.ScopedToken{token},
+				}.Build(),
+			}.Build()))
+
+			unauthenticatedAuthClt, err := authService.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			tokenName := scopes.QualifiedName{
+				Scope: token.GetScope(),
+				Name:  token.GetMetadata().GetName(),
+			}.String()
+			if tt.wantErr != "" {
+				stream, err := joinv1.NewClient(unauthenticatedAuthClt.JoinV1Client()).Join(t.Context())
+				require.NoError(t, err)
+				defer stream.CloseSend()
+
+				require.NoError(t, stream.Send(&messages.ClientInit{
+					TokenName:  tokenName,
+					SystemRole: types.RoleInstance.String(),
+				}))
+
+				_, err = messages.RecvResponse[*messages.ServerInit](stream)
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+
+			identity, err := joinViaAuthClientWithSecret(t.Context(), tokenName, token.GetStatus().GetSecret(), unauthenticatedAuthClt)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantTokenScope, identity.AgentScope)
+		})
+	}
 }

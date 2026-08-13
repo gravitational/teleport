@@ -109,10 +109,16 @@ windows_desktop_service:
       filters:
         - "(location=Oakland)"
         - "(!(primaryGroupID=516))" # exclude domain controllers
+
       # (optional) LDAP attributes to convert into Teleport labels.
       # The key of the label will be "ldap/" + the value of the attribute.
       label_attributes:
         - location
+      # For multi-valued attributes Teleport takes the first value
+      # by default. This can be overridden with the "join" mode.
+      label_attribute_mode: join # (optional) defaults to "first"
+      label_attribute_join_separator: "_" # (optional) defaults to '|'
+
       # (optional) static labels to apply to all hosts discovered via this policy
       labels:
         env: prod

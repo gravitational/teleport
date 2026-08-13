@@ -56,9 +56,11 @@ func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plu
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "Description is object description",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "Description is object description",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": {
 					Description: "Expires is a global expiry time header can be set on any resource in the system.",
@@ -67,9 +69,11 @@ func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plu
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				},
 				"labels": {
-					Description: "Labels is a set of labels",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "Labels is a set of labels",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "Name is an object name",
@@ -84,14 +88,9 @@ func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plu
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Description: "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Description: "Metadata is resource metadata.",
-			Optional:    true,
+			Required:    true,
 		},
 		"priority": {
 			Description: "Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.",
@@ -99,18 +98,24 @@ func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plu
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 		},
 		"traits_expression": {
-			Description: "TraitsExpression is a predicate expression which should return the desired traits for the user upon login.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "TraitsExpression is a predicate expression which should return the desired traits for the user upon login.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"traits_map": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-				Description: "",
-				Optional:    true,
-				Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				Computed:      true,
+				Description:   "",
+				Optional:      true,
+				PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+				Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 			}}),
-			Description: "TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.",
-			Optional:    true,
+			Computed:      true,
+			Description:   "TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 		},
 		"version": {
 			Description: "Version is the resource version.",
@@ -233,23 +238,6 @@ func CopyLoginRuleFromTerraform(_ context.Context, tf github_com_hashicorp_terra
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"LoginRule.metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"LoginRule.metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -366,6 +354,12 @@ func CopyLoginRuleFromTerraform(_ context.Context, tf github_com_hashicorp_terra
 
 // CopyLoginRuleToTerraform copies contents of the source Terraform object into a target struct
 func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_loginrule_v1.LoginRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyLoginRuleToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyLoginRuleToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyLoginRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_loginrule_v1.LoginRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -396,6 +390,7 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -405,6 +400,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"LoginRule.metadata.Name", err})
@@ -413,10 +411,13 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -427,6 +428,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.metadata.Namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"LoginRule.metadata.Namespace", err})
@@ -435,10 +439,13 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -449,6 +456,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.metadata.Description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"LoginRule.metadata.Description", err})
@@ -457,10 +467,13 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -486,11 +499,14 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"LoginRule.metadata.Labels", err})
@@ -499,17 +515,20 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -521,6 +540,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 						} else {
 							v, ok := tf.Attrs["expires"].(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
 							if !ok {
+								if tf.Attrs["expires"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.metadata.Expires", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"LoginRule.metadata.Expires", err})
@@ -529,7 +551,6 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Expires", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
 								}
-								v.Null = false
 							}
 							if obj.Expires == nil {
 								v.Null = true
@@ -537,34 +558,16 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 								v.Null = false
 								v.Value = time.Time(*obj.Expires)
 							}
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"LoginRule.metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"LoginRule.metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"LoginRule.metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -576,6 +579,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"LoginRule.version", err})
@@ -584,10 +590,13 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"LoginRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -598,6 +607,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 		} else {
 			v, ok := tf.Attrs["priority"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 			if !ok {
+				if tf.Attrs["priority"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.priority", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"LoginRule.priority", err})
@@ -606,10 +618,13 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"LoginRule.priority", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 				}
-				v.Null = int64(obj.Priority) == 0
 			}
+
+			v.Null = false
 			v.Value = int64(obj.Priority)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["priority"] = v
 		}
 	}
@@ -635,10 +650,10 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 						c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.TraitsMap))
 					}
 				}
-				if obj.TraitsMap != nil {
+				{
 					o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 					for k, a := range obj.TraitsMap {
-						v, ok := tf.Attrs["traits_map"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+						v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 						if !ok {
 							v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -653,6 +668,7 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 						if a == nil {
 							v.Null = true
 						} else {
+							v.Null = false
 							obj := a
 							tf := &v
 							{
@@ -677,14 +693,19 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 												c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 											}
 										}
-										if obj.Values != nil {
+										{
 											t := o.ElemType
 											if len(obj.Values) != len(c.Elems) {
-												c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+												newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+												copy(newElems, c.Elems)
+												c.Elems = newElems
 											}
 											for k, a := range obj.Values {
-												v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+												v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 												if !ok {
+													if c.Elems[k] != nil {
+														diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.traits_map.Values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+													}
 													i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 													if err != nil {
 														diags.Append(attrWriteGeneralError{"LoginRule.traits_map.Values", err})
@@ -693,30 +714,35 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 													if !ok {
 														diags.Append(attrWriteConversionFailureDiag{"LoginRule.traits_map.Values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 													}
-													v.Null = string(a) == ""
 												}
+
+												v.Null = false
 												v.Value = string(a)
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												c.Elems[k] = v
 											}
-											if len(obj.Values) > 0 {
-												c.Null = false
-											}
 										}
-										c.Unknown = false
+										c.Null = false
+										if !preserveUnknown {
+											c.Unknown = false
+										}
 										tf.Attrs["values"] = c
 									}
 								}
 							}
 						}
-						v.Unknown = false
+						if !preserveUnknown {
+							v.Unknown = false
+						}
 						c.Elems[k] = v
 					}
-					if len(obj.TraitsMap) > 0 {
-						c.Null = false
-					}
 				}
-				c.Unknown = false
+				c.Null = false
+				if !preserveUnknown {
+					c.Unknown = false
+				}
 				tf.Attrs["traits_map"] = c
 			}
 		}
@@ -728,6 +754,9 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 		} else {
 			v, ok := tf.Attrs["traits_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["traits_expression"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"LoginRule.traits_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"LoginRule.traits_expression", err})
@@ -736,10 +765,13 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"LoginRule.traits_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.TraitsExpression) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.TraitsExpression)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["traits_expression"] = v
 		}
 	}
@@ -851,5 +883,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

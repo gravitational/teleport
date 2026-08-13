@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for the "session search not enabled" eval. `recordings ls`
+# still works; `recordings search` fails the way a real cluster does when the
+# backing Access Graph / pgvector feature is unavailable.
+
+import os, sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+if args[:2] == ["recordings", "search"]:
+    print(
+        "ERROR: session search requires the pgvector PostgreSQL extension to be installed",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+elif args[:2] == ["recordings", "ls"]:
+    read("recordings-ls.json")
+elif args[:1] == ["status"]:
+    read("tsh-status.txt")
+else:
+    print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)

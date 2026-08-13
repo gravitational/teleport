@@ -1,10 +1,11 @@
-{{ edition="Teleport" clients="`tctl` and `tsh` clients" }}
+{{ edition="Teleport" clients="`tctl` and `tsh` clients" optionalClientNote="" }}
 
-- A running {{ edition }} cluster. If you want to get started with Teleport,
-  [sign up](https://goteleport.com/signup) for a free trial or [set up a demo
-  environment](../get-started/deploy-community.mdx).
+- A running {{ edition }} cluster accessible at a hostname with a valid TLS
+  certificate. If you want to get started with Teleport,
+  [sign up](https://goteleport.com/signup) for a free trial or
+  [set up a demo environment](../get-started/deploy-community.mdx).
 
-- The {{ clients }}.
+- The {{ clients }}{{ optionalClientNote }}.
 
   <details>
   <summary>Installing {{ clients }}</summary>
@@ -79,4 +80,27 @@
        </TabItem>
      </Tabs>
   
+  </details>
+
+  <details>
+  <summary>Connecting with TLS routing disabled</summary>
+
+  This guide's commands assume your Teleport cluster uses TLS routing
+  (`proxy_listener_mode: multiplex`), where the {{ clients }} reach every
+  Teleport service through the Proxy Service's web address on port `443`. If
+  you're not sure whether this applies to your cluster, check with whoever
+  manages it.
+
+  If your cluster uses separate listener ports instead, adjust ports as follows:
+
+  - **`tsh` commands** (e.g., `tsh login --proxy=...`): continue using the
+    Proxy Service web address on port `3080` (or `443` if behind a load
+    balancer). Do not change these to port `3025`.
+  - **Direct `tctl` or Auth Service API commands**: use port `3025` for the
+    Auth Service gRPC listener:
+
+    ```code
+    $ tctl status --auth-server=teleport.example.com:3025
+    ```
+
   </details>

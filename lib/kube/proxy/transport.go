@@ -231,7 +231,7 @@ func (f *Forwarder) getTLSConfigForLeafCluster(clusterName string) (*tls.Config,
 // in a remote Teleport cluster via the reverse tunnel.
 func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
-		_, span := f.cfg.tracer.Start(
+		ctx, span := f.cfg.tracer.Start(
 			ctx,
 			"kube.Forwarder/remoteClusterDiater",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -302,7 +302,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName, scope string, opts ...co
 		o(&opt)
 	}
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
-		_, span := f.cfg.tracer.Start(
+		ctx, span := f.cfg.tracer.Start(
 			ctx,
 			"kube.Forwarder/localClusterDiater",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),

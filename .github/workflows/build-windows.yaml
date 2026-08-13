@@ -16,6 +16,10 @@ on:
       - "lib/srv/desktop/rdp/decoder/Cargo.toml"
       - "lib/srv/desktop/rdp/decoder/src/**.rs"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: Build on Windows
@@ -30,7 +34,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           cache: false
           go-version-file: go.mod
