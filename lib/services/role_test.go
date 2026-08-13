@@ -11245,6 +11245,9 @@ func TestSessionRecordingRBAC(t *testing.T) {
 					NodeLabels: types.Labels{
 						"env": []string{"prod"},
 					},
+					AppLabels: types.Labels{
+						"env": []string{"prod"},
+					},
 					Rules: allowRules,
 				},
 				Deny: types.RoleConditions{
@@ -11267,6 +11270,25 @@ func TestSessionRecordingRBAC(t *testing.T) {
 	})
 
 	serverWithoutAccess := newServer("server-without-access", map[string]string{
+		"env": "dev",
+	})
+
+	newApp := func(name string, labels map[string]string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	appWithAccess := newApp("app-with-access", map[string]string{
+		"env": "prod",
+	})
+
+	appWithoutAccess := newApp("app-without-access", map[string]string{
 		"env": "dev",
 	})
 
@@ -11764,6 +11786,70 @@ func TestSessionRecordingRBAC(t *testing.T) {
 			},
 			errCheck: require.NoError,
 		},
+		{
+			name: "24 - bob can read app session because his group matches with env label for app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.app_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "25 - john can not read app session because his group does not match with env label for app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.app_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "26 - bob can read app session because he has access to the app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "27 - bob can not read app session because he has no access to the app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithoutAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -11862,6 +11948,37 @@ func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
 		},
 		StartTime: startTime,
 		EndTime:   endTime,
+	}
+}
+
+func newAppSessionChunkEvent() *apievents.AppSessionChunk {
+	return &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  "app.session.chunk",
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  "T2008I",
+			Time:  time.Date(2020, 3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName:       "app-with-access",
+			AppURI:        "http://localhost:8080",
+			AppPublicAddr: "app.example.com",
+			AppLabels:     map[string]string{"env": "prod"},
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			Protocol: apievents.EventProtocolApp,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:      "alice",
+			UserRoles: []string{"role1"},
+			UserTraits: map[string][]string{
+				"group": {"prod"},
+				"team":  {"engineering"},
+			},
+		},
+		Participants:   []string{"alice"},
+		SessionChunkID: "cb116fb0-9227-4889-9392-aedd13a914a6",
 	}
 }
 
