@@ -59,10 +59,34 @@ Please replace them with values appropriate for your environment.
 | `Example_FIRESTORE_AUDIT_LOGS` | teleport-audit-logs | Name of the Firestore collection for Teleport audit logs |
 | `Example_BUCKET_NAME` | teleport-session-recordings | Name of the GCS bucket for session recording storage |
 
+To discover your current GCP project ID, run:
+
+```code
+$ gcloud config get-value project
+```
+
 ### Compute Engine: VM Instances with Instance Groups
 
 We recommend using `n1-standard-2` instances in production. It's best to separate
 Teleport Proxy Service and Auth Service instances using instance groups for each.
+
+**Run on your workstation:**
+
+```code
+$ gcloud compute instance-templates create teleport-auth-template \
+    --machine-type=n1-standard-2 \
+    --image-family=ubuntu-2204-lts \
+    --image-project=ubuntu-os-cloud \
+    --boot-disk-size=20GB \
+    --service-account=$SERVICE_ACCOUNT \
+    --scopes=cloud-platform \
+    --tags=teleport-auth
+
+$ gcloud compute instance-groups managed create teleport-auth-group \
+    --template=teleport-auth-template \
+    --size=2 \
+    --zone=us-central1-a
+```
 
 ### Compute Engine: Health Checks
 
@@ -72,11 +96,42 @@ this is helpful when adding new instances to an instance group.
 To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
 see  [Admin Guide: Troubleshooting](../../../zero-trust-access/management/diagnostics/troubleshooting.mdx) for more information.
 
+**Run on your workstation:**
+
+```code
+$ gcloud compute health-checks create http teleport-auth-healthcheck \
+    --port=3000 \
+    --request-path=/healthz \
+    --check-interval=10s \
+    --timeout=5s \
+    --unhealthy-threshold=3 \
+    --healthy-threshold=2
+```
+
+<Checkpoint>
+Verify the health check was created:
+
+```code
+$ gcloud compute health-checks describe teleport-auth-healthcheck --format="value(name, type)"
+```
+
+You should see the health check name and its type in the output.
+</Checkpoint>
+
 ### Storage: Cloud Firestore
 
 The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
 updates to keep individual Auth Service instances in sync, and requires Firestore configured
 in native mode.
+
+**Run on your workstation to create a Firestore database in native mode:**
+
+```code
+$ gcloud firestore databases create \
+    --location=us-central \
+    --type=firestore-native \
+    --project=Example_GCP_PROJECT
+```
 
 To configure Teleport to store audit events in Firestore, add the following to
 the teleport section of your Auth Service's config file (by default it's `/etc/teleport.yaml`):
@@ -97,12 +152,32 @@ refer to *different* Firestore collections. The schema is different for each, an
 collection for both types of data will result in errors.
 </Admonition>
 
+<Checkpoint>
+Verify Firestore is available:
+
+```code
+$ gcloud firestore databases describe --project=Example_GCP_PROJECT --format="value(name, type)"
+```
+
+You should see a database name and the type `FIRESTORE_NATIVE`.
+</Checkpoint>
+
 ### Storage: Google Cloud Storage
 
 The Google Cloud Storage backend is used for Teleport session recordings.
 Teleport will try to create the bucket on startup if it doesn't already exist.
 If you prefer, you can create the bucket ahead of time. In this case, Teleport
 does not need permissions to create buckets.
+
+**Run on your workstation to create the bucket:**
+
+```code
+$ gcloud storage buckets create gs://Example_BUCKET_NAME \
+    --project=Example_GCP_PROJECT \
+    --location=us-central1 \
+    --default-storage-class=Standard \
+    --uniform-bucket-level-access
+```
 
 When creating the Bucket, we recommend setting it up as `Dual-region` with
 the `Standard` storage class. Provide access using a `Uniform` access control
@@ -117,14 +192,60 @@ storage:
     ...
 ```
 
+<Checkpoint>
+Verify the bucket was created:
+
+```code
+$ gcloud storage buckets describe gs://Example_BUCKET_NAME --format="value(name, location)"
+```
+
+You should see your bucket name and its location.
+</Checkpoint>
+
 ### Network Services: Load Balancing
 
 Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as
 Teleport requires custom ports for SSH and Web Traffic.
 
+**Run on your workstation:**
+
+```code
+$ gcloud compute backend-services create teleport-proxy-backend \
+    --protocol=TCP \
+    --health-checks=teleport-auth-healthcheck \
+    --global
+
+$ gcloud compute target-tcp-proxies create teleport-tcp-proxy \
+    --backend-service=teleport-proxy-backend
+
+$ gcloud compute forwarding-rules create teleport-forwarding-rule \
+    --global \
+    --target-tcp-proxy=teleport-tcp-proxy \
+    --ports=443,3023,3024,3025,3026,3036
+```
+
 ### Network Services: Cloud DNS
 
 Cloud DNS is used to set up the public URL of the Teleport Proxy.
+
+**Run on your workstation:**
+
+```code
+# Create a DNS managed zone (if you don't already have one)
+$ gcloud dns managed-zones create teleport-zone \
+    --dns-name="example.com." \
+    --description="DNS zone for Teleport"
+
+# Get the load balancer IP
+$ export LB_IP=$(gcloud compute forwarding-rules describe teleport-forwarding-rule --global --format="value(IPAddress)")
+
+# Create an A record pointing to the load balancer
+$ gcloud dns record-sets create teleport.example.com. \
+    --zone=teleport-zone \
+    --type=A \
+    --ttl=300 \
+    --rrdatas=$LB_IP
+```
 
 ### Access: Service accounts
 
@@ -148,6 +269,8 @@ includedPermissions:
 # recordings if it doesn't already exist.
 - storage.buckets.create
 ```
+
+**Run on your workstation:**
 
 Create the role using this file:
 
@@ -203,12 +326,43 @@ $ gcloud projects add-iam-policy-binding Example_GCP_PROJECT \
     --role=roles/storage.objectAdmin
 ```
 
+<Checkpoint>
+Verify the service account has the correct roles:
+
+```code
+$ gcloud projects get-iam-policy Example_GCP_PROJECT \
+    --flatten="bindings[].members" \
+    --filter="bindings.members:serviceAccount:$SERVICE_ACCOUNT" \
+    --format="table(bindings.role)"
+```
+
+You should see the custom IAM role, `roles/datastore.owner`, and `roles/storage.objectAdmin` listed.
+</Checkpoint>
+
 **Download JSON Service Key**
 
 The credentials for this service account should be exported in JSON format
 and provided to Teleport throughout the remainder of this guide.
 
+<Tabs>
+<TabItem label="Console">
+
 ![GCP Service Key](../../../../img/gcp/gcp-service-key.png)
+
+</TabItem>
+<TabItem label="gcloud CLI">
+
+**Run on your workstation:**
+
+```code
+$ gcloud iam service-accounts keys create /var/lib/teleport/google.json \
+    --iam-account=$SERVICE_ACCOUNT
+
+$ chmod 600 /var/lib/teleport/google.json
+```
+
+</TabItem>
+</Tabs>
 
 ## GCP Quickstart
 
@@ -216,6 +370,23 @@ and provided to Teleport throughout the remainder of this guide.
 
 We recommend starting by creating the resources. We highly recommend creating these using
 an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
+
+<Checkpoint>
+Verify all required GCP resources are ready before proceeding:
+
+```code
+# Verify Firestore database exists
+$ gcloud firestore databases describe --project=Example_GCP_PROJECT --format="value(type)"
+
+# Verify GCS bucket exists
+$ gcloud storage buckets describe gs://Example_BUCKET_NAME --format="value(name)"
+
+# Verify service account exists
+$ gcloud iam service-accounts describe $SERVICE_ACCOUNT --format="value(email)"
+```
+
+All three commands should return valid output without errors.
+</Checkpoint>
 
 ### 2. Install & Configure Teleport
 
@@ -350,7 +521,27 @@ proxy_service:
   enabled: false
 ```
 
-**4. Add Users**
+**4. Start services and verify**
+
+**Run on each Teleport host:**
+
+```code
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+$ sudo systemctl status teleport
+```
+
+<Checkpoint>
+Verify the Teleport Auth Service is running and connected to its backend:
+
+```code
+$ sudo journalctl -u teleport --no-pager -n 20 | grep -i "started\|error\|firestore"
+```
+
+You should see log lines indicating the Auth Service has started and connected to Firestore without errors.
+</Checkpoint>
+
+**5. Add Users**
 
 Follow our [Local Users](../../../zero-trust-access/rbac-get-started/users.mdx) guide or integrate
 with [Google Workspace](../../../zero-trust-access/sso/integrate-idp/google-workspace.mdx) to
