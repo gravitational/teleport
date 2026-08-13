@@ -59,16 +59,14 @@ export const NoProfiles = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-NoProfiles.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json({
-          profiles: [],
-        });
-      }),
-    ],
-  },
+NoProfiles.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json({
+        profiles: [],
+      });
+    })
+  );
 };
 
 export const WithProfiles = () => (
@@ -94,109 +92,107 @@ export const WithProfiles = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-WithProfiles.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json({
-          profiles: [
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleA', 'RoleC'],
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleB', 'RoleB'],
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/baz',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/qux',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              roles: ['RoleB', 'RoleB'],
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleA', 'RoleC'],
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleB', 'RoleB'],
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/baz',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/qux',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              roles: ['RoleB', 'RoleB'],
-            },
-          ],
-        });
-      }),
-      http.put(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json(
+WithProfiles.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json({
+        profiles: [
           {
-            error: { message: 'Filter baz invalid.' },
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+            roles: ['RoleA', 'RoleC'],
           },
-          { status: 400 }
-        );
-      }),
-    ],
-  },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+            roles: ['RoleB', 'RoleB'],
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/baz',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/qux',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            roles: ['RoleB', 'RoleB'],
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+            roles: ['RoleA', 'RoleC'],
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+            roles: ['RoleB', 'RoleB'],
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/baz',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/qux',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            roles: ['RoleB', 'RoleB'],
+          },
+        ],
+      });
+    }),
+    http.put(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Filter baz invalid.' },
+        },
+        { status: 400 }
+      );
+    })
+  );
 };
 
 export const NotFoundEnroll = () => (
@@ -216,19 +212,17 @@ export const NotFoundEnroll = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-NotFoundEnroll.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json(
-          {
-            error: { message: 'Hidden 404 message' },
-          },
-          { status: 404 }
-        );
-      }),
-    ],
-  },
+NotFoundEnroll.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Hidden 404 message' },
+        },
+        { status: 404 }
+      );
+    })
+  );
 };
 
 export const Edit = () => (
@@ -257,54 +251,52 @@ export const Edit = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-Edit.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json({
-          name: raName,
-          kind: IntegrationKind,
-          subKind: IntegrationKind.AwsRa,
-          awsra: {
-            trustAnchorArn: 'foo',
-            profileSyncConfig: {
-              profileNameFilters: ['test-*', 'dev-*', 'staging-*'],
-            },
+Edit.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json({
+        name: raName,
+        kind: IntegrationKind,
+        subKind: IntegrationKind.AwsRa,
+        awsra: {
+          trustAnchorArn: 'foo',
+          profileSyncConfig: {
+            profileNameFilters: ['test-*', 'dev-*', 'staging-*'],
           },
-        });
-      }),
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json({
-          profiles: [
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleA', 'RoleC'],
+        },
+      });
+    }),
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json({
+        profiles: [
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
             },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleB', 'RoleB'],
+            roles: ['RoleA', 'RoleC'],
+          },
+          {
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
             },
-          ],
-        });
-      }),
-    ],
-  },
+            roles: ['RoleB', 'RoleB'],
+          },
+        ],
+      });
+    })
+  );
 };
 
 export const EditError = () => (
@@ -333,57 +325,55 @@ export const EditError = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-EditError.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json(
+EditError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Generic Bad Request' },
+        },
+        { status: 400 }
+      );
+    }),
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json({
+        profiles: [
           {
-            error: { message: 'Generic Bad Request' },
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+            roles: ['RoleA', 'RoleC'],
           },
-          { status: 400 }
-        );
-      }),
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json({
-          profiles: [
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleA', 'RoleC'],
-            },
-            {
-              arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
-              enabled: true,
-              name: raName,
-              acceptRoleSessionName: false,
-              tags: {
-                'teleport.dev/cluster': 'foo',
-                'teleport.dev/integration': 'bar',
-                'teleport.dev/origin': 'baz',
-              },
-              roles: ['RoleB', 'RoleB'],
-            },
-          ],
-        });
-      }),
-      http.put(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json(
           {
-            error: { message: 'Filter baz invalid.' },
+            arn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/bar',
+            enabled: true,
+            name: raName,
+            acceptRoleSessionName: false,
+            tags: {
+              'teleport.dev/cluster': 'foo',
+              'teleport.dev/integration': 'bar',
+              'teleport.dev/origin': 'baz',
+            },
+            roles: ['RoleB', 'RoleB'],
           },
-          { status: 400 }
-        );
-      }),
-    ],
-  },
+        ],
+      });
+    }),
+    http.put(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Filter baz invalid.' },
+        },
+        { status: 400 }
+      );
+    })
+  );
 };
 
 export const NotFoundEdit = () => (
@@ -420,19 +410,17 @@ export const NotFoundEdit = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-NotFoundEdit.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json(
-          {
-            error: { message: 'Hidden 404 message' },
-          },
-          { status: 404 }
-        );
-      }),
-    ],
-  },
+NotFoundEdit.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Hidden 404 message' },
+        },
+        { status: 404 }
+      );
+    })
+  );
 };
 
 export const BadRequest = () => (
@@ -452,19 +440,17 @@ export const BadRequest = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-BadRequest.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json(
-          {
-            error: { message: 'Generic Bad Request' },
-          },
-          { status: 400 }
-        );
-      }),
-    ],
-  },
+BadRequest.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Generic Bad Request' },
+        },
+        { status: 400 }
+      );
+    })
+  );
 };
 
 export const WithoutAccess = () => {
@@ -506,14 +492,12 @@ export const MissingState = () => (
     </InfoGuidePanelProvider>
   </ContextProvider>
 );
-MissingState.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
-        return HttpResponse.json({
-          profiles: [],
-        });
-      }),
-    ],
-  },
+MissingState.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.getAwsRolesAnywhereProfilesUrl(raName), () => {
+      return HttpResponse.json({
+        profiles: [],
+      });
+    })
+  );
 };

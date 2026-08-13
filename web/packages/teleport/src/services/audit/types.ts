@@ -18,21 +18,6 @@
 
 import { SortDir } from '../agents';
 
-// eventGroupTypes contains a map of events that were grouped under the same
-// event type but have different event codes. This is used to filter out duplicate
-// event types when listing event filters and provide modified description of event.
-export const eventGroupTypes = {
-  'db.session.start': 'Database Session Start',
-  exec: 'Command Execution',
-  port: 'Port Forwarding',
-  scp: 'SCP',
-  sftp: 'SFTP',
-  subsystem: 'Subsystem Request',
-  'user.login': 'User Logins',
-  'spiffe.svid.issued': 'SPIFFE SVID Issuance',
-  'device.enroll_pairing.request': 'Device Enroll Pairing Request',
-};
-
 /**
  * eventCodes is a map of event codes.
  *
@@ -40,8 +25,6 @@ export const eventGroupTypes = {
  *  1: Define fields from JSON response in `RawEvents` object (in this file)
  *  2: Define formatter in `makeEvent.ts` file which defines *events types and
  *     defines short and long event definitions
- *  * Some events can have same event "type" but have unique "code".
- *    These duplicated event types needs to be defined in `eventGroupTypes` object
  *  3: Define icons for events under `EventTypeCell.tsx` file
  *  4: Add an actual JSON event to the fixtures file in `src/Audit/fixtures/index.ts`.
  */
@@ -140,6 +123,9 @@ export const eventCodes = {
   DEVICE_AUTHENTICATE_CONFIRM: 'TV009I',
   DEVICE_ENROLL_PAIRING_REQUEST: 'TV010I',
   DEVICE_ENROLL_PAIRING_REQUEST_FAILURE: 'TV010W',
+  DEVICE_ENROLL_PAIRING_APPROVE: 'TV011I',
+  DEVICE_ENROLL_PAIRING_APPROVE_FAILURE: 'TV011W',
+  DEVICE_ENROLL_PAIRING_DENY: 'TV012W',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -382,11 +368,6 @@ export const eventCodes = {
   SCIM_RESOURCE_PATCH: 'TSCIM006I',
   SCIM_RESOURCE_PATCH_FAILURE: 'TSCIM006E',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
-  APPAUTHCONFIG_CREATE: 'TAAC001I',
-  APPAUTHCONFIG_UPDATE: 'TAAC002I',
-  APPAUTHCONFIG_DELETE: 'TAAC003I',
-  APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
-  APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
@@ -1456,6 +1437,17 @@ export type RawEvents = {
     typeof eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE,
     Merge<DeviceEventFields, { error?: string }>
   >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_APPROVE
+  >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE]: RawEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE,
+    Merge<DeviceEventFields, { error?: string }>
+  >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_DENY]: RawEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_DENY,
+    Merge<DeviceEventFields, { error?: string }>
+  >;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -2353,32 +2345,6 @@ export type RawEvents = {
       success: boolean;
       mode?: string;
       enforcement_expires?: string;
-    }
-  >;
-  [eventCodes.APPAUTHCONFIG_CREATE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_CREATE,
-    HasName
-  >;
-  [eventCodes.APPAUTHCONFIG_UPDATE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_UPDATE,
-    HasName
-  >;
-  [eventCodes.APPAUTHCONFIG_DELETE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_DELETE,
-    HasName
-  >;
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS,
-    {
-      app_auth_config: string;
-      app_name: string;
-    }
-  >;
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_VERIFY_FAILURE,
-    {
-      app_auth_config: string;
-      error: string;
     }
   >;
   [eventCodes.VNET_CONFIG_CREATE]: RawEvent<

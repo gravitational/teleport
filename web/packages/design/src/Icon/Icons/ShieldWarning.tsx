@@ -56,6 +56,7 @@ export const ShieldWarning = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-shieldwarning"
+
       {...otherProps}
       ref={ref}
     >

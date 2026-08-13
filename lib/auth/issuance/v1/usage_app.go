@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/scopes"
+	appscopes "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -117,6 +118,9 @@ func validateUsageApp(req *issuancev1pb.IssueScopedBotCertsRequest) error {
 	}
 	if app.GetPublicAddr() == "" {
 		return trace.BadParameter("app.public_addr: is required")
+	}
+	if !appscopes.ScopedAppPublicAddrValid(app.GetScope(), app.GetName(), app.GetPublicAddr()) {
+		return trace.BadParameter("app.public_addr: is not valid for given app name and scope")
 	}
 
 	return nil

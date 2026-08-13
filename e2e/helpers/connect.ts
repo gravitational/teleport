@@ -99,6 +99,7 @@ export async function login(
     .filter({ hasText: 'Add Cluster' });
 
   // The 'Connect' button is visible only when no clusters are present.
+  await expect(connectButton.or(addClusterItem)).toBeVisible();
   if (await connectButton.isVisible()) {
     await connectButton.click();
   } else {
@@ -120,6 +121,7 @@ export async function login(
 export interface App {
   electronApp: ElectronApplication;
   page: Page;
+  userDataDir: string;
   appConfigPath: string;
 }
 
@@ -153,6 +155,7 @@ export const test = fixtureBase.extend<{
     }
     await use({
       electronApp: launchedApp.electronApp,
+      userDataDir: temp.path,
       page: launchedApp.page,
       appConfigPath,
     });

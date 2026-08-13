@@ -36,7 +36,36 @@ func TestAppResourceFields(t *testing.T) {
 			fields = append(fields, f.Name)
 		}
 	}
-	require.Equal(t, []string{"AllowAll"}, fields)
+	want := []string{
+		"Paths", "Methods", "Where", "AllowEncoded", "AllowAll",
+		"AllowCode", "AllowReason", "DenyCodeHint", "DenyReasonHint",
+	}
+	require.Equal(t, want, fields)
+}
+
+// TestIsAllowAllOnly checks that every declared field besides allow_all
+// disqualifies a rule from counting as unrestricted. A rule a newer
+// version wrote with a restricting field must deny, never widen to
+// allow_all, on a version that does not enforce the field.
+func TestIsAllowAllOnly(t *testing.T) {
+	require.True(t, AppResource{AllowAll: true}.IsAllowAllOnly())
+	require.False(t, AppResource{}.IsAllowAllOnly())
+
+	for name, rule := range map[string]AppResource{
+		"paths":            {AllowAll: true, Paths: []string{"/api/**"}},
+		"methods":          {AllowAll: true, Methods: []string{"GET"}},
+		"where":            {AllowAll: true, Where: "true"},
+		"allow_encoded":    {AllowAll: true, AllowEncoded: []string{"/"}},
+		"allow_code":       {AllowAll: true, AllowCode: "all"},
+		"allow_reason":     {AllowAll: true, AllowReason: "All."},
+		"deny_code_hint":   {AllowAll: true, DenyCodeHint: "no"},
+		"deny_reason_hint": {AllowAll: true, DenyReasonHint: "No."},
+		"unknown field":    {AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.False(t, rule.IsAllowAllOnly())
+		})
+	}
 }
 
 // TestAppResourcesRequireV9 covers the read-path check in
@@ -88,6 +117,24 @@ func TestAppResourcesRequireV9(t *testing.T) {
 			deny:      RoleConditions{AppResources: []AppResource{{AllowAll: true}}},
 			assertErr: errContains("requires role version"),
 		},
+		{
+			name:      "app_resources_expressions on v8 role",
+			version:   V8,
+			allow:     RoleConditions{AppResourcesExpressions: []string{"true"}},
+			assertErr: errContains("requires role version"),
+		},
+		{
+			name:      "app_resources_expressions under deny on v8 role",
+			version:   V8,
+			deny:      RoleConditions{AppResourcesExpressions: []string{"true"}},
+			assertErr: errContains("requires role version"),
+		},
+		{
+			name:      "v9 app_resources_expressions passes read validation",
+			version:   V9,
+			allow:     RoleConditions{AppResourcesExpressions: []string{"true"}},
+			assertErr: require.NoError,
+		},
 	}
 
 	for _, test := range tests {
@@ -100,14 +147,6 @@ func TestAppResourcesRequireV9(t *testing.T) {
 			test.assertErr(t, role.CheckAndSetDefaults())
 		})
 	}
-}
-
-func TestIsAllowAllOnly(t *testing.T) {
-	require.True(t, AppResource{AllowAll: true}.IsAllowAllOnly())
-	require.False(t, AppResource{}.IsAllowAllOnly())
-	// Unknown fields from a newer auth server must not grant access.
-	withUnknownField := AppResource{AllowAll: true, XXX_unrecognized: []byte{0x0a, 0x01, 0x2f}}
-	require.False(t, withUnknownField.IsAllowAllOnly())
 }
 
 func TestAppResourcesAllowAll(t *testing.T) {

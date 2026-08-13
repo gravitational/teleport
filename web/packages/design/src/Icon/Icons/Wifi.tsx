@@ -56,6 +56,7 @@ export const Wifi = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-wifi"
+
       {...otherProps}
       ref={ref}
     >

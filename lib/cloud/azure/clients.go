@@ -66,6 +66,8 @@ type Clients interface {
 	GetPostgresFlexServersClient(ctx context.Context, subscription string) (PostgresFlexServersClient, error)
 	// GetRunCommandClient returns an Azure Run Command client for the given subscription.
 	GetRunCommandClient(ctx context.Context, subscription string) (RunCommandClient, error)
+	// GetNetworkInterfacesClient returns an Azure Network Interfaces client for the given subscription.
+	GetNetworkInterfacesClient(ctx context.Context, subscription string) (NetworkInterfacesClient, error)
 }
 
 // ClientsOption is an option to pass to NewAzureClients
@@ -140,6 +142,10 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	azClients.networkInterfacesClients, err = NewClientMap(NewNetworkInterfacesClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	azClients.credentialFunc = func(ctx context.Context) (azcore.TokenCredential, error) {
 		// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
@@ -174,6 +180,7 @@ type clients struct {
 	mySQLFlexServersClients    ClientMap[MySQLFlexServersClient]
 	postgresFlexServersClients ClientMap[PostgresFlexServersClient]
 	runCommandClients          ClientMap[RunCommandClient]
+	networkInterfacesClients   ClientMap[NetworkInterfacesClient]
 }
 
 // GetCredential returns default Azure token credential chain.
@@ -272,6 +279,12 @@ func (c *clients) GetPostgresFlexServersClient(ctx context.Context, subscription
 // subscription.
 func (c *clients) GetRunCommandClient(ctx context.Context, subscription string) (RunCommandClient, error) {
 	return c.runCommandClients.Get(ctx, subscription, c.GetCredential)
+}
+
+// GetNetworkInterfacesClient returns an Azure Network Interfaces client for the
+// given subscription.
+func (c *clients) GetNetworkInterfacesClient(ctx context.Context, subscription string) (NetworkInterfacesClient, error) {
+	return c.networkInterfacesClients.Get(ctx, subscription, c.GetCredential)
 }
 
 func (c *clients) initCredential(ctx context.Context) (azcore.TokenCredential, error) {

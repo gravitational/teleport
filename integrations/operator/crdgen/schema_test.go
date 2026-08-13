@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/pruning"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -59,20 +61,37 @@ func TestCRDSchemaValidation(t *testing.T) {
 			validator := validators[obj.GroupVersionKind()]
 			require.NotNil(t, validator)
 
-			result := validator.Validate(obj.Object)
+			result := validator.validator.Validate(obj.Object)
 			require.Empty(t, result.Errors)
+
+			// Also run it through the structured schema pruning to make sure
+			// nothing gets removed.
+			pruned := pruning.PruneWithOptions(
+				obj.Object,
+				validator.structural,
+				true,
+				structuralschema.UnknownFieldPathOptions{
+					TrackUnknownFieldPaths: true,
+				},
+			)
+			require.Empty(t, pruned, "no fields should be unexpectedly pruned")
 		})
 	}
 }
 
+type crdSchema struct {
+	validator  validation.SchemaCreateValidator
+	structural *structuralschema.Structural
+}
+
 // buildValidators parses all CRDs in the specified directory and returns a map of GVK and SchemaCreateValidator.
-func buildValidators(t *testing.T, crdDir string) map[schema.GroupVersionKind]validation.SchemaCreateValidator {
+func buildValidators(t *testing.T, crdDir string) map[schema.GroupVersionKind]crdSchema {
 	t.Helper()
 
 	crdFiles, err := filepath.Glob(filepath.Join(crdDir, "*.yaml"))
 	require.NoError(t, err)
 
-	validators := make(map[schema.GroupVersionKind]validation.SchemaCreateValidator, len(crdFiles))
+	validators := make(map[schema.GroupVersionKind]crdSchema, len(crdFiles))
 	for _, crdFile := range crdFiles {
 		data, err := os.ReadFile(crdFile)
 		require.NoError(t, err)
@@ -95,13 +114,21 @@ func buildValidators(t *testing.T, crdDir string) map[schema.GroupVersionKind]va
 		validator, _, err := validation.NewSchemaValidator(internalSchema)
 		require.NoError(t, err)
 
+		structural, err := structuralschema.NewStructural(internalSchema)
+		require.NoError(t, err)
+		require.Empty(t, structuralschema.ValidateStructural(nil, structural))
+
 		gvk := schema.GroupVersionKind{
 			Group:   crd.Spec.Group,
 			Version: ver.Name,
 			Kind:    crd.Spec.Names.Kind,
 		}
 
-		validators[gvk] = validator
+		validators[gvk] = crdSchema{
+			validator:  validator,
+			structural: structural,
+		}
+
 	}
 	return validators
 }

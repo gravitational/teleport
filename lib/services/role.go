@@ -297,18 +297,25 @@ func ValidateRole(r types.Role) error {
 }
 
 // validateAppResources rejects an app_resources rule set that this version
-// cannot enforce, for example a rule with an unknown field. It runs on create
-// and update only, not on read.
+// cannot enforce, for example a rule with an unknown field. It also rejects
+// any app_resources_expressions. It runs on create and update only, not on
+// read.
 func validateAppResources(r types.Role) error {
 	if len(r.GetAppResources(types.Deny)) > 0 {
 		return trace.BadParameter("app_resources is not allowed under deny")
+	}
+	if len(r.GetAppResourcesExpressions(types.Deny)) > 0 {
+		return trace.BadParameter("app_resources_expressions is not allowed under deny")
+	}
+	if len(r.GetAppResourcesExpressions(types.Allow)) > 0 {
+		return trace.BadParameter("app_resources_expressions is not supported in this version, only app_resources with allow_all is honored")
 	}
 	allow := r.GetAppResources(types.Allow)
 	for i, rule := range allow {
 		// The backend JSON marshal drops unknown fields. Storing such a
 		// rule would silently widen it to unrestricted access.
 		if !rule.IsAllowAllOnly() {
-			return trace.BadParameter("app_resources[%d]: a rule must set allow_all and nothing else; paths, methods, and where rules are not yet supported", i)
+			return trace.BadParameter("app_resources[%d]: this version implements allow_all only, so a rule must set allow_all and nothing else", i)
 		}
 	}
 	// Every rule sets allow_all at this point, so more than one rule can

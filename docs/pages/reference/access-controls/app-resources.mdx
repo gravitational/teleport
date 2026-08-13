@@ -32,6 +32,22 @@ spec:
       - allow_all: true
 ```
 
+Teleport 19 rejects a role that sets any of the following `app_resources`
+fields. The role schema still declares them so that version skew or a rollback
+cannot silently drop one and widen the access a role grants.
+
+- `paths`
+- `methods`
+- `where`
+- `allow_encoded`
+- `allow_code`
+- `allow_reason`
+- `deny_code_hint`
+- `deny_reason_hint`
+
+Teleport 19 rejects `spec.allow.app_resources_expressions` on the same grounds.
+It expresses the same rules as predicates.
+
 When a v9 role and a v8 or older role both grant the same application, Teleport
 drops the older roles from the decision, so they cannot restore unrestricted
 access to an application a v9 role restricts.

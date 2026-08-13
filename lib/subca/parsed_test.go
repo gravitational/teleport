@@ -525,3 +525,22 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 		}
 	})
 }
+
+func TestSubKindToCertAuthType(t *testing.T) {
+	t.Parallel()
+
+	specialsMap := map[string]types.CertAuthType{
+		subca.SPIFFECAOverrideSubKind: types.SPIFFECA,
+	}
+
+	for _, subKind := range subca.SupportedCATypes() {
+		expected := types.CertAuthType(subKind)
+		if val, ok := specialsMap[subKind]; ok {
+			expected = val
+		}
+		assert.Equal(t, expected, subca.SubKindToCertAuthType(subKind))
+	}
+
+	// Ensure types.SPIFFECA ("spiffe") passes through unmodified.
+	assert.Equal(t, types.SPIFFECA, subca.SubKindToCertAuthType(string(types.SPIFFECA)))
+}

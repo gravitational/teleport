@@ -56,6 +56,7 @@ export const Layout = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-layout"
+
       {...otherProps}
       ref={ref}
     >

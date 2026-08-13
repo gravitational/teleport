@@ -56,6 +56,7 @@ export const Linkedin = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-linkedin"
+
       {...otherProps}
       ref={ref}
     >

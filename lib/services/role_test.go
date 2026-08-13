@@ -1748,19 +1748,40 @@ func TestValidateRoleAppResources(t *testing.T) {
 	require.NoError(t, err)
 
 	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {}}, nil))
-	require.ErrorContains(t, err, "app_resources[1]: a rule must set allow_all")
+	require.ErrorContains(t, err, "app_resources[1]: this version implements allow_all only")
 
 	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {AllowAll: true}}, nil))
 	require.ErrorContains(t, err, "app_resources: a rule setting allow_all must be the only rule")
 
 	// Unknown proto bytes from a newer client must be rejected. The JSON
 	// marshal into the backend would drop them and widen the rule.
-	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x0a, 0x01, 0x2f}}
+	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}}
 	err = ValidateRole(newV9Role([]types.AppResource{combined}, nil))
 	require.ErrorContains(t, err, "a rule must set allow_all and nothing else")
 
 	err = ValidateRole(newV9Role(nil, []types.AppResource{{AllowAll: true}}))
 	require.ErrorContains(t, err, "app_resources is not allowed under deny")
+
+	// A declared field is rejected at write, so a stored rule is never
+	// wider than the agent honors.
+	for name, rule := range map[string]types.AppResource{
+		"paths":   {AllowAll: true, Paths: []string{"/api/**"}},
+		"methods": {AllowAll: true, Methods: []string{"GET"}},
+		"where":   {AllowAll: true, Where: "true"},
+	} {
+		err := ValidateRole(newV9Role([]types.AppResource{rule}, nil))
+		require.ErrorContains(t, err, "a rule must set allow_all and nothing else", "field %s", name)
+	}
+
+	exprRole := newV9Role([]types.AppResource{{AllowAll: true}}, nil).(*types.RoleV6)
+	exprRole.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+	err = ValidateRole(exprRole)
+	require.ErrorContains(t, err, "app_resources_expressions is not supported")
+
+	denyExprRole := newV9Role(nil, nil).(*types.RoleV6)
+	denyExprRole.Spec.Deny.AppResourcesExpressions = []string{"true"}
+	err = ValidateRole(denyExprRole)
+	require.ErrorContains(t, err, "app_resources_expressions is not allowed under deny")
 }
 
 func TestValidateRoleName(t *testing.T) {

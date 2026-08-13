@@ -56,6 +56,7 @@ export const Unlink = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-unlink"
+
       {...otherProps}
       ref={ref}
     >

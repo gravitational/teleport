@@ -61,7 +61,7 @@ func (r databaseClient) Delete(ctx context.Context, key reconcilers.ResourceKey)
 }
 
 // NewDatabaseV3Reconciler instantiates a new Kubernetes controller reconciling database v6 resources
-func NewDatabaseV3Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewDatabaseV3Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	databaseClient := &databaseClient{
 		teleportClient: tClient,
 	}

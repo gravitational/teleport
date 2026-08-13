@@ -56,6 +56,7 @@ export const XCheck = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-xcheck"
+
       {...otherProps}
       ref={ref}
     >

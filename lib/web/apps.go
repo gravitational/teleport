@@ -120,9 +120,6 @@ type CreateAppSessionRequest struct {
 	AWSRole string `json:"arn,omitempty"`
 	// MFAResponse is an optional MFA response used to create an MFA verified app session.
 	MFAResponse client.MFAChallengeResponse `json:"mfaResponse"`
-	// TODO(Joerger): DELETE IN v19.0.0
-	// Backwards compatible version of MFAResponse
-	MFAResponseJSON string `json:"mfa_response"`
 }
 
 // CreateAppSessionResponse is a response to POST /v1/webapi/sessions/app
@@ -164,14 +161,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Fallback to backwards compatible mfa response.
-	if mfaResponse == nil && req.MFAResponseJSON != "" {
-		mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.MFAResponseJSON))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Get an auth client connected with the user's identity.

@@ -199,7 +199,8 @@ func createBotUser(
 
 	metadata := user.GetMetadata()
 	metadata.Labels = map[string]string{
-		types.BotLabel:           botName,
+		types.BotLabel: botName,
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		types.BotGenerationLabel: "0",
 	}
 	user.SetMetadata(metadata)

@@ -656,7 +656,6 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
-		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		Summarizer:              p.AuthServer.Services.Summarizer,
 		SubCAService:            p.AuthServer.Services.SubCAService,

@@ -443,6 +443,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundPublicKey)
+
+				bi, err := authServer.BotInstance.GetBotInstance(t.Context(), machineidv1pb.GetBotInstanceRequest_builder{
+					BotName:    "test",
+					InstanceId: v2.Status.BoundKeypair.BoundBotInstanceID,
+				}.Build())
+				require.NoError(t, err)
+				attrs := bi.GetStatus().GetInitialAuthentication().GetJoinAttrs().GetBoundKeypair()
+				require.Equal(t, v2.Status.BoundKeypair.BoundPublicKey, attrs.GetPublicKey())
+				require.Equal(t, boundkeypair.RecoveryModeInsecure, attrs.GetRecoveryMode())
+				require.Equal(t, uint32(1), attrs.GetRecoveryCount())
 			},
 		},
 		{
@@ -1936,7 +1946,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.NoError(t, err)
 	certIdentity, err := tlsca.FromSubject(parsedCert.Subject, parsedCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, "bot-++test+test-scoped", certIdentity.Username)
+	require.Equal(t, "bot-300101746573740000-test-scoped", certIdentity.Username)
 
 	// The BotInstance should have the scope set. A bot is identified by
 	// (scope, name), so the read must declare the bot's scope to address the
@@ -1971,7 +1981,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 				BotInstanceID: firstInstance,
 				TokenName:     scopedToken.GetMetadata().GetName(),
 				Method:        scopedToken.GetSpec().GetJoinMethod(),
-				UserName:      "bot-++test+test-scoped",
+				UserName:      "bot-300101746573740000-test-scoped",
 				BotName:       sqn.Name,
 				Scope:         sqn.Scope,
 			},

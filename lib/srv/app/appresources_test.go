@@ -105,6 +105,21 @@ func TestDecideMinimalV9(t *testing.T) {
 		AppLabels: prodLabels,
 	})
 	v9OtherDenyRules.(*types.RoleV6).Spec.Deny.AppResources = []types.AppResource{{}}
+	// A predicate restricts the rules it accompanies, so allow_all next to
+	// one is not unrestricted.
+	v9AllowAllWithExpressions := newTestRole(t, "v9-allow-all-expressions", types.V9, types.RoleConditions{
+		AppLabels:    devLabels,
+		AppResources: []types.AppResource{{AllowAll: true}},
+	})
+	v9AllowAllWithExpressions.(*types.RoleV6).Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+	v9ExpressionsOnly := newTestRole(t, "v9-expressions-only", types.V9, types.RoleConditions{
+		AppLabels: devLabels,
+	})
+	v9ExpressionsOnly.(*types.RoleV6).Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+	v9DenyExpressions := newTestRole(t, "v9-deny-expressions", types.V9, types.RoleConditions{
+		AppLabels: prodLabels,
+	})
+	v9DenyExpressions.(*types.RoleV6).Spec.Deny.AppResourcesExpressions = []string{`path.match(literal("admin"))`}
 
 	for _, tc := range []struct {
 		desc  string
@@ -164,6 +179,21 @@ func TestDecideMinimalV9(t *testing.T) {
 		{
 			desc:  "deny app rules in another role block allow_all",
 			roles: []types.Role{v9AllowAll, v9OtherDenyRules},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
+		},
+		{
+			desc:  "allow expressions block allow_all",
+			roles: []types.Role{v9AllowAllWithExpressions},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
+		},
+		{
+			desc:  "allow expressions without rules deny",
+			roles: []types.Role{v9ExpressionsOnly},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
+		},
+		{
+			desc:  "deny expressions in another role block allow_all",
+			roles: []types.Role{v9AllowAll, v9DenyExpressions},
 			want:  minimalV9Decision{enforced: true, versionSkew: true},
 		},
 	} {

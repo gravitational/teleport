@@ -56,6 +56,7 @@ export const CheckCircleDotted = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-checkcircledotted"
+
       {...otherProps}
       ref={ref}
     >

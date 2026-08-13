@@ -107,7 +107,9 @@ func Retry[T any](ctx context.Context, log *slog.Logger, f func() (T, error)) (T
 // on serialization or deadlock errors, and backing off more on other errors. It
 // assumes that f is idempotent, so it will retry even in ambiguous situations.
 // It will retry unique constraint violation and exclusion constraint
-// violations, so the closure should not rely on those for normal behavior.
+// violations, so the closure should not rely on those for normal behavior. It
+// will also retry duplicate table errors, which can be returned by concurrent
+// idempotent DDL setup.
 func RetryIdempotent[T any](ctx context.Context, log *slog.Logger, f func() (T, error)) (T, error) {
 	const idempotent = true
 	v, err := retry(ctx, log, idempotent, f)
@@ -142,18 +144,24 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 		var pgErr *pgconn.PgError
 		_ = errors.As(err, &pgErr)
 
-		if pgErr != nil && isSerializationErrorCode(pgErr.Code) {
+		isSerializationConflict := pgErr != nil && isSerializationErrorCode(pgErr.Code)
+		isIdempotentDDLConflict := pgErr != nil && isIdempotent && isIdempotentDDLConflictErrorCode(pgErr.Code)
+		isRetryable := (isIdempotent && pgErr == nil) || pgconn.SafeToRetry(err)
+
+		// Check for fast retryable errors first
+		if isSerializationConflict || isIdempotentDDLConflict {
 			log.LogAttrs(ctx, slog.LevelDebug,
 				"Operation failed due to conflicts, retrying quickly.",
 				slog.Int("attempt", i),
 				slog.Any("error", err),
 			)
 			retry.Reset()
-			// the very first attempt gets instant retry on serialization failure
+			// The very first attempt gets instant retry on conflicts that are
+			// likely to settle quickly.
 			if i > 1 {
 				retry.Inc()
 			}
-		} else if (isIdempotent && pgErr == nil) || pgconn.SafeToRetry(err) {
+		} else if isRetryable {
 			log.LogAttrs(ctx, slog.LevelDebug,
 				"Operation failed, retrying.",
 				slog.Int("attempt", i),
@@ -201,6 +209,18 @@ func isSerializationErrorCode(code string) bool {
 	// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
 	switch code {
 	case pgerrcode.SerializationFailure, pgerrcode.DeadlockDetected, pgerrcode.UniqueViolation, pgerrcode.ExclusionViolation:
+		return true
+	default:
+		return false
+	}
+}
+
+// isIdempotentDDLConflictErrorCode returns true if the error code can be
+// returned by concurrent DDL for an object that is safe to observe as already
+// created when the whole operation is idempotent.
+func isIdempotentDDLConflictErrorCode(code string) bool {
+	switch code {
+	case pgerrcode.DuplicateTable:
 		return true
 	default:
 		return false

@@ -739,6 +739,14 @@ type TeleportProcess struct {
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
+	// emittersMu guards emitters.
+	emittersMu sync.Mutex
+	// emitters holds the audit emitters the process has created, keyed by the
+	// emitter pointer. AuditQueueStatus sums their queue depths so the instance
+	// heartbeat reports the process total.
+	emitters                map[processEmitter]struct{}
+	auditQueueStatusSignalC chan struct{}
+
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
 
@@ -1358,23 +1366,24 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	scopesFeatures := cfg.ScopesFeatures
 
 	process := &TeleportProcess{
-		PluginRegistry:         cfg.PluginRegistry,
-		Clock:                  cfg.Clock,
-		Supervisor:             supervisor,
-		Config:                 cfg,
-		instanceConnectorReady: make(chan struct{}),
-		instanceRoles:          make(map[types.SystemRole]string),
-		hostedPluginRoles:      make(map[types.SystemRole]string),
-		connectors:             make(map[types.SystemRole]*Connector),
-		importedDescriptors:    cfg.FileDescriptors,
-		storage:                store,
-		rotationCache:          rotationCache,
-		id:                     processID,
-		logger:                 cfg.Logger,
-		cloudLabels:            cloudLabels,
-		scopesFeatures:         scopesFeatures,
-		TracingProvider:        tracing.NoopProvider(),
-		metricsRegistry:        metricsRegistry,
+		PluginRegistry:          cfg.PluginRegistry,
+		Clock:                   cfg.Clock,
+		Supervisor:              supervisor,
+		Config:                  cfg,
+		instanceConnectorReady:  make(chan struct{}),
+		instanceRoles:           make(map[types.SystemRole]string),
+		auditQueueStatusSignalC: make(chan struct{}, 1),
+		hostedPluginRoles:       make(map[types.SystemRole]string),
+		connectors:              make(map[types.SystemRole]*Connector),
+		importedDescriptors:     cfg.FileDescriptors,
+		storage:                 store,
+		rotationCache:           rotationCache,
+		id:                      processID,
+		logger:                  cfg.Logger,
+		cloudLabels:             cloudLabels,
+		scopesFeatures:          scopesFeatures,
+		TracingProvider:         tracing.NoopProvider(),
+		metricsRegistry:         metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
 			rootMetricRegistry,
 			prometheus.DefaultGatherer,
@@ -1464,6 +1473,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		process.makeInventoryControlStreamWhenReady,
 		getHello,
 		inventory.WithDownstreamClock(process.Clock),
+		inventory.WithAuditQueueStatusGetter(process.AuditQueueStatus),
+		inventory.WithAuditQueueStatusSignal(process.auditQueueStatusSignalC),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building inventory handle")
@@ -3230,7 +3241,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.BotInstance = services.BotInstance
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
-	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
 
@@ -3282,7 +3292,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
-	cfg.AppAuthConfig = client
 	cfg.SubCAService = client
 
 	return accesspoint.NewCache(cfg)
@@ -3502,7 +3511,7 @@ func isAuditQueueEnabled() bool {
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
 	// properly set before inserting events into the queue.
-	return events.NewCheckingAsyncEmitter(
+	emitter, err := events.NewCheckingAsyncEmitter(
 		events.CheckingEmitterConfig{
 			Clock: process.Clock,
 		},
@@ -3514,16 +3523,90 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 			AuditQueueBackends: process.auditQueueBackends(),
 		},
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.registerEmitter(emitter)
+	return emitter, nil
+}
+
+type processEmitter interface {
+	Stats(ctx context.Context) (auditqueue.Stats, error)
+	Shutdown(context.Context) error
+	Close() error
+}
+
+func (process *TeleportProcess) registerEmitter(emitter processEmitter) {
+	process.emittersMu.Lock()
+	defer process.emittersMu.Unlock()
+	if process.emitters == nil {
+		process.emitters = make(map[processEmitter]struct{})
+	}
+	process.emitters[emitter] = struct{}{}
+}
+
+func (process *TeleportProcess) unregisterEmitter(emitter processEmitter) {
+	process.emittersMu.Lock()
+	defer process.emittersMu.Unlock()
+	delete(process.emitters, emitter)
+}
+
+func (process *TeleportProcess) registeredEmitters() []processEmitter {
+	process.emittersMu.Lock()
+	defer process.emittersMu.Unlock()
+
+	emitters := make([]processEmitter, 0, len(process.emitters))
+	for e := range process.emitters {
+		emitters = append(emitters, e)
+	}
+
+	return emitters
+}
+
+func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.AuditQueueStatus {
+	emitters := process.registeredEmitters()
+
+	if len(emitters) == 0 {
+		return nil
+	}
+	now := time.Now()
+	var status types.AuditQueueStatus
+	for _, e := range emitters {
+		stats, err := e.Stats(ctx)
+		if err != nil {
+			process.logger.DebugContext(ctx, "Failed to read audit queue stats for heartbeat.", "error", err)
+			continue
+		}
+		status.PendingCount += stats.PendingCount
+		status.DeadLetterCount += stats.DeadLetterCount
+		status.CorruptCount += stats.CorruptCount
+		if !stats.OldestPendingTime.IsZero() {
+			if age := int64(now.Sub(stats.OldestPendingTime).Seconds()); age > status.OldestPendingAgeSeconds {
+				status.OldestPendingAgeSeconds = age
+			}
+		}
+		if !stats.OldestDeadLetterTime.IsZero() {
+			if age := int64(now.Sub(stats.OldestDeadLetterTime).Seconds()); age > status.OldestDeadLetterAgeSeconds {
+				status.OldestDeadLetterAgeSeconds = age
+			}
+		}
+	}
+	return &status
 }
 
 func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter) (*events.FallbackEmitter, error) {
-	return events.NewFallbackEmitter(events.FallbackEmitterConfig{
+	emitter, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
 		Primary:            primary,
 		DataDir:            process.Config.DataDir,
 		EnableAuditQueue:   isAuditQueueEnabled(),
 		AuditQueueCfg:      process.auditQueueConfig(),
 		AuditQueueBackends: process.auditQueueBackends(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.registerEmitter(emitter)
+	return emitter, nil
 }
 
 func (process *TeleportProcess) auditQueueConfig() auditqueue.Config {
@@ -3535,6 +3618,14 @@ func (process *TeleportProcess) auditQueueConfig() auditqueue.Config {
 		DeadLetterSweepInterval: process.Config.AuditQueue.DeadLetterSweepInterval,
 		OrphanScanInterval:      process.Config.AuditQueue.OrphanScanInterval,
 		Synchronous:             process.Config.AuditQueue.Synchronous,
+		OnStatsUpdated:          process.signalAuditQueueStatus,
+	}
+}
+
+func (process *TeleportProcess) signalAuditQueueStatus() {
+	select {
+	case process.auditQueueStatusSignalC <- struct{}{}:
+	default:
 	}
 }
 
@@ -7293,18 +7384,13 @@ func (process *TeleportProcess) initApps() {
 	})
 }
 
-// drainableEmitter is an audit emitter whose queue can be drained on shutdown.
-type drainableEmitter interface {
-	Shutdown(context.Context) error
-	Close() error
-}
-
 const emitterDrainTimeout = time.Hour
 
 // shutdownEmitter drains the emitter's queue to the audit backend when payload
 // carries a graceful shutdown context, otherwise it closes the emitter
 // immediately.
-func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload any, logger *slog.Logger) {
+func shutdownEmitter(process *TeleportProcess, emitter processEmitter, payload any, logger *slog.Logger) {
+	process.unregisterEmitter(emitter)
 	if payload == nil {
 		warnOnErr(process.ExitContext(), emitter.Close(), logger)
 		return

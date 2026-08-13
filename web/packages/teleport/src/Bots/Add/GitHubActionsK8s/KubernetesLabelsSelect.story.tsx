@@ -51,29 +51,23 @@ type Story = StoryObj<typeof meta>;
 export default meta;
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [fetchUnifiedResourcesSuccess(), userEventCaptureSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(fetchUnifiedResourcesSuccess(), userEventCaptureSuccess());
   },
 };
 
 export const FetchResourcesError: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        fetchUnifiedResourcesError(500, 'something went wrong'),
-        userEventCaptureSuccess(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      fetchUnifiedResourcesError(500, 'something went wrong'),
+      userEventCaptureSuccess()
+    );
   },
 };
 
 export const FetchResourcesForever: Story = {
-  parameters: {
-    msw: {
-      handlers: [fetchUnifiedResourcesForever(), userEventCaptureSuccess()],
-    },
+  beforeEach({ msw }) {
+    msw.use(fetchUnifiedResourcesForever(), userEventCaptureSuccess());
   },
 };
 

@@ -56,6 +56,7 @@ export const Application = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-application"
+
       {...otherProps}
       ref={ref}
     >

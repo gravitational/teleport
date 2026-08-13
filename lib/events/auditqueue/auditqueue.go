@@ -26,8 +26,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
+
+// DefaultDeliveryTimeout is the default bound on a single invocation of the
+// delivery handler over one batch of events.
+const DefaultDeliveryTimeout = apidefaults.DefaultIOTimeout
 
 var (
 	// ErrQueueFull is returned by Enqueue when the queue has no room for more
@@ -78,8 +83,11 @@ type Config struct {
 	// warning messages.
 	SoftLimit int64
 	// MaxAttempts is the number of delivery failures before an event is moved
-	// to the dead-letter queue. Defaults to 10 if unset.
+	// to the dead-letter queue. Defaults to 3 if unset.
 	MaxAttempts int
+	// DeliveryTimeout bounds a single invocation of the delivery handler over
+	// one batch of events. Defaults to DefaultDeliveryTimeout if unset.
+	DeliveryTimeout time.Duration
 	// DeadLetterSweepInterval is how often the dead-letter sweeper re-attempts
 	// delivery of failed events.
 	DeadLetterSweepInterval time.Duration
@@ -87,13 +95,32 @@ type Config struct {
 	// permanently deleted.
 	DeadLetterTTL time.Duration
 	// Synchronous controls the SQLite synchronous pragma.
-	Synchronous SynchronousMode
+	Synchronous    SynchronousMode
+	StatsInterval  time.Duration
+	OnStatsUpdated func()
 }
 
 // Item is an event yielded to a Handler.
 type Item struct {
 	id    int64
 	Event apievents.AuditEvent
+}
+
+// Stats reports the current depth of a Queue.
+type Stats struct {
+	// PendingCount is the number of events waiting in the main queue.
+	PendingCount int64
+	// DeadLetterCount is the number of events in the dead-letter queue.
+	DeadLetterCount int64
+	// CorruptCount is the number of events quarantined because their payloads
+	// failed to deserialize.
+	CorruptCount int64
+	// OldestPendingTime is when the oldest event in the main queue was
+	// enqueued. Zero when the main queue is empty.
+	OldestPendingTime time.Time
+	// OldestDeadLetterTime is when the oldest event in the dead-letter queue
+	// failed. Zero when the dead-letter queue is empty.
+	OldestDeadLetterTime time.Time
 }
 
 // Handler is the function type that the caller of the auditqueue implements.
@@ -118,6 +145,9 @@ type Queue interface {
 	// dead-letter queue to empty or for ctx to be done, whichever comes first.
 	// Callers must still call Close.
 	Drain(ctx context.Context) error
+	// Stats reports the current depth of the queue (pending and dead-letter
+	// counts).
+	Stats(ctx context.Context) (Stats, error)
 	// Close releases resources held by the queue.
 	Close() error
 }

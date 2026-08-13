@@ -256,7 +256,8 @@ func TestCreateBot(t *testing.T) {
 					Name:      "bot-success",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "success",
+						types.BotLabel: "success",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -372,7 +373,8 @@ func TestCreateBot(t *testing.T) {
 					Name:      "bot-success-with-expiry",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "success-with-expiry",
+						types.BotLabel: "success-with-expiry",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -672,7 +674,7 @@ func TestCreateBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-bot-success",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-bot-success",
 				}.Build(),
 			}.Build(),
 		},
@@ -698,7 +700,7 @@ func TestCreateBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-bot-from-unscoped",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-bot-from-unscoped",
 				}.Build(),
 			}.Build(),
 		},
@@ -825,6 +827,7 @@ func TestUpdateBot(t *testing.T) {
 		preExistingBotUser, err := srv.Auth().GetUser(ctx, preExistingBot.GetStatus().GetUserName(), false)
 		require.NoError(t, err)
 		meta := preExistingBotUser.GetMetadata()
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		meta.Labels[types.BotGenerationLabel] = "1337"
 		preExistingBotUser.SetMetadata(meta)
 		_, err = srv.Auth().UpsertUser(ctx, preExistingBotUser)
@@ -911,7 +914,8 @@ func TestUpdateBot(t *testing.T) {
 					Description: "after",
 					Namespace:   defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           preExistingBot.GetMetadata().GetName(),
+						types.BotLabel: preExistingBot.GetMetadata().GetName(),
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "1337",
 					},
 				},
@@ -1254,11 +1258,43 @@ func TestUpsertBot(t *testing.T) {
 		preExistingBotUser, err := srv.Auth().GetUser(ctx, preExistingBot.GetStatus().GetUserName(), false)
 		require.NoError(t, err)
 		meta := preExistingBotUser.GetMetadata()
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		meta.Labels[types.BotGenerationLabel] = "1337"
 		preExistingBotUser.SetMetadata(meta)
 		_, err = srv.Auth().UpsertUser(ctx, preExistingBotUser)
 		require.NoError(t, err)
 	}
+
+	// A bot whose user is missing the generation label: upserts must still
+	// succeed once the label is no longer written.
+	noGenLabelBot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "no-generation-label",
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
+				Roles: []string{testRole.GetName()},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	{
+		noGenLabelBotUser, err := srv.Auth().GetUser(ctx, noGenLabelBot.GetStatus().GetUserName(), false)
+		require.NoError(t, err)
+		meta := noGenLabelBotUser.GetMetadata()
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
+		delete(meta.Labels, types.BotGenerationLabel)
+		noGenLabelBotUser.SetMetadata(meta)
+		_, err = srv.Auth().UpsertUser(ctx, noGenLabelBotUser)
+		require.NoError(t, err)
+	}
+
+	// A pre-existing user that collides with a bot's user name but is not a
+	// bot user: upserts must refuse to overwrite it.
+	_, err = authtest.CreateUser(ctx, srv.Auth(), "bot-collision", testRole)
+	require.NoError(t, err)
 
 	// Scoped identity setup.
 	scopedSvc := client.ScopedAccessServiceClient()
@@ -1378,7 +1414,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-new",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "new",
+						types.BotLabel: "new",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1481,7 +1518,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-new-with-expiry",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "new-with-expiry",
+						types.BotLabel: "new-with-expiry",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1541,7 +1579,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "pre-existing",
+						types.BotLabel: "pre-existing",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "1337",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1630,7 +1669,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "pre-existing",
+						types.BotLabel: "pre-existing",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "1337",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1671,6 +1711,56 @@ func TestUpsertBot(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+		{
+			name:     "already exists without generation label",
+			identity: authtest.TestUser(botCreator.GetName()),
+			req: machineidv1pb.UpsertBotRequest_builder{
+				Bot: noGenLabelBot,
+			}.Build(),
+
+			assertError: require.NoError,
+			wantUser: &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "bot-no-generation-label",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "no-generation-label",
+						// Stamped fresh by the conversion, not copied forward.
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
+						types.BotGenerationLabel: "0",
+					},
+				},
+				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
+					Roles:  []string{"bot-no-generation-label"},
+					Traits: nil,
+				},
+			},
+		},
+		{
+			name:     "existing user is not a bot",
+			identity: authtest.TestUser(botCreator.GetName()),
+			req: machineidv1pb.UpsertBotRequest_builder{
+				Bot: machineidv1pb.Bot_builder{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: "collision",
+					}.Build(),
+					Spec: machineidv1pb.BotSpec_builder{
+						Roles: []string{testRole.GetName()},
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "backing user is held by a different bot or user")
+				require.True(t, trace.IsAlreadyExists(err), "error should be already exists")
 			},
 		},
 		{
@@ -1819,7 +1909,7 @@ func TestUpsertBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-upsert-success",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-upsert-success",
 				}.Build(),
 			}.Build(),
 		},
@@ -1845,7 +1935,7 @@ func TestUpsertBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-upsert-from-unscoped",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-upsert-from-unscoped",
 				}.Build(),
 			}.Build(),
 		},
@@ -2866,9 +2956,9 @@ func TestBotScopeNamespacing(t *testing.T) {
 		wantUserName string
 	}{
 		{scope: "", description: "unscoped", wantUserName: "bot-shared-name"},
-		{scope: "/scopes", description: "parent", wantUserName: "bot-++scopes+shared-name"},
-		{scope: "/scopes/alpha", description: "alpha", wantUserName: "bot-++scopes+alpha+shared-name"},
-		{scope: "/scopes/beta", description: "beta", wantUserName: "bot-++scopes+beta+shared-name"},
+		{scope: "/scopes", description: "parent", wantUserName: "bot-30010173636f7065730000-shared-name"},
+		{scope: "/scopes/alpha", description: "alpha", wantUserName: "bot-30010173636f706573000001616c7068610000-shared-name"},
+		{scope: "/scopes/beta", description: "beta", wantUserName: "bot-30010173636f706573000001626574610000-shared-name"},
 	}
 
 	// Creating each must succeed despite the shared name, and each must land
@@ -2926,7 +3016,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "alpha updated", upserted.GetMetadata().GetDescription())
-	require.Equal(t, "bot-++scopes+alpha+shared-name", upserted.GetStatus().GetUserName())
+	require.Equal(t, "bot-30010173636f706573000001616c7068610000-shared-name", upserted.GetStatus().GetUserName())
 	upsertEvt, ok := emitter.LastEvent().(*apievents.BotCreate)
 	require.True(t, ok, "expected BotCreate event, got %T", emitter.LastEvent())
 	require.Equal(t, "/scopes/alpha", upsertEvt.ResourceMetadata.Scope)
@@ -2951,7 +3041,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	require.True(t, ok, "expected BotDelete event, got %T", emitter.LastEvent())
 	require.Equal(t, botName, deleteEvt.ResourceMetadata.Name)
 	require.Equal(t, "/scopes/alpha", deleteEvt.ResourceMetadata.Scope)
-	_, err = srv.Auth().GetUser(ctx, "bot-++scopes+alpha+shared-name", false)
+	_, err = srv.Auth().GetUser(ctx, "bot-30010173636f706573000001616c7068610000-shared-name", false)
 	require.True(t, trace.IsNotFound(err), "expected backing user to be deleted, got: %v", err)
 	_, err = getBot("/scopes/alpha")
 	require.True(t, trace.IsNotFound(err), "expected not found, got: %v", err)
@@ -2980,16 +3070,16 @@ func TestBotScopeNamespacing(t *testing.T) {
 	// scoped bot's encoded user name. Upsert must refuse to write through the
 	// collision in either direction rather than clobber the other bot.
 	squatter, err := botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
-		Bot: newBot("++scopes+alpha+victim", "", "unscoped squatter"),
+		Bot: newBot("30010173636f706573000001616c7068610000-victim", "", "unscoped squatter"),
 	}.Build())
 	require.NoError(t, err)
-	require.Equal(t, "bot-++scopes+alpha+victim", squatter.GetStatus().GetUserName())
+	require.Equal(t, "bot-30010173636f706573000001616c7068610000-victim", squatter.GetStatus().GetUserName())
 	_, err = botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
 		Bot: newBot("victim", "/scopes/alpha", "clobber attempt"),
 	}.Build())
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists, got: %v", err)
 	got, err := botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
-		BotName: "++scopes+alpha+victim",
+		BotName: "30010173636f706573000001616c7068610000-victim",
 	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(squatter, got, protocmp.Transform()),
@@ -3000,7 +3090,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 	_, err = botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
-		Bot: newBot("++scopes+alpha+victim2", "", "clobber attempt"),
+		Bot: newBot("30010173636f706573000001616c7068610000-victim2", "", "clobber attempt"),
 	}.Build())
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists, got: %v", err)
 	got, err = botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{

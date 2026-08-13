@@ -33,18 +33,17 @@ import SetupAccess from './SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Database/SetupAccess',
-  parameters: {
-    msw: {
-      handlers: {
-        fetchUser: http.get(cfg.api.userWithUsernamePath, () =>
-          HttpResponse.json({
-            name: 'llama',
-            roles: ['access'],
-            traits: dynamicTraits,
-          })
-        ),
-      },
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.api.userWithUsernamePath, () =>
+        HttpResponse.json({
+          name: 'llama',
+          roles: ['access'],
+          traits: dynamicTraits,
+        })
+      )
+    );
   },
 };
 
@@ -61,14 +60,8 @@ export const NoTraits = () => {
     </RequiredDiscoverProviders>
   );
 };
-NoTraits.parameters = {
-  msw: {
-    handlers: {
-      fetchUser: [
-        http.get(cfg.api.userWithUsernamePath, () => HttpResponse.json({})),
-      ],
-    },
-  },
+NoTraits.beforeEach = ({ msw }) => {
+  msw.use(http.get(cfg.api.userWithUsernamePath, () => HttpResponse.json({})));
 };
 
 export const WithTraitsAwsPostgres = () => (

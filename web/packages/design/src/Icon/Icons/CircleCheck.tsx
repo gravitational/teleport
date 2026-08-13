@@ -56,6 +56,7 @@ export const CircleCheck = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-circlecheck"
+
       {...otherProps}
       ref={ref}
     >

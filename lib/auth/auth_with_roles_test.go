@@ -294,14 +294,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			var id authtest.TestIdentity
 			if test.renewable {
 				id = authtest.TestRenewableUser(user.GetName(), 0)
-
-				meta := user.GetMetadata()
-				meta.Labels = map[string]string{
-					types.BotGenerationLabel: "0",
-				}
-				user.SetMetadata(meta)
-				user, err = srv.Auth().UpsertUser(ctx, user)
-				require.NoError(t, err)
 			} else {
 				id = authtest.TestUser(user.GetName())
 			}
@@ -6477,6 +6469,164 @@ func TestListResources_ScopedApps(t *testing.T) {
 	}
 }
 
+func TestListResources_ScopedNodes(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/test"
+	const childScope = "/test/child"
+	const otherScope = "/other"
+
+	createNode := func(t *testing.T, name, scope string, labels map[string]string) {
+		t.Helper()
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+				Labels:    labels,
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: name + "-host",
+			},
+			Scope: scope,
+		}
+		_, err := srv.Auth().UpsertNode(t.Context(), node)
+		require.NoError(t, err)
+	}
+
+	// Create nodes in various scopes with differing labels.
+	createNode(t, "prod-node", scope, map[string]string{"env": "prod"})
+	createNode(t, "dev-node", scope, map[string]string{"env": "dev"})
+	createNode(t, "dev-child-node", childScope, map[string]string{"env": "dev"})
+	createNode(t, "other-scope-node", otherScope, map[string]string{"env": "prod"})
+	createNode(t, "unscoped-node", "", map[string]string{"env": "prod"})
+
+	sshLabels := func(env string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins: []string{"root"},
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{
+					Name:   "env",
+					Values: []string{env},
+				}.Build(),
+			},
+		}.Build()
+	}
+	sshLabelExpression := func(expr string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins:          []string{"root"},
+			LabelExpression: expr,
+		}.Build()
+	}
+
+	// scopedSSHUser creates a scope-pinned user whose scoped role grants the given ssh block.
+	scopedSSHUser := func(username, scope string, ssh *scopedaccessv1.ScopedRoleSSH) *auth.ScopedServerWithRoles {
+		return newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, username, scope,
+			scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Ssh:              ssh,
+			}.Build())
+	}
+
+	cases := []struct {
+		name              string
+		server            *auth.ScopedServerWithRoles
+		nodeNamesExpected []string
+		req               proto.ListResourcesRequest
+	}{
+		{
+			name:              "prod labels in scope " + scope,
+			server:            scopedSSHUser("node-test-prod-label", scope, sshLabels("prod")),
+			nodeNamesExpected: []string{"prod-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "dev label in " + scope,
+			server:            scopedSSHUser("node-test-dev-label", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "dev label expression in " + scope,
+			server:            scopedSSHUser("node-test-dev-expression", scope, sshLabelExpression(`contains(labels["env"], "dev")`)),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + scope,
+			server:            scopedSSHUser("node-test-prod-expression", scope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"prod-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + childScope,
+			server:            scopedSSHUser("node-test-child-prod-expr", childScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + otherScope,
+			server:            scopedSSHUser("node-other-prod-expression", otherScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"other-scope-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "fake pagination path returns nodes",
+			server:            scopedSSHUser("node-test-fake-pagination", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(t.Context(), tc.req)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(res.Resources))
+			for _, r := range res.Resources {
+				names = append(names, r.GetName())
+				require.NotEqual(t, "unscoped-node", r.GetName())
+			}
+
+			require.ElementsMatch(t, tc.nodeNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.nodeNamesExpected), res.TotalCount)
+			}
+		})
+	}
+}
+
 func TestListResourcesScopedPagination(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -7827,11 +7977,13 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	// only allow user to see first node
 	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
 
-	// create a new role which can see second node
+	// create a new role which can see both nodes with a login ("admin")
+	// distinct from the base role's ("requester"). on node0 "admin" is
+	// requestable and "requester" granted, on node1 everything is requestable.
 	searchAsRole := services.RoleForUser(requester)
 	searchAsRole.SetName("test_search_role")
-	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
-	searchAsRole.SetLogins(types.Allow, []string{"requester"})
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName(), testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"admin"})
 	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
 	require.NoError(t, err)
 
@@ -7843,14 +7995,18 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	require.NoError(t, err)
 
 	type expected struct {
-		name        string
-		requestable bool
+		name              string
+		requestable       bool
+		allLogins         []string
+		grantedLogins     []string
+		requestableLogins []string
 	}
 
 	for _, tc := range []struct {
 		desc              string
 		clt               *authclient.Client
 		requestOpt        func(*proto.ListUnifiedResourcesRequest)
+		checkLogins       bool
 		expectedResources []expected
 	}{
 		{
@@ -7875,10 +8031,24 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
 				req.IncludeRequestable = true
 				req.UseSearchAsRoles = true
+				req.IncludeLogins = true
 			},
+			checkLogins: true,
 			expectedResources: []expected{
-				{name: testNodes[0].GetName(), requestable: false},
-				{name: testNodes[1].GetName(), requestable: true},
+				{
+					name:              testNodes[0].GetName(),
+					requestable:       false,
+					allLogins:         []string{"requester", "admin"},
+					grantedLogins:     []string{"requester"},
+					requestableLogins: []string{"admin"},
+				},
+				{
+					name:              testNodes[1].GetName(),
+					requestable:       true,
+					allLogins:         []string{"admin"},
+					grantedLogins:     nil,
+					requestableLogins: []string{"admin"},
+				},
 			},
 		},
 	} {
@@ -7893,13 +8063,141 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			resp, err := tc.clt.ListUnifiedResources(ctx, &req)
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, len(tc.expectedResources))
-			var resources []expected
+
+			byName := make(map[string]*proto.PaginatedResource)
+			var flags, wantFlags []expected
 			for _, resource := range resp.Resources {
-				resources = append(resources, expected{name: resource.GetNode().GetName(), requestable: resource.RequiresRequest})
+				name := resource.GetNode().GetName()
+				byName[name] = resource
+				flags = append(flags, expected{name: name, requestable: resource.RequiresRequest})
 			}
-			require.ElementsMatch(t, tc.expectedResources, resources)
+			for _, e := range tc.expectedResources {
+				wantFlags = append(wantFlags, expected{name: e.name, requestable: e.requestable})
+			}
+			require.ElementsMatch(t, wantFlags, flags)
+
+			if !tc.checkLogins {
+				return
+			}
+			for _, e := range tc.expectedResources {
+				r := byName[e.name]
+				require.NotNil(t, r, "resource %q missing from response", e.name)
+				require.ElementsMatch(t, e.allLogins, r.Logins, "Logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "Principals for %q", e.name)
+				require.Equal(t, types.PrincipalTypeLogins, r.Principals[0].PrincipalType, "principal kind for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "granted principals for %q", e.name)
+				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "requestable principals for %q", e.name)
+			}
+
+			// Fetch the same page through the typed client helper to cover the
+			// conversion into EnrichedResource end to end.
+			enriched, _, err := apiclient.GetUnifiedResourcePage(ctx, tc.clt, &req)
+			require.NoError(t, err)
+			require.Len(t, enriched, len(tc.expectedResources))
+			for _, e := range tc.expectedResources {
+				idx := slices.IndexFunc(enriched, func(r *types.EnrichedResource) bool {
+					return r.GetName() == e.name
+				})
+				require.GreaterOrEqual(t, idx, 0, "resource %q missing from enriched page", e.name)
+				r := enriched[idx]
+				require.ElementsMatch(t, e.allLogins, r.Logins, "enriched logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "enriched principals for %q", e.name)
+				require.Equal(t, types.PrincipalTypeLogins, r.Principals[0].PrincipalType, "enriched principal kind for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "enriched granted principals for %q", e.name)
+				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "enriched requestable principals for %q", e.name)
+			}
 		})
 	}
+}
+
+// TestListUnifiedResources_AppPrincipalSets verifies the role_arns principal
+// dimension for AWS console apps.
+func TestListUnifiedResources_AppPrincipalSets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const (
+		grantedARN     = "arn:aws:iam::123456789012:role/granted"
+		requestableARN = "arn:aws:iam::123456789012:role/requestable"
+	)
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-console"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "host", "host-id")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	requester, role, err := authtest.CreateUserAndRole(srv.Auth(), "app-requester", []string{"app-requester"}, nil)
+	require.NoError(t, err)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetAWSRoleARNs(types.Allow, []string{grantedARN})
+
+	searchAsRole := services.RoleForUser(requester)
+	searchAsRole.SetName("app_search_role")
+	searchAsRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	searchAsRole.SetAWSRoleARNs(types.Allow, []string{requestableARN})
+	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
+	require.NoError(t, err)
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(authtest.TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:              []string{types.KindApp},
+		SortBy:             types.SortBy{Field: "name"},
+		Limit:              5,
+		IncludeLogins:      true,
+		IncludeRequestable: true,
+		UseSearchAsRoles:   true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r := resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN, requestableARN}, r.Logins)
+	require.Len(t, r.Principals, 1)
+	require.Equal(t, types.PrincipalTypeRoleARNs, r.Principals[0].PrincipalType)
+	require.ElementsMatch(t, []string{grantedARN}, r.Principals[0].Granted)
+	require.ElementsMatch(t, []string{requestableARN}, r.Principals[0].Requestable)
+
+	// Without search flags, Logins comes from the base checker and Principals
+	// mirrors it with everything granted.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:         []string{types.KindApp},
+		SortBy:        types.SortBy{Field: "name"},
+		Limit:         5,
+		IncludeLogins: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r = resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN}, r.Logins)
+	require.Len(t, r.Principals, 1)
+	require.Equal(t, types.PrincipalTypeRoleARNs, r.Principals[0].PrincipalType)
+	require.ElementsMatch(t, []string{grantedARN}, r.Principals[0].Granted)
+	require.Empty(t, r.Principals[0].Requestable)
+
+	// UseSearchAsRoles alone keeps its legacy response: the flat union in
+	// Logins and no Principals.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindApp},
+		SortBy:           types.SortBy{Field: "name"},
+		Limit:            5,
+		IncludeLogins:    true,
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r = resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN, requestableARN}, r.Logins)
+	require.Empty(t, r.Principals)
 }
 
 func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
@@ -14112,7 +14410,11 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	client, err := srv.NewClient(ident)
 	require.NoError(t, err)
 
-	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	const (
+		kubeClusterName = "kube-cluster"
+		kubeHostName    = "kube-host"
+	)
+	createKubeServer(t, srv.Auth(), []string{kubeClusterName}, kubeHostName, scope)
 
 	scopedApp, err := types.NewAppV3(types.Metadata{
 		Name:   "test-app",
@@ -14127,6 +14429,17 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
 	require.NoError(t, err)
 
+	// wait for kube server to appear in the unified resource cache, otherwise tests can be flaky
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for ks, err := range srv.Auth().UnifiedResourceCache.KubernetesServers(t.Context(), services.UnifiedResourcesIterateParams{}) {
+			require.NoError(collectT, err)
+			if ks.GetCluster().GetName() == kubeClusterName && ks.GetHostID() == kubeHostName && ks.GetScope() == scope {
+				return
+			}
+		}
+		require.Fail(collectT, "kube cluster not found")
+	}, time.Second*10, time.Millisecond*10, "kube cluster %s.%s was never found in unified resource cache", kubeHostName, kubeClusterName)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -14140,7 +14453,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 			},
 		},
@@ -14152,7 +14465,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour * 24 * 7),
 			},
 			assertCert: func(t *testing.T, cert *x509.Certificate) {
@@ -14173,7 +14486,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          "some-other-user",
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 			},
 			assertErr: func(t *testing.T, err error) {
@@ -14189,7 +14502,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				TLSPublicKey:      tlsPubKey,
 				Username:          username,
 				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
+				KubernetesCluster: kubeClusterName,
 				Expires:           time.Now().Add(time.Hour),
 				UseRoleRequests:   true,
 				RoleRequests:      []string{role.GetName()},

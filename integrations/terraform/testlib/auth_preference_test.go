@@ -17,7 +17,6 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -80,12 +79,8 @@ func (s *TerraformSuiteOSS) TestAuthPreference() {
 }
 
 func (s *TerraformSuiteOSS) TestImportAuthPreference() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_auth_preference"
-	id := "test_import"
-	name := r + "." + id
+	name := r + "." + "auth_preference"
 
 	authPreference := &types.AuthPreferenceV2{
 		Metadata: types.Metadata{},
@@ -96,14 +91,14 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 	err := authPreference.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	authPreferencesBefore, err := s.client.GetAuthPreference(ctx)
+	authPreferencesBefore, err := s.client.GetAuthPreference(s.T().Context())
 	require.NoError(s.T(), err)
 
-	_, err = s.client.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
+	_, err = s.client.ClusterConfigClient().UpsertAuthPreference(s.T().Context(), &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		authPreferencesCurrent, err := s.client.GetAuthPreference(ctx)
+		authPreferencesCurrent, err := s.client.GetAuthPreference(s.T().Context())
 		require.NoError(s.T(), err)
 
 		return authPreferencesBefore.GetMetadata().Revision != authPreferencesCurrent.GetMetadata().Revision
@@ -114,10 +109,10 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
+				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "auth_preference" { }`,
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "auth_preference",
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "cluster_auth_preference", state[0].Attributes["kind"])
 					require.Equal(s.T(), "true", state[0].Attributes["spec.disconnect_expired_cert"])

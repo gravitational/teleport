@@ -34,9 +34,10 @@ import (
 
 // fakePrimary mocks an audit backend and can be toggled to simulate failures.
 type fakePrimary struct {
-	mu   sync.Mutex
-	fail bool
-	got  []apievents.AuditEvent
+	mu    sync.Mutex
+	fail  bool
+	block bool
+	got   []apievents.AuditEvent
 }
 
 func (f *fakePrimary) setFail(fail bool) {
@@ -45,18 +46,31 @@ func (f *fakePrimary) setFail(fail bool) {
 	f.fail = fail
 }
 
+func (f *fakePrimary) setBlock(block bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.block = block
+}
+
 func (f *fakePrimary) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.got)
 }
 
-func (f *fakePrimary) EmitAuditEvent(_ context.Context, event apievents.AuditEvent) error {
+func (f *fakePrimary) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.fail {
+	fail, block := f.fail, f.block
+	f.mu.Unlock()
+	if block {
+		<-ctx.Done()
+		return trace.Wrap(ctx.Err())
+	}
+	if fail {
 		return trace.ConnectionProblem(nil, "backend unavailable")
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.got = append(f.got, event)
 	return nil
 }
@@ -181,6 +195,84 @@ func TestFallbackEmitter_CloseDoesNotDrain(t *testing.T) {
 	require.Never(t, func() bool {
 		return primary.count() > 0
 	}, time.Second, 50*time.Millisecond, "Close must not drain queued events")
+}
+
+func TestFallbackEmitter_SlowBackendBoundedByDeliveryTimeout(t *testing.T) {
+	t.Parallel()
+	primary := &fakePrimary{}
+	primary.setBlock(true)
+
+	e, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
+		Primary:          primary,
+		DataDir:          t.TempDir(),
+		EnableAuditQueue: true,
+		AuditQueueCfg: auditqueue.Config{
+			MaxAttempts:             2,
+			DeliveryTimeout:         50 * time.Millisecond,
+			DeadLetterSweepInterval: 50 * time.Millisecond,
+		},
+		AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, e.Close()) })
+
+	// The backend hangs on every emit, so the direct emit fails on the caller's
+	// deadline and the event falls back to the queue.
+	const n = 3
+	for range n {
+		emitCtx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+		require.NoError(t, e.EmitAuditEvent(emitCtx, testEvent()))
+		cancel()
+	}
+
+	// Without the delivery timeout the consumer would hang inside the first
+	// delivery attempt forever and the events would never be promoted.
+	require.Eventually(t, func() bool {
+		stats, err := e.Stats(t.Context())
+		return err == nil && stats.DeadLetterCount == n
+	}, 5*time.Second, 25*time.Millisecond,
+		"slow-failing delivery must be bounded by the delivery timeout and promoted to dead-letter")
+
+	primary.setBlock(false)
+	require.Eventually(t, func() bool {
+		return primary.count() == n
+	}, 5*time.Second, 25*time.Millisecond, "dead-letter events should be delivered once the backend recovers")
+}
+
+func TestAsyncEmitter_SlowBackendBoundedByDeliveryTimeout(t *testing.T) {
+	t.Parallel()
+	inner := &fakePrimary{}
+	inner.setBlock(true)
+
+	a, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		Inner:            inner,
+		DataDir:          t.TempDir(),
+		EnableAuditQueue: true,
+		AuditQueueCfg: auditqueue.Config{
+			MaxAttempts:             2,
+			DeliveryTimeout:         50 * time.Millisecond,
+			DeadLetterSweepInterval: 50 * time.Millisecond,
+		},
+		AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
+
+	const n = 3
+	for range n {
+		require.NoError(t, a.EmitAuditEvent(t.Context(), testEvent()))
+	}
+
+	require.Eventually(t, func() bool {
+		stats, err := a.Stats(t.Context())
+		return err == nil && stats.DeadLetterCount == n
+	}, 5*time.Second, 25*time.Millisecond,
+		"slow-failing delivery must be bounded by the delivery timeout and promoted to dead-letter")
+
+	inner.setBlock(false)
+	require.Eventually(t, func() bool {
+		return inner.count() == n
+	}, 5*time.Second, 25*time.Millisecond, "dead-letter events should be delivered once the backend recovers")
 }
 
 type authBoundary struct {
