@@ -58,17 +58,19 @@ const certReissueClientWait = time.Second * 3
 // we give them longer time to perform the headless login flow.
 const certReissueClientWaitHeadless = defaults.HeadlessLoginTimeout
 
-type kubeClusterKey struct {
-	teleportCluster string
-	kubeCluster     string
+// KubeClusterKey identifies the Kubernetes cluster a client cert serves. An empty KubeCluster
+// holds the shared unrouted cert, which the proxy path-routes to any cluster in TeleportCluster.
+type KubeClusterKey struct {
+	TeleportCluster string
+	KubeCluster     string
 }
 
 // KubeClientCerts is a map of Kubernetes client certs.
-type KubeClientCerts map[kubeClusterKey]tls.Certificate
+type KubeClientCerts map[KubeClusterKey]tls.Certificate
 
 // Add adds a tls.Certificate for a kube cluster.
 func (c KubeClientCerts) Add(teleportCluster, kubeCluster string, cert tls.Certificate) {
-	c[kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}] = cert
+	c[KubeClusterKey{TeleportCluster: teleportCluster, KubeCluster: kubeCluster}] = cert
 }
 
 // KubeCertReissuer reissues a client certificate for a Kubernetes cluster.
@@ -255,10 +257,10 @@ func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (cert tls.
 	m.certsMu.RLock()
 	defer m.certsMu.RUnlock()
 
-	if cert, ok := m.certs[kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}]; ok {
+	if cert, ok := m.certs[KubeClusterKey{TeleportCluster: teleportCluster, KubeCluster: kubeCluster}]; ok {
 		return cert, kubeCluster, nil
 	}
-	if cert, ok := m.certs[kubeClusterKey{teleportCluster: teleportCluster}]; ok {
+	if cert, ok := m.certs[KubeClusterKey{TeleportCluster: teleportCluster}]; ok {
 		return cert, "", nil
 	}
 	return tls.Certificate{}, kubeCluster, trace.NotFound("no client cert found for teleport cluster %q kube cluster %q", teleportCluster, kubeCluster)
