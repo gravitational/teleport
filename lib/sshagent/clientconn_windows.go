@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/trace"
@@ -85,6 +86,30 @@ var (
 	psLine = regexp.MustCompile(`(?m)^\s+\d+\s+\d+\s+\d+\s+\d+\s+\?\s+(\d+)`)
 )
 
+// cachedCygwinUID remembers the Cygwin UID that last completed a handshake
+// successfully. Resolving the UID can take several handshake attempts and may
+// shell out to Cygwin's 'ps', which is slow.
+//
+// Only the UID is cached. The port and shared secret are re-read from the
+// socket file on every dial, so a restarted agent is picked up normally.
+var cachedCygwinUID struct {
+	sync.Mutex
+	uid   uint32
+	known bool
+}
+
+func loadCygwinUID() (uint32, bool) {
+	cachedCygwinUID.Lock()
+	defer cachedCygwinUID.Unlock()
+	return cachedCygwinUID.uid, cachedCygwinUID.known
+}
+
+func storeCygwinUID(uid uint32, known bool) {
+	cachedCygwinUID.Lock()
+	defer cachedCygwinUID.Unlock()
+	cachedCygwinUID.uid, cachedCygwinUID.known = uid, known
+}
+
 // attempt to connect a Cygwin SSH agent socket. Some code adapted from
 // https://github.com/abourget/secrets-bridge/blob/master/pkg/agentfwd/agentconn_windows.go
 func dialCygwin(socket string) (net.Conn, error) {
@@ -104,6 +129,16 @@ func dialCygwin(socket string) (net.Conn, error) {
 		return nil, trace.NotImplemented("dialing mysysgit ssh-agent sockets is not supported")
 	}
 	key := sockMatches[3]
+
+	// Try with a previously resolved UID before falling back to searching again,
+	// which may shell out to Cygwin's slow 'ps'.
+	if cached, ok := loadCygwinUID(); ok {
+		conn, err := attemptCygwinHandshake(port, key, cached)
+		if err == nil {
+			return conn, nil
+		}
+		storeCygwinUID(0, false)
+	}
 
 	u, err := user.Current()
 	if err != nil {
@@ -161,37 +196,29 @@ func dialCygwin(socket string) (net.Conn, error) {
 	}
 
 	// dial socket and complete handshake
-	var conn net.Conn
 	if !unsureOfUID {
 		// we're confident in what the Cygwin UID is, only make one attempt
 		// at establishing a connection
-		conn, err = attemptCygwinHandshake(port, key, uid)
+		return attemptCygwinHandshake(port, key, uid)
+	}
+
+	// the Cygwin UID could be built a few different ways; attempt
+	// with all UIDs until one succeeds
+	cygwinRIDNums := []uint32{0x30000, 0x100000, 0x80000000}
+	for _, num := range cygwinRIDNums {
+		conn, err := attemptCygwinHandshake(port, key, num+uid)
 		if err == nil {
 			return conn, nil
 		}
-	} else {
-		// the Cygwin UID could be built a few different ways; attempt
-		// with all UIDs until one succeeds
-		cygwinRIDNums := []uint32{0x30000, 0x100000, 0x80000000}
-		for _, num := range cygwinRIDNums {
-			conn, err = attemptCygwinHandshake(port, key, num+uid)
-			if err == nil {
-				return conn, nil
-			}
-		}
-
-		// none of those UIDs worked, fallback to getting UID from 'ps'
-		uid, err = getCygwinUIDFromPS()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conn, err = attemptCygwinHandshake(port, key, uid)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
-	return conn, nil
+	// none of those UIDs worked, fallback to getting UID from 'ps'
+	uid, err = getCygwinUIDFromPS()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := attemptCygwinHandshake(port, key, uid)
+	return conn, trace.Wrap(err)
 }
 
 // use Cygwin 'ps' binary to get the Cygwin UID of the current user
@@ -215,6 +242,8 @@ func getCygwinUIDFromPS() (uint32, error) {
 // connect to a listening socket of a Cygwin SSH agent and attempt to
 // preform a successful handshake with it. Handshake details here:
 // https://stackoverflow.com/questions/23086038/what-mechanism-is-used-by-msys-cygwin-to-emulate-unix-domain-sockets
+//
+// On success, the UID is cached in [cachedCygwinUID].
 func attemptCygwinHandshake(port, key string, uid uint32) (net.Conn, error) {
 	slog.DebugContext(context.Background(), "[KEY AGENT] attempting a handshake with Cygwin ssh-agent socket", "port", port, "uid", uid)
 
@@ -260,6 +289,9 @@ func attemptCygwinHandshake(port, key string, uid uint32) (net.Conn, error) {
 	if _, err = conn.Read(pidsUids); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Remember the UID on success.
+	storeCygwinUID(uid, true)
 
 	return conn, nil
 }
