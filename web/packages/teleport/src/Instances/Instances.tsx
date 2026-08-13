@@ -149,6 +149,23 @@ export function Instances() {
   const onlyBotInstancesSelected =
     selectedTypes.length === 1 && selectedTypes[0] === 'bot_instance';
 
+  const typeOptions = [
+    {
+      value: 'instance' as const,
+      label: 'Instances',
+      disabled: !hasInstancePermissions,
+      disabledTooltip:
+        'Listing instances requires permissions instance.list and instance.read.',
+    },
+    {
+      value: 'bot_instance' as const,
+      label: 'Bot Instances',
+      disabled: !hasBotInstancePermissions,
+      disabledTooltip:
+        'Listing bot instances requires permissions bot_instance.list and bot_instance.read.',
+    },
+  ];
+
   const {
     isSuccess,
     data,
@@ -403,7 +420,6 @@ export function Instances() {
               label="Type"
               tooltip="Filter by instance type"
               buffered={true}
-              disabled={!hasInstancePermissions}
             />
             <MultiselectMenu
               options={serviceOptions}
@@ -482,11 +498,6 @@ type UpgraderType =
   | 'kube-updater'
   | 'unit-updater'
   | 'systemd-unit-updater';
-
-const typeOptions: { value: InstanceType; label: string }[] = [
-  { value: 'instance', label: 'Instances' },
-  { value: 'bot_instance', label: 'Bot Instances' },
-];
 
 const serviceOptions: { value: ServiceType; label: string }[] = [
   { value: 'App', label: 'Applications' },
