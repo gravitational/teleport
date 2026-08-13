@@ -269,10 +269,10 @@ describe('LLM inference endpoint gateway', () => {
 
       expect(await screen.findByText(expectedTitle)).toBeInTheDocument();
       for (const text of expected) {
-        expect(screen.getByText(text)).toBeInTheDocument();
+        expect(document.body.textContent).toContain(text);
       }
       for (const text of notExpected) {
-        expect(screen.queryByText(text)).not.toBeInTheDocument();
+        expect(document.body.textContent).not.toContain(text);
       }
     }
   );

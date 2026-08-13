@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex, Text } from 'design';
-import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+import { Flex, Text } from 'design';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 type LlmEnvLine = { text: string; comment?: string };
 
@@ -92,6 +92,12 @@ export function getLlmSpec(
   };
 }
 
+function envLinesToText(envLines: LlmEnvLine[]): string {
+  return envLines
+    .map(line => (line.comment ? `# ${line.comment}\n${line.text}` : line.text))
+    .join('\n');
+}
+
 /**
  * LlmInstructions tells the user how to point their LLM client at the running
  * local proxy. Teleport authenticates and audits every request and injects the
@@ -105,18 +111,14 @@ export function LlmInstructions({ spec }: { spec: LlmSpec }) {
         authenticated and audited by Teleport, which also injects the provider
         API key - so no real key is needed locally.
       </Text>
-      {spec.envLines?.map((line, index) => (
-        <Box key={index}>
-          {line.comment && (
-            <Text color="text.slightlyMuted" mb={1}>
-              {line.comment}
-            </Text>
-          )}
-          <TextSelectCopy text={line.text} bash={false} />
-        </Box>
-      ))}
+      {spec.envLines && (
+        <TextSelectCopyMulti
+          bash={false}
+          lines={[{ text: envLinesToText(spec.envLines) }]}
+        />
+      )}
       {spec.runNote && <Text>{spec.runNote}</Text>}
-      <TextSelectCopy text={spec.runCommand} bash={false} />
+      <TextSelectCopyMulti bash={false} lines={[{ text: spec.runCommand }]} />
     </Flex>
   );
 }
