@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
-
 import {
   GatewayTargetUri,
   isAppUri,
@@ -38,15 +36,6 @@ export function normalizeTargetSubresourceName(
   value: string | undefined
 ): string | undefined {
   return value === '' ? undefined : value;
-}
-
-/**
- * getTargetSubresourceName returns the gateway's target subresource name using
- * the convention that gateway documents follow, where an unset value is
- * undefined rather than the empty string that the tsh daemon returns.
- */
-export function getTargetSubresourceName(gateway: Gateway): string | undefined {
-  return normalizeTargetSubresourceName(gateway.targetSubresourceName);
 }
 
 /**

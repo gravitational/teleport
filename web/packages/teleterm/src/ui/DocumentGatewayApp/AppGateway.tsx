@@ -20,6 +20,7 @@ import {
   ChangeEvent,
   ChangeEventHandler,
   PropsWithChildren,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -90,17 +91,7 @@ export function AppGateway(props: {
   const handleTargetPortChange =
     useDebouncedPortChangeHandler(changeTargetPort);
 
-  const isMcp = gateway.protocol === 'MCP';
-  const isHttpWebApp = gateway.protocol === 'HTTP';
-  const isLLM = gateway.protocol === 'LLM';
-  let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (isHttpWebApp || isMcp || isLLM) {
-    address = `http://${address}`;
-  }
-
-  const llmSpec = isLLM
-    ? getLlmSpec(gateway.llmFormat, gateway.llmProvider, address)
-    : undefined;
+  const content = getGatewayContent(gateway);
 
   // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
   // app is multi-port or not in some other way.
@@ -173,13 +164,7 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>
-            {isMcp
-              ? 'MCP Server Connection'
-              : llmSpec
-                ? `${llmSpec.name} Inference Endpoint Connection`
-                : 'App Connection'}
-          </H1>
+          <H1>{content.title}</H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -237,18 +222,7 @@ export function AppGateway(props: {
       </Flex>
 
       <Flex flexDirection="column" gap={2}>
-        {llmSpec ? (
-          <LlmInstructions spec={llmSpec} />
-        ) : (
-          <Box>
-            <Text>
-              {isMcp
-                ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
-                : 'Access the app at:'}
-            </Text>
-            <TextSelectCopy mt={1} text={address} bash={false} />
-          </Box>
-        )}
+        {content.body}
 
         {changeLocalPortAttempt.status === 'error' && (
           <Alert details={changeLocalPortAttempt.statusText} m={0}>
@@ -268,21 +242,93 @@ export function AppGateway(props: {
           </Alert>
         )}
 
-        {!isLLM && (
-          <Text>
-            The connection is made through an authenticated proxy so no extra
-            credentials are necessary. See{' '}
-            <Link
-              href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
-              target="_blank"
-            >
-              the documentation
-            </Link>{' '}
-            for more details.
-          </Text>
-        )}
+        {content.footer}
       </Flex>
     </Flex>
+  );
+}
+
+/**
+ * getGatewayContent is a central place that branches on the kind of app the
+ * gateway proxies. It returns the parts of the view that differ per kind,
+ * rendered by AppGateway into the shared structure.
+ */
+function getGatewayContent(gateway: Gateway): {
+  title: string;
+  body: ReactNode;
+  footer?: ReactNode;
+} {
+  const address = `${gateway.localAddress}:${gateway.localPort}`;
+
+  switch (gateway.protocol) {
+    case 'MCP':
+      return {
+        title: 'MCP Server Connection',
+        body: (
+          <AddressInstructions
+            text={
+              'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
+            }
+            address={`http://${address}`}
+          />
+        ),
+        footer: <AuthenticatedProxyNote />,
+      };
+    case 'LLM': {
+      const spec = getLlmSpec(
+        gateway.llmFormat,
+        gateway.llmProvider,
+        `http://${address}`
+      );
+      return {
+        title: `${spec.name} Inference Endpoint Connection`,
+        body: <LlmInstructions spec={spec} />,
+      };
+    }
+    case 'HTTP':
+      return {
+        title: 'App Connection',
+        body: (
+          <AddressInstructions
+            text="Access the app at:"
+            address={`http://${address}`}
+          />
+        ),
+        footer: <AuthenticatedProxyNote />,
+      };
+    default:
+      return {
+        title: 'App Connection',
+        body: (
+          <AddressInstructions text="Access the app at:" address={address} />
+        ),
+        footer: <AuthenticatedProxyNote />,
+      };
+  }
+}
+
+function AddressInstructions(props: { text: string; address: string }) {
+  return (
+    <Box>
+      <Text>{props.text}</Text>
+      <TextSelectCopy mt={1} text={props.address} bash={false} />
+    </Box>
+  );
+}
+
+function AuthenticatedProxyNote() {
+  return (
+    <Text>
+      The connection is made through an authenticated proxy so no extra
+      credentials are necessary. See{' '}
+      <Link
+        href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
+        target="_blank"
+      >
+        the documentation
+      </Link>{' '}
+      for more details.
+    </Text>
   );
 }
 

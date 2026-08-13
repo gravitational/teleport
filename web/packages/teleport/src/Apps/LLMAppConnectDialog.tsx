@@ -39,9 +39,6 @@ import useTeleport from 'teleport/useTeleport';
 const LOCAL_PROXY_PORT = '3000';
 const localProxyURL = `http://127.0.0.1:${LOCAL_PROXY_PORT}`;
 
-const apiKeyComment =
-  'Any non-empty value works; Teleport swaps in the real key.';
-
 type EnvLine = { text: string; comment?: string };
 
 type ProviderSpec = {
@@ -100,7 +97,7 @@ function getProviderSpec(
       clientLabel: 'OpenAI client',
       envLines: [
         { text: `export OPENAI_BASE_URL=${localProxyURL}/v1` },
-        { text: 'export OPENAI_API_KEY=teleport', comment: apiKeyComment },
+        { text: 'export OPENAI_API_KEY=teleport' },
       ],
       runTitle: 'Start Codex.',
       runNote:
@@ -111,7 +108,7 @@ function getProviderSpec(
 
   const envLines: EnvLine[] = [
     { text: `export ANTHROPIC_BASE_URL=${localProxyURL}` },
-    { text: 'export ANTHROPIC_API_KEY=teleport', comment: apiKeyComment },
+    { text: 'export ANTHROPIC_API_KEY=teleport' },
   ];
   if (provider === 'bedrock') {
     envLines.push({

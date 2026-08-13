@@ -16,17 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
-
-import {
-  makeAppGateway,
-  makeDatabaseGateway,
-} from 'teleterm/services/tshd/testHelpers';
-
 import {
   getCliCommandArgs,
   getCliCommandEnv,
-  getTargetSubresourceName,
+  normalizeTargetSubresourceName,
 } from './gateway';
 import { GatewayCLICommand } from './types';
 
@@ -51,29 +44,18 @@ describe('getCliCommandEnv', () => {
   });
 });
 
-describe('getTargetSubresourceName', () => {
-  test.each<{
-    name: string;
-    gateway: Gateway;
-    expected: string | undefined;
-  }>([
-    {
-      name: 'empty string becomes undefined',
-      gateway: makeAppGateway({ targetSubresourceName: '' }),
-      expected: undefined,
-    },
-    {
-      name: 'a target port passes through',
-      gateway: makeAppGateway({ targetSubresourceName: '1234' }),
-      expected: '1234',
-    },
+describe('normalizeTargetSubresourceName', () => {
+  test.each([
+    { name: 'unset stays undefined', value: undefined, expected: undefined },
+    { name: 'empty string becomes undefined', value: '', expected: undefined },
+    { name: 'a target port passes through', value: '4242', expected: '4242' },
     {
       name: 'a database name passes through',
-      gateway: makeDatabaseGateway({ targetSubresourceName: 'postgres' }),
+      value: 'postgres',
       expected: 'postgres',
     },
-  ])('$name', ({ gateway, expected }) => {
-    expect(getTargetSubresourceName(gateway)).toBe(expected);
+  ])('$name', ({ value, expected }) => {
+    expect(normalizeTargetSubresourceName(value)).toBe(expected);
   });
 });
 

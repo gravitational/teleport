@@ -19,9 +19,6 @@
 import { Box, Flex, Text } from 'design';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
-const apiKeyComment =
-  'Any non-empty value works; Teleport swaps in the real key.';
-
 type LlmEnvLine = { text: string; comment?: string };
 
 export type LlmSpec = {
@@ -69,7 +66,7 @@ export function getLlmSpec(
       clientLabel: 'OpenAI client',
       envLines: [
         { text: `export OPENAI_BASE_URL=${address}/v1` },
-        { text: 'export OPENAI_API_KEY=teleport', comment: apiKeyComment },
+        { text: 'export OPENAI_API_KEY=teleport' },
       ],
       runNote:
         'Codex ignores the base-URL variable, so pass the address inline:',
@@ -79,7 +76,7 @@ export function getLlmSpec(
 
   const envLines: LlmEnvLine[] = [
     { text: `export ANTHROPIC_BASE_URL=${address}` },
-    { text: 'export ANTHROPIC_API_KEY=teleport', comment: apiKeyComment },
+    { text: 'export ANTHROPIC_API_KEY=teleport' },
   ];
   if (llmProvider === 'bedrock') {
     envLines.push({

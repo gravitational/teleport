@@ -181,14 +181,16 @@ describe('LLM inference endpoint gateway', () => {
     '-c model_providers.amazon-bedrock.auth.command=cat ' +
     '-c model_provider=amazon-bedrock';
 
-  const tests: Array<{
+  type TestCase = {
     name: string;
     format: string;
     provider: string;
     expectedTitle: string;
     expected: string[];
     notExpected: string[];
-  }> = [
+  };
+
+  const tests: TestCase[] = [
     {
       name: 'anthropic',
       format: 'anthropic',
