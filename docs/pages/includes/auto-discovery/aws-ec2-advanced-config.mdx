@@ -2,6 +2,34 @@
 
 (!docs/pages/includes/auto-discovery/server-advanced-config.mdx matcher="aws"!)
 
+### Configure the SSM installation timeout
+
+By default, the Discovery Service waits up to five minutes for an SSM
+installation attempt. It allows an additional minute for AWS to publish the
+command's terminal state and reserves up to one more minute to collect and
+report the result.
+
+Set `TELEPORT_UNSTABLE_AWS_INSTALL_TIMEOUT` on the Discovery Service to change
+the five-minute timeout. The value must use Go duration syntax, such as
+`3m45s`. Values are limited to a minimum of 10 seconds and a maximum of 90
+minutes. Invalid values use the five-minute default.
+
+For example:
+
+```code
+TELEPORT_UNSTABLE_AWS_INSTALL_TIMEOUT=3m45s
+```
+
+<Admonition type="warning">
+
+This environment variable is unstable and may change in a future release.
+
+The timeout bounds how long the Discovery Service waits for the installation.
+It does not override the execution timeout in a custom SSM document or
+necessarily cancel a command that AWS has already accepted.
+
+</Admonition>
+
 ### Use a custom installation script
 
 (!docs/pages/includes/server-access/custom-installer-aws-config.mdx!)

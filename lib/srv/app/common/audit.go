@@ -29,7 +29,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -156,6 +158,14 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 
 // OnSessionChunk is called when a new session chunk is created.
 func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error {
+	// Enforce IP Pinning if it is present in the user's certificate.
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	} else {
+		clientAddr = identity.LoginIP
+	}
+
 	event := &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
@@ -167,15 +177,28 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  clientAddr,
+			RemoteAddr: app.GetURI(),
+			Protocol:   events.EventProtocolApp,
+		},
 		SessionMetadata: getSessionMetadata(identity),
 		UserMetadata:    identity.GetUserMetadata(),
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
 			AppName:       app.GetName(),
+			AppLabels:     app.GetAllLabels(),
 			// Session chunks are not created for TCP apps, so there's no need to pass TargetPort here.
 		},
 		SessionChunkID: chunkID,
+		Participants: []string{services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              identity.Username,
+				OriginClusterName: identity.OriginClusterName,
+				LocalClusterName:  identity.TeleportCluster,
+			},
+		)},
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
