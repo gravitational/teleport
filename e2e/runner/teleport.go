@@ -170,9 +170,12 @@ func generateTeleportConfig(templatePath, outPath string, data *TeleportConfig) 
 }
 
 type TeleportNodeConfig struct {
-	AuthServerHost string
-	AuthServerPort int
-	SSHServerPort  int
+	NodeName          string
+	AuthServerHost    string
+	AuthServerPort    int
+	SSHServerPort     int
+	SSHPublicHost     string
+	EnhancedRecording bool
 }
 
 func generateTeleportNodeConfig(templatePath, outPath string, data *TeleportNodeConfig) (string, error) {
@@ -190,7 +193,16 @@ func resolveDockerHost() (string, error) {
 		return "", fmt.Errorf("parsing DOCKER_HOST: %w", err)
 	}
 
-	conn, err := net.Dial("udp", u.Host)
+	// This dial carries no traffic, it only picks a route so we can report the local address the daemon's host can reach us back on.
+	target := u.Host
+	if u.Scheme == "ssh" {
+		target, err = sshRouteTarget(u)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	conn, err := net.Dial("udp", target)
 	if err != nil {
 		return "", fmt.Errorf("dialing docker host: %w", err)
 	}

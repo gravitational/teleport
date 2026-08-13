@@ -46,3 +46,7 @@ export const teleportConfig = required('E2E_TELEPORT_CONFIG');
 export const startUrl = required('START_URL');
 export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
 export const connectAppDir = required('E2E_CONNECT_APP_DIR');
+
+// Set by the runner when the docker daemon's kernel cannot load the enhanced recording programs.
+export const skipEnhancedRecording =
+  process.env.E2E_SKIP_ENHANCED_RECORDING === '1';

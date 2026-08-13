@@ -80,11 +80,14 @@ const tryLoadRecordingMapping = cachedJSONLoader<
 
 const defaultUser: UserDefinition = { roles: ['access', 'editor'] };
 
+type Browser = 'chromium' | 'firefox' | 'webkit';
+
 interface E2EFixtures {
   recordings: string[];
   user: UserDefinition;
   users: UserDefinition[];
   teleport: TeleportOption;
+  browsers: Browser[];
   username: string;
   loginAs: (index: number) => Promise<LoginAsResult>;
   recordingIds: Record<string, string>;
@@ -120,6 +123,7 @@ export const test = base.extend<E2EFixtures>({
   user: [undefined as unknown as UserDefinition, { option: true }],
   users: [[], { option: true }],
   teleport: [undefined as unknown as TeleportOption, { option: true }],
+  browsers: [[], { option: true }],
   username: async ({ user, users }, use, testInfo) => {
     const mapping = tryLoadUserMapping() ?? {};
 
