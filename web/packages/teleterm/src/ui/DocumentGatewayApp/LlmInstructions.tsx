@@ -79,10 +79,15 @@ export function getLlmSpec(
     { text: 'export ANTHROPIC_API_KEY=teleport' },
   ];
   if (llmProvider === 'bedrock') {
-    envLines.push({
-      text: 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1',
-      comment: 'Required when the endpoint is served by Amazon Bedrock.',
-    });
+    envLines.push(
+      {
+        text: 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1',
+        comment: 'Required when the endpoint is served by Amazon Bedrock.',
+      },
+      { text: 'export CLAUDE_CODE_USE_MANTLE=1' },
+      { text: 'export CLAUDE_CODE_SKIP_MANTLE_AUTH=1' },
+      { text: `export ANTHROPIC_BEDROCK_MANTLE_BASE_URL=${address}` }
+    );
   }
   return {
     name: 'Anthropic',

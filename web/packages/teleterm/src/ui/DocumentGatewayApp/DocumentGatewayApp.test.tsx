@@ -176,6 +176,9 @@ describe('LLM inference endpoint gateway', () => {
   const anthropicBaseUrl = 'export ANTHROPIC_BASE_URL=http://localhost:1337';
   const openaiBaseUrl = 'export OPENAI_BASE_URL=http://localhost:1337/v1';
   const bedrockBeta = 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1';
+  const bedrockMantle = 'export CLAUDE_CODE_USE_MANTLE=1';
+  const bedrockMantleBaseUrl =
+    'export ANTHROPIC_BEDROCK_MANTLE_BASE_URL=http://localhost:1337';
   const codexCommand = 'codex -c openai_base_url=http://localhost:1337/v1';
   const codexBedrockCommand =
     'codex -c model_providers.amazon-bedrock.base_url=http://localhost:1337 ' +
@@ -198,14 +201,20 @@ describe('LLM inference endpoint gateway', () => {
       provider: 'anthropic',
       expectedTitle: 'Anthropic Inference Endpoint Connection',
       expected: [anthropicBaseUrl, 'claude'],
-      notExpected: [openaiBaseUrl, bedrockBeta],
+      notExpected: [openaiBaseUrl, bedrockBeta, bedrockMantle],
     },
     {
       name: 'anthropic on bedrock',
       format: 'anthropic',
       provider: 'bedrock',
       expectedTitle: 'Anthropic Inference Endpoint Connection',
-      expected: [anthropicBaseUrl, bedrockBeta, 'claude'],
+      expected: [
+        anthropicBaseUrl,
+        bedrockBeta,
+        bedrockMantle,
+        bedrockMantleBaseUrl,
+        'claude',
+      ],
       notExpected: [openaiBaseUrl],
     },
     {
@@ -269,10 +278,10 @@ describe('LLM inference endpoint gateway', () => {
 
       expect(await screen.findByText(expectedTitle)).toBeInTheDocument();
       for (const text of expected) {
-        expect(document.body.textContent).toContain(text);
+        expect(document.body).toHaveTextContent(text);
       }
       for (const text of notExpected) {
-        expect(document.body.textContent).not.toContain(text);
+        expect(document.body).not.toHaveTextContent(text);
       }
     }
   );
