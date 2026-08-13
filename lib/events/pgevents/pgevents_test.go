@@ -159,6 +159,74 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 	}
 }
 
+func TestLog_EmitAuditEvents(t *testing.T) {
+	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
+	eventsLog := newLogForTesting(t)
+	ctx := context.Background()
+
+	_, err := eventsLog.pool.Exec(ctx, "TRUNCATE events")
+	require.NoError(t, err, "truncate events")
+
+	const sessionID = "f8571503d72f35938ce5001b792baebcce3183719ae947fde1ed685f7848facc"
+	baseTime := time.Now().Truncate(time.Millisecond)
+
+	var batch []apievents.AuditEvent
+	for i := range 3 {
+		event := &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				ID:          uuid.NewString(),
+				Type:        events.AppSessionStartEvent,
+				Code:        events.AppSessionStartCode,
+				ClusterName: "zarq",
+				Time:        baseTime.Add(time.Duration(i) * time.Second),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sessionID,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppName: "dumper",
+			},
+		}
+		batch = append(batch, event)
+	}
+
+	searchBatch := func() []events.EventFields {
+		t.Helper()
+		before := baseTime.Add(-1 * time.Second)
+		after := baseTime.Add(time.Duration(len(batch)) * time.Second)
+		got, _, err := eventsLog.searchEvents(ctx,
+			before,                                // fromTime
+			after,                                 // toTime
+			[]string{events.AppSessionStartEvent}, // eventTypes
+			nil,                                   // cond
+			sessionID,                             // sessionID
+			"",                                    // search
+			len(batch)+1,                          // limit
+			types.EventOrderAscending,
+			"", // startKey
+		)
+		require.NoError(t, err, "search session events")
+		return got
+	}
+
+	want := make([]events.EventFields, len(batch))
+	for i, event := range batch {
+		fields, err := events.ToEventFields(event)
+		require.NoError(t, err, "convert event to fields")
+		want[i] = fields
+	}
+
+	require.NoError(t, eventsLog.EmitAuditEvents(ctx, batch), "emit audit events")
+	if diff := cmp.Diff(want, searchBatch()); diff != "" {
+		t.Errorf("searchEvents mismatch after batch emit (-want +got)\n%s", diff)
+	}
+
+	require.NoError(t, eventsLog.EmitAuditEvents(ctx, batch), "re-emit audit events")
+	if diff := cmp.Diff(want, searchBatch()); diff != "" {
+		t.Errorf("searchEvents mismatch after idempotent re-emit (-want +got)\n%s", diff)
+	}
+}
+
 func newLogForTesting(t *testing.T) *Log {
 	t.Helper()
 
@@ -356,6 +424,100 @@ func TestEmitAuditEvent_NoLossDeduplication(t *testing.T) {
 			marker := fmt.Sprintf("user-%02d", i)
 			require.True(t, containsMarker(stored, marker),
 				"distinct event %q must not be lost under concurrent delivery", marker)
+		}
+	})
+}
+
+func TestEmitAuditEvents_NoLossDeduplication(t *testing.T) {
+	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
+	log := newLogForTesting(t)
+	ctx := context.Background()
+
+	truncate := func(t *testing.T) {
+		t.Helper()
+		_, err := log.pool.Exec(ctx, "TRUNCATE events")
+		require.NoError(t, err, "truncate events")
+	}
+
+	eventTime := time.Now().UTC().Truncate(time.Microsecond)
+	from := eventTime.Add(-time.Minute)
+	to := eventTime.Add(time.Minute)
+
+	t.Run("IdenticalBatchReDeliveryIsDeduplicated", func(t *testing.T) {
+		truncate(t)
+		batch := []apievents.AuditEvent{
+			makeDedupTestEvent(uuid.NewString(), eventTime, "alice"),
+			makeDedupTestEvent(uuid.NewString(), eventTime, "bob"),
+		}
+		require.NoError(t, log.EmitAuditEvents(ctx, batch))
+
+		before := testutil.ToFloat64(writeRequestsDeduped)
+		require.NoError(t, log.EmitAuditEvents(ctx, batch)) // at-least-once re-delivery
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		require.Len(t, stored, 2, "an identical batch re-delivery must not add rows")
+		require.InDelta(t, before+2, testutil.ToFloat64(writeRequestsDeduped), 0.0001,
+			"each re-delivered event should increment the deduped counter")
+	})
+
+	t.Run("DistinctEventCollidingInBatchIsStored", func(t *testing.T) {
+		truncate(t)
+		id := uuid.NewString()
+		require.NoError(t, log.EmitAuditEvent(ctx, makeDedupTestEvent(id, eventTime, "alice")))
+
+		before := testutil.ToFloat64(eventIDCollisions)
+		batch := []apievents.AuditEvent{makeDedupTestEvent(id, eventTime, "bob")}
+		require.NoError(t, log.EmitAuditEvents(ctx, batch))
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		require.Len(t, stored, 2, "a distinct colliding event in a batch must be stored")
+		require.True(t, containsMarker(stored, "alice"), "pre-stored event must remain")
+		require.True(t, containsMarker(stored, "bob"), "colliding batch event must not be dropped")
+		require.InDelta(t, before+1, testutil.ToFloat64(eventIDCollisions), 0.0001)
+	})
+
+	t.Run("DistinctEventsSharingIDWithinOneBatchAreBothStored", func(t *testing.T) {
+		truncate(t)
+		id := uuid.NewString()
+
+		before := testutil.ToFloat64(eventIDCollisions)
+		batch := []apievents.AuditEvent{
+			makeDedupTestEvent(id, eventTime, "alice"),
+			makeDedupTestEvent(id, eventTime, "bob"),
+		}
+		require.NoError(t, log.EmitAuditEvents(ctx, batch))
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		require.Len(t, stored, 2, "two distinct events sharing an id in one batch must both be stored")
+		require.True(t, containsMarker(stored, "alice"))
+		require.True(t, containsMarker(stored, "bob"))
+		require.InDelta(t, before+1, testutil.ToFloat64(eventIDCollisions), 0.0001)
+	})
+
+	t.Run("ConcurrentBatchesSharingIDAreNotLost", func(t *testing.T) {
+		truncate(t)
+		id := uuid.NewString()
+		const n = 20
+
+		var wg sync.WaitGroup
+		errs := make([]error, n)
+		for i := range n {
+			wg.Go(func() {
+				ev := makeDedupTestEvent(id, eventTime, fmt.Sprintf("user-%02d", i))
+				errs[i] = log.EmitAuditEvents(ctx, []apievents.AuditEvent{ev})
+			})
+		}
+		wg.Wait()
+
+		for i, err := range errs {
+			require.NoError(t, err, "concurrent batch emit %d", i)
+		}
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		for i := range n {
+			marker := fmt.Sprintf("user-%02d", i)
+			require.True(t, containsMarker(stored, marker),
+				"distinct event %q must not be lost under concurrent batch delivery", marker)
 		}
 	})
 }
