@@ -124,6 +124,11 @@ func replaceZip(archivePath string, extractDir string, execNames []string) (map[
 			defer file.Close()
 
 			dest := filepath.Join(extractDir, zipFile.Name)
+			// Ensure the entry resolves inside extractDir, otherwise a crafted
+			// archive could escape it with a name like "../../foo".
+			if !strings.HasPrefix(dest, filepath.Clean(extractDir)+string(os.PathSeparator)) {
+				return trace.BadParameter("%s: illegal file path", zipFile.Name)
+			}
 			// Preserve the archive directory structure.
 			if err := os.MkdirAll(filepath.Dir(dest), directoryPerm); err != nil {
 				return trace.Wrap(err)
