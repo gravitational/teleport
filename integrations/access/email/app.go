@@ -150,11 +150,15 @@ func (a *App) run(ctx context.Context) error {
 // init inits plugin
 func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
+
+	// Preserve the parent context without deadline for the client and its
+	// goroutines (IdentityFileWatcher) which will outlive init.
+	clientCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
 	var err error
-	if a.apiClient, err = a.conf.GetTeleportClient(ctx); err != nil {
+	if a.apiClient, err = a.conf.GetTeleportClient(clientCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
