@@ -24,7 +24,10 @@ import { UnifiedResourcesPage } from '@gravitational/e2e/helpers/pages/UnifiedRe
 
 test.use({
   autoLogin: true,
-  fixtures: ['kube'],
+  fixtures: [
+    // TODO(gzdunek): Uncomment when enabling these tests.
+    /*'kube'*/
+  ],
   user: {
     roles: ['access'],
     traits: { kubernetes_groups: ['system:masters'] },
