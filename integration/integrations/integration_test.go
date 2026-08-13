@@ -19,15 +19,16 @@
 package integrations
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -46,7 +47,7 @@ func TestMain(m *testing.M) {
 // TestIntegrationCRUD starts a Teleport cluster and using its Proxy Web server,
 // tests the CRUD operations over the Integration resource.
 func TestIntegrationCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Start Teleport Auth and Proxy services
 	authProcess, proxyProcess, _ := helpers.MakeTestServers(t)
@@ -118,22 +119,22 @@ func TestIntegrationCRUD(t *testing.T) {
 	respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationWithoutS3LocationReq)
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
-	// Get One Integration by name
-	respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"/my-aws-account", nil)
-	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"/my-aws-account", nil)
+		require.Equal(tc, http.StatusOK, respStatusCode, string(respBody))
+		var integrationResp ui.Integration
+		require.NoError(tc, json.Unmarshal(respBody, &integrationResp))
 
-	integrationResp := ui.Integration{}
-	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
-
-	require.Equal(t, ui.Integration{
-		Name:    "my-aws-account",
-		SubKind: types.IntegrationSubKindAWSOIDC,
-		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
-			IssuerS3Bucket: "my-bucket",
-			IssuerS3Prefix: "prefix",
-		},
-	}, integrationResp, string(respBody))
+		require.Equal(tc, ui.Integration{
+			Name:    "my-aws-account",
+			SubKind: types.IntegrationSubKindAWSOIDC,
+			AWSOIDC: &ui.IntegrationAWSOIDCSpec{
+				RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
+				IssuerS3Bucket: "my-bucket",
+				IssuerS3Prefix: "prefix",
+			},
+		}, integrationResp, string(respBody))
+	}, 15*time.Second, 100*time.Millisecond)
 
 	// Update the integration to another RoleARN
 	respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodPut, integrationsEndpoint+"/my-aws-account", ui.UpdateIntegrationRequest{
@@ -145,7 +146,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
-	integrationResp = ui.Integration{}
+	var integrationResp ui.Integration
 	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
 
 	require.Equal(t, ui.Integration{
@@ -201,30 +202,32 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	// List integrations should return a full page
-	respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10", nil)
-	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
+	require.EventuallyWithT(t, func(tc *assert.CollectT) {
+		respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10", nil)
+		require.Equal(tc, http.StatusOK, respStatusCode, string(respBody))
 
-	listResp = ui.IntegrationsListResponse{}
-	require.NoError(t, json.Unmarshal(respBody, &listResp))
+		listResp = ui.IntegrationsListResponse{}
+		require.NoError(tc, json.Unmarshal(respBody, &listResp))
 
-	require.Len(t, listResp.Items, pageSize)
+		require.Len(tc, listResp.Items, pageSize)
 
-	// Requesting the 2nd page should return a full page
-	respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
-	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
+		// Requesting the 2nd page should return a full page
+		respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
+		require.Equal(tc, http.StatusOK, respStatusCode, string(respBody))
 
-	listResp = ui.IntegrationsListResponse{}
-	require.NoError(t, json.Unmarshal(respBody, &listResp))
+		listResp = ui.IntegrationsListResponse{}
+		require.NoError(tc, json.Unmarshal(respBody, &listResp))
 
-	require.Len(t, listResp.Items, pageSize)
+		require.Len(tc, listResp.Items, pageSize)
 
-	// Requesting the 3rd page should return two items and empty StartKey
-	respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
-	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
+		// Requesting the 3rd page should return two items and empty StartKey
+		respStatusCode, respBody = webPack.DoWebAPIRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
+		require.Equal(tc, http.StatusOK, respStatusCode, string(respBody))
 
-	listResp = ui.IntegrationsListResponse{}
-	require.NoError(t, json.Unmarshal(respBody, &listResp))
+		listResp = ui.IntegrationsListResponse{}
+		require.NoError(tc, json.Unmarshal(respBody, &listResp))
 
-	require.Len(t, listResp.Items, 2)
-	require.Empty(t, listResp.NextKey)
+		require.Len(tc, listResp.Items, 2)
+		require.Empty(tc, listResp.NextKey)
+	}, 15*time.Second, 100*time.Millisecond)
 }

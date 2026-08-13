@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -36,10 +37,12 @@ func (s *TerraformSuiteOSSScopedResources) TestScopedRole() {
 	t := s.T()
 	ctx := t.Context()
 
+	const testScope = "/staging"
 	checkDestroyed := func(state *terraform.State) error {
 		accessClient := s.client.ScopedAccessServiceClient()
 		_, err := accessClient.GetScopedRole(ctx, &accessv1.GetScopedRoleRequest{
-			Name: "test-scoped-role",
+			Name:  "test-scoped-role",
+			Scope: testScope,
 		})
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
@@ -58,8 +61,8 @@ func (s *TerraformSuiteOSSScopedResources) TestScopedRole() {
 				Config: s.getFixture("scoped_role_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", access.KindScopedRole),
-					resource.TestCheckResourceAttr(name, "scope", "/staging"),
-					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.0", "/staging/aa"),
+					resource.TestCheckResourceAttr(name, "scope", testScope),
+					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.0", testScope+"/aa"),
 					resource.TestCheckResourceAttr(name, "spec.rules.0.resources.0", "scoped_token"),
 					resource.TestCheckResourceAttr(name, "spec.rules.0.verbs.0", "read"),
 					resource.TestCheckResourceAttr(name, "spec.rules.0.verbs.1", "list"),
@@ -73,8 +76,8 @@ func (s *TerraformSuiteOSSScopedResources) TestScopedRole() {
 				Config: s.getFixture("scoped_role_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "metadata.labels.env", "staging"),
-					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.0", "/staging/aa"),
-					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.1", "/staging/bb"),
+					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.0", testScope+"/aa"),
+					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.1", testScope+"/bb"),
 					resource.TestCheckResourceAttr(name, "spec.rules.0.verbs.2", "create"),
 					resource.TestCheckResourceAttr(name, "spec.ssh.logins.0", "root"),
 				),
@@ -96,13 +99,15 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRole() {
 	id := "test_import_scoped_role"
 	name := r + "." + id
 
+	const testScope = "/staging"
+
 	role := &accessv1.ScopedRole{
 		Kind:    access.KindScopedRole,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: id,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec: &accessv1.ScopedRoleSpec{
 			AssignableScopes: []string{"/staging/aa"},
 			Rules: []*accessv1.ScopedRule{
@@ -121,10 +126,13 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRole() {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := accessClient.GetScopedRole(ctx, &accessv1.GetScopedRoleRequest{
-			Name: id,
+			Name:  id,
+			Scope: testScope,
 		})
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
+
+	sqn := scopes.QualifiedName{Scope: testScope, Name: id}
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
@@ -134,7 +142,7 @@ func (s *TerraformSuiteOSSScopedResources) TestImportScopedRole() {
 				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: sqn.String(),
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(t, access.KindScopedRole, state[0].Attributes["kind"])
 					require.Equal(t, "/staging", state[0].Attributes["scope"])

@@ -227,7 +227,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance, ScopeFilter: allScopes},
 		{Kind: types.KindRecordingEncryption},
-		{Kind: types.KindAppAuthConfig},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
 		{Kind: types.KindInferenceSecret},
@@ -296,7 +295,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindHealthCheckConfig},
-		{Kind: types.KindAppAuthConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -853,8 +851,6 @@ type Config struct {
 	RecordingEncryption services.RecordingEncryption
 	// Plugins is the plugin service used to retrieve plugin information.
 	Plugin services.Plugins
-	// AppAuthConfig is a app auth config service.
-	AppAuthConfig services.AppAuthConfigReader
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
 	// SubCAService reads CertAuthorityOverride resources.

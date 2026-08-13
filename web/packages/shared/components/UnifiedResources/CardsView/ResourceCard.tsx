@@ -379,11 +379,12 @@ const WarningRightEdgeBadgeIcon = ({
  * TODO(bl-nero): Known issue: this doesn't really work well with one-column
  * layout;
  */
-const CardContainer = styled(Box)<{
+const CardContainer = styled.li<{
   showingStatusInfo: boolean;
   showHoverState: boolean;
 }>`
   height: 110px;
+  list-style: none;
 
   position: relative;
   .resource-health-status-svg {
@@ -469,7 +470,6 @@ const CardInnerContainer = styled(Flex)<
     css`
       border: 2px solid ${p.theme.colors.interactive.solid.alert.active};
     `}
-    
 
   &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.

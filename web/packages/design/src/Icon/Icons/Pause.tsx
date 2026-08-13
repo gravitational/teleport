@@ -56,6 +56,7 @@ export const Pause = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-pause"
+
       {...otherProps}
       ref={ref}
     >

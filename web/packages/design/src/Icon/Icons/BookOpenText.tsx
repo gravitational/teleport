@@ -56,6 +56,7 @@ export const BookOpenText = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-bookopentext"
+
       {...otherProps}
       ref={ref}
     >

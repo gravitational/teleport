@@ -56,6 +56,7 @@ export const Bots = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-bots"
+
       {...otherProps}
       ref={ref}
     >

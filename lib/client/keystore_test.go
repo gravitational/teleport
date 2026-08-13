@@ -132,6 +132,38 @@ func TestKeyStore(t *testing.T) {
 	}
 }
 
+// TestGetKeyRingIsolation verifies that key rings returned by GetKeyRing share no mutable state.
+// The multi-cluster kube local proxy issue certs concurrently.
+// A store that hands out key rings turns those issuances into
+// unsynchronized writes on a shared map, which is a fatal runtime error.
+func TestGetKeyRingIsolation(t *testing.T) {
+	t.Parallel()
+	s := newTestAuthority(t)
+	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	idx := KeyRingIndex{"test.proxy.com", "test-user", "root"}
+	keyRing := s.makeSignedKeyRing(t, idx, false)
+
+	testEachKeyStore(t, func(t *testing.T, keyStore KeyStore) {
+		require.NoError(t, keyStore.AddKeyRing(keyRing))
+
+		first, err := keyStore.GetKeyRing(idx, hwks, WithAllCerts...)
+		require.NoError(t, err)
+		second, err := keyStore.GetKeyRing(idx, hwks, WithAllCerts...)
+		require.NoError(t, err)
+
+		first.KubeTLSCredentials["kube-a"] = TLSCredential{}
+		first.DBTLSCredentials["db-a"] = TLSCredential{}
+		first.AppTLSCredentials["app-a"] = TLSCredential{}
+
+		require.NotContains(t, second.KubeTLSCredentials, "kube-a",
+			"key rings retrieved from the store must not share their kube credential map")
+		require.NotContains(t, second.DBTLSCredentials, "db-a",
+			"key rings retrieved from the store must not share their db credential map")
+		require.NotContains(t, second.AppTLSCredentials, "app-a",
+			"key rings retrieved from the store must not share their app credential map")
+	})
+}
+
 func TestKeyStore_accessGraphCert(t *testing.T) {
 	t.Parallel()
 	a := newTestAuthority(t)

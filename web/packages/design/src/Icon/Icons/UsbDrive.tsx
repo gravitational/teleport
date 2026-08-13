@@ -56,6 +56,7 @@ export const UsbDrive = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-usbdrive"
+
       {...otherProps}
       ref={ref}
     >

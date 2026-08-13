@@ -41,7 +41,6 @@ func Handlers() map[string]Handler {
 		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
-		types.KindAppAuthConfig:                      appAuthConfigHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuditQuery:                         auditQueryHandler(),
 		types.KindAuthServer:                         authHandler(),

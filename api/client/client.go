@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
@@ -2697,22 +2696,6 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
-}
-
-// GetTokens returns a list of active provision tokens for nodes and users.
-// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-// TODO(hugoShaka): DELETE IN 19.0.0
-func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &emptypb.Empty{}) //nolint:staticcheck // Provides backward compatibility, will be removed later.
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
-	for i, token := range resp.ProvisionTokens {
-		tokens[i] = token
-	}
-	return tokens, nil
 }
 
 // GetStaticTokens returns the cluster static tokens.
@@ -6579,81 +6562,6 @@ func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
-}
-
-// AppAuthConfigClient returns an [appauthconfigv1.AppAuthConfigServiceClient].
-func (c *Client) AppAuthConfigClient() appauthconfigv1.AppAuthConfigServiceClient {
-	return appauthconfigv1.NewAppAuthConfigServiceClient(c.conn)
-}
-
-// GetAppAuthConfig fetches an app auth config by name.
-func (c *Client) GetAppAuthConfig(ctx context.Context, name string) (*appauthconfigv1.AppAuthConfig, error) {
-	clt := c.AppAuthConfigClient()
-	res, err := clt.GetAppAuthConfig(ctx, &appauthconfigv1.GetAppAuthConfigRequest{
-		Name: name,
-	})
-	return res, trace.Wrap(err)
-}
-
-// GetAppAuthConfig lists app auth configs with pagination.
-func (c *Client) ListAppAuthConfigs(ctx context.Context, limit int, startKey string) ([]*appauthconfigv1.AppAuthConfig, string, error) {
-	clt := c.AppAuthConfigClient()
-	res, err := clt.ListAppAuthConfigs(ctx, &appauthconfigv1.ListAppAuthConfigsRequest{
-		PageSize:  int32(limit),
-		PageToken: startKey,
-	})
-	return res.GetConfigs(), res.GetNextPageToken(), trace.Wrap(err)
-}
-
-// CreateAppAuthConfig creates a new app auth config.
-func (c *Client) CreateAppAuthConfig(ctx context.Context, config *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
-	clt := c.AppAuthConfigClient()
-	res, err := clt.CreateAppAuthConfig(ctx, &appauthconfigv1.CreateAppAuthConfigRequest{
-		Config: config,
-	})
-	return res, trace.Wrap(err)
-}
-
-// UpdateAppAuthConfig updates an existent app auth config.
-func (c *Client) UpdateAppAuthConfig(ctx context.Context, config *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
-	clt := c.AppAuthConfigClient()
-	res, err := clt.UpdateAppAuthConfig(ctx, &appauthconfigv1.UpdateAppAuthConfigRequest{
-		Config: config,
-	})
-	return res, trace.Wrap(err)
-}
-
-// UpsertAppAuthConfig creates or updates an app auth config.
-func (c *Client) UpsertAppAuthConfig(ctx context.Context, config *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
-	clt := c.AppAuthConfigClient()
-	res, err := clt.UpsertAppAuthConfig(ctx, &appauthconfigv1.UpsertAppAuthConfigRequest{
-		Config: config,
-	})
-	return res, trace.Wrap(err)
-}
-
-// DeleteAppAuthConfig deletes an app auth config.
-func (c *Client) DeleteAppAuthConfig(ctx context.Context, name string) error {
-	clt := c.AppAuthConfigClient()
-	_, err := clt.DeleteAppAuthConfig(ctx, &appauthconfigv1.DeleteAppAuthConfigRequest{
-		Name: name,
-	})
-	return trace.Wrap(err)
-}
-
-// AppAuthConfigSessionsClient returns an [appauthconfigv1.AppAuthConfigSessionsServiceClient].
-func (c *Client) AppAuthConfigSessionsClient() appauthconfigv1.AppAuthConfigSessionsServiceClient {
-	return appauthconfigv1.NewAppAuthConfigSessionsServiceClient(c.conn)
-}
-
-// CreateAppSessionWithJWT creates an app session using JWT token.
-func (c *Client) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (types.WebSession, error) {
-	clt := c.AppAuthConfigSessionsClient()
-	res, err := clt.CreateAppSessionWithJWT(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res.GetSession(), nil
 }
 
 // WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].

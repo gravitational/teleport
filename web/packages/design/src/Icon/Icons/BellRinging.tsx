@@ -56,6 +56,7 @@ export const BellRinging = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-bellringing"
+
       {...otherProps}
       ref={ref}
     >

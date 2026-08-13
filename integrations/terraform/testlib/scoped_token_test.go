@@ -132,15 +132,17 @@ func (s *TerraformSuiteOSS) TestImportScopedToken() {
 	id := "test_import_scoped_token"
 	name := r + "." + id
 
+	const testScope = "/staging"
+
 	token := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: id,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec: &joiningv1.ScopedTokenSpec{
-			AssignedScope: "/staging/nodes",
+			AssignedScope: testScope + "/nodes",
 			JoinMethod:    "token",
 			Roles:         []string{"Node"},
 			UsageMode:     "unlimited",
@@ -153,11 +155,13 @@ func (s *TerraformSuiteOSS) TestImportScopedToken() {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       id,
-			Scope:      "/staging",
+			Scope:      testScope,
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
+
+	sqn := scopes.QualifiedName{Scope: testScope, Name: id}
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
@@ -167,11 +171,11 @@ func (s *TerraformSuiteOSS) TestImportScopedToken() {
 				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
+				ImportStateId: sqn.String(),
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(t, types.KindScopedToken, state[0].Attributes["kind"])
-					require.Equal(t, "/staging", state[0].Attributes["scope"])
-					require.Equal(t, "/staging/nodes", state[0].Attributes["spec.assigned_scope"])
+					require.Equal(t, testScope, state[0].Attributes["scope"])
+					require.Equal(t, testScope+"/nodes", state[0].Attributes["spec.assigned_scope"])
 					return nil
 				},
 			},

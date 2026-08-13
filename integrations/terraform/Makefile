@@ -141,13 +141,6 @@ gen-tfschema:
 		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-discoveryconfig.yaml:./tfschema \
 		teleport/discoveryconfig/v1/discoveryconfig.proto
-	
-	@protoc \
-		-I=../../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
-		--terraform_out=config=protoc-gen-terraform-appauthconfig.yaml:./tfschema \
-		teleport/appauthconfig/v1/appauthconfig.proto
 
 	@protoc \
 		-I=../../api/proto \
@@ -213,7 +206,6 @@ gen-tfschema:
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1/autoupdate_terraform.go ./tfschema/autoupdate/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1/health_check_config_terraform.go ./tfschema/healthcheckconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig_terraform.go ./tfschema/discoveryconfig/v1/
-	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1/appauthconfig_terraform.go ./tfschema/appauthconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1/summarizer_terraform.go ./tfschema/summarizer/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1/vnet_config_terraform.go ./tfschema/vnet/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1/token_terraform.go ./tfschema/scopes/joining/v1/

@@ -119,7 +119,6 @@ type Config struct {
 	HealthCheckConfig       services.HealthCheckConfigReader
 	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
-	AppAuthConfig           services.AppAuthConfigReader
 	Summarizer              services.Summarizer
 	SubCAService            services.SubCAServiceGetter
 }
@@ -212,7 +211,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		BotInstanceService:      cfg.BotInstance,
 		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
-		AppAuthConfig:           cfg.AppAuthConfig,
 		Summarizer:              cfg.Summarizer,
 		SubCAService:            cfg.SubCAService,
 	}

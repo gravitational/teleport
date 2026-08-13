@@ -56,6 +56,7 @@ export const Wrench = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-wrench"
+
       {...otherProps}
       ref={ref}
     >

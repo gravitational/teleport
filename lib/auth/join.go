@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"maps"
@@ -30,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -429,13 +427,6 @@ func (a *Server) GenerateBotCertsForJoin(
 		JoinAttrs:  params.Attrs,
 	}.Build()
 
-	var err error
-	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
-	auth.Metadata, err = rawJoinAttrsToGoogleStruct(params.RawJoinClaims)
-	if err != nil {
-		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
-	}
-
 	botUserName, err := botUserNameFromToken(token)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -678,19 +669,4 @@ func (a *Server) emitJoinEvent(ctx context.Context, token provision.Token, param
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
-}
-
-func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
-	if in == nil {
-		return nil, nil
-	}
-	attrBytes, err := json.Marshal(in)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling join attributes")
-	}
-	out := &structpb.Struct{}
-	if err := out.UnmarshalJSON(attrBytes); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling join attributes")
-	}
-	return out, nil
 }

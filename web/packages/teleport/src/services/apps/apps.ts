@@ -44,18 +44,7 @@ const service = {
   },
 
   async createAppSession(params: CreateAppSessionParams) {
-    const createAppSession = {
-      ...params,
-      // TODO(Joerger): DELETE IN v19.0.0.
-      // We include a string version of the MFA response for backwards compatibility.
-      mfa_response: params.mfaResponse
-        ? JSON.stringify({
-            webauthnAssertionResponse: params.mfaResponse.webauthn_response,
-          })
-        : null,
-    };
-
-    return api.post(cfg.api.appSession, createAppSession).then(json => ({
+    return api.post(cfg.api.appSession, params).then(json => ({
       fqdn: json.fqdn as string,
       cookieValue: json.cookie_value as string,
       subjectCookieValue: json.subject_cookie_value as string,

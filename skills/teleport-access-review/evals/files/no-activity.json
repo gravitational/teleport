@@ -15,9 +15,9 @@
             "id": "d0000000-0000-4000-8000-0000000000db",
             "name": "prod-db",
             "kind": "resource",
-            "sub_kind": "db",
+            "sub_kind": "database",
             "source": "TELEPORT",
-            "origin": "teleport_db"
+            "origin": "teleport_database"
           },
           "level": "standing",
           "grant_counts": {"standing": 1, "impersonate": 0, "request": 0},

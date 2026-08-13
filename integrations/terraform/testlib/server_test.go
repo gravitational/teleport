@@ -25,16 +25,38 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuiteOSS) TestOpenSSHServer() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
+func checkSSHServerExists(ctx context.Context, clt *client.Client, scope, name, hostname string) resource.TestCheckFunc {
+	return func(state *terraform.State) error {
+		server, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+			Name:  name,
+			Scope: scope,
+		}.Build())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
+		serverV2, ok := server.(*types.ServerV2)
+		if !ok {
+			return trace.BadParameter("unexpected SSH server type: %T", server)
+		}
+		if got := serverV2.GetScope(); got != scope {
+			return trace.CompareFailed("SSH server scope mismatch: got %q, want %q", got, scope)
+		}
+		if got := serverV2.GetHostname(); got != hostname {
+			return trace.CompareFailed("SSH server hostname mismatch: got %q, want %q", got, hostname)
+		}
+		return nil
+	}
+}
+
+func (s *TerraformSuiteOSS) TestOpenSSHServer() {
 	checkServerDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "test"}.Build())
+		_, err := s.client.GetSSHServer(s.T().Context(), presencev1.GetSSHServerRequest_builder{Name: "test"}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -81,12 +103,9 @@ func (s *TerraformSuiteOSS) TestOpenSSHServer() {
 }
 
 func (s *TerraformSuiteOSS) TestOpenSSHServerNameless() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	checkServerDestroyed := func(state *terraform.State) error {
 		// The name is a UUID but we can lookup by hostname as well.
-		_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "test.local"}.Build())
+		_, err := s.client.GetSSHServer(s.T().Context(), presencev1.GetSSHServerRequest_builder{Name: "test.local"}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -132,10 +151,55 @@ func (s *TerraformSuiteOSS) TestOpenSSHServerNameless() {
 	})
 }
 
-func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
+func (s *TerraformSuiteOSSScopedResources) TestOpenSSHServerScopedAndUnscoped() {
+	ctx := s.T().Context()
 
+	checkServerDestroyed := func(state *terraform.State) error {
+		for _, tc := range []struct {
+			scope string
+			name  string
+		}{
+			{name: "test-unscoped"},
+			{scope: "/foo/bar", name: "test-scoped"},
+		} {
+			_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+				Name:  tc.name,
+				Scope: tc.scope,
+			}.Build())
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkServerDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("server_openssh_scoped_and_unscoped.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("teleport_server.unscoped", "metadata.name", "test-unscoped"),
+					resource.TestCheckResourceAttr("teleport_server.unscoped", "id", "test-unscoped"),
+					resource.TestCheckResourceAttr("teleport_server.unscoped", "spec.addr", "127.0.0.1:22"),
+					resource.TestCheckResourceAttr("teleport_server.scoped", "metadata.name", "test-scoped"),
+					resource.TestCheckResourceAttr("teleport_server.scoped", "scope", "/foo/bar"),
+					resource.TestCheckResourceAttr("teleport_server.scoped", "id", "/foo/bar::test-scoped"),
+					resource.TestCheckResourceAttr("teleport_server.scoped", "spec.addr", "127.0.0.1:2222"),
+					checkSSHServerExists(ctx, s.client, "", "test-unscoped", "unscoped.local"),
+					checkSSHServerExists(ctx, s.client, "/foo/bar", "test-scoped", "scoped.local"),
+				),
+			},
+			{
+				Config:   s.getFixture("server_openssh_scoped_and_unscoped.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
 	r := "teleport_server"
 	id := "test_import"
 	name := r + "." + id
@@ -155,11 +219,11 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
 	err := server.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	_, err = s.client.UpsertNode(ctx, server)
+	_, err = s.client.UpsertNode(s.T().Context(), server)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err = s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: server.GetName(), Scope: server.GetScope()}.Build())
+		_, err = s.client.GetSSHServer(s.T().Context(), presencev1.GetSSHServerRequest_builder{Name: server.GetName(), Scope: server.GetScope()}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -189,11 +253,8 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
 }
 
 func (s *TerraformSuiteOSS) TestOpenSSHEICEServer() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	checkServerDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "test"}.Build())
+		_, err := s.client.GetSSHServer(s.T().Context(), presencev1.GetSSHServerRequest_builder{Name: "test"}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -252,9 +313,6 @@ func (s *TerraformSuiteOSS) TestOpenSSHEICEServer() {
 }
 
 func (s *TerraformSuiteOSS) TestImportOpenSSHEICEServer() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_server"
 	id := "test_import"
 	name := r + "." + id
@@ -284,11 +342,11 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHEICEServer() {
 	err := server.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	_, err = s.client.UpsertNode(ctx, server)
+	_, err = s.client.UpsertNode(s.T().Context(), server)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err = s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: server.GetName(), Scope: server.GetScope()}.Build())
+		_, err = s.client.GetSSHServer(s.T().Context(), presencev1.GetSSHServerRequest_builder{Name: server.GetName(), Scope: server.GetScope()}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}

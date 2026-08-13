@@ -47,10 +47,11 @@ type minimalV9Decision struct {
 	// droppedRoles names the pre-v9 roles dropped because a v9 role grants
 	// the same app. They are logged, never allowed to re-open access.
 	droppedRoles []string
-	// versionSkew is true when the roles carry app rules or versions a
-	// newer Teleport wrote and this version cannot evaluate: deny-side
-	// rules, allow rules beyond a single pure allow_all, or a role
-	// version above v9.
+	// versionSkew is true when the roles set app rules, predicates, or
+	// versions a newer Teleport wrote and this version cannot evaluate.
+	// The cases are deny-side rules or predicates, allow rules beyond a
+	// single pure allow_all, allow-side predicates, and a role version
+	// above v9.
 	versionSkew bool
 }
 
@@ -67,20 +68,21 @@ func roleVersionPredatesV9(version string) bool {
 // decideMinimalV9 applies the minimal v9 policy to the caller's roles that
 // grant app. If only pre-v9 roles grant it, the request keeps full v8
 // behavior. Otherwise pre-v9 roles granting the app are dropped and the
-// request is denied unless a granting v9 role holds a single allow_all rule
-// and no role carries deny-side app rules. A role newer than v9 still
-// enforces but never allows, since it may carry restrictions this version
-// cannot evaluate.
+// request is denied unless a granting v9 role holds a single allow_all rule,
+// sets no app_resources_expressions, and no role sets a deny-side rule or
+// predicate. A role newer than v9 still enforces but never allows, since it
+// may set restrictions this version cannot evaluate.
 //
 // TODO(@juliaogris): Replace with per-request rule matching from the
 // upcoming lib/appresource engine package.
 func decideMinimalV9(roles []types.Role, app types.Application, username string, traits wrappers.Traits) minimalV9Decision {
-	// This version cannot evaluate deny-side app rules, which could only
-	// occur in roles from newer versions. Deny beats allow across the
-	// whole role set, so any role carrying them blocks allow_all
-	// and the request is denied.
+	// This version cannot evaluate deny-side app rules or predicates, which
+	// could only occur in roles from newer versions. Deny beats allow across
+	// the whole role set, so any role that sets either blocks allow_all and
+	// the request is denied.
 	denyAppRules := slices.ContainsFunc(roles, func(role types.Role) bool {
-		return len(role.GetAppResources(types.Deny)) > 0
+		return len(role.GetAppResources(types.Deny)) > 0 ||
+			len(role.GetAppResourcesExpressions(types.Deny)) > 0
 	})
 
 	decision := minimalV9Decision{versionSkew: denyAppRules}
@@ -101,9 +103,16 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 			continue
 		}
 		allow := role.GetAppResources(types.Allow)
-		if types.AppResourcesAllowAll(allow, role.GetAppResources(types.Deny)) {
+		allowExpressions := role.GetAppResourcesExpressions(types.Allow)
+		switch {
+		case len(allowExpressions) > 0:
+			// A predicate restricts the rules it accompanies, and this
+			// version cannot evaluate one, so the role denies whether or
+			// not its declarative rules read as allow_all.
+			decision.versionSkew = true
+		case types.AppResourcesAllowAll(allow, role.GetAppResources(types.Deny)):
 			decision.allowed = !denyAppRules
-		} else if len(allow) > 0 {
+		case len(allow) > 0:
 			// This version can only write a single pure allow_all rule, so
 			// any other non-empty rule set must come from a newer version.
 			decision.versionSkew = true

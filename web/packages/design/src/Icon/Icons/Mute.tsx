@@ -56,6 +56,7 @@ export const Mute = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-mute"
+
       {...otherProps}
       ref={ref}
     >

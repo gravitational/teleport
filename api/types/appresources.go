@@ -17,11 +17,20 @@ limitations under the License.
 package types
 
 // IsAllowAllOnly reports whether the rule sets allow_all and no other
-// field, known or unknown. Fields unknown to this version could
-// restrict the rule, so a rule carrying any does not count as
+// field, known or unknown. This version enforces no field except
+// allow_all, so a rule that sets any other field does not count as
 // unrestricted.
 func (a AppResource) IsAllowAllOnly() bool {
-	return a.AllowAll && len(a.XXX_unrecognized) == 0
+	return a.AllowAll &&
+		len(a.Paths) == 0 &&
+		len(a.Methods) == 0 &&
+		a.Where == "" &&
+		len(a.AllowEncoded) == 0 &&
+		a.AllowCode == "" &&
+		a.AllowReason == "" &&
+		a.DenyCodeHint == "" &&
+		a.DenyReasonHint == "" &&
+		len(a.XXX_unrecognized) == 0
 }
 
 // AppResourcesAllowAll reports whether a role's app rules grant full

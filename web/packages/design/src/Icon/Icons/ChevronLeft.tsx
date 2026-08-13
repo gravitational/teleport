@@ -56,6 +56,7 @@ export const ChevronLeft = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-chevronleft"
+
       {...otherProps}
       ref={ref}
     >

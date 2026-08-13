@@ -56,6 +56,7 @@ export const Stars = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-stars"
+
       {...otherProps}
       ref={ref}
     >
