@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -833,7 +832,6 @@ func TestAnonymize(t *testing.T) {
 	reporter := &StreamingUsageReporter{
 		anonymizer:  anonymizer,
 		clusterName: clusterName,
-		clock:       clockwork.NewFakeClock(),
 	}
 
 	reqs := reporter.anonymize([]Anonymizable{

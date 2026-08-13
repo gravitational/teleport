@@ -30,7 +30,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -103,7 +102,6 @@ type StreamingUsageReporter struct {
 	// clusterName is the cluster's name, used for anonymization and as an event
 	// field.
 	clusterName types.ClusterName
-	clock       clockwork.Clock
 }
 
 var _ UsageReporter = (*StreamingUsageReporter)(nil)
@@ -117,7 +115,7 @@ func (t *StreamingUsageReporter) anonymize(events []Anonymizable) []*prehogv1a.S
 	reqs := make([]*prehogv1a.SubmitEventRequest, 0, len(events))
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
-		req.Timestamp = timestamppb.New(t.clock.Now())
+		req.Timestamp = timestamppb.Now()
 		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
 		req.TeleportVersion = teleport.Version
 		// Deduping resubmitted events requires a stable key per event.
@@ -144,8 +142,6 @@ func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterNam
 		return nil, trace.Wrap(err)
 	}
 
-	clock := clockwork.NewRealClock()
-
 	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1a.SubmitEventRequest]{
 		Logger:        logger,
 		Submit:        submitter,
@@ -155,14 +151,12 @@ func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterNam
 		MaxBufferSize: usageReporterMaxBufferSize,
 		SubmitDelay:   usageReporterSubmitDelay,
 		RetryAttempts: usageReporterRetryAttempts,
-		Clock:         clock,
 	})
 
 	return &StreamingUsageReporter{
 		usageReporter: reporter,
 		anonymizer:    anonymizer,
 		clusterName:   clusterName,
-		clock:         clock,
 	}, nil
 }
 
