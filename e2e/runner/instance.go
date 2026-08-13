@@ -31,6 +31,7 @@ type testInstance struct {
 	proxyPort          int
 	authPort           int
 	sshPorts           []int
+	kubePort           int
 	e2eDir             string
 	dataDir            string
 	tctlBin            string
@@ -38,6 +39,7 @@ type testInstance struct {
 	teleportConfigPath string
 	teleport           *teleportInstance
 	nodes              []*dockerNode
+	kube               *kubeCluster
 }
 
 // start starts the Teleport instance and SSH node for this test instance.
@@ -50,6 +52,12 @@ func (inst *testInstance) start(ctx context.Context) error {
 			inst.stop()
 		}
 	}()
+
+	if inst.kube != nil {
+		if err = inst.kube.start(ctx); err != nil {
+			return fmt.Errorf("failed to start kube fixture for %s: %w", inst.browser, err)
+		}
+	}
 
 	if inst.teleport != nil {
 		if err = inst.teleport.start(ctx); err != nil {
@@ -83,6 +91,10 @@ func (inst *testInstance) start(ctx context.Context) error {
 func (inst *testInstance) stop() {
 	for _, node := range inst.nodes {
 		node.stop(context.Background())
+	}
+
+	if inst.kube != nil {
+		inst.kube.stop()
 	}
 
 	if inst.teleport != nil {
