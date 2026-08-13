@@ -73,20 +73,22 @@ func (u *unaryEmitter) EmitAuditEvent(_ context.Context, event apievents.AuditEv
 	return nil
 }
 
-func testItems(ids ...string) []auditqueue.Item {
-	items := make([]auditqueue.Item, len(ids))
+func testBatch(ids ...string) auditqueue.Item {
+	events := make([]apievents.AuditEvent, len(ids))
 	for i, id := range ids {
 		event := &apievents.UserLogin{}
 		event.SetID(id)
-		items[i] = auditqueue.Item{Event: event}
+		events[i] = event
 	}
-	return items
+	return auditqueue.Item{Events: events}
 }
 
 func itemIDs(items []auditqueue.Item) []string {
-	ids := make([]string, len(items))
-	for i, item := range items {
-		ids[i] = item.Event.GetID()
+	var ids []string
+	for _, item := range items {
+		for _, event := range item.Events {
+			ids = append(ids, event.GetID())
+		}
 	}
 	return ids
 }
@@ -97,15 +99,15 @@ func TestAsyncEmitterDeliverBatchFastPath(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
 
-	items := testItems("a", "b", "c")
+	items := []auditqueue.Item{testBatch("a", "b", "c")}
 	delivered := a.deliver(context.Background(), items)
 
 	require.Equal(t, []string{"a", "b", "c"}, itemIDs(delivered), "all events should be delivered")
-	require.Equal(t, [][]string{{"a", "b", "c"}}, inner.batchCalls, "events should be emitted as a single batch")
+	require.Equal(t, [][]string{{"a", "b", "c"}}, inner.batchCalls, "the batch should be emitted as a single request")
 	require.Empty(t, inner.singleEvents, "no per-event emits should happen on the fast path")
 }
 
-func TestAsyncEmitterDeliverFallbackPartialFailure(t *testing.T) {
+func TestAsyncEmitterDeliverBatchIsAtomic(t *testing.T) {
 	inner := &recordingEmitter{
 		batchErr: trace.Errorf("batch unavailable"),
 		failIDs:  map[string]bool{"b": true},
@@ -114,12 +116,43 @@ func TestAsyncEmitterDeliverFallbackPartialFailure(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
 
-	items := testItems("a", "b", "c")
-	delivered := a.deliver(context.Background(), items)
+	items := []auditqueue.Item{testBatch("a", "b", "c")}
+	delivered := a.deliver(t.Context(), items)
 
-	require.Equal(t, []string{"a", "c"}, itemIDs(delivered), "only non-failing events should be acked")
-	require.Len(t, inner.batchCalls, 1, "batch should be attempted once before falling back")
+	require.Empty(t, delivered, "a batch with any failing event must not be acked")
+	require.Len(t, inner.batchCalls, 2, "the aggregate request and the per-batch request should each be attempted before per-event fallback")
+	require.Equal(t, []string{"a"}, inner.singleEvents, "fallback should stop at the first failing event")
+}
+
+func TestAsyncEmitterDeliverFallbackIndependentBatches(t *testing.T) {
+	inner := &recordingEmitter{
+		batchErr: trace.Errorf("batch unavailable"),
+		failIDs:  map[string]bool{"b": true},
+	}
+	a, err := NewAsyncEmitter(AsyncEmitterConfig{Inner: inner})
+	require.NoError(t, err)
+	t.Cleanup(func() { a.Close() })
+
+	items := []auditqueue.Item{testBatch("a"), testBatch("b"), testBatch("c")}
+	delivered := a.deliver(t.Context(), items)
+
+	require.Equal(t, []string{"a", "c"}, itemIDs(delivered), "only batches whose events all delivered should be acked")
+	require.Len(t, inner.batchCalls, 4, "one aggregate request, then each batch attempted as its own request")
 	require.Equal(t, []string{"a", "c"}, inner.singleEvents, "fallback should emit each event individually")
+}
+
+func TestAsyncEmitterDeliverAggregatesRows(t *testing.T) {
+	inner := &recordingEmitter{}
+	a, err := NewAsyncEmitter(AsyncEmitterConfig{Inner: inner})
+	require.NoError(t, err)
+	t.Cleanup(func() { a.Close() })
+
+	items := []auditqueue.Item{testBatch("a"), testBatch("b"), testBatch("c")}
+	delivered := a.deliver(t.Context(), items)
+
+	require.Equal(t, []string{"a", "b", "c"}, itemIDs(delivered), "all batches should be acked")
+	require.Equal(t, [][]string{{"a", "b", "c"}}, inner.batchCalls, "all batches should be delivered in a single request")
+	require.Empty(t, inner.singleEvents, "no per-event emits should happen on the fast path")
 }
 
 func TestAsyncEmitterDeliverUnaryInner(t *testing.T) {
@@ -128,7 +161,7 @@ func TestAsyncEmitterDeliverUnaryInner(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
 
-	items := testItems("a", "b")
+	items := []auditqueue.Item{testBatch("a"), testBatch("b")}
 	delivered := a.deliver(context.Background(), items)
 
 	require.Equal(t, []string{"a", "b"}, itemIDs(delivered))

@@ -273,7 +273,7 @@ func parseRecipients(config types.SessionRecordingConfig) (bool, []age.Recipient
 	}
 	recipients := make([]age.Recipient, 0, len(keys))
 	for _, key := range keys {
-		recipient, err := ParseRecordingRecipient(key.PublicKey)
+		recipient, err := ParseAuditQueueRecipient(key.PublicKey)
 		if err != nil {
 			return false, nil, trace.Wrap(err, "parsing session recording encryption key")
 		}

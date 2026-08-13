@@ -95,15 +95,20 @@ type Config struct {
 	// permanently deleted.
 	DeadLetterTTL time.Duration
 	// Synchronous controls the SQLite synchronous pragma.
-	Synchronous    SynchronousMode
+	Synchronous SynchronousMode
+	// Sealer, when set, encrypts each batch payload before it is written to
+	// disk. The queue borrows the Sealer. It is closed by the emitter that
+	// owns it, never by the queue.
+	Sealer         Sealer
 	StatsInterval  time.Duration
 	OnStatsUpdated func()
 }
 
-// Item is an event yielded to a Handler.
+// Item is a batch of events yielded to a Handler.
 type Item struct {
-	id    int64
-	Event apievents.AuditEvent
+	id int64
+	// Events is the list of events in the batch.
+	Events []apievents.AuditEvent
 }
 
 // Stats reports the current depth of a Queue.
