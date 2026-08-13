@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import service, { getUrlParameter } from './history';
+import service, { getUrlParameter, LoginOptions } from './history';
 
 export default service;
-export { getUrlParameter };
+export { getUrlParameter, type LoginOptions };
