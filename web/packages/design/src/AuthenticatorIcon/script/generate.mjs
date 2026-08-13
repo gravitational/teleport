@@ -32,6 +32,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 import { iconOverrides } from './overrides.mjs';
 
@@ -43,7 +44,8 @@ const root = join(here, '..');
 const assetsDir = join(root, 'assets');
 const overridesDir = join(here, 'overrides');
 // The Go server embeds the name table, and go:embed cannot reach outside its own package, so the
-// canonical copy lives in that package and the web imports it from there.
+// canonical copy lives in that package and the web imports it from there. Written alongside a
+// gzipped copy, which is the one Go actually embeds.
 const namesPath = join(
   here,
   '../../../../../..',
@@ -311,7 +313,12 @@ writeFileSync(
 const sortedNames = Object.fromEntries(
   Object.entries(names).toSorted(([a], [b]) => a.localeCompare(b))
 );
-writeFileSync(namesPath, `${JSON.stringify(sortedNames)}\n`);
+const namesJson = `${JSON.stringify(sortedNames)}\n`;
+writeFileSync(namesPath, namesJson);
+
+// Go embeds the gzipped copy rather than the plain one, which is worth 13KB of binary. gzipSync
+// zeroes the mtime header field, so an unchanged table regenerates to identical bytes.
+writeFileSync(`${namesPath}.gz`, gzipSync(namesJson, { level: 9 }));
 
 console.log(
   `generated ${Object.keys(names).length} names, ${iconEntries.length} icon entries, ${byContent.size} assets`

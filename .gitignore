@@ -19,6 +19,8 @@ default.etcd
 *.gz
 # ignore all tarballs except the alpine one
 !fixtures/alpine/alpine-minirootfs-*.tar.gz
+# the generated AAGUID table the Go server embeds
+!lib/auth/webauthn/aaguid/aaguids.json.gz
 *.zip
 
 # editors

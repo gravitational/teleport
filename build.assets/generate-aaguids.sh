@@ -4,7 +4,8 @@
 # passkey-authenticator-aaguids dataset.
 #
 # Emits:
-#   lib/auth/webauthn/aaguid/aaguids.json                  AAGUID -> name, embedded by the Go server
+#   lib/auth/webauthn/aaguid/aaguids.json                  AAGUID -> name, imported by the web UI
+#   lib/auth/webauthn/aaguid/aaguids.json.gz               the same table, embedded by the Go server
 #   web/packages/design/src/AuthenticatorIcon/icons.ts     vendor logo asset exports
 #   web/packages/design/src/AuthenticatorIcon/authenticatorIcons.ts   AAGUID -> logo
 #   web/packages/design/src/AuthenticatorIcon/assets/      the logos themselves

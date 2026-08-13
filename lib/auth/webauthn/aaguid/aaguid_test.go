@@ -19,6 +19,10 @@
 package aaguid
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -79,6 +83,24 @@ func TestNameFromBytes(t *testing.T) {
 	// Anything that is not 16 bytes is not an AAGUID.
 	_, ok = NameFromBytes([]byte{1, 2, 3})
 	assert.False(t, ok)
+}
+
+// Go embeds the gzipped table while the web imports the plain JSON, so the two are only ever as
+// consistent as the generator that emits them. Hand-editing either one, or regenerating without
+// committing both, is caught here rather than by tsh and the browser naming a device differently.
+func TestEmbeddedMatchesJSON(t *testing.T) {
+	plain, err := os.ReadFile("aaguids.json")
+	require.NoError(t, err, "reading aaguids.json failed")
+
+	zr, err := gzip.NewReader(bytes.NewReader(embedded))
+	require.NoError(t, err, "opening aaguids.json.gz failed")
+	defer zr.Close()
+
+	fromBlob, err := io.ReadAll(zr)
+	require.NoError(t, err, "decompressing aaguids.json.gz failed")
+
+	assert.True(t, bytes.Equal(plain, fromBlob),
+		"aaguids.json.gz does not decompress to aaguids.json, re-run build.assets/generate-aaguids.sh")
 }
 
 // Names are offered as device names, so one over the server's limit would be rejected for any client

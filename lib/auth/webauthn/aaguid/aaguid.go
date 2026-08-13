@@ -20,23 +20,41 @@
 // so a freshly registered device can be named after the thing it actually is.
 //
 // aaguids.json is generated from the community passkey-authenticator-aaguids dataset by
-// build.assets/generate-aaguids.sh. The web UI imports the same file, so tsh and the browser name
-// devices identically.
+// build.assets/generate-aaguids.sh. The web UI imports that file directly, so tsh and the browser
+// name devices identically.
+//
+// Go embeds the gzipped copy the same generator emits, which keeps 13KB of highly repetitive JSON out
+// of the binary. gzip rather than a denser codec because tsh already links the stdlib decompressor,
+// so this costs no code. aaguid_test.go holds the two files to the same content.
 package aaguid
 
 import (
+	"bytes"
+	"compress/gzip"
 	_ "embed"
 	"encoding/json"
+	"io"
 
 	"github.com/google/uuid"
 )
 
-//go:embed aaguids.json
+//go:embed aaguids.json.gz
 var embedded []byte
 
 var names = func() map[string]string {
+	zr, err := gzip.NewReader(bytes.NewReader(embedded))
+	if err != nil {
+		panic("opening the embedded AAGUID name table: " + err.Error())
+	}
+	defer zr.Close()
+
+	raw, err := io.ReadAll(zr)
+	if err != nil {
+		panic("decompressing the embedded AAGUID name table: " + err.Error())
+	}
+
 	var m map[string]string
-	if err := json.Unmarshal(embedded, &m); err != nil {
+	if err := json.Unmarshal(raw, &m); err != nil {
 		panic("parsing the embedded AAGUID name table: " + err.Error())
 	}
 
