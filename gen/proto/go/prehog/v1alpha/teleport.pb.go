@@ -10717,6 +10717,11 @@ type SubmitEventRequest struct {
 	//
 	// PostHog property: tp.teleport_version
 	TeleportVersion string `protobuf:"bytes,95,opt,name=teleport_version,json=teleportVersion,proto3" json:"teleport_version,omitempty"`
+	// event_key is a UUID distinguishing one underlying event occurrence,
+	// allowing consumers to deduplicate resubmissions.
+	//
+	// PostHog property: tp.event_key
+	EventKey string `protobuf:"bytes,128,opt,name=event_key,json=eventKey,proto3" json:"event_key,omitempty"`
 	// the event being submitted
 	//
 	// Types that are valid to be assigned to Event:
@@ -10893,6 +10898,13 @@ func (x *SubmitEventRequest) GetTimestamp() *timestamppb.Timestamp {
 func (x *SubmitEventRequest) GetTeleportVersion() string {
 	if x != nil {
 		return x.TeleportVersion
+	}
+	return ""
+}
+
+func (x *SubmitEventRequest) GetEventKey() string {
+	if x != nil {
+		return x.EventKey
 	}
 	return ""
 }
@@ -13515,11 +13527,12 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x06params\x18\x04 \x03(\v2..prehog.v1alpha.UIInteractionEvent.ParamsEntryR\x06params\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9di\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbbi\n" +
 	"\x12SubmitEventRequest\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12)\n" +
-	"\x10teleport_version\x18_ \x01(\tR\x0fteleportVersion\x12?\n" +
+	"\x10teleport_version\x18_ \x01(\tR\x0fteleportVersion\x12\x1c\n" +
+	"\tevent_key\x18\x80\x01 \x01(\tR\beventKey\x12?\n" +
 	"\n" +
 	"user_login\x18\x03 \x01(\v2\x1e.prehog.v1alpha.UserLoginEventH\x00R\tuserLogin\x12?\n" +
 	"\n" +

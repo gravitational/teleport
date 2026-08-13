@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
@@ -813,6 +814,39 @@ func TestConvertUsageEvent(t *testing.T) {
 
 			require.Equal(t, tt.expected, got)
 		})
+	}
+}
+
+func TestAnonymize(t *testing.T) {
+	t.Parallel()
+
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("anon-key-or-cluster-id"))
+	require.NoError(t, err)
+
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "test-cluster",
+		ClusterID:   "test-cluster-id",
+	})
+	require.NoError(t, err)
+
+	reporter := &StreamingUsageReporter{
+		anonymizer:  anonymizer,
+		clusterName: clusterName,
+	}
+
+	reqs := reporter.anonymize([]Anonymizable{
+		&UserLoginEvent{UserName: "alice", ConnectorType: "local"},
+		&UserLoginEvent{UserName: "alice", ConnectorType: "local"},
+	})
+
+	require.Len(t, reqs, 2)
+	require.NotEmpty(t, reqs[0].EventKey)
+	require.NotEqual(t, reqs[0].EventKey, reqs[1].EventKey,
+		"identical events must not share an event key")
+
+	for _, req := range reqs {
+		require.Equal(t, anonymizer.AnonymizeString("test-cluster"), req.ClusterName)
+		require.Equal(t, teleport.Version, req.TeleportVersion)
 	}
 }
 

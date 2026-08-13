@@ -3766,6 +3766,15 @@ export interface SubmitEventRequest {
      */
     teleportVersion: string;
     /**
+     * event_key is a UUID distinguishing one underlying event occurrence,
+     * allowing consumers to deduplicate resubmissions.
+     *
+     * PostHog property: tp.event_key
+     *
+     * @generated from protobuf field: string event_key = 128;
+     */
+    eventKey: string;
+    /**
      * @generated from protobuf oneof: event
      */
     event: {
@@ -13964,6 +13973,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 1, name: "cluster_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "timestamp", kind: "message", T: () => Timestamp },
             { no: 95, name: "teleport_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 128, name: "event_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "user_login", kind: "message", oneof: "event", T: () => UserLoginEvent },
             { no: 4, name: "sso_create", kind: "message", oneof: "event", T: () => SSOCreateEvent },
             { no: 5, name: "resource_create", kind: "message", oneof: "event", T: () => ResourceCreateEvent },
@@ -14090,6 +14100,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clusterName = "";
         message.teleportVersion = "";
+        message.eventKey = "";
         message.event = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SubmitEventRequest>(this, message, value);
@@ -14108,6 +14119,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                     break;
                 case /* string teleport_version */ 95:
                     message.teleportVersion = reader.string();
+                    break;
+                case /* string event_key */ 128:
+                    message.eventKey = reader.string();
                     break;
                 case /* prehog.v1alpha.UserLoginEvent user_login */ 3:
                     message.event = {
@@ -14850,6 +14864,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* string teleport_version = 95; */
         if (message.teleportVersion !== "")
             writer.tag(95, WireType.LengthDelimited).string(message.teleportVersion);
+        /* string event_key = 128; */
+        if (message.eventKey !== "")
+            writer.tag(128, WireType.LengthDelimited).string(message.eventKey);
         /* prehog.v1alpha.UserLoginEvent user_login = 3; */
         if (message.event.oneofKind === "userLogin")
             UserLoginEvent.internalBinaryWrite(message.event.userLogin, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
