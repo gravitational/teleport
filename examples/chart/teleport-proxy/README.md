@@ -44,7 +44,7 @@ $ kubectl \
 
 https://oidc.my-k8s-cluster.my-cloud-provider.com/not-real/dont-copy
 
-tctl create -f - <<EOT
+tctl create <<EOT
 kind: token
 version: v2
 metadata:
