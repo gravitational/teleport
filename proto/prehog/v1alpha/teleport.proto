@@ -2032,6 +2032,128 @@ message DiscoveryConfigEvent {
   string creation_method = 5;
 }
 
+// DiscoveryMatcherType is a resource type a discovery config's matchers select.
+enum DiscoveryMatcherType {
+  DISCOVERY_MATCHER_TYPE_UNSPECIFIED = 0;
+
+  DISCOVERY_MATCHER_TYPE_AWS_EC2 = 1;
+  DISCOVERY_MATCHER_TYPE_AWS_EKS = 2;
+  DISCOVERY_MATCHER_TYPE_AWS_RDS = 3;
+  DISCOVERY_MATCHER_TYPE_AWS_RDSPROXY = 4;
+  DISCOVERY_MATCHER_TYPE_AWS_REDSHIFT = 5;
+  DISCOVERY_MATCHER_TYPE_AWS_REDSHIFT_SERVERLESS = 6;
+  DISCOVERY_MATCHER_TYPE_AWS_ELASTICACHE = 7;
+  DISCOVERY_MATCHER_TYPE_AWS_ELASTICACHE_SERVERLESS = 8;
+  DISCOVERY_MATCHER_TYPE_AWS_MEMORYDB = 9;
+  DISCOVERY_MATCHER_TYPE_AWS_OPENSEARCH = 10;
+  DISCOVERY_MATCHER_TYPE_AWS_DOCDB = 11;
+
+  DISCOVERY_MATCHER_TYPE_AZURE_VM = 12;
+  DISCOVERY_MATCHER_TYPE_AZURE_AKS = 13;
+  DISCOVERY_MATCHER_TYPE_AZURE_MYSQL = 14;
+  DISCOVERY_MATCHER_TYPE_AZURE_POSTGRES = 15;
+  DISCOVERY_MATCHER_TYPE_AZURE_REDIS = 16;
+  DISCOVERY_MATCHER_TYPE_AZURE_SQLSERVER = 17;
+  DISCOVERY_MATCHER_TYPE_AZURE_WINDOWS_VM = 18;
+
+  DISCOVERY_MATCHER_TYPE_GCP_GKE = 19;
+  DISCOVERY_MATCHER_TYPE_GCP_GCE = 20;
+  DISCOVERY_MATCHER_TYPE_GCP_CLOUDSQL = 21;
+
+  DISCOVERY_MATCHER_TYPE_KUBE_APP = 22;
+}
+
+// CloudProvider is a platform a discovery config selects resources from.
+enum CloudProvider {
+  CLOUD_PROVIDER_UNSPECIFIED = 0;
+  CLOUD_PROVIDER_AWS = 1;
+  CLOUD_PROVIDER_AZURE = 2;
+  CLOUD_PROVIDER_GCP = 3;
+  CLOUD_PROVIDER_KUBERNETES = 4;
+}
+
+// ClientKind is the tool that made a configuration change, read from the
+// request's user agent.
+enum ClientKind {
+  // The event's producer does not report a client.
+  CLIENT_KIND_UNSPECIFIED = 0;
+  // The user agent did not match a known tool.
+  CLIENT_KIND_UNKNOWN = 1;
+  CLIENT_KIND_WEB_UI = 2;
+  CLIENT_KIND_TCTL = 3;
+  CLIENT_KIND_TSH = 4;
+  CLIENT_KIND_TBOT = 5;
+  CLIENT_KIND_TERRAFORM_PROVIDER = 6;
+  CLIENT_KIND_KUBE_OPERATOR = 7;
+}
+
+// DiscoveryConfigChangeAction is the change made to a discovery config.
+enum DiscoveryConfigChangeAction {
+  DISCOVERY_CONFIG_CHANGE_ACTION_UNSPECIFIED = 0;
+  DISCOVERY_CONFIG_CHANGE_ACTION_CREATE = 1;
+  DISCOVERY_CONFIG_CHANGE_ACTION_UPDATE = 2;
+  DISCOVERY_CONFIG_CHANGE_ACTION_UPSERT = 3;
+  DISCOVERY_CONFIG_CHANGE_ACTION_DELETE = 4;
+}
+
+// DiscoveryConfigChangedEvent is emitted when a discovery config is created,
+// updated, upserted, or deleted.
+//
+// PostHog event: tp.discovery.config.changed
+message DiscoveryConfigChangedEvent {
+  // discovery_config_id is the anonymized name of the discovery config.
+  //
+  // PostHog property: tp.discovery.discovery_config_id
+  string discovery_config_id = 1;
+
+  // integration_ids are the anonymized names of the integrations the config's
+  // matchers use, deduplicated.
+  //
+  // PostHog property: tp.discovery.integration_ids
+  repeated string integration_ids = 2;
+
+  // setup_attempt_id is the anonymized setup attempt ID the config carries as a
+  // label.
+  //
+  // PostHog property: tp.discovery.setup_attempt_id
+  string setup_attempt_id = 3;
+
+  // PostHog property: tp.discovery.action
+  DiscoveryConfigChangeAction action = 4;
+
+  // matcher_types are the resource types the config's matchers select, sorted
+  // and deduplicated.
+  //
+  // PostHog property: tp.discovery.matcher_types
+  repeated DiscoveryMatcherType matcher_types = 5;
+
+  // PostHog property: tp.discovery.client_kind
+  ClientKind client_kind = 6;
+
+  // access_graph_integration_ids are the anonymized names of the integrations
+  // the config's Access Graph syncs use, deduplicated.
+  //
+  // PostHog property: tp.discovery.access_graph_integration_ids
+  repeated string access_graph_integration_ids = 7;
+
+  // access_graph_sync_providers are the clouds the config syncs into Access
+  // Graph, sorted and deduplicated.
+  //
+  // PostHog property: tp.discovery.access_graph_sync_providers
+  repeated CloudProvider access_graph_sync_providers = 8;
+
+  // matcher_providers are the platforms the config's matchers select resources
+  // from, sorted and deduplicated.
+  //
+  // PostHog property: tp.discovery.matcher_providers
+  repeated CloudProvider matcher_providers = 9;
+
+  // discovery_group_id is the anonymized discovery group that runs the config.
+  //
+  // PostHog property: tp.discovery.discovery_group_id
+  string discovery_group_id = 10;
+}
+
 // IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
 // for a provider is updated.
 message IdentitySecurityGraphSizeEvent {
@@ -2395,6 +2517,8 @@ message SubmitEventRequest {
     BeamsDestroyedEvent beams_destroyed = 124;
     BeamsPublishedEvent beams_published = 125;
     BeamsUnpublishedEvent beams_unpublished = 126;
+
+    DiscoveryConfigChangedEvent discovery_config_changed = 127;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

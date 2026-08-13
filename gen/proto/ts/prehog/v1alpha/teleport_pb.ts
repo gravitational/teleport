@@ -3472,6 +3472,98 @@ export interface DiscoveryConfigEvent {
     creationMethod: string;
 }
 /**
+ * DiscoveryConfigChangedEvent is emitted when a discovery config is created,
+ * updated, upserted, or deleted.
+ *
+ * PostHog event: tp.discovery.config.changed
+ *
+ * @generated from protobuf message prehog.v1alpha.DiscoveryConfigChangedEvent
+ */
+export interface DiscoveryConfigChangedEvent {
+    /**
+     * discovery_config_id is the anonymized name of the discovery config.
+     *
+     * PostHog property: tp.discovery.discovery_config_id
+     *
+     * @generated from protobuf field: string discovery_config_id = 1;
+     */
+    discoveryConfigId: string;
+    /**
+     * integration_ids are the anonymized names of the integrations the config's
+     * matchers use, deduplicated.
+     *
+     * PostHog property: tp.discovery.integration_ids
+     *
+     * @generated from protobuf field: repeated string integration_ids = 2;
+     */
+    integrationIds: string[];
+    /**
+     * setup_attempt_id is the anonymized setup attempt ID the config carries as a
+     * label.
+     *
+     * PostHog property: tp.discovery.setup_attempt_id
+     *
+     * @generated from protobuf field: string setup_attempt_id = 3;
+     */
+    setupAttemptId: string;
+    /**
+     * PostHog property: tp.discovery.action
+     *
+     * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigChangeAction action = 4;
+     */
+    action: DiscoveryConfigChangeAction;
+    /**
+     * matcher_types are the resource types the config's matchers select, sorted
+     * and deduplicated.
+     *
+     * PostHog property: tp.discovery.matcher_types
+     *
+     * @generated from protobuf field: repeated prehog.v1alpha.DiscoveryMatcherType matcher_types = 5;
+     */
+    matcherTypes: DiscoveryMatcherType[];
+    /**
+     * PostHog property: tp.discovery.client_kind
+     *
+     * @generated from protobuf field: prehog.v1alpha.ClientKind client_kind = 6;
+     */
+    clientKind: ClientKind;
+    /**
+     * access_graph_integration_ids are the anonymized names of the integrations
+     * the config's Access Graph syncs use, deduplicated.
+     *
+     * PostHog property: tp.discovery.access_graph_integration_ids
+     *
+     * @generated from protobuf field: repeated string access_graph_integration_ids = 7;
+     */
+    accessGraphIntegrationIds: string[];
+    /**
+     * access_graph_sync_providers are the clouds the config syncs into Access
+     * Graph, sorted and deduplicated.
+     *
+     * PostHog property: tp.discovery.access_graph_sync_providers
+     *
+     * @generated from protobuf field: repeated prehog.v1alpha.CloudProvider access_graph_sync_providers = 8;
+     */
+    accessGraphSyncProviders: CloudProvider[];
+    /**
+     * matcher_providers are the platforms the config's matchers select resources
+     * from, sorted and deduplicated.
+     *
+     * PostHog property: tp.discovery.matcher_providers
+     *
+     * @generated from protobuf field: repeated prehog.v1alpha.CloudProvider matcher_providers = 9;
+     */
+    matcherProviders: CloudProvider[];
+    /**
+     * discovery_group_id is the anonymized discovery group that runs the config.
+     *
+     * PostHog property: tp.discovery.discovery_group_id
+     *
+     * @generated from protobuf field: string discovery_group_id = 10;
+     */
+    discoveryGroupId: string;
+}
+/**
  * IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
  * for a provider is updated.
  *
@@ -4507,6 +4599,12 @@ export interface SubmitEventRequest {
          */
         beamsUnpublished: BeamsUnpublishedEvent;
     } | {
+        oneofKind: "discoveryConfigChanged";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigChangedEvent discovery_config_changed = 127;
+         */
+        discoveryConfigChanged: DiscoveryConfigChangedEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -5491,6 +5589,203 @@ export enum DiscoveryConfigAction {
      * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_DELETE = 3;
      */
     DELETE = 3
+}
+/**
+ * DiscoveryMatcherType is a resource type a discovery config's matchers select.
+ *
+ * @generated from protobuf enum prehog.v1alpha.DiscoveryMatcherType
+ */
+export enum DiscoveryMatcherType {
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_EC2 = 1;
+     */
+    AWS_EC2 = 1,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_EKS = 2;
+     */
+    AWS_EKS = 2,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_RDS = 3;
+     */
+    AWS_RDS = 3,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_RDSPROXY = 4;
+     */
+    AWS_RDSPROXY = 4,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_REDSHIFT = 5;
+     */
+    AWS_REDSHIFT = 5,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_REDSHIFT_SERVERLESS = 6;
+     */
+    AWS_REDSHIFT_SERVERLESS = 6,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_ELASTICACHE = 7;
+     */
+    AWS_ELASTICACHE = 7,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_ELASTICACHE_SERVERLESS = 8;
+     */
+    AWS_ELASTICACHE_SERVERLESS = 8,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_MEMORYDB = 9;
+     */
+    AWS_MEMORYDB = 9,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_OPENSEARCH = 10;
+     */
+    AWS_OPENSEARCH = 10,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AWS_DOCDB = 11;
+     */
+    AWS_DOCDB = 11,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_VM = 12;
+     */
+    AZURE_VM = 12,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_AKS = 13;
+     */
+    AZURE_AKS = 13,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_MYSQL = 14;
+     */
+    AZURE_MYSQL = 14,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_POSTGRES = 15;
+     */
+    AZURE_POSTGRES = 15,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_REDIS = 16;
+     */
+    AZURE_REDIS = 16,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_SQLSERVER = 17;
+     */
+    AZURE_SQLSERVER = 17,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_AZURE_WINDOWS_VM = 18;
+     */
+    AZURE_WINDOWS_VM = 18,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_GCP_GKE = 19;
+     */
+    GCP_GKE = 19,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_GCP_GCE = 20;
+     */
+    GCP_GCE = 20,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_GCP_CLOUDSQL = 21;
+     */
+    GCP_CLOUDSQL = 21,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_MATCHER_TYPE_KUBE_APP = 22;
+     */
+    KUBE_APP = 22
+}
+/**
+ * CloudProvider is a platform a discovery config selects resources from.
+ *
+ * @generated from protobuf enum prehog.v1alpha.CloudProvider
+ */
+export enum CloudProvider {
+    /**
+     * @generated from protobuf enum value: CLOUD_PROVIDER_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: CLOUD_PROVIDER_AWS = 1;
+     */
+    AWS = 1,
+    /**
+     * @generated from protobuf enum value: CLOUD_PROVIDER_AZURE = 2;
+     */
+    AZURE = 2,
+    /**
+     * @generated from protobuf enum value: CLOUD_PROVIDER_GCP = 3;
+     */
+    GCP = 3,
+    /**
+     * @generated from protobuf enum value: CLOUD_PROVIDER_KUBERNETES = 4;
+     */
+    KUBERNETES = 4
+}
+/**
+ * ClientKind is the tool that made a configuration change, read from the
+ * request's user agent.
+ *
+ * @generated from protobuf enum prehog.v1alpha.ClientKind
+ */
+export enum ClientKind {
+    /**
+     * The event's producer does not report a client.
+     *
+     * @generated from protobuf enum value: CLIENT_KIND_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * The user agent did not match a known tool.
+     *
+     * @generated from protobuf enum value: CLIENT_KIND_UNKNOWN = 1;
+     */
+    UNKNOWN = 1,
+    /**
+     * @generated from protobuf enum value: CLIENT_KIND_WEB_UI = 2;
+     */
+    WEB_UI = 2,
+    /**
+     * @generated from protobuf enum value: CLIENT_KIND_TCTL = 3;
+     */
+    TCTL = 3,
+    /**
+     * @generated from protobuf enum value: CLIENT_KIND_TSH = 4;
+     */
+    TSH = 4,
+    /**
+     * @generated from protobuf enum value: CLIENT_KIND_TBOT = 5;
+     */
+    TBOT = 5,
+    /**
+     * @generated from protobuf enum value: CLIENT_KIND_TERRAFORM_PROVIDER = 6;
+     */
+    TERRAFORM_PROVIDER = 6,
+    /**
+     * @generated from protobuf enum value: CLIENT_KIND_KUBE_OPERATOR = 7;
+     */
+    KUBE_OPERATOR = 7
+}
+/**
+ * DiscoveryConfigChangeAction is the change made to a discovery config.
+ *
+ * @generated from protobuf enum prehog.v1alpha.DiscoveryConfigChangeAction
+ */
+export enum DiscoveryConfigChangeAction {
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_CHANGE_ACTION_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_CHANGE_ACTION_CREATE = 1;
+     */
+    CREATE = 1,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_CHANGE_ACTION_UPDATE = 2;
+     */
+    UPDATE = 2,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_CHANGE_ACTION_UPSERT = 3;
+     */
+    UPSERT = 3,
+    /**
+     * @generated from protobuf enum value: DISCOVERY_CONFIG_CHANGE_ACTION_DELETE = 4;
+     */
+    DELETE = 4
 }
 /**
  * AccessListStatus represents a access list wizard step outcome.
@@ -13221,6 +13516,149 @@ class DiscoveryConfigEvent$Type extends MessageType<DiscoveryConfigEvent> {
  */
 export const DiscoveryConfigEvent = new DiscoveryConfigEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class DiscoveryConfigChangedEvent$Type extends MessageType<DiscoveryConfigChangedEvent> {
+    constructor() {
+        super("prehog.v1alpha.DiscoveryConfigChangedEvent", [
+            { no: 1, name: "discovery_config_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "integration_ids", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "setup_attempt_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "action", kind: "enum", T: () => ["prehog.v1alpha.DiscoveryConfigChangeAction", DiscoveryConfigChangeAction, "DISCOVERY_CONFIG_CHANGE_ACTION_"] },
+            { no: 5, name: "matcher_types", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.DiscoveryMatcherType", DiscoveryMatcherType, "DISCOVERY_MATCHER_TYPE_"] },
+            { no: 6, name: "client_kind", kind: "enum", T: () => ["prehog.v1alpha.ClientKind", ClientKind, "CLIENT_KIND_"] },
+            { no: 7, name: "access_graph_integration_ids", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "access_graph_sync_providers", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.CloudProvider", CloudProvider, "CLOUD_PROVIDER_"] },
+            { no: 9, name: "matcher_providers", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.CloudProvider", CloudProvider, "CLOUD_PROVIDER_"] },
+            { no: 10, name: "discovery_group_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DiscoveryConfigChangedEvent>): DiscoveryConfigChangedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.discoveryConfigId = "";
+        message.integrationIds = [];
+        message.setupAttemptId = "";
+        message.action = 0;
+        message.matcherTypes = [];
+        message.clientKind = 0;
+        message.accessGraphIntegrationIds = [];
+        message.accessGraphSyncProviders = [];
+        message.matcherProviders = [];
+        message.discoveryGroupId = "";
+        if (value !== undefined)
+            reflectionMergePartial<DiscoveryConfigChangedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DiscoveryConfigChangedEvent): DiscoveryConfigChangedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string discovery_config_id */ 1:
+                    message.discoveryConfigId = reader.string();
+                    break;
+                case /* repeated string integration_ids */ 2:
+                    message.integrationIds.push(reader.string());
+                    break;
+                case /* string setup_attempt_id */ 3:
+                    message.setupAttemptId = reader.string();
+                    break;
+                case /* prehog.v1alpha.DiscoveryConfigChangeAction action */ 4:
+                    message.action = reader.int32();
+                    break;
+                case /* repeated prehog.v1alpha.DiscoveryMatcherType matcher_types */ 5:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.matcherTypes.push(reader.int32());
+                    else
+                        message.matcherTypes.push(reader.int32());
+                    break;
+                case /* prehog.v1alpha.ClientKind client_kind */ 6:
+                    message.clientKind = reader.int32();
+                    break;
+                case /* repeated string access_graph_integration_ids */ 7:
+                    message.accessGraphIntegrationIds.push(reader.string());
+                    break;
+                case /* repeated prehog.v1alpha.CloudProvider access_graph_sync_providers */ 8:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.accessGraphSyncProviders.push(reader.int32());
+                    else
+                        message.accessGraphSyncProviders.push(reader.int32());
+                    break;
+                case /* repeated prehog.v1alpha.CloudProvider matcher_providers */ 9:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.matcherProviders.push(reader.int32());
+                    else
+                        message.matcherProviders.push(reader.int32());
+                    break;
+                case /* string discovery_group_id */ 10:
+                    message.discoveryGroupId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DiscoveryConfigChangedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string discovery_config_id = 1; */
+        if (message.discoveryConfigId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.discoveryConfigId);
+        /* repeated string integration_ids = 2; */
+        for (let i = 0; i < message.integrationIds.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.integrationIds[i]);
+        /* string setup_attempt_id = 3; */
+        if (message.setupAttemptId !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.setupAttemptId);
+        /* prehog.v1alpha.DiscoveryConfigChangeAction action = 4; */
+        if (message.action !== 0)
+            writer.tag(4, WireType.Varint).int32(message.action);
+        /* repeated prehog.v1alpha.DiscoveryMatcherType matcher_types = 5; */
+        if (message.matcherTypes.length) {
+            writer.tag(5, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.matcherTypes.length; i++)
+                writer.int32(message.matcherTypes[i]);
+            writer.join();
+        }
+        /* prehog.v1alpha.ClientKind client_kind = 6; */
+        if (message.clientKind !== 0)
+            writer.tag(6, WireType.Varint).int32(message.clientKind);
+        /* repeated string access_graph_integration_ids = 7; */
+        for (let i = 0; i < message.accessGraphIntegrationIds.length; i++)
+            writer.tag(7, WireType.LengthDelimited).string(message.accessGraphIntegrationIds[i]);
+        /* repeated prehog.v1alpha.CloudProvider access_graph_sync_providers = 8; */
+        if (message.accessGraphSyncProviders.length) {
+            writer.tag(8, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.accessGraphSyncProviders.length; i++)
+                writer.int32(message.accessGraphSyncProviders[i]);
+            writer.join();
+        }
+        /* repeated prehog.v1alpha.CloudProvider matcher_providers = 9; */
+        if (message.matcherProviders.length) {
+            writer.tag(9, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.matcherProviders.length; i++)
+                writer.int32(message.matcherProviders[i]);
+            writer.join();
+        }
+        /* string discovery_group_id = 10; */
+        if (message.discoveryGroupId !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.discoveryGroupId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.DiscoveryConfigChangedEvent
+ */
+export const DiscoveryConfigChangedEvent = new DiscoveryConfigChangedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class IdentitySecurityGraphSizeEvent$Type extends MessageType<IdentitySecurityGraphSizeEvent> {
     constructor() {
         super("prehog.v1alpha.IdentitySecurityGraphSizeEvent", [
@@ -14093,7 +14531,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 123, name: "beams_created", kind: "message", oneof: "event", T: () => BeamsCreatedEvent },
             { no: 124, name: "beams_destroyed", kind: "message", oneof: "event", T: () => BeamsDestroyedEvent },
             { no: 125, name: "beams_published", kind: "message", oneof: "event", T: () => BeamsPublishedEvent },
-            { no: 126, name: "beams_unpublished", kind: "message", oneof: "event", T: () => BeamsUnpublishedEvent }
+            { no: 126, name: "beams_unpublished", kind: "message", oneof: "event", T: () => BeamsUnpublishedEvent },
+            { no: 127, name: "discovery_config_changed", kind: "message", oneof: "event", T: () => DiscoveryConfigChangedEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -14843,6 +15282,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         beamsUnpublished: BeamsUnpublishedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).beamsUnpublished)
                     };
                     break;
+                case /* prehog.v1alpha.DiscoveryConfigChangedEvent discovery_config_changed */ 127:
+                    message.event = {
+                        oneofKind: "discoveryConfigChanged",
+                        discoveryConfigChanged: DiscoveryConfigChangedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).discoveryConfigChanged)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -15227,6 +15672,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished = 126; */
         if (message.event.oneofKind === "beamsUnpublished")
             BeamsUnpublishedEvent.internalBinaryWrite(message.event.beamsUnpublished, writer.tag(126, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoveryConfigChangedEvent discovery_config_changed = 127; */
+        if (message.event.oneofKind === "discoveryConfigChanged")
+            DiscoveryConfigChangedEvent.internalBinaryWrite(message.event.discoveryConfigChanged, writer.tag(127, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
