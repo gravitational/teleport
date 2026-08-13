@@ -313,10 +313,11 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 
 	if options.leafCluster || options.leafConfigFunc != nil {
 		s.setupLeafCluster(t, options)
-		require.Eventually(t, func() bool {
-			rt, err := s.root.GetAuthServer().GetTunnelConnections(t.Context(), s.leaf.Config.Auth.ClusterName.GetClusterName())
+		ctx := t.Context()
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			rt, err := s.root.GetAuthServer().GetTunnelConnections(ctx, s.leaf.Config.Auth.ClusterName.GetClusterName())
 			require.NoError(t, err)
-			return len(rt) == 1
+			require.Len(t, rt, 1)
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
