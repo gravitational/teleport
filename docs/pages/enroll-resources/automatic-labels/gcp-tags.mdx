@@ -48,7 +48,7 @@ fakehost.example.com 127.0.0.1:3022 gcp/label/testing=yes,gcp/tag/environment=st
 - One Teleport Agent running on a GCP Compute instance. See
   [our guides](../../installation/agents/agents.mdx) for how to set up Teleport Agents.
 
-## Configure service account on instances with Teleport nodes
+## Step 1/3. Create the IAM role and service account
 
 Create a service account that will give Teleport the IAM permissions needed
 to import tags and labels. Copy the following and paste it into a file called
@@ -61,6 +61,12 @@ stage: "ALPHA"
 includedPermissions:
 - compute.instances.get
 - compute.instances.listEffectiveTags
+```
+
+First, discover your project ID:
+
+```code
+$ gcloud config get-value project
 ```
 
 Then run the following command to create the role:
@@ -87,3 +93,131 @@ $ gcloud projects add-iam-policy-binding <Var name="project_id" description="GCP
 If you want to only import labels or only import tags, you can leave
 `compute.instances.listEffectiveTags` or `compute.instances.get`
 out of your created service account's permissions, respectively.
+
+## Step 2/3. Attach the service account to your instance
+
+The Teleport Agent must run on an instance that has the `teleport-labels`
+service account attached. Without this attachment, the agent cannot call the
+GCP APIs needed to fetch tags and labels.
+
+<Admonition type="warning">
+
+Attaching or changing a service account on an existing VM requires stopping the
+VM first. Plan for a brief interruption.
+
+</Admonition>
+
+<Tabs>
+<TabItem label="gcloud CLI">
+
+Stop the instance, attach the service account, and restart it:
+
+```code
+$ gcloud compute instances stop <Var name="instance_name" description="Name of the VM running the Teleport Agent" /> \
+  --zone=<Var name="zone" description="GCP zone of the instance" />
+$ gcloud compute instances set-service-account <Var name="instance_name" /> \
+  --service-account=teleport-labels@<Var name="project_id" />.iam.gserviceaccount.com \
+  --scopes=cloud-platform \
+  --zone=<Var name="zone" />
+$ gcloud compute instances start <Var name="instance_name" /> \
+  --zone=<Var name="zone" />
+```
+
+</TabItem>
+<TabItem label="Console">
+
+1. Go to [Compute Engine > VM instances](https://console.cloud.google.com/compute/instances).
+2. Click on the instance name.
+3. Click **Stop** and wait for the instance to stop.
+4. Click **Edit**.
+5. Under **Service account**, select `teleport-labels`.
+6. Under **Access scopes**, select **Allow full access to all Cloud APIs** (or at minimum, ensure Compute Engine Read Only is enabled).
+7. Click **Save**.
+8. Click **Start/Resume**.
+
+</TabItem>
+</Tabs>
+
+<Checkpoint>
+Verify that the service account is attached to the instance.
+
+Run the following command and confirm the output shows the `teleport-labels`
+service account:
+
+```code
+$ gcloud compute instances describe <Var name="instance_name" /> \
+  --zone=<Var name="zone" /> \
+  --format="yaml(serviceAccounts)"
+```
+
+Expected output:
+
+```
+serviceAccounts:
+- email: teleport-labels@<project_id>.iam.gserviceaccount.com
+  scopes:
+  - https://www.googleapis.com/auth/cloud-platform
+```
+
+If the `serviceAccounts` field is empty or shows a different account, repeat the
+steps above.
+</Checkpoint>
+
+## Step 3/3. Verify labels appear in Teleport
+
+After attaching the service account, restart the Teleport Agent on the instance
+so it picks up the new credentials:
+
+```code
+$ sudo systemctl restart teleport
+```
+
+Wait a moment for the agent to start and fetch labels from the GCP API, then
+verify that GCP labels and tags are visible:
+
+```code
+$ tsh ls --format=json | jq '.[].metadata.labels | with_entries(select(.key | startswith("gcp/")))'
+```
+
+You can also verify the labels on a specific node:
+
+```code
+$ tctl get nodes --format=json | jq '.[] | select(.spec.hostname == "<Var name="instance_name" />") | .metadata.labels'
+```
+
+To confirm which labels and tags are set on the GCP instance itself:
+
+```code
+$ gcloud compute instances describe <Var name="instance_name" /> \
+  --zone=<Var name="zone" /> \
+  --format="yaml(labels,tags)"
+```
+
+<Checkpoint>
+Verify that GCP labels appear as Teleport labels on the node.
+
+Run the following command:
+
+```code
+$ tsh ls
+```
+
+The output should show labels prefixed with `gcp/label/` and `gcp/tag/` for
+your instance. For example:
+
+```
+Node Name            Address        Labels
+-------------------- -------------- ---------------------------------------------------------
+myhost.example.com   127.0.0.1:3022 gcp/label/env=prod,gcp/tag/team=platform
+```
+
+If no `gcp/` labels appear:
+- Confirm the service account is attached (Step 2).
+- Check that the Teleport Agent process restarted after the service account was
+  attached.
+- Review the Teleport Agent logs for permission errors:
+
+```code
+$ sudo journalctl -u teleport --grep "gcp\|label" --since "5 minutes ago" --no-pager
+```
+</Checkpoint>

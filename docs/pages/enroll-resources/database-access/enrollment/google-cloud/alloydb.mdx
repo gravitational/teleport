@@ -27,6 +27,18 @@ page_type: how-to
 - A host (e.g., a Compute Engine instance) to run the Teleport Database Service.
 - (!docs/pages/includes/tctl.mdx!)
 
+<Admonition type="tip" title="Discover your GCP project and AlloyDB resources">
+If you are unsure of your GCP project ID or AlloyDB cluster/instance names, run:
+
+```code
+$ gcloud config get-value project
+$ gcloud alloydb clusters list --format="table(name,state)" --region=<Var name="region" />
+$ gcloud alloydb instances list --cluster=<Var name="cluster-name" /> --region=<Var name="region" /> \
+    --format="table(name,instanceType,state)"
+```
+
+</Admonition>
+
 ## Step 1/4. Configure IAM and create a database user
 
 In this step, you will create two required service accounts.
@@ -102,6 +114,29 @@ $ gcloud iam service-accounts add-iam-policy-binding \
 </TabItem>
 </Tabs>
 
+<Checkpoint
+  title="Verify service account impersonation"
+  description="Confirm that the Database Service account can impersonate the database user account."
+>
+
+Run:
+
+```code
+$ gcloud iam service-accounts get-iam-policy \
+    alloydb-user@<Var name="project-id" />.iam.gserviceaccount.com
+```
+
+The output should include a binding that pairs `teleport-db-service` with `roles/iam.serviceAccountTokenCreator`:
+
+```yaml
+bindings:
+- members:
+  - serviceAccount:teleport-db-service@<project-id>.iam.gserviceaccount.com
+  role: roles/iam.serviceAccountTokenCreator
+```
+
+</Checkpoint>
+
 ### Add the IAM database user to AlloyDB
 
 <Admonition type="note">
@@ -166,6 +201,31 @@ $ gcloud alloydb users create alloydb-user@<Var name="project-id" />.iam \
 </TabItem>
 </Tabs>
 
+<Admonition type="note" title="AlloyDB IAM user naming convention">
+For AlloyDB (PostgreSQL-compatible), IAM database users use a `.iam` suffix when
+connecting. The database user name is the service account email with
+`.gserviceaccount.com` replaced by `.iam`. For example,
+`alloydb-user@my-project.iam.gserviceaccount.com` becomes
+`alloydb-user@my-project.iam` as the database user name.
+</Admonition>
+
+<Checkpoint
+  title="Verify IAM database user"
+  description="Confirm that the IAM user was created on the AlloyDB instance."
+>
+
+```code
+$ gcloud alloydb users list \
+    --cluster=<Var name="cluster-name" /> \
+    --region=<Var name="region" /> \
+    --project=<Var name="project-id" /> \
+    --format="table(name,userType)"
+```
+
+You should see a user with type `IAM_BASED` for your service account.
+
+</Checkpoint>
+
 ## Step 2/4. Create a Teleport Database Service host
 
 The Teleport Database Service must run on a host that can reach the AlloyDB instance and authenticate with GCP.
@@ -199,19 +259,19 @@ Set the variables:
 ```code
 # The instance must be stopped before modifying the service account
 # 1. Stop the instance
-gcloud compute instances stop <Var name="instance-name" /> \
+$ gcloud compute instances stop <Var name="instance-name" /> \
     --project=<Var name="project-id" /> \
     --zone=<Var name="zone" />
 
 # 2. Update the Service Account and Scopes
-gcloud compute instances set-service-account <Var name="instance-name" /> \
+$ gcloud compute instances set-service-account <Var name="instance-name" /> \
     --service-account=teleport-db-service@<Var name="project-id" />.iam.gserviceaccount.com \
     --scopes=https://www.googleapis.com/auth/cloud-platform \
     --project=<Var name="project-id" /> \
     --zone=<Var name="zone" />
 
 # 3. Restart the instance
-gcloud compute instances start <Var name="instance-name" /> \
+$ gcloud compute instances start <Var name="instance-name" /> \
     --project=<Var name="project-id" /> \
     --zone=<Var name="zone" />
 ```
@@ -249,6 +309,10 @@ See [Google Cloud authentication docs](https://cloud.google.com/docs/authenticat
 
 In this step, you will configure the Teleport Database Service to connect to AlloyDB and handle authentication and access on behalf of users.
 
+<Admonition type="note" title="Where to run commands">
+Run the commands in this step on the host where you will run the Teleport Database Service (the GCE instance from Step 2).
+</Admonition>
+
 ### Install the Teleport Database Service
 
 (!docs/pages/includes/install-linux.mdx!)
@@ -267,6 +331,19 @@ The connection URI has the format `projects/PROJECT-ID/locations/REGION/clusters
 You can copy it from the AlloyDB instance details page in the Google Cloud console.
 
 ![AlloyDB Connection URI](../../../../../img/database-access/guides/alloydb/connection-uri.png)
+
+<Admonition type="tip" title="Discover the AlloyDB connection URI components">
+You can discover the components of the connection URI using these commands:
+
+```code
+$ gcloud config get-value project
+$ gcloud alloydb clusters list --region=<Var name="region" /> --format="table(name,state)"
+$ gcloud alloydb instances list --cluster=<Var name="cluster-name" /> --region=<Var name="region" /> \
+    --format="table(name,instanceType,state)"
+```
+
+Assemble the URI as: `projects/<project-id>/locations/<region>/clusters/<cluster-name>/instances/<instance-name>`
+</Admonition>
 
 Run the command as follows. Make sure to include the mandatory `alloydb://` prefix in the specified URI.
 
@@ -323,6 +400,27 @@ $ tctl create -f alloydb.yaml
 Start the Database Service:
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
+
+<Checkpoint
+  title="Verify the Database Service joined the cluster"
+  description="Confirm that the Teleport Database Service is running and the AlloyDB database appears."
+>
+
+```code
+$ tsh db ls
+```
+
+You should see your AlloyDB database in the output:
+
+```
+Name    Description Labels
+------- ----------- -------
+alloydb GCP AlloyDB env=dev
+```
+
+If the database does not appear, verify your Teleport role permissions. See the [RBAC](../../../../zero-trust-access/rbac-get-started/rbac-get-started.mdx) guide.
+
+</Checkpoint>
 
 ## Step 4/4. Connect to your database
 
@@ -427,4 +525,3 @@ serviceusage.services.use
 * Learn more about [IAM authentication for AlloyDB](https://cloud.google.com/alloydb/docs/database-users/manage-iam-auth).
 * Learn more about [service account authentication](https://cloud.google.com/docs/authentication#service-accounts) in Google Cloud.
 * Learn more about AlloyDB [Auth Proxy permissions](https://cloud.google.com/alloydb/docs/auth-proxy/connect#required-iam-permissions).
-
