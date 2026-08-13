@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -416,7 +417,8 @@ func TestKubeCertIssuer_ExpiredResponseSingleRefresh(t *testing.T) {
 }
 
 // TestKubeCertIssuer_MFAOffNoCeremony verifies that
-// clusters without per-session MFA issue with no ceremony, serially, saving their certs to the key store.
+// clusters without per-session MFA share one unrouted cert issued with no ceremony,
+// held in memory rather than saved to the key store.
 func TestKubeCertIssuer_MFAOffNoCeremony(t *testing.T) {
 	t.Parallel()
 
@@ -425,10 +427,21 @@ func TestKubeCertIssuer_MFAOffNoCeremony(t *testing.T) {
 	keyRing := newTestKubeKeyRing(t, clusters)
 
 	synctest.Test(t, func(t *testing.T) {
+		var issuances int
 		cc := &fakeKubeCertClient{mfaRequired: false}
 		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			issuances++
 			if params.ReusableMFAResponse != nil {
 				return nil, trace.BadParameter("no MFA ceremony expected for MFA-off clusters")
+			}
+			if params.KubernetesCluster != "" {
+				return nil, trace.BadParameter("expected an unrouted request, got cluster %q", params.KubernetesCluster)
+			}
+			if params.RequesterName != proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+				return nil, trace.BadParameter("unexpected requester %v", params.RequesterName)
+			}
+			if params.MFACheck.GetRequired() {
+				return nil, trace.BadParameter("unrouted issuance must assert MFA is not required")
 			}
 			return &client.IssueUserCertsWithMFAResult{
 				KeyRing:     keyRing,
@@ -437,14 +450,13 @@ func TestKubeCertIssuer_MFAOffNoCeremony(t *testing.T) {
 		}
 
 		issuer := newTestKubeCertIssuer(cc)
-
-		start := time.Now()
 		certs, err := issuer.issueCerts(t.Context(), clusters)
 		require.NoError(t, err)
-		require.Len(t, certs, numClusters)
-		require.Equal(t, numClusters, cc.saves)
-		// Key-store-writing issuances must not run concurrently.
-		require.Equal(t, 3*time.Second, time.Since(start))
+
+		require.Equal(t, 1, issuances)
+		require.Len(t, certs, 1)
+		require.Contains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root"})
+		require.Zero(t, cc.saves)
 	})
 }
 
@@ -636,6 +648,175 @@ func TestKubeCertIssuer_CanceledContextFailsIssuance(t *testing.T) {
 	})
 }
 
+// TestKubeCertIssuer_MixedFleet verifies that
+// only the clusters without per-session MFA collapse onto the shared cert,
+// while MFA-gated ones keep their own routed certs.
+func TestKubeCertIssuer_MixedFleet(t *testing.T) {
+	t.Parallel()
+
+	clusters := newTestKubeClusters(4)
+	keyRing := newTestKubeKeyRing(t, clusters)
+	// kube-0 and kube-1 are MFA-gated; kube-2 and kube-3 are not.
+	mfaOn := func(kubeCluster string) bool {
+		return kubeCluster == "kube-0" || kubeCluster == "kube-1"
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		var routed, unrouted atomic.Int32
+		var ceremonyResp proto.MFAAuthenticateResponse
+		cc := &fakeKubeCertClient{mfaRequiredFor: mfaOn}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.KubernetesCluster == "" {
+				unrouted.Add(1)
+				return &client.IssueUserCertsWithMFAResult{
+					KeyRing:     keyRing,
+					MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+				}, nil
+			}
+			if !mfaOn(params.KubernetesCluster) {
+				return nil, trace.BadParameter("cluster %q has no MFA and must use the shared cert", params.KubernetesCluster)
+			}
+			routed.Add(1)
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:             keyRing,
+				MFARequired:         proto.MFARequired_MFA_REQUIRED_YES,
+				ReusableMFAResponse: &ceremonyResp,
+			}, nil
+		}
+
+		certs, err := newTestKubeCertIssuer(cc).issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+
+		require.Equal(t, int32(2), routed.Load())
+		require.Equal(t, int32(1), unrouted.Load())
+		require.Len(t, certs, 3)
+		require.Zero(t, cc.saves)
+	})
+}
+
+// TestKubeCertIssuer_SharedCertPerTeleportCluster verifies that
+// the shared cert is scoped to a Teleport cluster.
+// A fleet spanning root and leaf gets one unrouted cert each, never one for both.
+func TestKubeCertIssuer_SharedCertPerTeleportCluster(t *testing.T) {
+	t.Parallel()
+
+	clusters := kubeconfig.LocalProxyClusters{
+		{TeleportCluster: "root", KubeCluster: "kube-root-0"},
+		{TeleportCluster: "root", KubeCluster: "kube-root-1"},
+		{TeleportCluster: "leaf", KubeCluster: "kube-leaf-0"},
+	}
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var mu sync.Mutex
+		var routes []string
+		cc := &fakeKubeCertClient{mfaRequired: false}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.KubernetesCluster != "" {
+				return nil, trace.BadParameter("expected an unrouted request, got cluster %q", params.KubernetesCluster)
+			}
+			mu.Lock()
+			routes = append(routes, params.RouteToCluster)
+			mu.Unlock()
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+
+		certs, err := newTestKubeCertIssuer(cc).issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+
+		mu.Lock()
+		defer mu.Unlock()
+		require.Equal(t, []string{"leaf", "root"}, routes)
+		require.Len(t, certs, 2)
+	})
+}
+
+// TestKubeCertIssuer_HeadlessSkipsSharedCert verifies that
+// headless keeps issuing per-cluster certs.
+// Its requester carries distinct server-side handling and cannot request an unrouted cert.
+func TestKubeCertIssuer_HeadlessSkipsSharedCert(t *testing.T) {
+	t.Parallel()
+
+	const numClusters = 3
+	clusters := newTestKubeClusters(numClusters)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var issuances int
+		cc := &fakeKubeCertClient{mfaRequired: false}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			issuances++
+			if params.KubernetesCluster == "" {
+				return nil, trace.BadParameter("headless must not request an unrouted cert")
+			}
+			if params.RequesterName != proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS {
+				return nil, trace.BadParameter("unexpected requester %v", params.RequesterName)
+			}
+			if params.MFACheck == nil {
+				return nil, trace.BadParameter("headless issuance must carry a prefetched MFA check")
+			}
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+
+		issuer := newTestKubeCertIssuer(cc)
+		issuer.tc.AllowHeadless = true
+
+		certs, err := issuer.issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+		require.Equal(t, numClusters, issuances)
+		require.Len(t, certs, numClusters)
+		require.Equal(t, numClusters, cc.saves)
+	})
+}
+
+// TestKubeCertIssuer_UnroutedRequesterGuard verifies that
+// the issuer refuses to send an unrouted request under any other requester.
+// Without a cluster route the requester is the only thing marking it as Kubernetes usage,
+// so the wrong one yields an unrestricted certificate rather than an error from the server.
+func TestKubeCertIssuer_UnroutedRequesterGuard(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		cc := &fakeKubeCertClient{}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			return nil, trace.BadParameter("issuance must not be attempted")
+		}
+
+		_, err := newTestKubeCertIssuer(cc).requestCert(t.Context(), cc, client.ReissueParams{
+			RouteToCluster: "root",
+			RequesterName:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+		})
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter but got %v", err)
+		require.ErrorContains(t, err, "unrouted Kubernetes certificates can only be requested by")
+	})
+}
+
+// TestKubeCertIssuer_HeadlessUnroutedRejected verifies that
+// a headless session cannot issue a shared cert even if asked directly.
+// Headless carries its own requester, which auth does not accept for an unrouted request.
+func TestKubeCertIssuer_HeadlessUnroutedRejected(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		cc := &fakeKubeCertClient{}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			return nil, trace.BadParameter("issuance must not be attempted")
+		}
+		issuer := newTestKubeCertIssuer(cc)
+		issuer.tc.AllowHeadless = true
+
+		_, err := issuer.IssueCert(t.Context(), "root", "" /*kubeCluster*/, nil /*mfaCheck*/)
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter but got %v", err)
+		require.ErrorContains(t, err, "unrouted Kubernetes certificates can only be requested by")
+	})
+}
+
 func newTestKubeClusters(n int) kubeconfig.LocalProxyClusters {
 	clusters := make(kubeconfig.LocalProxyClusters, 0, n)
 	for i := range n {
@@ -657,6 +838,9 @@ func newTestKubeKeyRing(t *testing.T, clusters kubeconfig.LocalProxyClusters) *c
 	for _, cluster := range clusters {
 		keyRing.KubeTLSCredentials[cluster.KubeCluster] = client.TLSCredential{PrivateKey: priv, Cert: creds.Cert}
 	}
+	// An unrouted request is keyed by its empty Kubernetes cluster,
+	// as the real client does when storing the credential it gets back.
+	keyRing.KubeTLSCredentials[""] = client.TLSCredential{PrivateKey: priv, Cert: creds.Cert}
 	return keyRing
 }
 
@@ -678,10 +862,16 @@ func newTestKubeCertIssuer(cc *fakeKubeCertClient) *kubeCertIssuer {
 type fakeMFAAuthClient struct {
 	authclient.ClientI
 	required bool
+	// requiredFor overrides required per Kubernetes cluster when set.
+	requiredFor func(kubeCluster string) bool
 }
 
 func (f *fakeMFAAuthClient) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	if f.required {
+	required := f.required
+	if f.requiredFor != nil {
+		required = f.requiredFor(req.GetKubernetesCluster())
+	}
+	if required {
 		return &proto.IsMFARequiredResponse{
 			Required:    true,
 			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
@@ -700,6 +890,9 @@ type fakeKubeCertClient struct {
 	mfaRequired bool
 	issueFn     func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error)
 	keyRings    map[string]*client.KeyRing
+	// mfaRequiredFor overrides mfaRequired per Kubernetes cluster, for fleets
+	// where only some clusters are MFA-gated.
+	mfaRequiredFor func(kubeCluster string) bool
 
 	mu       sync.Mutex
 	connects []string
@@ -754,5 +947,5 @@ func (f *fakeKubeCertClient) ConnectToCluster(ctx context.Context, clusterName s
 	f.mu.Lock()
 	f.connects = append(f.connects, clusterName)
 	f.mu.Unlock()
-	return &fakeMFAAuthClient{required: f.mfaRequired}, nil
+	return &fakeMFAAuthClient{required: f.mfaRequired, requiredFor: f.mfaRequiredFor}, nil
 }

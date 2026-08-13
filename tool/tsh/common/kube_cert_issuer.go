@@ -24,6 +24,7 @@ import (
 	"errors"
 	"maps"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,6 +116,8 @@ func (issuer *kubeCertIssuer) LoadOrIssueCerts(ctx context.Context, clusters kub
 // If no reusable response is held, it takes the single-flight ceremony path, which may prompt the user.
 // A nil mfaCheck means the MFA requirement is unknown: the issuance takes the MFA-gated path,
 // which degrades to a plain issuance when the server reports MFA as not required.
+// An empty kubeCluster issues the shared unrouted cert for teleportCluster,
+// which the proxy path-routes to any of its Kubernetes clusters. It never prompts and is never persisted.
 func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, kubeCluster string, mfaCheck *proto.IsMFARequiredResponse) (*tls.Certificate, error) {
 	// Hold one connection across the issuance. Every attempt below shares it.
 	cc, release, err := issuer.conn.Acquire(ctx)
@@ -148,6 +151,16 @@ func (issuer *kubeCertIssuer) issueCertOverConn(ctx context.Context, cc kubeCert
 			return nil, trace.Wrap(err)
 		}
 		defer release()
+		return issuer.requestCert(ctx, cc, params)
+	}
+
+	// Unrouted certs are issued for the proxy to route to any of its clusters.
+	if kubeCluster == "" {
+		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI
+		params.MFACheck = &proto.IsMFARequiredResponse{
+			Required:    false,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}
 		return issuer.requestCert(ctx, cc, params)
 	}
 
@@ -188,7 +201,7 @@ func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[s
 
 // issueCerts issues certs for the given clusters with at most one MFA ceremony.
 // One issuance runs the ceremony and the rest replay its reusable response.
-// Clusters without per-session MFA are issued serially, as their certs are saved to the key store.
+// Clusters without per-session MFA share one unrouted cert per Teleport cluster.
 func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
 	// Hold one connection across the whole burst: the MFA prefetch and the issuances share it.
 	cc, release, err := issuer.conn.Acquire(ctx)
@@ -197,9 +210,33 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 	}
 	defer release()
 
+	certs := make(alpnproxy.KubeClientCerts)
+	var certsMu sync.Mutex
+	issueAndAdd := func(ctx context.Context, cluster kubeconfig.LocalProxyCluster, mfaCheck *proto.IsMFARequiredResponse) error {
+		cert, err := issuer.IssueCert(ctx, cluster.TeleportCluster, cluster.KubeCluster, mfaCheck)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		logger.DebugContext(ctx, "Client cert issued for cluster", "cluster", cluster)
+		certsMu.Lock()
+		defer certsMu.Unlock()
+		certs.Add(cluster.TeleportCluster, cluster.KubeCluster, *cert)
+		return nil
+	}
+
 	mfaChecks, err := issuer.fetchMFAChecks(ctx, cc, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Headless serializes every issuance on the ceremony lock, so the partition below cannot help it.
+	if issuer.tc.AllowHeadless {
+		for _, cluster := range clusters {
+			if err := issueAndAdd(ctx, cluster, mfaChecks[localProxyClusterKey(cluster)]); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return certs, nil
 	}
 
 	// Partition clusters into MFA-gated and prompt-free.
@@ -212,33 +249,20 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 		}
 	}
 
-	certs := make(alpnproxy.KubeClientCerts)
-	var certsMu sync.Mutex
-	issueAndAdd := func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
-		mfaCheck := mfaChecks[localProxyClusterKey(cluster)]
-		cert, err := issuer.IssueCert(ctx, cluster.TeleportCluster, cluster.KubeCluster, mfaCheck)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		logger.DebugContext(ctx, "Client cert issued for cluster", "cluster", cluster)
-		certsMu.Lock()
-		defer certsMu.Unlock()
-		certs.Add(cluster.TeleportCluster, cluster.KubeCluster, *cert)
-		return nil
-	}
-
 	// MFA-gated issuances fan out concurrently.
 	group := newKubeClusterGroup(cc, mfaOn, kubeCertIssueConcurrency())
 	defer group.Close(ctx)
-	if err := group.ForEach(ctx, issueAndAdd); err != nil {
+	err = group.ForEach(ctx, func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
+		return issueAndAdd(ctx, cluster, mfaChecks[localProxyClusterKey(cluster)])
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Clusters without per-session MFA issue serially.
-	for _, cluster := range mfaOff {
-		if err := issueAndAdd(ctx, cluster); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Prompt-free issuances share one unrouted cert per Teleport cluster.
+	err = issuer.issueSharedCerts(ctx, mfaOff, certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return certs, nil
 }
@@ -334,6 +358,12 @@ func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, cc kubeCert
 
 // requestCert requests one cert from the cluster, with no single-flight lock.
 func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (*tls.Certificate, error) {
+	unrouted := params.KubernetesCluster == ""
+	if unrouted && params.RequesterName != proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+		return nil, trace.BadParameter("unrouted Kubernetes certificates can only be requested by %v, got %v",
+			proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI, params.RequesterName)
+	}
+
 	result, err := cc.IssueUserCertsWithMFA(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -345,7 +375,8 @@ func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient
 	}
 
 	// Save to the keystore if MFA was not required.
-	if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+	// The unrouted cert stays in memory.
+	if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO && !unrouted {
 		if err := issuer.keyStore.AddKubeKeyRing(result.KeyRing); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -362,6 +393,19 @@ func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient
 	}
 
 	return &cert, nil
+}
+
+// issueSharedCerts issues one unrouted cert per Teleport cluster covering the given clusters.
+func (issuer *kubeCertIssuer) issueSharedCerts(ctx context.Context, clusters kubeconfig.LocalProxyClusters, certs alpnproxy.KubeClientCerts) error {
+	for _, teleportCluster := range slices.Sorted(slices.Values(clusters.TeleportClusters())) {
+		cert, err := issuer.IssueCert(ctx, teleportCluster, "" /*kubeCluster*/, nil /*mfaCheck*/)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		logger.DebugContext(ctx, "Shared client cert issued for Teleport cluster", "teleport_cluster", teleportCluster)
+		certs.Add(teleportCluster, "", *cert)
+	}
+	return nil
 }
 
 // kubeCertClient is the subset of [client.ClusterClient] the issuer issues through.
