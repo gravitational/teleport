@@ -82,16 +82,6 @@
                 ""
             ]
         },
-        "serviceAccountTokenAudience": {
-            "$id": "#/properties/serviceAccountTokenAudience",
-            "type": "string",
-            "default": ""
-        },
-        "serviceAccountTokenExpirationSeconds": {
-            "$id": "#/properties/serviceAccountTokenExpirationSeconds",
-            "type": ["integer", "null"],
-            "default": null
-        },
         "teleportConfig": {
             "$id": "#/properties/teleportConfig",
             "type": "object"

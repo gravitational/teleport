@@ -88,35 +88,6 @@ tests:
           path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.expirationSeconds
           value: 600
 
-  - it: preserves explicit projected token audience and ttl overrides
-    template: proxy.yaml
-    set:
-      clusterName: teleport.example.com
-      authServer: teleport-auth.example.com
-      joinParams:
-        method: iam
-        tokenName: placeholder
-      serviceAccountTokenAudience: custom-audience
-      serviceAccountTokenExpirationSeconds: 1200
-      teleportConfig:
-        teleport:
-          join_params:
-            method: kubernetes
-            token_name: real-token
-    capabilities:
-      majorVersion: 1
-      minorVersion: 21
-    documentIndex: 1
-    asserts:
-      - isKind:
-          of: Deployment
-      - equal:
-          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.audience
-          value: custom-audience
-      - equal:
-          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.expirationSeconds
-          value: 1200
-
   - it: sets extraLabels on Deployment Pods
     template: proxy.yaml
     values:
