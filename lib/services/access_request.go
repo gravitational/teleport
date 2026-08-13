@@ -1904,17 +1904,16 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	m.roles.allowSearch = apiutils.Deduplicate(append(m.roles.allowSearch, allow.SearchAsRoles...))
 	m.roles.denySearch = apiutils.Deduplicate(append(m.roles.denySearch, deny.SearchAsRoles...))
 
+	newAllowRequestMatchers := m.roles.allowRequest[astart:]
+	newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+
+	allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
+	allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
+	allNewAllowMatchers = append(allNewAllowMatchers, newAllowSearchMatchers...)
+
 	if allow.Reason != nil {
 		if allow.Reason.Mode.Required() {
-			// Roles requiring a reason are matched against the requested/applicable roles
-			// using the same matchers that decide whether a role is requestable at all.
-			// Building the matchers from the just-appended allow.Roles matchers (which fold
-			// in claims_to_roles, wildcards and regexps) plus the search_as_roles ensures
-			// those forms are honored, not only literal role names.
-			reasonMatchers := make([]parse.Matcher, 0, len(m.roles.allowRequest[astart:])+len(allow.SearchAsRoles))
-			reasonMatchers = append(reasonMatchers, m.roles.allowRequest[astart:]...)
-			reasonMatchers = append(reasonMatchers, literalMatchers(allow.SearchAsRoles)...)
-			m.reasonRequiredMatchers = append(m.reasonRequiredMatchers, reasonMatchers)
+			m.reasonRequiredMatchers = append(m.reasonRequiredMatchers, allNewAllowMatchers)
 		}
 
 		customPrompt := strings.TrimSpace(allow.Reason.Prompt)
@@ -1932,13 +1931,6 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
-		newAllowRequestMatchers := m.roles.allowRequest[astart:]
-		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
-
-		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
-		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
-		allNewAllowMatchers = append(allNewAllowMatchers, newAllowSearchMatchers...)
-
 		if len(allNewAllowMatchers) > 0 {
 			m.thresholdMatchers = append(m.thresholdMatchers, struct {
 				matchers   []parse.Matcher
