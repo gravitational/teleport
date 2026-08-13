@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -2801,7 +2802,8 @@ func testSubmitAccessReview_SubmitForUsers(t *testing.T, testPack *accessRequest
 
 // TestCreateAccessRequestConstraintSupport verifies that creating a
 // constrained access request is rejected unless the cluster's Auth servers
-// and the constrained resource's agent all advertise RESOURCE_CONSTRAINTS_V1.
+// and the constrained resource's agent all advertise the resource kind's
+// constraint feature ID.
 func TestCreateAccessRequestConstraintSupport(t *testing.T) {
 	t.Parallel()
 
@@ -2809,7 +2811,11 @@ func TestCreateAccessRequestConstraintSupport(t *testing.T) {
 	testPack := newAccessRequestTestPack(ctx, t)
 	authSrv := testPack.tlsServer.Auth()
 
-	rcFeatures := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+	rcFeatures := componentfeatures.New(
+		componentfeatures.FeatureResourceConstraintsV1,
+		componentfeatures.FeatureResourceConstraintsSSHV1,
+	)
+	v1OnlyFeatures := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
 
 	newConstrainedRequest := func(t *testing.T) types.AccessRequest {
 		t.Helper()
@@ -2828,9 +2834,10 @@ func TestCreateAccessRequestConstraintSupport(t *testing.T) {
 	// Neither the Auth presence nor the node advertise ComponentFeatures yet,
 	// so a constrained create is rejected up front.
 	_, err := authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
-	require.ErrorContains(t, err, "do not support resource constraints")
+	require.ErrorContains(t, err, "do not support the requested resource constraints")
 
-	// Advertise support on every Auth server; the node's agent still lacks it.
+	// An Auth presence advertising only the generic V1 ID cannot enforce SSH
+	// login constraints; the per-kind gate must not accept it.
 	authServers, err := authSrv.GetAuthServers()
 	require.NoError(t, err)
 	if len(authServers) == 0 {
@@ -2838,16 +2845,34 @@ func TestCreateAccessRequestConstraintSupport(t *testing.T) {
 		require.NoError(t, err)
 		authServers = append(authServers, srv)
 	}
-	for _, s := range authServers {
-		s.SetComponentFeatures(rcFeatures)
-		require.NoError(t, authSrv.UpsertAuthServer(ctx, s))
+	setAuthFeatures := func(t *testing.T, features *componentfeaturesv1.ComponentFeatures) {
+		t.Helper()
+		for _, s := range authServers {
+			s.SetComponentFeatures(features)
+			require.NoError(t, authSrv.UpsertAuthServer(ctx, s))
+		}
 	}
+	setAuthFeatures(t, v1OnlyFeatures)
+	_, err = authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
+	require.ErrorContains(t, err, "do not support the requested resource constraints")
+
+	// Advertise full support on every Auth server; the node's agent still
+	// lacks it.
+	setAuthFeatures(t, rcFeatures)
 	_, err = authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
 	require.ErrorContains(t, err, "does not support the requested constraints")
 
-	// Advertise support on the node's agent as well; creation now succeeds.
+	// A node advertising only the generic V1 ID is rejected the same way.
 	node, err := authSrv.GetNode(ctx, defaults.Namespace, "staging")
 	require.NoError(t, err)
+	node.SetComponentFeatures(v1OnlyFeatures)
+	_, err = authSrv.UpsertNode(ctx, node)
+	require.NoError(t, err)
+	_, err = authSrv.CreateAccessRequestV2(ctx, newConstrainedRequest(t), tlsca.Identity{})
+	require.ErrorContains(t, err, "does not support the requested constraints")
+
+	// Advertise the SSH per-kind ID on the node's agent as well; creation
+	// now succeeds.
 	node.SetComponentFeatures(rcFeatures)
 	_, err = authSrv.UpsertNode(ctx, node)
 	require.NoError(t, err)

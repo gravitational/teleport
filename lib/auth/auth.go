@@ -6389,9 +6389,9 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 }
 
 // checkConstraintSupport rejects creation when a constrained resource in the
-// local cluster is served by agents that do not advertise
-// RESOURCE_CONSTRAINTS_V1, or when the cluster's Auth/Proxy servers do not,
-// so an approved request cannot dead-end in denial at access time.
+// local cluster is served by agents that do not advertise the resource
+// kind's constraint feature ID, or when the cluster's Auth/Proxy servers do
+// not, so an approved request cannot dead-end in denial at access time.
 // Constrained resources in other clusters cannot be verified from here (this
 // Auth has no view of a leaf's presence); they are checked client-side and
 // remain fail-closed at enforcement time.
@@ -6410,13 +6410,25 @@ func (a *Server) checkConstraintSupport(ctx context.Context, raids []types.Resou
 		return nil
 	}
 
+	// Auth and Proxy sit on every kind's constraint path, so they must
+	// advertise the per-kind feature of every constrained kind requested.
 	clusterFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(ctx, a, a.logger)
-	if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, clusterFeatures) {
-		return trace.BadParameter("this cluster's Auth or Proxy servers do not support resource constraints; retry without constraints, or upgrade the cluster")
+	for _, r := range local {
+		required, ok := componentfeatures.ConstraintFeatureForKind(r.GetResourceID().Kind)
+		if !ok {
+			// ValidateAccessRequest already limits constraint variants to
+			// supported kinds; reject rather than skip if a new variant lands
+			// without support wiring here.
+			return trace.BadParameter("cannot verify constraint support for resource kind %q", r.GetResourceID().Kind)
+		}
+		if !componentfeatures.InAllSets(required, clusterFeatures) {
+			return trace.BadParameter("this cluster's Auth or Proxy servers do not support the requested resource constraints; retry without constraints, or upgrade the cluster")
+		}
 	}
 
 	for _, r := range local {
 		id := r.GetResourceID()
+		required, _ := componentfeatures.ConstraintFeatureForKind(id.Kind)
 		// A resource may be served by several agents (e.g. HA app servers); any
 		// of them may serve the connection, so all must support constraints.
 		var sets []*componentfeaturesv1.ComponentFeatures
@@ -6440,13 +6452,8 @@ func (a *Server) checkConstraintSupport(ctx context.Context, raids []types.Resou
 			if len(sets) == 0 {
 				return trace.NotFound("resource %q was not found; cannot verify constraint support", types.ResourceIDToString(id))
 			}
-		default:
-			// ValidateAccessRequest already limits constraint variants to the
-			// kinds above; reject rather than skip if a new variant lands
-			// without support wiring here.
-			return trace.BadParameter("cannot verify constraint support for resource kind %q", id.Kind)
 		}
-		if !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, append(sets, clusterFeatures)...) {
+		if !componentfeatures.InAllSets(required, sets...) {
 			return trace.BadParameter("resource %q does not support the requested constraints (its agent or this cluster's components are too old); retry without constraints", types.ResourceIDToString(id))
 		}
 	}
