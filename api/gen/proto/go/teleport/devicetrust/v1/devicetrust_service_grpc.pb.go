@@ -199,7 +199,9 @@ type DeviceTrustServiceClient interface {
 	// service.
 	//
 	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
-	// pairing_token, and CompareFailed if the pairing is not awaiting approval.
+	// pairing_token, and CompareFailed if the pairing is not yet awaiting
+	// approval. Approving an already approved pairing is idempotent and returns
+	// success.
 	//
 	// Requires the "mobile_device.create_enroll_token" permission. It is an
 	// administrative action for which reusable challenges are not accepted.
@@ -207,7 +209,8 @@ type DeviceTrustServiceClient interface {
 	// DenyEnrollPairing deletes the EnrollPairing for the calling user.
 	//
 	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
-	// pairing_token.
+	// pairing_token, and CompareFailed if the pairing changed while the denial
+	// was in flight.
 	//
 	// Requires the "mobile_device.create_enroll_token" permission. Unlike
 	// ApproveEnrollPairing, it is not an administrative action and thus doesn't
@@ -557,7 +560,9 @@ type DeviceTrustServiceServer interface {
 	// service.
 	//
 	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
-	// pairing_token, and CompareFailed if the pairing is not awaiting approval.
+	// pairing_token, and CompareFailed if the pairing is not yet awaiting
+	// approval. Approving an already approved pairing is idempotent and returns
+	// success.
 	//
 	// Requires the "mobile_device.create_enroll_token" permission. It is an
 	// administrative action for which reusable challenges are not accepted.
@@ -565,7 +570,8 @@ type DeviceTrustServiceServer interface {
 	// DenyEnrollPairing deletes the EnrollPairing for the calling user.
 	//
 	// Returns NotFound if the caller has no EnrollPairing or if it doesn't match
-	// pairing_token.
+	// pairing_token, and CompareFailed if the pairing changed while the denial
+	// was in flight.
 	//
 	// Requires the "mobile_device.create_enroll_token" permission. Unlike
 	// ApproveEnrollPairing, it is not an administrative action and thus doesn't
