@@ -17,6 +17,7 @@
  */
 
 import fs from 'node:fs/promises';
+import type { DisposableTempDir } from 'node:fs/promises';
 import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -125,16 +126,104 @@ export interface App {
   appConfigPath: string;
 }
 
-export const test = fixtureBase.extend<{
-  autoLogin: boolean;
-  /**
-   * Sets app config before launching the app.
-   *
-   * Use `withDefaultAppConfig` for normal config overrides.
-   */
-  appConfig: AppConfigSetup;
-  app: App;
-}>({
+// Connect's login goes through webapi/mfa/login/{begin,finish}, which are rate limited per client IP. tshd
+// makes those requests itself, so it can't carry the per-test X-Forwarded-For the browser tests use, and every
+// Connect login shares one bucket. Logging in once per user and copying the resulting data dir keeps the count
+// to one regardless of how many specs need a session.
+const snapshots = new Map<string, Promise<DisposableTempDir>>();
+
+function loggedInSnapshot(username: string, creds: UserCredentials) {
+  let snapshot = snapshots.get(username);
+  if (snapshot) {
+    return snapshot;
+  }
+
+  snapshot = createLoggedInSnapshot(username, creds);
+  snapshots.set(username, snapshot);
+
+  return snapshot;
+}
+
+async function createLoggedInSnapshot(
+  username: string,
+  creds: UserCredentials
+) {
+  const dir = await fs.mkdtempDisposable(
+    path.join(os.tmpdir(), 'connect-e2e-snapshot-')
+  );
+
+  try {
+    await initializeDataDir(dir.path, withDefaultAppConfig({}));
+
+    // Scoped so the app closes, flushing the tsh profile and app state to disk, before anything copies the dir.
+    {
+      await using app = await launchApp(dir.path, creds);
+      await login(app.page, username, creds.password);
+    }
+  } catch (error) {
+    await dir.remove();
+    throw error;
+  }
+
+  return dir;
+}
+
+/**
+ * loggedInDataDir returns a disposable data dir already holding a logged-in session. Defaults to the same user
+ * as `launchApp` and `login` when none is given.
+ */
+export async function loggedInDataDir(
+  username?: string,
+  creds?: UserCredentials
+) {
+  const name = username ?? defaultUsername();
+  const snapshot = await loggedInSnapshot(name, creds ?? lookupCreds(name));
+
+  const temp = await fs.mkdtempDisposable(
+    path.join(os.tmpdir(), 'connect-e2e-test-')
+  );
+
+  try {
+    await fs.cp(snapshot.path, temp.path, { recursive: true });
+  } catch (error) {
+    await temp.remove();
+    throw error;
+  }
+
+  return temp;
+}
+
+export const test = fixtureBase.extend<
+  {
+    autoLogin: boolean;
+    /**
+     * Sets app config before launching the app.
+     *
+     * Use `withDefaultAppConfig` for normal config overrides.
+     */
+    appConfig: AppConfigSetup;
+    app: App;
+  },
+  { snapshotCleanup: void }
+>({
+  // Snapshots hold live certs and keys, so drop them when the worker exits rather than leaving them behind in
+  // the temp dir.
+  snapshotCleanup: [
+    // oxlint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      await use();
+
+      const dirs = await Promise.allSettled(snapshots.values());
+      snapshots.clear();
+
+      await Promise.all(
+        dirs.map(dir =>
+          dir.status === 'fulfilled' ? dir.value.remove() : undefined
+        )
+      );
+    },
+    { scope: 'worker', auto: true },
+  ],
   autoLogin: [false, { option: true }],
   appConfig: [withDefaultAppConfig({}), { option: true }],
   app: async ({ autoLogin, appConfig, username }, use, testInfo) => {
@@ -145,14 +234,15 @@ export const test = fixtureBase.extend<{
     }
     const creds = lookupCreds(username);
 
-    await using temp = await fs.mkdtempDisposable(
-      path.join(os.tmpdir(), 'connect-e2e-test-')
-    );
+    // Start from a copy of the user's logged-in session rather than driving the login UI per test. The test's
+    // own appConfig is applied on top, since the snapshot carries the default one.
+    await using temp = autoLogin
+      ? await loggedInDataDir(username, creds)
+      : await fs.mkdtempDisposable(path.join(os.tmpdir(), 'connect-e2e-test-'));
+
     const { appConfigPath } = await initializeDataDir(temp.path, appConfig);
     await using launchedApp = await launchApp(temp.path, creds);
-    if (autoLogin) {
-      await login(launchedApp.page, username, creds.password);
-    }
+
     await use({
       electronApp: launchedApp.electronApp,
       userDataDir: temp.path,
