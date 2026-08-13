@@ -49,12 +49,17 @@ func teardownSharedFixtures() {
 }
 
 // dataDirFor returns a data dir for a cluster's file config.
-// A shared fixture can't use t.TempDir() because it is removed when the building iteration returns.
 func dataDirFor(t *testing.T, shared bool) string {
 	t.Helper()
 	if !shared {
 		return t.TempDir()
 	}
+	return sharedTempDir(t)
+}
+
+// sharedTempDir returns a temp dir removed by TestMain.
+func sharedTempDir(t *testing.T) string {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "tsh-shared-fixture")
 	require.NoError(t, err)
 	registerSharedFixtureTeardown(func() { os.RemoveAll(dir) })

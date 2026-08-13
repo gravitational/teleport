@@ -120,7 +120,7 @@ func getKubeFixture(t *testing.T, key kubeFixtureKey) *suite {
 }
 
 func newSharedKubeConfigFile(t *testing.T, clusterNames ...string) string {
-	return buildKubeConfigFile(t, newSharedKubeSelfSubjectServer, clusterNames...)
+	return buildKubeConfigFile(t, sharedTempDir(t), newSharedKubeSelfSubjectServer, clusterNames...)
 }
 
 func newSharedKubeSelfSubjectServer(t *testing.T) string {

@@ -687,12 +687,10 @@ func TestKubeSelection(t *testing.T) {
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
-	return buildKubeConfigFile(t, newKubeSelfSubjectServer, clusterNames...)
+	return buildKubeConfigFile(t, t.TempDir(), newKubeSelfSubjectServer, clusterNames...)
 }
 
-func buildKubeConfigFile(t *testing.T, newServer func(t *testing.T) string, clusterNames ...string) string {
-	tmpDir := t.TempDir()
-
+func buildKubeConfigFile(t *testing.T, dir string, newServer func(t *testing.T) string, clusterNames ...string) string {
 	kubeConf := clientcmdapi.NewConfig()
 	for _, name := range clusterNames {
 		kubeConf.Clusters[name] = &clientcmdapi.Cluster{
@@ -706,7 +704,7 @@ func buildKubeConfigFile(t *testing.T, newServer func(t *testing.T) string, clus
 			AuthInfo: name,
 		}
 	}
-	kubeConfigLocation := filepath.Join(tmpDir, "kubeconfig")
+	kubeConfigLocation := filepath.Join(dir, "kubeconfig")
 	err := clientcmd.WriteToFile(*kubeConf, kubeConfigLocation)
 	require.NoError(t, err)
 	return kubeConfigLocation
