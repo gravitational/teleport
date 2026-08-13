@@ -42,7 +42,9 @@ async function openKubeTerminal(
   await terminal.waitForText(kubePromptText);
 }
 
-test('creates kubeconfig under user data and reuses for the same kube session', async ({
+// TODO(gzdunek): Re-enable these tests once Connect E2E logins reuse authenticated state
+// instead of hitting the rate limiter.
+test.skip('creates kubeconfig under user data and reuses for the same kube session', async ({
   app,
 }) => {
   const { page, userDataDir } = app;
@@ -69,7 +71,7 @@ test('creates kubeconfig under user data and reuses for the same kube session', 
   expect(pathBeforeTabClose).toBe(pathAfterTabReopen);
 });
 
-test('closing connection removes kubeconfig file', async ({ app }) => {
+test.skip('closing connection removes kubeconfig file', async ({ app }) => {
   const { page } = app;
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
@@ -95,7 +97,7 @@ test('closing connection removes kubeconfig file', async ({ app }) => {
   await expect.poll(() => fileExists(kubeconfigPath)).toBe(false);
 });
 
-test('exec into a pod', async ({ app }) => {
+test.skip('exec into a pod', async ({ app }) => {
   const { page } = app;
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
