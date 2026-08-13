@@ -99,27 +99,15 @@ test('exec into a pod', async ({ app }) => {
   const { page } = app;
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
-  const podName = `shell-demo-${crypto.randomUUID().split('-').at(0)}`;
   // Use `tsh kubectl` because `kubectl` is not available in CI.
   const kubectlCommand = `"$E2E_CONNECT_TSH_BIN" kubectl`;
   await openKubeTerminal(resources, terminal);
 
-  const kubectlRunOutput = await terminal.execAndWait(
-    `${kubectlCommand} run ${podName} --image=busybox:1.37.0 --command -- sh -c 'sleep 3600'`
+  // Reuse kind's kube-proxy pod to test exec without pulling an additional image.
+  const versionOutput = await terminal.execAndWait(
+    `${kubectlCommand} exec --stdin --tty --namespace kube-system daemonset/kube-proxy -- /usr/local/bin/kube-proxy --version`
   );
-  expect(kubectlRunOutput).toContain(`pod/${podName} created`);
-
-  await terminal.execAndWait(
-    `${kubectlCommand} wait --for=condition=Ready pod/${podName} --timeout=20s`,
-    { timeout: 20_000 }
-  );
-  await terminal.exec(
-    `${kubectlCommand} exec --stdin --tty ${podName} -- /bin/sh`
-  );
-  await terminal.waitForText('/ #');
-  // Check if the shell works.
-  const whoamiOutput = await terminal.execAndWait('whoami');
-  expect(whoamiOutput).toContain('root');
+  expect(versionOutput).toContain('Kubernetes v');
 });
 
 async function fileExists(filePath: string): Promise<boolean> {
