@@ -24,10 +24,7 @@ import { UnifiedResourcesPage } from '@gravitational/e2e/helpers/pages/UnifiedRe
 
 test.use({
   autoLogin: true,
-  fixtures: [
-    // TODO(gzdunek): Uncomment when enabling these tests.
-    /*'kube'*/
-  ],
+  fixtures: ['kube'],
   user: {
     roles: ['access'],
     traits: { kubernetes_groups: ['system:masters'] },
@@ -45,9 +42,7 @@ async function openKubeTerminal(
   await terminal.waitForText(kubePromptText);
 }
 
-// TODO(gzdunek): Re-enable these tests once Connect E2E logins reuse authenticated state
-// instead of hitting the rate limiter.
-test.skip('creates kubeconfig under user data and reuses for the same kube session', async ({
+test('creates kubeconfig under user data and reuses for the same kube session', async ({
   app,
 }) => {
   const { page, userDataDir } = app;
@@ -74,7 +69,7 @@ test.skip('creates kubeconfig under user data and reuses for the same kube sessi
   expect(pathBeforeTabClose).toBe(pathAfterTabReopen);
 });
 
-test.skip('closing connection removes kubeconfig file', async ({ app }) => {
+test('closing connection removes kubeconfig file', async ({ app }) => {
   const { page } = app;
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
@@ -100,7 +95,7 @@ test.skip('closing connection removes kubeconfig file', async ({ app }) => {
   await expect.poll(() => fileExists(kubeconfigPath)).toBe(false);
 });
 
-test.skip('exec into a pod', async ({ app }) => {
+test('exec into a pod', async ({ app }) => {
   const { page } = app;
   const resources = new UnifiedResourcesPage(page);
   const terminal = new TerminalPage(page);
