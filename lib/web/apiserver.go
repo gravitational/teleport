@@ -373,6 +373,11 @@ type Config struct {
 
 	// DatabaseREPLRegistry is used for retrieving database REPL.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// HighRateLimiterConfig overrides the rate limiter applied to
+	// unauthenticated endpoints that expect high request rates, such as
+	// /webapi/ping/:connector. Used only in tests.
+	HighRateLimiterConfig *limiter.Config
 }
 
 // SetDefaults ensures proper default values are set if
@@ -676,7 +681,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 	// highLimiter is used for endpoints which are only CPU constrained and require high request rates
-	h.highLimiter, err = limiter.NewRateLimiter(limiter.Config{
+	highLimiterConfig := limiter.Config{
 		Rates: []limiter.Rate{
 			{
 				Period:  defaults.LimiterHighPeriod,
@@ -685,7 +690,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			},
 		},
 		MaxConnections: defaults.LimiterMaxConnections,
-	})
+	}
+	if cfg.HighRateLimiterConfig != nil {
+		highLimiterConfig = *cfg.HighRateLimiterConfig
+	}
+	h.highLimiter, err = limiter.NewRateLimiter(highLimiterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,6 +82,7 @@ func getKubeFixture(t *testing.T, key kubeFixtureKey) *suite {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			}
 			cfg.InsecureMode = true
+			cfg.Proxy.WebUnauthenticatedHighRateLimiter = &limiter.Config{} // no rate limiting
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newSharedKubeConfigFile(t, sharedRootKubeCluster1, sharedRootKubeCluster2)
