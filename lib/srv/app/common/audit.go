@@ -167,15 +167,20 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			Protocol: events.EventProtocolApp,
+		},
 		SessionMetadata: getSessionMetadata(identity),
 		UserMetadata:    identity.GetUserMetadata(),
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
 			AppPublicAddr: app.GetPublicAddr(),
 			AppName:       app.GetName(),
+			AppLabels:     app.GetAllLabels(),
 			// Session chunks are not created for TCP apps, so there's no need to pass TargetPort here.
 		},
 		SessionChunkID: chunkID,
+		Participants:   []string{identity.Username},
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
