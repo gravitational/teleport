@@ -57,6 +57,7 @@ type credentialsJSON struct {
 	Password             string `json:"password"`
 	WebauthnPrivateKey   string `json:"webauthnPrivateKey"`
 	WebauthnCredentialId string `json:"webauthnCredentialId"`
+	ClientIP             string `json:"clientIp"`
 }
 
 // readRoleFile reads e2eDir/testdata/roles/<filename> and extracts
@@ -247,7 +248,7 @@ func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapR
 	// Track custom role files already loaded to deduplicate.
 	customRolesByFile := make(map[string]*customRole)
 
-	for _, g := range groups {
+	for i, g := range groups {
 		su := g.su
 		name := nameGen.Generate()
 		userMapping[g.key] = name
@@ -256,6 +257,8 @@ func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapR
 		if err != nil {
 			return nil, fmt.Errorf("generating credentials for %s: %w", name, err)
 		}
+
+		userCredentials.clientIP = assignClientIP(i)
 
 		creds[name] = userCredentials
 
@@ -341,6 +344,7 @@ func writeCredentialsFile(path string, creds map[string]*credentials) error {
 			Password:             c.password,
 			WebauthnPrivateKey:   c.privateKeyPKCS8Base64,
 			WebauthnCredentialId: c.credentialIDBase64,
+			ClientIP:             c.clientIP,
 		}
 	}
 
