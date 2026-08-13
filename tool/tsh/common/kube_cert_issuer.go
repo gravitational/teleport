@@ -53,6 +53,8 @@ type kubeCertIssuer struct {
 	conn *clusterConn
 	// mfa is the reusable MFA state shared across issuances.
 	mfa *reusableMFA
+	// sharedCertUnsupported latches once an auth server has rejected an unrouted request.
+	sharedCertUnsupported bool
 }
 
 // kubeKeyStore is the subset of [client.LocalKeyAgent] the issuer loads and saves certs through.
@@ -229,9 +231,19 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if issuer.sharedCertUnsupported {
+		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
+	}
+
 	// Prompt-free issuances share one unrouted cert per Teleport cluster.
 	if err := run.IssueShared(ctx, mfaOff); err != nil {
-		return nil, trace.Wrap(err)
+		if !isUnroutedKubeCertRejected(err) {
+			return nil, trace.Wrap(err)
+		}
+		// The auth server rejected the shared unrouted cert, so issue per cluster instead.
+		logger.DebugContext(ctx, "Auth server rejected the shared unrouted cert, issuing per cluster", "error", err)
+		issuer.sharedCertUnsupported = true
+		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
 	}
 	return run.certs, nil
 }
@@ -433,6 +445,13 @@ func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certi
 
 func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {
 	return cluster.TeleportCluster + "/" + cluster.KubeCluster
+}
+
+// isUnroutedKubeCertRejected reports whether an auth server refused an unrouted request,
+// as every server predating the shared cert does.
+func isUnroutedKubeCertRejected(err error) bool {
+	// validateCertUsage rejects the request before it reaches any typed error.
+	return trace.IsBadParameter(err) && strings.Contains(err.Error(), "missing KubernetesCluster field")
 }
 
 // isMFAReuseRejected reports whether an auth server unambiguously rejected the reusable MFA flow.

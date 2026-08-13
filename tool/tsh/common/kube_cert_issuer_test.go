@@ -455,7 +455,7 @@ func TestKubeCertIssuer_MFAOffNoCeremony(t *testing.T) {
 
 		require.Equal(t, 1, issuances)
 		require.Len(t, certs, 1)
-		require.Contains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root"})
+		require.Contains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root", KubeCluster: ""})
 		require.Zero(t, cc.saves)
 	})
 }
@@ -817,6 +817,82 @@ func TestKubeCertIssuer_HeadlessUnroutedRejected(t *testing.T) {
 	})
 }
 
+// TestKubeCertIssuer_UnroutedRejectedFallback verifies that
+// an auth server predating the shared cert does not break the proxy.
+// The issuer falls back to per-cluster certs and latches,
+// so a later burst does not retry a request that server refuses.
+func TestKubeCertIssuer_UnroutedRejectedFallback(t *testing.T) {
+	t.Parallel()
+
+	const numClusters = 3
+	clusters := newTestKubeClusters(numClusters)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var unroutedAttempts, routedIssuances atomic.Int32
+		cc := &fakeKubeCertClient{mfaRequired: false}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.KubernetesCluster == "" {
+				unroutedAttempts.Add(1)
+				return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+			}
+			routedIssuances.Add(1)
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+
+		issuer := newTestKubeCertIssuer(cc)
+		certs, err := issuer.issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+		require.Equal(t, int32(1), unroutedAttempts.Load())
+		require.Equal(t, int32(numClusters), routedIssuances.Load())
+
+		// Every cluster is served by its own cert, and no shared entry lingers from the attempt.
+		require.Len(t, certs, numClusters)
+		require.NotContains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root", KubeCluster: ""})
+		require.Equal(t, numClusters, cc.saves)
+
+		// A later burst must not retry the shape this server already refused.
+		certs, err = issuer.issueCerts(t.Context(), clusters)
+		require.NoError(t, err)
+		require.Equal(t, int32(1), unroutedAttempts.Load(), "the rejection must latch")
+		require.Equal(t, int32(2*numClusters), routedIssuances.Load())
+		require.Len(t, certs, numClusters)
+	})
+}
+
+// TestKubeCertIssuer_UnroutedErrorNotSwallowed verifies that
+// only the old-server rejection triggers the per-cluster fallback.
+// Any other failure has to surface, or a real problem would show up as a silent loss of the shared cert.
+func TestKubeCertIssuer_UnroutedErrorNotSwallowed(t *testing.T) {
+	t.Parallel()
+
+	clusters := newTestKubeClusters(3)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var routedIssuances atomic.Int32
+		cc := &fakeKubeCertClient{mfaRequired: false}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.KubernetesCluster == "" {
+				return nil, trace.AccessDenied("user has no access to Kubernetes clusters")
+			}
+			routedIssuances.Add(1)
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+
+		issuer := newTestKubeCertIssuer(cc)
+		_, err := issuer.issueCerts(t.Context(), clusters)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied but got %v", err)
+		require.Zero(t, routedIssuances.Load(), "an unrelated failure must not fall back to per-cluster issuance")
+		require.False(t, issuer.sharedCertUnsupported, "an unrelated failure must not latch")
+	})
+}
 func newTestKubeClusters(n int) kubeconfig.LocalProxyClusters {
 	clusters := make(kubeconfig.LocalProxyClusters, 0, n)
 	for i := range n {
