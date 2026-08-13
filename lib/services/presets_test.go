@@ -783,6 +783,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(access.KindScopedRoleAssignment, RW()),
 							types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 							types.NewRule(types.KindBeamsConfig, RW()),
+							types.NewRule(types.KindCertAuthorityOverride, RW()),
 						},
 					},
 				},
