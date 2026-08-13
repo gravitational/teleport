@@ -107,9 +107,17 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if req.GetTiming() != nil && params.AssumeStartTime != nil {
+			return nil, trace.BadParameter("assume_start_time cannot be changed for a scheduled access request")
+		}
 
 		if req.GetState() == params.State && req.GetState().IsResolved() {
 			return nil, trace.BadParameter("cannot update access request in state %q", req.GetState().String())
+		}
+		if params.State.IsApproved() {
+			if err := services.ValidateScheduledAccessRequestApproval(req, req.Expiry(), s.Backend.Clock().Now().UTC()); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		if err := req.SetState(params.State); err != nil {
@@ -185,6 +193,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		pendingExpiry := req.Expiry()
 
 		// verify review permissions against request details
 		if ok, err := checker.CanReviewRequest(req); err != nil || !ok {
@@ -197,6 +206,11 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		// run the application logic
 		if err := services.ApplyAccessReview(req, params.Review, checker.UserState); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if req.GetState().IsApproved() {
+			if err := services.ValidateScheduledAccessRequestApproval(req, pendingExpiry, s.Backend.Clock().Now().UTC()); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		newItem, err := itemFromAccessRequest(req)

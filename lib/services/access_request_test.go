@@ -3709,6 +3709,89 @@ func TestValidate_ScheduledTimingValues(t *testing.T) {
 	}
 }
 
+func TestValidateScheduledAccessRequestApproval(t *testing.T) {
+	now := time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+	start := now.Add(time.Hour)
+	end := start.Add(4 * time.Hour)
+
+	newRequest := func(t *testing.T) types.AccessRequest {
+		t.Helper()
+		req, err := types.NewAccessRequest("some-id", "alice", "requestedRole")
+		require.NoError(t, err)
+		req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+			Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: 4 * time.Hour},
+		}})
+		req.SetAssumeStartTime(start)
+		req.SetMaxDuration(end)
+		req.SetAccessExpiry(end)
+		return req
+	}
+
+	t.Run("legacy unchanged", func(t *testing.T) {
+		req, err := types.NewAccessRequest("legacy", "alice", "requestedRole")
+		require.NoError(t, err)
+		require.NoError(t, ValidateScheduledAccessRequestApproval(req, now, now))
+	})
+
+	t.Run("valid", func(t *testing.T) {
+		require.NoError(t, ValidateScheduledAccessRequestApproval(newRequest(t), now.Add(time.Minute), now))
+	})
+
+	t.Run("approval deadline reached", func(t *testing.T) {
+		require.Error(t, ValidateScheduledAccessRequestApproval(newRequest(t), now, now))
+	})
+
+	t.Run("fixed end reached", func(t *testing.T) {
+		require.Error(t, ValidateScheduledAccessRequestApproval(newRequest(t), end.Add(time.Hour), end))
+	})
+
+	t.Run("invalid projections", func(t *testing.T) {
+		req := newRequest(t)
+		req.SetAccessExpiry(end.Add(time.Minute))
+		require.Error(t, ValidateScheduledAccessRequestApproval(req, now.Add(time.Minute), now))
+	})
+}
+
+func TestScheduledAccessRequestStorageRoundTrip(t *testing.T) {
+	start := time.Date(2026, time.August, 13, 12, 0, 0, 0, time.UTC)
+	end := start.Add(4 * time.Hour)
+	req, err := types.NewAccessRequest(uuid.NewString(), "alice", "requestedRole")
+	require.NoError(t, err)
+	req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+		Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: 4 * time.Hour},
+	}})
+	req.SetAssumeStartTime(start)
+	req.SetMaxDuration(end)
+	req.SetAccessExpiry(end)
+
+	data, err := MarshalAccessRequest(req)
+	require.NoError(t, err)
+	got, err := UnmarshalAccessRequest(data)
+	require.NoError(t, err)
+	require.True(t, req.IsEqual(got))
+}
+
+func TestScheduledAccessReviewCannotOverrideStart(t *testing.T) {
+	start := time.Date(2026, time.August, 13, 12, 0, 0, 0, time.UTC)
+	req, err := types.NewAccessRequest("some-id", "alice", "requestedRole")
+	require.NoError(t, err)
+	req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+		Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: time.Hour},
+	}})
+	req.SetThresholds([]types.AccessReviewThreshold{{Name: "default", Approve: 1, Deny: 1}})
+	override := start.Add(time.Minute)
+	reviewer, err := userloginstate.New(header.Metadata{Name: "reviewer"}, userloginstate.Spec{})
+	require.NoError(t, err)
+
+	err = ApplyAccessReview(req, types.AccessReview{
+		Author:          "reviewer",
+		ProposedState:   types.RequestState_APPROVED,
+		AssumeStartTime: &override,
+	}, reviewer)
+	require.ErrorContains(t, err, "assume_start_time cannot be changed")
+	require.Empty(t, req.GetReviews())
+}
+
 // TestAccessRequestStorageToleratesUnenforceableConstraints verifies the
 // storage codec against a request written by a newer Auth: reads keep
 // working with the unknown constraint content zeroed to nil Details,

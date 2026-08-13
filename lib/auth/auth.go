@@ -6108,6 +6108,12 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if req.GetState().IsApproved() && req.GetTiming() != nil {
+		if err := services.ValidateScheduledAccessRequestApproval(req, req.Expiry(), now); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.SetExpiry(req.GetAccessExpiry())
+	}
 
 	// Look for user groups and associated applications to the request.
 	allRequestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetAllRequestedResourceIDs())

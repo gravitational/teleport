@@ -18,6 +18,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -1243,5 +1244,45 @@ func (t *AccessRequestTiming) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid timing mode requested: %v", timing)
 	}
 
+	return nil
+}
+
+type accessRequestTimingJSON struct {
+	Scheduled *AccessRequestScheduledTiming `json:"scheduled,omitempty"`
+}
+
+// MarshalJSON marshals the timing oneof into its concrete JSON representation.
+func (t *AccessRequestTiming) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte("null"), nil
+	}
+	switch mode := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		return json.Marshal(accessRequestTimingJSON{Scheduled: mode.Scheduled})
+	default:
+		return nil, trace.BadParameter("unsupported access request timing mode %T", mode)
+	}
+}
+
+// UnmarshalJSON unmarshals the concrete JSON representation into the timing oneof.
+// NOTE: Currently using the stdlib json, which is not really compatible with oneof semantics. So
+// the actual implementation use grpc json unmarshaler.
+func (t *AccessRequestTiming) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return trace.Wrap(err)
+	}
+	scheduledJSON, ok := fields["scheduled"]
+	if !ok {
+		return trace.BadParameter("missing scheduled timing")
+	}
+	if len(fields) != 1 {
+		return trace.BadParameter("unsupported access request timing fields")
+	}
+	var scheduled AccessRequestScheduledTiming
+	if err := json.Unmarshal(scheduledJSON, &scheduled); err != nil {
+		return trace.Wrap(err)
+	}
+	t.Mode = &AccessRequestTiming_Scheduled{Scheduled: &scheduled}
 	return nil
 }

@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -239,6 +240,85 @@ func TestSetAccessRequestState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetScheduledAccessRequestState(t *testing.T) {
+	now := time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+
+	newService := func(t *testing.T) *DynamicAccessService {
+		t.Helper()
+		mem, err := memory.New(memory.Config{Context: t.Context(), Clock: clockwork.NewFakeClockAt(now)})
+		require.NoError(t, err)
+		return NewDynamicAccessService(backend.NewSanitizer(mem))
+	}
+
+	newRequest := func(t *testing.T, service *DynamicAccessService, pendingExpiry, end time.Time) types.AccessRequest {
+		t.Helper()
+		start := end.Add(-time.Hour)
+		req, err := types.NewAccessRequest(uuid.NewString(), "alice", "test_role_1")
+		require.NoError(t, err)
+		req.SetTiming(&types.AccessRequestTiming{Mode: &types.AccessRequestTiming_Scheduled{
+			Scheduled: &types.AccessRequestScheduledTiming{Start: start, Duration: time.Hour},
+		}})
+		req.SetAssumeStartTime(start)
+		req.SetMaxDuration(end)
+		req.SetAccessExpiry(end)
+		req.SetExpiry(pendingExpiry)
+		require.NoError(t, service.CreateAccessRequest(t.Context(), req))
+		return req
+	}
+
+	t.Run("approval extends resource expiry", func(t *testing.T) {
+		service := newService(t)
+		end := now.Add(time.Hour)
+		req := newRequest(t, service, now.Add(time.Minute), end)
+
+		updated, err := service.SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+			RequestID: req.GetName(),
+			State:     types.RequestState_APPROVED,
+		})
+		require.NoError(t, err)
+		require.Equal(t, end, updated.Expiry())
+	})
+
+	t.Run("approval deadline reached", func(t *testing.T) {
+		service := newService(t)
+		req := newRequest(t, service, now, now.Add(time.Hour))
+
+		_, err := service.SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+			RequestID: req.GetName(),
+			State:     types.RequestState_APPROVED,
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("fixed end reached", func(t *testing.T) {
+		service := newService(t)
+		req := newRequest(t, service, now.Add(time.Hour), now)
+
+		_, err := service.SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+			RequestID: req.GetName(),
+			State:     types.RequestState_APPROVED,
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("start override rejected", func(t *testing.T) {
+		service := newService(t)
+		req := newRequest(t, service, now.Add(time.Minute), now.Add(time.Hour))
+		override := now.Add(time.Minute)
+
+		_, err := service.SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+			RequestID:       req.GetName(),
+			State:           types.RequestState_APPROVED,
+			AssumeStartTime: &override,
+		})
+		require.Error(t, err)
+		stored, err := service.GetAccessRequest(t.Context(), req.GetName())
+		require.NoError(t, err)
+		require.Equal(t, types.RequestState_PENDING, stored.GetState())
+		require.Equal(t, req.GetAssumeStartTime(), stored.GetAssumeStartTime())
+	})
 }
 
 func Test_DynamicAccessService_ListExpiredAccessRequests(t *testing.T) {

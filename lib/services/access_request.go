@@ -518,6 +518,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	if err := checkReviewCompat(req, rev); err != nil {
 		return trace.Wrap(err)
 	}
+	if req.GetTiming() != nil && rev.AssumeStartTime != nil {
+		return trace.BadParameter("assume_start_time cannot be changed for a scheduled access request")
+	}
 
 	// aggregate the threshold indexes for this review
 	tids, err := collectReviewThresholdIndexes(req, rev, author)
@@ -2951,6 +2954,24 @@ func validateScheduledTimingValues(req types.AccessRequest) error {
 	}
 	if !req.GetAccessExpiry().Equal(end) {
 		return trace.BadParameter("access expiry does not match scheduled timing")
+	}
+	return nil
+}
+
+// ValidateScheduledAccessRequestApproval validates that a scheduled request can
+// be approved at the supplied time. Legacy requests are not affected.
+func ValidateScheduledAccessRequestApproval(req types.AccessRequest, pendingExpiry, now time.Time) error {
+	if req.GetTiming() == nil {
+		return nil
+	}
+	if err := validateScheduledTimingValues(req); err != nil {
+		return trace.Wrap(err)
+	}
+	if !pendingExpiry.After(now) {
+		return trace.BadParameter("access request approval deadline has passed")
+	}
+	if !req.GetAccessExpiry().After(now) {
+		return trace.BadParameter("scheduled access window has already ended")
 	}
 	return nil
 }
