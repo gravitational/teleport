@@ -244,6 +244,9 @@ const (
 	// ComponentTBot is the "tbot" binary
 	ComponentTBot = "tbot"
 
+	// ComponentTerraformProvider is the Teleport Terraform provider.
+	ComponentTerraformProvider = "terraform-provider"
+
 	// ComponentKubeClient is the Kubernetes client.
 	ComponentKubeClient = "client:kube"
 
