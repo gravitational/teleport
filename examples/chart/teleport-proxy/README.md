@@ -31,8 +31,6 @@ closer to users. To deploy the Teleport Proxy and Teleport Auth together, use
 
 - A Teleport provision token that allows Proxy joining.
   - [Terraform](https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/resources/provision_token/)
-  - [tctl](https://goteleport.com/docs/reference/cli/tctl/#tctl-tokens-add)
-    (`tctl tokens add --type=proxy ...`)
 
 ## Example Usage
 

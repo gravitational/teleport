@@ -56,13 +56,11 @@ authServer: ""
 # or [tctl](../../reference/cli/tctl.mdx#tctl-create)):
 #
 # ```bash
-# exp="$(date -u -v"+10m" +"%Y-%m-%dT%H:%M:%SZ)"
 # issuer="$(kubectl get --raw /.well-known/openid-configuration | yq -r .issuer)"
 # tctl create <<EOT
 # kind: token
 # version: v2
 # metadata:
-#  expires: "${exp}"
 #  name: my-proxy
 # spec:
 #  roles: [Proxy]
