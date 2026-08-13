@@ -1,0 +1,10 @@
+<!-- Teleport will stay unhealthy upon dropping to zero resources while unhealthy -->
+<Project>
+  <ProjectName>current</ProjectName>
+  <InputFiles>
+    <PFile>./PSrc/</PFile>
+    <PFile>./PSpec/</PFile>
+    <PFile>./PTst/</PFile>
+  </InputFiles>
+  <OutputDir>./PGenerated/</OutputDir>
+</Project>
