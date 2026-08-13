@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -180,7 +181,13 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			// Session chunks are not created for TCP apps, so there's no need to pass TargetPort here.
 		},
 		SessionChunkID: chunkID,
-		Participants:   []string{identity.Username},
+		Participants: []string{services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              identity.Username,
+				OriginClusterName: identity.OriginClusterName,
+				LocalClusterName:  identity.TeleportCluster,
+			},
+		)},
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
