@@ -66,6 +66,9 @@ const (
 
 	defaultMaxBatchBytes = 1 * 1024 * 1024 // 1 MiB
 
+	evictMinBytes = 256 * 1024
+	evictMaxRows  = 1000
+
 	defaultWriteLinger = time.Millisecond
 
 	// busyTimeoutMillis sets the maximum time we will wait for a SQLite DB
@@ -415,10 +418,29 @@ func (q *sqliteQueue) commitBatch(batch []writeRequest) error {
 		}
 	}
 
-	_, err = q.db.ExecContext(q.ctx,
-		"INSERT INTO audit_queue (payload, format, event_count, enqueued_at) VALUES (?, ?, ?, ?)",
-		payload, format, len(batch), time.Now().Unix(),
-	)
+	const insertSQL = "INSERT INTO audit_queue (payload, format, event_count, enqueued_at) VALUES (?, ?, ?, ?)"
+	insertArgs := []any{payload, format, len(batch), time.Now().Unix()}
+	_, err = q.db.ExecContext(q.ctx, insertSQL, insertArgs...)
+	if err == nil {
+		return nil
+	}
+	if !isSQLiteFullError(err) {
+		return trace.Wrap(err)
+	}
+
+	evicted, evictErr := q.evictOldestDeadLetter(max(2*len(payload), evictMinBytes))
+	if evictErr != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to evict dead-letter audit events to make room for new events.",
+			"error", evictErr,
+		)
+		return trace.Wrap(ErrQueueFull)
+	}
+	if evicted == 0 {
+		return trace.Wrap(ErrQueueFull)
+	}
+
+	_, err = q.db.ExecContext(q.ctx, insertSQL, insertArgs...)
 	return mapCommitError(err)
 }
 
@@ -986,6 +1008,50 @@ func (q *sqliteQueue) expireDeadLetter() {
 			"dead_letter_ttl", q.deadLetterTTL,
 		)
 	}
+}
+
+func (q *sqliteQueue) evictOldestDeadLetter(targetBytes int) (int64, error) {
+	deleted, err := q.db.QueryContext(q.ctx, `
+		DELETE FROM audit_dead_letter WHERE id IN (
+			SELECT id FROM (
+				SELECT id,
+					SUM(LENGTH(payload)) OVER (ORDER BY failed_at ASC, id ASC) - LENGTH(payload) AS prev
+				FROM audit_dead_letter
+				ORDER BY failed_at ASC, id ASC
+				LIMIT ?
+			) WHERE prev < ?
+		) RETURNING event_count, LENGTH(payload)`,
+		evictMaxRows, targetBytes)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer deleted.Close()
+
+	var evictedEvents, evictedRows, freedBytes int64
+	for deleted.Next() {
+		var eventCount, payloadLen int64
+		if err := deleted.Scan(&eventCount, &payloadLen); err != nil {
+			return 0, trace.Wrap(err)
+		}
+		evictedEvents += eventCount
+		evictedRows++
+		freedBytes += payloadLen
+	}
+	if err := deleted.Err(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if evictedRows == 0 {
+		return 0, nil
+	}
+
+	deadLetterEvicted.Add(float64(evictedEvents))
+	slog.WarnContext(q.ctx,
+		"Permanently dropped oldest dead-letter audit events to make room for new events.",
+		"events", evictedEvents,
+		"rows", evictedRows,
+		"bytes", freedBytes,
+	)
+	return evictedEvents, nil
 }
 
 func (q *sqliteQueue) expireCorruptEvents() {

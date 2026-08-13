@@ -19,6 +19,7 @@
 package auditqueue
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"os"
@@ -694,6 +695,87 @@ func TestEnqueue_FileSizeStaysWithinMaxBytes(t *testing.T) {
 	require.NoError(t, err)
 	require.LessOrEqual(t, info.Size(), int64(maxBytes),
 		"queue.db size %d exceeded MaxBytes %d", info.Size(), maxBytes)
+}
+
+func TestEvictOldestDeadLetter_EvictsOldestFirst(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	payload := bytes.Repeat([]byte{0xAB}, 4096)
+	for i := 1; i <= 5; i++ {
+		_, err := q.db.Exec(
+			"INSERT INTO audit_dead_letter (payload, format, event_count, enqueued_at, failed_at) VALUES (?, 0, 2, 0, ?)",
+			payload, i)
+		require.NoError(t, err)
+	}
+
+	before := testutil.ToFloat64(deadLetterEvicted)
+	evicted, err := q.evictOldestDeadLetter(6 * 1024)
+	require.NoError(t, err)
+	require.Equal(t, int64(4), evicted,
+		"evicting with a 6 KiB target across 4 KiB rows should drop the 2 oldest rows of 2 events each")
+	require.GreaterOrEqual(t, testutil.ToFloat64(deadLetterEvicted)-before, float64(4))
+
+	rows, err := q.db.Query("SELECT failed_at FROM audit_dead_letter ORDER BY failed_at ASC")
+	require.NoError(t, err)
+	defer rows.Close()
+	var remaining []int64
+	for rows.Next() {
+		var failedAt int64
+		require.NoError(t, rows.Scan(&failedAt))
+		remaining = append(remaining, failedAt)
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []int64{3, 4, 5}, remaining,
+		"the newest dead-letter rows should survive eviction")
+}
+
+func TestEvictOldestDeadLetter_EmptyTable(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	evicted, err := q.evictOldestDeadLetter(evictMinBytes)
+	require.NoError(t, err)
+	require.Zero(t, evicted)
+}
+
+func TestEnqueue_FullEvictsDeadLetterBeforeFailing(t *testing.T) {
+	t.Parallel()
+
+	const maxBytes = 50 * sqlitePageSize
+	path := filepath.Join(t.TempDir(), "queue")
+	q, err := newSQLiteQueue(Config{
+		Path:     path,
+		MaxBytes: maxBytes,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	payload := bytes.Repeat([]byte{0xCD}, 4096)
+	const seededRows = 10
+	for i := range seededRows {
+		_, err := q.db.Exec(
+			"INSERT INTO audit_dead_letter (payload, format, event_count, enqueued_at, failed_at) VALUES (?, 0, 1, 0, ?)",
+			payload, i)
+		require.NoError(t, err)
+	}
+
+	var got error
+	for i := range 10000 {
+		if got = q.Enqueue(newTestEvent(int64(i))); got != nil {
+			break
+		}
+	}
+	require.ErrorIs(t, got, ErrQueueFull,
+		"Enqueue should only fail once the dead-letter queue has nothing left to evict")
+	require.Zero(t, countRows(t, q, auditDeadLetterTable),
+		"all dead-letter rows should be evicted before Enqueue reports a full queue")
+	require.Positive(t, countRows(t, q, auditQueueTable))
+
+	info, err := os.Stat(filepath.Join(path, queueDBFile))
+	require.NoError(t, err)
+	require.LessOrEqual(t, info.Size(), int64(maxBytes),
+		"queue.db size %d exceeded MaxBytes %d after eviction and retry", info.Size(), maxBytes)
 }
 
 func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
