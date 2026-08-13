@@ -93,6 +93,124 @@ func TestEnqueueDequeue_FIFO(t *testing.T) {
 	require.NoError(t, q.ack(got))
 }
 
+func TestStats_CountsPendingDeadLetterAndCorrupt(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q, err := newSQLiteQueue(Config{
+		Path:        filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts: 1, // promote on the first failure
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	stats, err := q.Stats(ctx)
+	require.NoError(t, err)
+	require.Zero(t, stats.PendingCount)
+	require.Zero(t, stats.DeadLetterCount)
+	require.Zero(t, stats.CorruptCount)
+
+	const n = 5
+	for i := int64(0); i < n; i++ {
+		require.NoError(t, q.Enqueue(newTestEvent(i)))
+	}
+	stats, err = q.Stats(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(n), stats.PendingCount)
+	require.Zero(t, stats.DeadLetterCount)
+
+	items, err := q.fetch(2)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	promoted, err := q.processFailedDeliveries(ctx, items)
+	require.NoError(t, err)
+	require.Equal(t, 2, promoted)
+
+	stats, err = q.Stats(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(n-2), stats.PendingCount, "promoted events should leave the main queue")
+	require.Equal(t, int64(2), stats.DeadLetterCount)
+
+	_, err = q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?)",
+		corruptPayload, time.Now().Unix())
+	require.NoError(t, err)
+
+	stats, err = q.Stats(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(n-2), stats.PendingCount)
+	require.Equal(t, int64(2), stats.DeadLetterCount)
+	require.Equal(t, int64(1), stats.CorruptCount)
+}
+
+func TestStats_OldestEventTimes(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q := newSqliteTestQueue(t)
+
+	stats, err := q.Stats(ctx)
+	require.NoError(t, err)
+	require.Zero(t, stats.OldestPendingTime, "empty main queue must report a zero oldest time")
+	require.Zero(t, stats.OldestDeadLetterTime, "empty dead-letter queue must report a zero oldest time")
+
+	_, err = q.db.Exec(
+		"INSERT INTO audit_queue (payload, enqueued_at) VALUES (?, 2000), (?, 1000), (?, 3000)",
+		corruptPayload, corruptPayload, corruptPayload)
+	require.NoError(t, err)
+	_, err = q.db.Exec(
+		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, 900), (?, 500)",
+		corruptPayload, corruptPayload)
+	require.NoError(t, err)
+
+	stats, err = q.Stats(ctx)
+	require.NoError(t, err)
+	require.Equal(t, time.Unix(1000, 0).UTC(), stats.OldestPendingTime)
+	require.Equal(t, time.Unix(500, 0).UTC(), stats.OldestDeadLetterTime)
+}
+
+func TestStats_OnStatsUpdatedSignals(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []Kind{KindSQLiteDisk, KindSQLiteMemory} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			signaled := make(chan struct{}, 1)
+			q, err := New(kind, Config{
+				Path:          filepath.Join(t.TempDir(), queueDir),
+				StatsInterval: 10 * time.Millisecond,
+				OnStatsUpdated: func() {
+					select {
+					case signaled <- struct{}{}:
+					default:
+					}
+				},
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, q.Close()) })
+
+			select {
+			case <-signaled:
+			case <-time.After(10 * time.Second):
+				t.Fatal("timed out waiting for stats signal")
+			}
+		})
+	}
+}
+
+func TestEnqueue_StampsEnqueuedAt(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	before := time.Now().Add(-time.Second)
+	require.NoError(t, q.Enqueue(newTestEvent(0)))
+	after := time.Now().Add(time.Second)
+
+	stats, err := q.Stats(t.Context())
+	require.NoError(t, err)
+	require.False(t, stats.OldestPendingTime.Before(before),
+		"enqueued_at default should stamp the enqueue time")
+	require.False(t, stats.OldestPendingTime.After(after),
+		"enqueued_at default should stamp the enqueue time")
+}
+
 func TestDequeue_RespectsLimit(t *testing.T) {
 	t.Parallel()
 	q := newSqliteTestQueue(t)
@@ -651,6 +769,28 @@ func TestMigrateOrphanQueue_PreservesAttempts(t *testing.T) {
 	var attempts int
 	require.NoError(t, b.db.QueryRow("SELECT attempts FROM audit_queue").Scan(&attempts))
 	require.Equal(t, 2, attempts, "attempt count should carry over during migration")
+}
+
+func TestMigrateOrphanQueue_PreservesEnqueuedAt(t *testing.T) {
+	t.Parallel()
+
+	a, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "a")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = a.Close() })
+	require.NoError(t, a.Enqueue(newTestEvent(42)))
+	_, err = a.db.Exec("UPDATE audit_queue SET enqueued_at = 1234")
+	require.NoError(t, err)
+
+	b, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "b")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db, "a"))
+
+	stats, err := b.Stats(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, time.Unix(1234, 0).UTC(), stats.OldestPendingTime,
+		"enqueued_at should carry over during migration")
 }
 
 func TestMigrateOrphanQueue_WatermarkPreventsDuplicates(t *testing.T) {

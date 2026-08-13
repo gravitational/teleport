@@ -70,6 +70,18 @@ func TestResourceNormalizersChainsNormalizers(t *testing.T) {
 	require.True(t, resource.defaulted)
 }
 
+func TestForceKindFuncUsesCallerSuppliedSetter(t *testing.T) {
+	var resource normalizerTestResource
+	normalizer := ForceKindFunc[normalizerTestResource](func(resource *normalizerTestResource) {
+		resource.kind = "test_kind"
+	})
+	require.NoError(t, normalizer.NormalizeCreate(t.Context(), &resource))
+	require.Equal(t, "test_kind", resource.kind)
+
+	require.NoError(t, normalizer.NormalizeUpdate(t.Context(), &resource))
+	require.Equal(t, "test_kind", resource.kind)
+}
+
 func TestResourceNormalizersStopsOnError(t *testing.T) {
 	sentinel := errors.New("stop")
 	normalizers := ResourceNormalizers[normalizerTestResource]{

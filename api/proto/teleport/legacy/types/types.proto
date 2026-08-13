@@ -772,6 +772,28 @@ message InstanceSpecV1 {
 
   // UpdaterInfo stores information about how the Teleport updater is doing.
   UpdaterV2Info UpdaterInfo = 10;
+
+  // AuditQueueStatus reports the depth of this instance's audit-log queue.
+  AuditQueueStatus audit_queue_status = 11;
+}
+
+// AuditQueueStatus reports the depth of an instance's audit-log queue.
+message AuditQueueStatus {
+  // PendingCount is the number of audit events waiting in the main queue.
+  int64 pending_count = 1;
+  // DeadLetterCount is the number of audit events in the dead-letter queue.
+  int64 dead_letter_count = 2;
+  // CorruptCount is the number of audit events quarantined because their
+  // payloads failed to deserialize.
+  int64 corrupt_count = 3;
+  // OldestPendingAgeSeconds is the age in seconds of the oldest event in the
+  // main queue, measured when the status was collected. Zero when the main
+  // queue is empty.
+  int64 oldest_pending_age_seconds = 4;
+  // OldestDeadLetterAgeSeconds is the age in seconds of the oldest event in
+  // the dead-letter queue, measured when the status was collected. Zero when
+  // the dead-letter queue is empty.
+  int64 oldest_dead_letter_age_seconds = 5;
 }
 
 // SystemClockMeasurement represents the measurement state of the systems clock difference.
