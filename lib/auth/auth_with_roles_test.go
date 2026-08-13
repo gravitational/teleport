@@ -8989,6 +8989,169 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestListUnifiedResources_ScopedNodes(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/test"
+	const childScope = "/test/child"
+	const otherScope = "/other"
+
+	createNode := func(t *testing.T, name, scope string, labels map[string]string) {
+		t.Helper()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name + "-host",
+			},
+			labels,
+			types.ServerWithScope(scope),
+		)
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertNode(t.Context(), node)
+		require.NoError(t, err)
+	}
+
+	// Create nodes in various scopes with differing labels.
+	createNode(t, "prod-node", scope, map[string]string{"env": "prod"})
+	createNode(t, "dev-node", scope, map[string]string{"env": "dev"})
+	createNode(t, "dev-child-node", childScope, map[string]string{"env": "dev"})
+	createNode(t, "other-scope-node", otherScope, map[string]string{"env": "prod"})
+	createNode(t, "unscoped-node", "", map[string]string{"env": "prod"})
+
+	sshLabels := func(env string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins: []string{"root"},
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{
+					Name:   "env",
+					Values: []string{env},
+				}.Build(),
+			},
+		}.Build()
+	}
+	sshLabelExpression := func(expr string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins:          []string{"root"},
+			LabelExpression: expr,
+		}.Build()
+	}
+
+	// scopedSSHUser creates a scope-pinned user whose scoped role grants the given ssh block.
+	scopedSSHUser := func(username, scope string, ssh *scopedaccessv1.ScopedRoleSSH) *auth.ScopedServerWithRoles {
+		return newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, username, scope,
+			scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Ssh:              ssh,
+			}.Build())
+	}
+
+	cases := []struct {
+		name              string
+		server            *auth.ScopedServerWithRoles
+		nodeNamesExpected []string
+		loginsExpected    []string
+		req               *proto.ListUnifiedResourcesRequest
+	}{
+		{
+			name:              "prod labels in scope " + scope,
+			server:            scopedSSHUser("node-test-prod-label", scope, sshLabels("prod")),
+			nodeNamesExpected: []string{"prod-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+				Limit: 10,
+			},
+		},
+		{
+			name:              "dev label in " + scope,
+			server:            scopedSSHUser("node-test-dev-label", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+				Limit: 10,
+			},
+		},
+		{
+			name:              "dev label expression in " + scope,
+			server:            scopedSSHUser("node-test-dev-expression", scope, sshLabelExpression(`contains(labels["env"], "dev")`)),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+				Limit: 10,
+			},
+		},
+		{
+			name:              "prod label expression in " + scope,
+			server:            scopedSSHUser("node-test-prod-expression", scope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"prod-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+				Limit: 10,
+			},
+		},
+		{
+			name:              "prod label expression in " + childScope,
+			server:            scopedSSHUser("node-test-child-prod-expr", childScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+				Limit: 10,
+			},
+		},
+		{
+			name:              "prod label expression in " + otherScope,
+			server:            scopedSSHUser("node-other-prod-expression", otherScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"other-scope-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds: []string{types.KindNode},
+				Limit: 10,
+			},
+		},
+		{
+			name:              "sorting",
+			server:            scopedSSHUser("node-test-sorting", scope, sshLabels("*")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node", "prod-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds:  []string{types.KindNode},
+				Limit:  10,
+				SortBy: types.SortBy{Field: types.ResourceMetadataName},
+			},
+		},
+		{
+			name:              "include logins",
+			server:            scopedSSHUser("node-test-include-logins", scope, sshLabels("prod")),
+			nodeNamesExpected: []string{"prod-node"},
+			req: &proto.ListUnifiedResourcesRequest{
+				Kinds:         []string{types.KindNode},
+				Limit:         10,
+				IncludeLogins: true,
+			},
+			loginsExpected: []string{"root"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListUnifiedResources(t.Context(), tc.req)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(res.Resources))
+			for _, r := range res.Resources {
+				names = append(names, r.GetNode().GetName())
+				assert.NotEqual(t, "unscoped-node", r.GetNode().GetName())
+				assert.Equal(t, tc.loginsExpected, r.Logins)
+			}
+
+			assert.ElementsMatch(t, tc.nodeNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				assert.True(t, slices.IsSorted(names))
+			}
+		})
+	}
+}
+
 func withAccountAssignment(condition types.RoleConditionType, accountID, permissionSet string) authtest.CreateUserAndRoleOption {
 	return authtest.WithRoleMutator(func(role types.Role) {
 		r := role.(*types.RoleV6)

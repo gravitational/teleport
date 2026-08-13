@@ -124,14 +124,22 @@ type Server interface {
 	GetImmutableLabels() map[string]string
 }
 
+type serverOpt func(*ServerV2)
+
+func ServerWithScope(scope string) serverOpt {
+	return func(s *ServerV2) {
+		s.Scope = scope
+	}
+}
+
 // NewServer creates an instance of Server.
-func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
-	return NewServerWithLabels(name, kind, spec, map[string]string{})
+func NewServer(name, kind string, spec ServerSpecV2, opts ...serverOpt) (Server, error) {
+	return NewServerWithLabels(name, kind, spec, map[string]string{}, opts...)
 }
 
 // NewServerWithLabels is a convenience method to create
 // ServerV2 with a specific map of labels.
-func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
+func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string, opts ...serverOpt) (Server, error) {
 	server := &ServerV2{
 		Kind: kind,
 		Metadata: Metadata{
@@ -139,6 +147,9 @@ func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string
 			Labels: labels,
 		},
 		Spec: spec,
+	}
+	for _, opt := range opts {
+		opt(server)
 	}
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
