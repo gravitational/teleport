@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"path"
 	"slices"
 	"sort"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
@@ -512,6 +514,63 @@ func printRequestableRoles(cf *CLIConf, rows []requestableRoleRow) error {
 	}
 }
 
+// unifiedSearchKinds are the requestable resource kinds the unified resource
+// cache serves (see the watch list in lib/services/unified_resource.go), and
+// so the only kinds whose listings can carry per-dimension principal sets.
+// Requestable kinds outside this set, such as user groups and Identity Center
+// account assignments, are reachable only through ListResources; asking
+// ListUnifiedResources for one returns an empty page rather than an error.
+var unifiedSearchKinds = []string{
+	types.KindNode,
+	types.KindKubernetesCluster,
+	types.KindDatabase,
+	types.KindApp,
+	types.KindWindowsDesktop,
+	types.KindSAMLIdPServiceProvider,
+	types.KindIdentityCenterAccount,
+	types.KindGitServer,
+}
+
+// resourceSearchClient lists resources both ways, so a search can fall back to
+// ListResources for kinds the unified resource cache does not serve.
+type resourceSearchClient interface {
+	client.ListResourcesClient
+	client.ListUnifiedResourcesClient
+}
+
+// listRequestableResources lists the requestable resources of one kind.
+// Kinds the unified resource cache serves go through ListUnifiedResources, so
+// Auth returns each dimension's granted/requestable principal split instead of
+// every client recomputing it. The remaining kinds keep the ListResources path
+// and come back carrying no principal sets, which callers render the same way
+// they render a cluster too old to populate them: an empty Access column, and
+// no Principals key in JSON output.
+func listRequestableResources(ctx context.Context, clt resourceSearchClient, req proto.ListResourcesRequest, kind string) ([]*types.EnrichedResource, error) {
+	if !slices.Contains(unifiedSearchKinds, kind) {
+		resources, err := accessrequest.GetResourcesByKind(ctx, clt, req, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		enriched := make([]*types.EnrichedResource, 0, len(resources))
+		for _, r := range resources {
+			enriched = append(enriched, &types.EnrichedResource{ResourceWithLabels: r})
+		}
+		return enriched, nil
+	}
+
+	enriched, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{kind},
+		Labels:              req.Labels,
+		PredicateExpression: req.PredicateExpression,
+		SearchKeywords:      req.SearchKeywords,
+		UseSearchAsRoles:    req.UseSearchAsRoles,
+		IncludeLogins:       true,
+		IncludeRequestable:  true,
+		SortBy:              types.SortBy{Field: types.ResourceKind},
+	})
+	return enriched, trace.Wrap(err)
+}
+
 func searchRequestableResources(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -590,24 +649,19 @@ func searchRequestableResources(cf *CLIConf) error {
 
 	default:
 		// For all other resources, we connect to the auth server and list
-		// unified resources so Auth returns the granted/requestable split per
-		// principal dimension rather than each client recomputing it.
+		// resources through whichever API serves this kind.
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer clusterClient.Close()
 
-		enriched, err := client.GetAllUnifiedResources(cf.Context, clusterClient.AuthClient, &proto.ListUnifiedResourcesRequest{
-			Kinds:               []string{cf.ResourceKind},
+		enriched, err := listRequestableResources(cf.Context, clusterClient.AuthClient, proto.ListResourcesRequest{
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
 			SearchKeywords:      tc.SearchKeywords,
 			UseSearchAsRoles:    true,
-			IncludeLogins:       true,
-			IncludeRequestable:  true,
-			SortBy:              types.SortBy{Field: types.ResourceKind},
-		})
+		}, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -827,11 +881,13 @@ func principalHeading(kind string) string {
 }
 
 // hintConstraintSuffix builds the inline constraint suffix for the create
-// hint, covering every dimension with requestable values. Kinds without an
-// enforceable constraint yet (desktops, for now) get no suffix. Values escape
-// the characters the inline grammar treats specially: "\", ",", and "&".
+// hint, covering every dimension with requestable values. A resource kind
+// whose constraints nothing can enforce yet gets no suffix, keyed off the same
+// map the Auth gate and the client pre-flight use, so a kind gains its hint at
+// the moment it gains a feature ID. Values escape the characters the inline
+// grammar treats specially: "\", ",", and "&".
 func hintConstraintSuffix(resourceKind string, kinds []string, splits map[string]principalSplit) string {
-	if resourceKind != types.KindNode && resourceKind != types.KindApp {
+	if _, ok := componentfeatures.ConstraintFeatureForKind(resourceKind); !ok {
 		return ""
 	}
 	var b strings.Builder
@@ -874,9 +930,62 @@ type resourcePreviewJSON struct {
 	Principals map[string]principalSplitJSON `json:"principals"`
 }
 
-// onRequestPreview shows the granted vs. requestable principals for a single
-// resource, identified by its resource ID (e.g. /cluster/node/web-1), so a user
-// or agent can decide which principals to scope a request to.
+// createdRequestJSON is the structured output of `tsh request create --format
+// json`, carrying what an agent needs to track the request it just made: the
+// id to poll or assume, the state it landed in, the roles it resolved to, and
+// the resources it covers in the same inline form --resource accepts.
+type createdRequestJSON struct {
+	ID        string   `json:"id"`
+	State     string   `json:"state"`
+	User      string   `json:"user"`
+	Roles     []string `json:"roles"`
+	Resources []string `json:"resources,omitempty"`
+}
+
+// structuredRequestOutput reports whether the user asked for machine-readable
+// output, in which case human progress messages move off stdout.
+func structuredRequestOutput(cf *CLIConf) bool {
+	switch strings.ToLower(cf.Format) {
+	case teleport.JSON, teleport.YAML:
+		return true
+	default:
+		return false
+	}
+}
+
+// requestProgressWriter returns the stream human progress messages belong on:
+// stdout normally, stderr when stdout is carrying a structured document.
+func requestProgressWriter(cf *CLIConf) io.Writer {
+	if structuredRequestOutput(cf) {
+		return cf.Stderr()
+	}
+	return cf.Stdout()
+}
+
+// printCreatedRequest writes the created request as a single JSON or YAML
+// document.
+func printCreatedRequest(cf *CLIConf, req types.AccessRequest) error {
+	payload := createdRequestJSON{
+		ID:    req.GetName(),
+		State: req.GetState().String(),
+		User:  req.GetUser(),
+		Roles: req.GetRoles(),
+	}
+	if payload.Roles == nil {
+		payload.Roles = []string{}
+	}
+	for _, raid := range req.GetRequestedResourceAccessIDs() {
+		// Inline form, not the display form: an agent reading this is expected
+		// to feed the value straight back to --resource.
+		payload.Resources = append(payload.Resources, common.FormatResourceAccessIDInline(raid))
+	}
+
+	if strings.ToLower(cf.Format) == teleport.YAML {
+		return trace.Wrap(utils.WriteYAML(cf.Stdout(), payload))
+	}
+	return trace.Wrap(utils.WriteJSON(cf.Stdout(), payload))
+}
+
 // previewTargetCluster returns the cluster whose presence serves a preview
 // query: the ResourceID's cluster when set, else the connected cluster.
 func previewTargetCluster(currentCluster string, id types.ResourceID) string {
@@ -886,6 +995,9 @@ func previewTargetCluster(currentCluster string, id types.ResourceID) string {
 	return currentCluster
 }
 
+// onRequestPreview shows the granted vs. requestable principals for a single
+// resource, identified by its resource ID (e.g. /cluster/node/web-1), so a user
+// or agent can decide which principals to scope a request to.
 func onRequestPreview(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {

@@ -1480,6 +1480,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
+	reqCreate.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	reqReview := req.Command("review", "Review an Access Request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
@@ -3402,7 +3403,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			err := onRequestResolution(cf, tc, req)
 			return trace.Wrap(err)
 		}
-		fmt.Fprint(os.Stdout, "Request pending...\n")
+		fmt.Fprint(requestProgressWriter(cf), "Request pending...\n")
 	} else {
 		// This is a new access request, create it. This just creates the local
 		// object, it is not yet sent to the backend.
@@ -3423,7 +3424,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 				return trace.Wrap(err)
 			}
 		}
-		fmt.Fprint(os.Stdout, "Creating request...\n")
+		fmt.Fprint(requestProgressWriter(cf), "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
@@ -3440,8 +3441,17 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		cf.RequestID = req.GetName()
 	}
 
-	onRequestShow(cf)
-	fmt.Println("")
+	// Structured output keeps stdout to a single document describing the
+	// request, so progress chatter goes to stderr and the human table is
+	// skipped entirely.
+	if structuredRequestOutput(cf) {
+		if err := printCreatedRequest(cf, req); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		onRequestShow(cf)
+		fmt.Println("")
+	}
 
 	// Don't wait for request to get resolved, just print out request info.
 	if cf.NoWait {
@@ -3449,7 +3459,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	}
 
 	// Wait for the request to be resolved.
-	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	fmt.Fprintf(requestProgressWriter(cf), "Waiting for request approval...\n")
 
 	var resolvedReq types.AccessRequest
 	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {

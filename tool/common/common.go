@@ -225,41 +225,60 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	return r.GetName()
 }
 
-// FormatResourceAccessID returns the provided ResourceAccessID in its string form,
-// appending constraints when present. Values are escaped with the same
-// escaping the inline constraint grammar accepts, so a value containing ","
-// or "&" reads unambiguously and round-trips through the parser.
+// formatConstraintPairs renders a ResourceConstraints as the "key=v1,v2" pairs
+// the inline grammar uses, joined by "&". Values are escaped the way
+// splitConstraintValues expects, so a value containing "\", "," or "&" reads
+// unambiguously and survives a round trip through the parser. Constraints this
+// build cannot name render as the empty string.
+func formatConstraintPairs(c *types.ResourceConstraints) string {
+	if c == nil || c.GetDetails() == nil {
+		return ""
+	}
+
+	pair := func(key string, vals []string) string {
+		escaped := make([]string, 0, len(vals))
+		for _, v := range vals {
+			escaped = append(escaped, EscapeConstraintValue(v))
+		}
+		return fmt.Sprintf("%s=%s", key, strings.Join(escaped, ","))
+	}
+
+	switch d := c.GetDetails().(type) {
+	case *types.ResourceConstraints_AwsConsole:
+		if d.AwsConsole == nil {
+			return ""
+		}
+		return pair("role_arns", d.AwsConsole.RoleArns)
+	case *types.ResourceConstraints_Ssh:
+		if d.Ssh == nil {
+			return ""
+		}
+		return pair("logins", d.Ssh.Logins)
+	}
+	return ""
+}
+
+// FormatResourceAccessID returns the provided ResourceAccessID in the display
+// form used by request views, "<resource-id> (key=value,value)". Use
+// FormatResourceAccessIDInline for output a client is expected to feed back
+// into --resource.
 func FormatResourceAccessID(rid types.ResourceAccessID) string {
 	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
-	constraintsString := ""
-
-	escapeAll := func(vals []string) []string {
-		out := make([]string, 0, len(vals))
-		for _, v := range vals {
-			out = append(out, EscapeConstraintValue(v))
-		}
-		return out
+	if constraints := formatConstraintPairs(rid.GetConstraints()); constraints != "" {
+		return fmt.Sprintf("%s (%s)", resourceIDString, constraints)
 	}
+	return resourceIDString
+}
 
-	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
-		switch d := c.GetDetails().(type) {
-		case *types.ResourceConstraints_AwsConsole:
-			if d.AwsConsole == nil {
-				break
-			}
-			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(escapeAll(d.AwsConsole.RoleArns), ","))
-		case *types.ResourceConstraints_Ssh:
-			if d.Ssh == nil {
-				break
-			}
-			constraintsString = fmt.Sprintf("logins=%s", strings.Join(escapeAll(d.Ssh.Logins), ","))
-		}
+// FormatResourceAccessIDInline returns the provided ResourceAccessID in the
+// inline --resource grammar, "<resource-id>?key=value,value". Unlike the
+// display form, the result parses back into an equivalent ResourceAccessID, so
+// it is the form to emit wherever a client or agent will reuse the value.
+func FormatResourceAccessIDInline(rid types.ResourceAccessID) string {
+	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
+	if constraints := formatConstraintPairs(rid.GetConstraints()); constraints != "" {
+		return resourceIDString + "?" + constraints
 	}
-
-	if constraintsString != "" {
-		return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
-	}
-
 	return resourceIDString
 }
 

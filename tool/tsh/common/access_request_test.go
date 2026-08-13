@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -29,11 +30,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func TestAccessRequestSearch(t *testing.T) {
@@ -884,6 +888,144 @@ func TestPrincipalSplits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, principalSplits(tt.enriched))
 		})
+	}
+}
+
+// recordingSearchClient records which listing API a search used.
+type recordingSearchClient struct {
+	listed     []types.ResourceWithLabels
+	sawList    bool
+	sawUnified bool
+}
+
+func (c *recordingSearchClient) ListResources(_ context.Context, _ proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	c.sawList = true
+	return &types.ListResourcesResponse{Resources: c.listed}, nil
+}
+
+func (c *recordingSearchClient) ListUnifiedResources(_ context.Context, _ *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	c.sawUnified = true
+	return &proto.ListUnifiedResourcesResponse{}, nil
+}
+
+// TestListRequestableResources pins which listing API serves each requestable
+// kind. Routing every kind through ListUnifiedResources silently drops the
+// kinds the unified resource cache does not hold, so those keep the
+// ListResources path and come back without principal sets.
+func TestListRequestableResources(t *testing.T) {
+	t.Parallel()
+
+	userGroup, err := types.NewUserGroup(types.Metadata{Name: "developers"}, types.UserGroupSpecV1{})
+	require.NoError(t, err)
+
+	t.Run("kind outside the unified cache falls back to ListResources", func(t *testing.T) {
+		clt := &recordingSearchClient{listed: []types.ResourceWithLabels{userGroup}}
+
+		got, err := listRequestableResources(context.Background(), clt, proto.ListResourcesRequest{
+			UseSearchAsRoles: true,
+		}, types.KindUserGroup)
+		require.NoError(t, err)
+
+		require.True(t, clt.sawList, "expected the ListResources path")
+		require.False(t, clt.sawUnified, "unified resources cannot serve user groups")
+		require.Len(t, got, 1)
+		require.Equal(t, "developers", got[0].GetName())
+		// No principal sets on this path, so the Access column stays empty
+		// rather than reading as "0 granted".
+		require.Nil(t, principalSplits(got[0]))
+	})
+
+	t.Run("kind in the unified cache uses ListUnifiedResources", func(t *testing.T) {
+		clt := &recordingSearchClient{}
+
+		_, err := listRequestableResources(context.Background(), clt, proto.ListResourcesRequest{
+			UseSearchAsRoles: true,
+		}, types.KindNode)
+		require.NoError(t, err)
+
+		require.True(t, clt.sawUnified, "expected the ListUnifiedResources path")
+		require.False(t, clt.sawList, "nodes should not fall back")
+	})
+
+	t.Run("every requestable kind reaches a listing API", func(t *testing.T) {
+		for _, kind := range types.RequestableResourceKinds {
+			// Kubernetes subresources are served by the kube proxy, not by
+			// either listing API, and are handled before this call site.
+			if kind == types.KindKubernetesResource {
+				continue
+			}
+			clt := &recordingSearchClient{}
+			_, err := listRequestableResources(context.Background(), clt, proto.ListResourcesRequest{}, kind)
+			require.NoError(t, err, "kind %q", kind)
+			require.True(t, clt.sawList || clt.sawUnified, "kind %q reached no listing API", kind)
+		}
+	})
+}
+
+// TestPrintCreatedRequest pins the `tsh request create --format json` shape
+// promised by RFD 228: the id, state and resolved roles, plus the requested
+// resources in the same inline form --resource accepts.
+func TestPrintCreatedRequest(t *testing.T) {
+	t.Parallel()
+
+	req, err := types.NewAccessRequestWithResources("req-1", "alice", []string{"dba"}, []types.ResourceAccessID{
+		{
+			Id: types.ResourceID{ClusterName: "main", Kind: types.KindNode, Name: "web-1"},
+			Constraints: &types.ResourceConstraints{
+				Version: types.ResourceConstraintVersionV1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{Logins: []string{"root", "admin"}},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	cf := &CLIConf{Format: teleport.JSON, OverrideStdout: &out}
+	require.NoError(t, printCreatedRequest(cf, req))
+
+	var got createdRequestJSON
+	require.NoError(t, json.Unmarshal(out.Bytes(), &got))
+	require.Equal(t, "req-1", got.ID)
+	require.Equal(t, "PENDING", got.State)
+	require.Equal(t, "alice", got.User)
+	require.Equal(t, []string{"dba"}, got.Roles)
+	require.Equal(t, []string{"/main/node/web-1?logins=root,admin"}, got.Resources)
+
+	// The resources field must survive a round trip back through the parser
+	// an agent would feed it to.
+	parsed, err := common.ParseResourceValues(got.Resources)
+	require.NoError(t, err)
+	require.Len(t, parsed, 1)
+	ssh, ok := parsed[0].GetConstraints().GetDetails().(*types.ResourceConstraints_Ssh)
+	require.True(t, ok)
+	require.Equal(t, []string{"root", "admin"}, ssh.Ssh.Logins)
+}
+
+// TestStructuredRequestOutput pins that progress chatter leaves stdout only
+// when stdout is carrying a structured document.
+func TestStructuredRequestOutput(t *testing.T) {
+	t.Parallel()
+
+	for format, structured := range map[string]bool{
+		teleport.JSON: true,
+		teleport.YAML: true,
+		teleport.Text: false,
+		"":            false,
+	} {
+		var stdout, stderr bytes.Buffer
+		cf := &CLIConf{Format: format, OverrideStdout: &stdout, overrideStderr: &stderr}
+		require.Equal(t, structured, structuredRequestOutput(cf), "format %q", format)
+
+		fmt.Fprint(requestProgressWriter(cf), "progress")
+		if structured {
+			require.Empty(t, stdout.String(), "format %q must keep stdout clean", format)
+			require.Equal(t, "progress", stderr.String())
+		} else {
+			require.Equal(t, "progress", stdout.String())
+			require.Empty(t, stderr.String())
+		}
 	}
 }
 

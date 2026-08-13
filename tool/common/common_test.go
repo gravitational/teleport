@@ -322,6 +322,66 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 	})
 }
 
+// TestFormatResourceAccessIDInline pins that the inline form parses back into
+// an equivalent ResourceAccessID, which is what makes it safe to hand to an
+// agent that will feed it to --resource.
+func TestFormatResourceAccessIDInline(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rid  types.ResourceAccessID
+		want string
+	}{
+		{
+			name: "unconstrained",
+			rid:  types.ResourceAccessID{Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "web-1"}},
+			want: "/cluster/node/web-1",
+		},
+		{
+			name: "ssh logins",
+			rid: types.ResourceAccessID{
+				Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "web-1"},
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_Ssh{Ssh: &types.SSHResourceConstraints{Logins: []string{"root", "admin"}}},
+				},
+			},
+			want: "/cluster/node/web-1?logins=root,admin",
+		},
+		{
+			// An IAM role name may contain a literal comma, which the inline
+			// grammar escapes rather than reading as a value separator.
+			name: "value containing a comma is escaped",
+			rid: types.ResourceAccessID{
+				Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws_console"},
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123456789012:role/a,b"}},
+					},
+				},
+			},
+			want: `/cluster/app/aws_console?role_arns=arn:aws:iam::123456789012:role/a\,b`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := FormatResourceAccessIDInline(tt.rid)
+			require.Equal(t, tt.want, got)
+
+			parsed, err := ParseResourceValues([]string{got})
+			require.NoError(t, err)
+			require.Len(t, parsed, 1)
+			require.Equal(t, tt.rid.GetResourceID(), parsed[0].GetResourceID())
+			require.Equal(t, tt.rid.GetConstraints().GetDetails(), parsed[0].GetConstraints().GetDetails())
+		})
+	}
+}
+
 // The output forms, plus the all-empty input.
 func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
 	t.Parallel()
