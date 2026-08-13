@@ -574,9 +574,8 @@ resource type and the session creator (user who initiated the session) roles and
 | Session Field | Description | Type |
 |---|---|---|
 | `session.id` | The unique identifier of the session. | `string` |
-| `session.kind` | The kind of session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
 | `session.participants` | The list of users who participated in the session. | `array<string>` |
-| `session.proto` | The proto used for the session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
+| `session.proto` | The proto used for the session (e.g., "ssh", "kube", "db", "tdp", "app"). | `string` |
 | `session.user` | The user who initiated the session. | `string` |
 | `session.user_roles` | The roles assigned to the user who initiated the session. | `array<string>` |
 | `session.user_traits` | The traits assigned to the user who initiated the session. | `dict<string, array<string>>` |
@@ -643,6 +642,22 @@ for Windows Desktop sessions together with the user and session fields above.
 | `session.domain` | The domain of the Windows desktop where the session took place. | `string` |
 | `session.windows_user` | The username used to log in to the Windows desktop during the session. | `string` |
 | `session.desktop_labels` | The labels assigned to the Windows desktop where the session took place. | `dict<string, string>` |
+
+</TabItem>
+<TabItem value="Application Sessions" label="Application Sessions">
+
+The following application session fields can be used in `where` expressions to filter access
+for application sessions together with the user and session fields above.
+
+| Application Session Field | Description | Type |
+|---|---|---|
+| `session.app_name` | The name of the application where the session took place. | `string` |
+| `session.app_uri` | The endpoint of the application where the session took place. | `string` |
+| `session.app_public_addr` | The public address of the application where the session took place. | `string` |
+| `session.app_labels` | The labels assigned to the application where the session took place. | `dict<string, string>` |
+
+Only HTTP/HTTPS applications produce session recordings, so these fields are not
+available for TCP applications.
 
 </TabItem>
 </Tabs>
