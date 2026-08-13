@@ -327,6 +327,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		token   types.ProvisionTokenV2
 		initReq *proto.RegisterUsingBoundKeypairInitialRequest
 		solver  *wrappedSolver
+		setup   func(t *testing.T)
 
 		assertError       require.ErrorAssertionFunc
 		assertResponse    func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse)
@@ -368,12 +369,31 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			name: "reauth-success",
 
 			token: makeToken(withBoundKey(correctPublicKey), func(v2 *types.ProvisionTokenV2) {
-				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+				v2.Status.BoundKeypair.BoundBotInstanceID = "reauth-instance"
 			}),
 			initReq: makeInitReq(func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
-				r.JoinRequest.BotInstanceID = "asdf"
+				r.JoinRequest.BotInstanceID = "reauth-instance"
+				r.JoinRequest.BotGeneration = 1
 			}),
 			solver: makeSolver(correctPublicKey),
+			setup: func(t *testing.T) {
+				authRecord := machineidv1pb.BotInstanceStatusAuthentication_builder{
+					Generation: 1,
+				}.Build()
+				_, err := authServer.BotInstance.CreateBotInstance(ctx, machineidv1pb.BotInstance_builder{
+					Kind:    types.KindBotInstance,
+					Version: types.V1,
+					Spec: machineidv1pb.BotInstanceSpec_builder{
+						BotName:    "test",
+						InstanceId: "reauth-instance",
+					}.Build(),
+					Status: machineidv1pb.BotInstanceStatus_builder{
+						InitialAuthentication: authRecord,
+						LatestAuthentications: []*machineidv1pb.BotInstanceStatusAuthentication{authRecord},
+					}.Build(),
+				}.Build())
+				require.NoError(t, err)
+			},
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
@@ -391,6 +411,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			}),
 			initReq: makeInitReq(func(r *proto.RegisterUsingBoundKeypairInitialRequest) {
 				r.JoinRequest.BotInstanceID = "asdf"
+				r.JoinRequest.BotGeneration = 1
 			}),
 			solver: makeSolver(incorrectPublicKey),
 
@@ -857,6 +878,10 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
 			token, err := types.NewProvisionTokenFromSpecAndStatus(
 				tt.name, time.Now().Add(2*time.Hour), tt.token.Spec, tt.token.Status,
 			)

@@ -56,6 +56,7 @@ export const CCDiscover = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ccdiscover"
+
       {...otherProps}
       ref={ref}
     >

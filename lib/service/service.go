@@ -2587,7 +2587,7 @@ func (process *TeleportProcess) initAuthService() error {
 				PrimaryCache:       cache,
 				Events:             as.Services,
 				Inventory:          as.Services,
-				BotInstanceBackend: as.Services,
+				BotInstanceBackend: as.Services.BotInstance,
 				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
 				MetricsRegistry:    process.metricsRegistry.Wrap("inventory_cache"),
 			})
@@ -3254,7 +3254,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.BotInstance = services.BotInstance
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
-	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
 
@@ -3306,7 +3305,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
-	cfg.AppAuthConfig = client
 	cfg.SubCAService = client
 
 	return accesspoint.NewCache(cfg)
@@ -3623,9 +3621,12 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatche
 		asyncCfg,
 	)
 	if err != nil {
+<<<<<<< HEAD
 		if sealer != nil {
 			_ = sealer.Close()
 		}
+=======
+>>>>>>> kylekloberdanz/audit-event-batch
 		return nil, trace.Wrap(err)
 	}
 	process.registerEmitter(emitter)

@@ -754,7 +754,8 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	require.NoError(t, err)
 	botMetadata := bot.GetMetadata()
 	botMetadata.Labels = map[string]string{
-		types.BotLabel:           bot.GetName(),
+		types.BotLabel: bot.GetName(),
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		types.BotGenerationLabel: "0",
 	}
 	bot.SetMetadata(botMetadata)

@@ -1013,13 +1013,7 @@ func TestValidateRole(t *testing.T) {
 					Rules: []*scopedaccessv1.ScopedRule{
 						scopedaccessv1.ScopedRule_builder{
 							Resources: []string{types.KindWorkloadIdentity},
-							Verbs: []string{
-								types.VerbCreate,
-								types.VerbUpdate,
-								types.VerbDelete,
-								types.VerbList,
-								types.VerbReadNoSecrets,
-							},
+							Verbs:     EncodeScopedVerbs(Create, Update, Delete, List, Read),
 						}.Build(),
 					},
 				}.Build(),
@@ -1041,7 +1035,7 @@ func TestValidateRole(t *testing.T) {
 					Rules: []*scopedaccessv1.ScopedRule{
 						scopedaccessv1.ScopedRule_builder{
 							Resources: []string{types.KindWorkloadIdentity},
-							Verbs:     []string{types.VerbRead},
+							Verbs:     EncodeScopedVerbs(Read, Secrets),
 						}.Build(),
 					},
 				}.Build(),
@@ -2264,7 +2258,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 		Rules: []*scopedaccessv1.ScopedRule{
 			scopedaccessv1.ScopedRule_builder{
 				Resources: []string{KindScopedRole},
-				Verbs:     []string{types.VerbReadNoSecrets},
+				Verbs:     EncodeScopedVerbs(Read),
 			}.Build(),
 		},
 		Ssh: scopedaccessv1.ScopedRoleSSH_builder{

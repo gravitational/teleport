@@ -136,7 +136,7 @@ export class WindowsManager {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
-        preload: path.join(__dirname, '../preload/index.js'),
+        preload: path.join(import.meta.dirname, '../preload/index.mjs'),
       },
     });
 
@@ -246,7 +246,8 @@ export class WindowsManager {
       await this.whenFrontendAppIsReady();
     } catch (error) {
       this.logger.error(
-        `Could not send the deep link to the frontend app: ${error.message}`
+        'Could not send the deep link to the frontend app',
+        error
       );
       return;
     }

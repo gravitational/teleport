@@ -15,9 +15,9 @@
             "id": "d0000000-0000-4000-8000-0000000000db",
             "name": "prod-db",
             "kind": "resource",
-            "sub_kind": "db",
+            "sub_kind": "database",
             "source": "TELEPORT",
-            "origin": "teleport_db"
+            "origin": "teleport_database"
           },
           "level": "standing",
           "grant_counts": {"standing": 1, "impersonate": 0, "request": 0},
@@ -67,9 +67,9 @@
             "id": "b6c00000-0000-4000-8000-000000000001",
             "name": "break-glass-prod",
             "kind": "resource",
-            "sub_kind": "db",
+            "sub_kind": "database",
             "source": "TELEPORT",
-            "origin": "teleport_db"
+            "origin": "teleport_database"
           },
           "level": "standing",
           "temporary": true,
@@ -78,9 +78,9 @@
             {
               "node": {
                 "id": "b6c0acc0-0000-4000-8000-000000000003",
-                "name": "break-glass",
+                "name": "ar_user_group_019fc969-3cb3-77d5-b04a-7beb1a6ec1b2",
                 "kind": "identity_group",
-                "sub_kind": "access_request",
+                "sub_kind": "role",
                 "source": "TELEPORT",
                 "origin": "teleport_access_request",
                 "temporary": true

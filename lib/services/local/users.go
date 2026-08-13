@@ -200,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -1234,6 +1233,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1667,7 +1667,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1704,7 +1703,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1745,7 +1743,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
@@ -1769,7 +1767,7 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)
@@ -1792,7 +1790,7 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)
@@ -1886,7 +1884,6 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -2100,6 +2097,11 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
@@ -2124,6 +2126,11 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2147,6 +2154,11 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2184,7 +2196,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2219,7 +2230,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.

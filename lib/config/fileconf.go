@@ -774,33 +774,33 @@ func (a *AuditQueueConfig) Parse() (servicecfg.AuditQueueConfig, error) {
 
 // CachePolicy is used to control  local cache
 type CachePolicy struct {
-	// Type is for cache type `sqlite` or `in-memory`
-	Type string `yaml:"type,omitempty"`
-	// EnabledFlag enables or disables cache
-	EnabledFlag string `yaml:"enabled,omitempty"`
-	// TTL sets maximum TTL for the cached values
-	TTL string `yaml:"ttl,omitempty"`
 	// MaxBackoff sets the maximum backoff on error.
 	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
-}
 
-// Enabled determines if a given "_service" section has been set to 'true'
-func (c *CachePolicy) Enabled() bool {
-	if c.EnabledFlag == "" {
-		return true
-	}
-	enabled, _ := apiutils.ParseBool(c.EnabledFlag)
-	return enabled
+	// ---- Deprecated Fields ------
+	// Type is for cache type `sqlite` or `in-memory`
+	// Deprecated: No longer supported. All caches are `in-memory`. This
+	// field still exists to prevent breaking any teleport.yaml files which
+	// had specified a type prior to deprecation.
+	Type string `yaml:"type,omitempty"`
+	// EnabledFlag enables or disables cache
+	// Deprecated: No longer supported. Caching is always enabled. This
+	// field still exists to prevent breaking any teleport.yaml files which
+	// had specified a value prior to deprecation.
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// TTL sets maximum TTL for the cached values
+	// Deprecated: No longer supported. Caches no longer evict stale data. This
+	// field still exists to prevent breaking any teleport.yaml files which
+	// had specified a value prior to deprecation.
+	TTL string `yaml:"ttl,omitempty"`
+	// ---- Deprecated Fields ------
 }
 
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 	out := servicecfg.CachePolicy{
-		Enabled:        c.Enabled(),
+		Enabled:        true,
 		MaxRetryPeriod: c.MaxBackoff,
-	}
-	if err := out.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return &out, nil
 }

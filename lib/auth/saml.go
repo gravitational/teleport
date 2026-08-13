@@ -63,7 +63,12 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
-	if err := services.ValidateSAMLConnector(connector, a, types.SAMLConnectorValidationWithSecrets(true)); err != nil {
+	if err := services.ValidateSAMLConnector(
+		connector,
+		a,
+		types.SAMLConnectorValidationWithSecrets(true),
+		types.SAMLConnectorValidationWithAttributesToRoles(true),
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -106,7 +111,12 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
-	if err := services.ValidateSAMLConnector(connector, a, types.SAMLConnectorValidationWithSecrets(true)); err != nil {
+	if err := services.ValidateSAMLConnector(
+		connector,
+		a,
+		types.SAMLConnectorValidationWithSecrets(true),
+		types.SAMLConnectorValidationWithAttributesToRoles(true),
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -145,7 +155,12 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
-	if err := services.ValidateSAMLConnector(connector, a, types.SAMLConnectorValidationWithSecrets(true)); err != nil {
+	if err := services.ValidateSAMLConnector(
+		connector,
+		a,
+		types.SAMLConnectorValidationWithSecrets(true),
+		types.SAMLConnectorValidationWithAttributesToRoles(true),
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

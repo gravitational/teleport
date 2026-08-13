@@ -196,14 +196,12 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       ps => !ps.requiresRequest
     );
     if (isAwsIdentityCenterApp) {
-      awsConsoleOrIdentityCenterRoles = permissionSets.map(
-        (ps): AwsRole => ({
-          name: ps.name,
-          arn: ps.name,
-          display: ps.name,
-          accountId: name,
-        })
-      );
+      awsConsoleOrIdentityCenterRoles = permissionSets.map((ps): AwsRole => ({
+        name: ps.name,
+        arn: ps.name,
+        display: ps.name,
+        accountId: name,
+      }));
     }
     function getAwsLaunchUrl(arnOrPermSetName: string) {
       if (isAwsIdentityCenterApp) {

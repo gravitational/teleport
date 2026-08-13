@@ -22,7 +22,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 )
+
+type nameableTestResource struct {
+	metadata *headerv1.Metadata
+}
+
+func (r *nameableTestResource) GetMetadata() *headerv1.Metadata {
+	return r.metadata
+}
+
+func (r *nameableTestResource) SetMetadata(metadata *headerv1.Metadata) {
+	r.metadata = metadata
+}
 
 type normalizerTestResource struct {
 	kind       string
@@ -70,6 +84,18 @@ func TestResourceNormalizersChainsNormalizers(t *testing.T) {
 	require.True(t, resource.defaulted)
 }
 
+func TestForceKindFuncUsesCallerSuppliedSetter(t *testing.T) {
+	var resource normalizerTestResource
+	normalizer := ForceKindFunc[normalizerTestResource](func(resource *normalizerTestResource) {
+		resource.kind = "test_kind"
+	})
+	require.NoError(t, normalizer.NormalizeCreate(t.Context(), &resource))
+	require.Equal(t, "test_kind", resource.kind)
+
+	require.NoError(t, normalizer.NormalizeUpdate(t.Context(), &resource))
+	require.Equal(t, "test_kind", resource.kind)
+}
+
 func TestResourceNormalizersStopsOnError(t *testing.T) {
 	sentinel := errors.New("stop")
 	normalizers := ResourceNormalizers[normalizerTestResource]{
@@ -87,6 +113,19 @@ func TestResourceNormalizersStopsOnError(t *testing.T) {
 	require.Empty(t, resource.kind)
 }
 
+func TestForceName(t *testing.T) {
+	// ForceName populates name if not present.
+	resource := &nameableTestResource{}
+	require.NoError(t, ForceName[nameableTestResource]("foo").NormalizeCreate(t.Context(), resource))
+	require.Equal(t, "foo", resource.GetMetadata().GetName())
+
+	// ForceName overrides the name but preserves other existing fields.
+	resource = &nameableTestResource{metadata: &headerv1.Metadata{Name: "llama", Description: "keep"}}
+	require.NoError(t, ForceName[nameableTestResource]("foo").NormalizeUpdate(t.Context(), resource))
+	require.Equal(t, "foo", resource.GetMetadata().GetName())
+	require.Equal(t, "keep", resource.GetMetadata().GetDescription())
+}
+
 func TestSpecificNormalizersRejectUnsupportedResource(t *testing.T) {
 	type unsupported struct{}
 
@@ -94,5 +133,8 @@ func TestSpecificNormalizersRejectUnsupportedResource(t *testing.T) {
 	require.Error(t, err)
 
 	err = ForceKind[unsupported]("kind").NormalizeCreate(t.Context(), &unsupported{})
+	require.Error(t, err)
+
+	err = ForceName[unsupported]("name").NormalizeCreate(t.Context(), &unsupported{})
 	require.Error(t, err)
 }

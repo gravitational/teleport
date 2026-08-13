@@ -22,6 +22,7 @@ import (
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -35,9 +36,10 @@ func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToke
 			return teleport.NewScopedTokenClient(clientFromProvider(p))
 		},
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
-			path.Root("metadata").AtName("name"),
-			path.Root("scope"),
-		),
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			}),
 		Kind: apitypes.KindScopedToken,
 		Codec: tfdriver.DataSourceCodecFuncs[joiningv1.ScopedToken]{
 			SchemaFunc:  schemav1.GenSchemaScopedToken,
@@ -60,10 +62,15 @@ func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, t
 		},
 		Normalizer: tfdriver.ForceKind[joiningv1.ScopedToken](apitypes.KindScopedToken),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(
-			path.Root("metadata").AtName("name"),
-			path.Root("scope"),
-			func(st *joiningv1.ScopedToken) (string, string) {
-				return st.GetMetadata().GetName(), st.GetScope()
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+			func(st *joiningv1.ScopedToken) scopes.QualifiedName {
+				return scopes.QualifiedName{
+					Name:  st.GetMetadata().GetName(),
+					Scope: st.GetScope(),
+				}
 			},
 		),
 		ResourceRevision: func(st *joiningv1.ScopedToken) string {

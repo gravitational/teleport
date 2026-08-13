@@ -17,7 +17,6 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -62,12 +61,8 @@ func (s *TerraformSuiteOSS) TestSessionRecordingConfig() {
 }
 
 func (s *TerraformSuiteOSS) TestImportSessionRecordingConfig() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
 	r := "teleport_session_recording_config"
-	id := "test_import"
-	name := r + "." + id
+	name := r + "." + "session_recording_config"
 
 	sessionrRecordingConfig := &types.SessionRecordingConfigV2{
 		Metadata: types.Metadata{},
@@ -78,16 +73,16 @@ func (s *TerraformSuiteOSS) TestImportSessionRecordingConfig() {
 	err := sessionrRecordingConfig.CheckAndSetDefaults()
 	require.NoError(s.T(), err)
 
-	recordingConfigBefore, err := s.client.GetSessionRecordingConfig(ctx)
+	recordingConfigBefore, err := s.client.GetSessionRecordingConfig(s.T().Context())
 	require.NoError(s.T(), err)
 
-	_, err = s.client.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigv1.UpsertSessionRecordingConfigRequest{
+	_, err = s.client.ClusterConfigClient().UpsertSessionRecordingConfig(s.T().Context(), &clusterconfigv1.UpsertSessionRecordingConfigRequest{
 		SessionRecordingConfig: sessionrRecordingConfig,
 	})
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		recordingConfigCurrent, err := s.client.GetSessionRecordingConfig(ctx)
+		recordingConfigCurrent, err := s.client.GetSessionRecordingConfig(s.T().Context())
 		require.NoError(s.T(), err)
 
 		return recordingConfigBefore.GetMetadata().Revision != recordingConfigCurrent.GetMetadata().Revision
@@ -97,10 +92,10 @@ func (s *TerraformSuiteOSS) TestImportSessionRecordingConfig() {
 		ProtoV6ProviderFactories: s.terraformProviders,
 		Steps: []resource.TestStep{
 			{
-				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "` + id + `" { }`,
+				Config:        s.terraformConfig + "\n" + `resource "` + r + `" "session_recording_config" { }`,
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: "session_recording_config",
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(s.T(), "session_recording_config", state[0].Attributes["kind"])
 					require.Equal(s.T(), "off", state[0].Attributes["spec.mode"])

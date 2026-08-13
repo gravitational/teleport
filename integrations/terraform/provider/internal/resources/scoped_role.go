@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
@@ -34,8 +35,12 @@ func NewScopedRoleDataSourceType() tfdriver.DataSourceType[accessv1.ScopedRole, 
 		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[accessv1.ScopedRole, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedRoleClient(clientFromProvider(p))
 		},
-		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(path.Root("metadata").AtName("name"), path.Root("scope")),
-		Kind:       scopedaccess.KindScopedRole,
+		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			}),
+		Kind: scopedaccess.KindScopedRole,
 		Codec: tfdriver.DataSourceCodecFuncs[accessv1.ScopedRole]{
 			SchemaFunc:  schemav1.GenSchemaScopedRole,
 			ToStateFunc: schemav1.CopyScopedRoleToTerraform,
@@ -57,10 +62,15 @@ func NewScopedRoleResourceType() tfdriver.ResourceType[accessv1.ScopedRole, tfdr
 		},
 		Normalizer: tfdriver.ForceKind[accessv1.ScopedRole](scopedaccess.KindScopedRole),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(
-			path.Root("metadata").AtName("name"),
-			path.Root("scope"),
-			func(st *accessv1.ScopedRole) (string, string) {
-				return st.GetMetadata().GetName(), st.GetScope()
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+			func(st *accessv1.ScopedRole) scopes.QualifiedName {
+				return scopes.QualifiedName{
+					Name:  st.GetMetadata().GetName(),
+					Scope: st.GetScope(),
+				}
 			}),
 		ResourceRevision: func(st *accessv1.ScopedRole) string {
 			return st.GetMetadata().GetRevision()

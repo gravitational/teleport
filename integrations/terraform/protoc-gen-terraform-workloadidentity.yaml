@@ -35,6 +35,7 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "WorkloadIdentity.metadata.id"
+  - "WorkloadIdentity.metadata.revision"
 
   # The extra_claims field is a `google.protobuf.Struct` which isn't currently
   # supported by protoc-gen-terraform.
@@ -55,6 +56,8 @@ required_fields: []
 plan_modifiers:
   # Force to recreate resource if it's name changes
   Metadata.name:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+  WorkloadIdentity.scope:
     - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time

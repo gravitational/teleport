@@ -56,6 +56,7 @@ export const GridNine = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-gridnine"
+
       {...otherProps}
       ref={ref}
     >

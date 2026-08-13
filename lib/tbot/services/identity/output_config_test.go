@@ -33,7 +33,6 @@ func TestIdentityOutput_YAML(t *testing.T) {
 			name: "full",
 			in: OutputConfig{
 				Destination:         dest,
-				Roles:               []string{"access"},
 				Cluster:             "leaf.example.com",
 				SSHConfigMode:       SSHConfigModeOff,
 				AllowReissue:        true,
@@ -61,7 +60,6 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			in: func() *OutputConfig {
 				return &OutputConfig{
 					Destination:   destination.NewMemory(),
-					Roles:         []string{"access"},
 					SSHConfigMode: SSHConfigModeOn,
 				}
 			},
@@ -98,16 +96,15 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "ssh_config: unrecognized value \"invalid\"",
 		},
 		{
-			name: "delegation session id conflicts with roles",
+			name: "roles is no longer supported",
 			in: func() *OutputConfig {
 				return &OutputConfig{
-					Destination:         destination.NewMemory(),
-					Roles:               []string{"access"},
-					SSHConfigMode:       SSHConfigModeOn,
-					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+					Destination:     destination.NewMemory(),
+					SSHConfigMode:   SSHConfigModeOn,
+					DeprecatedRoles: []string{"access"},
 				}
 			},
-			wantErr: "delegation_session_id: is mutually-exclusive with roles",
+			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name:   "scoped valid",
@@ -127,11 +124,11 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			scoped: true,
 			in: func() *OutputConfig {
 				return &OutputConfig{
-					Destination: destination.NewMemory(),
-					Roles:       []string{"access"},
+					Destination:     destination.NewMemory(),
+					DeprecatedRoles: []string{"access"},
 				}
 			},
-			wantErr: "roles: not supported with scopes",
+			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name:   "scoped with allow_reissue",

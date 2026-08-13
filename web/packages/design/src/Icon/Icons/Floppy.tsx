@@ -56,6 +56,7 @@ export const Floppy = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-floppy"
+
       {...otherProps}
       ref={ref}
     >

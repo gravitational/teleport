@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -50,13 +51,41 @@ import (
 var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
-	logComponent                     = "vnet"
-	dnsLogComponent                  = "dns"
-	nicID                            = 1
-	mtu                              = 1500
+	logComponent    = "vnet"
+	dnsLogComponent = "dns"
+	nicID           = 1
+	// vnetTUNMTU is the default MTU for the TUN device. It can be overridden
+	// with the TELEPORT_UNSTABLE_VNET_TUN_MTU environment variable.
+	vnetTUNMTU = 16 * 1024
+	// vnetTUNMTUEnvVar overrides the default TUN device MTU. It must be set in
+	// the environment of the VNet admin process.
+	vnetTUNMTUEnvVar = "TELEPORT_UNSTABLE_VNET_TUN_MTU"
+	// minTUNMTU is the lowest accepted MTU override, chosen because IPv6
+	// requires a minimum link MTU of 1280 bytes (RFC 8200).
+	minTUNMTU = 1280
+	// maxTUNMTU is the largest possible IP packet size, the 16-bit total
+	// length field limit shared by IPv4 (RFC 791) and IPv6 (RFC 8200).
+	maxTUNMTU                        = 65535
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
 )
+
+// tunMTU returns the MTU to use for the TUN device.
+func tunMTU(ctx context.Context) int {
+	env := os.Getenv(vnetTUNMTUEnvVar)
+	if env == "" {
+		return vnetTUNMTU
+	}
+	mtu, err := strconv.Atoi(env)
+	if err != nil || mtu < minTUNMTU || mtu > maxTUNMTU {
+		log.WarnContext(ctx, "Ignoring invalid TUN MTU override.",
+			"env_var", vnetTUNMTUEnvVar, "value", env, "min", minTUNMTU, "max", maxTUNMTU)
+		return vnetTUNMTU
+	}
+	log.InfoContext(ctx, "Using TUN MTU override from environment.",
+		"env_var", vnetTUNMTUEnvVar, "mtu", mtu)
+	return mtu
+}
 
 // networkStackConfig holds configuration parameters for the VNet network stack.
 type networkStackConfig struct {
@@ -66,6 +95,11 @@ type networkStackConfig struct {
 	ipv6Prefix tcpip.Address
 	// dnsIPv6 is the IPv6 address on which to host the DNS server. It must be under IPv6Prefix.
 	dnsIPv6 tcpip.Address
+	// ipv6Disabled is true when IPv6 is disabled on the host. The network
+	// stack keeps its internal IPv6 prefix, but VNet doesn't answer AAAA
+	// queries, has no IPv6 DNS address, and doesn't register the IPv6
+	// prefix on its TUN device.
+	ipv6Disabled bool
 	// tcpHandlerResolver will be used to resolve all DNS queries that VNet may
 	// need to handle.
 	tcpHandlerResolver *tcpHandlerResolver
@@ -83,10 +117,23 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 	if c.ipv6Prefix.Len() != 16 || c.ipv6Prefix.AsSlice()[0] != 0xfd {
 		return trace.BadParameter("ipv6Prefix must be an IPv6 ULA address")
 	}
+	if !c.ipv6Disabled && c.dnsIPv6 == (tcpip.Address{}) {
+		return trace.BadParameter("dnsIPv6 is required when IPv6 is enabled")
+	}
 	if c.tcpHandlerResolver == nil {
 		return trace.BadParameter("tcpHandlerResolver is required")
 	}
 	return nil
+}
+
+// getIPv6Prefix returns the IPv6 prefix to expose outside the network stack:
+// empty when IPv6 is disabled on the host, even though ipv6Prefix is always
+// set internally. Use it whenever the prefix leaves the network stack.
+func (c *networkStackConfig) getIPv6Prefix() string {
+	if c.ipv6Disabled {
+		return ""
+	}
+	return c.ipv6Prefix.String()
 }
 
 // errNoTCPHandler should be returned by tcpHandlerResolvers when no handler
@@ -122,6 +169,11 @@ type udpHandler interface {
 type TUNDevice interface {
 	// Name returns the current name of the Device.
 	Name() (string, error)
+
+	// MTU returns the MTU of the Device. The network stack sizes its link
+	// endpoint and packet buffers from this value, so it must not change over
+	// the lifetime of a Device.
+	MTU() (int, error)
 
 	// Write one or more packets to the device (without any additional headers).
 	// On a successful write it returns the number of packets written. A nonzero
@@ -163,6 +215,12 @@ type networkStack struct {
 
 	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
 	ipv6Prefix tcpip.Address
+
+	// ipv6Disabled is true when IPv6 is disabled on the host. The network
+	// stack keeps its internal IPv6 prefix, but VNet doesn't answer AAAA
+	// queries, has no IPv6 DNS address, and doesn't register the IPv6
+	// prefix on its TUN device.
+	ipv6Disabled bool
 
 	// diagProbeIPv6 is the IPv6 address (ipv6Prefix::2) returned to diagnostic probe queries.
 	// Set once in newNetworkStack.
@@ -285,7 +343,11 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	logger := slog.With(teleport.ComponentKey, logComponent)
 	dnsLogger := slog.With(teleport.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
 
-	stack, linkEndpoint, err := createStack()
+	mtu, err := cfg.tunDevice.MTU()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TUN device MTU")
+	}
+	stack, linkEndpoint, err := createStack(uint32(mtu))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -299,6 +361,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		stack:              stack,
 		linkEndpoint:       linkEndpoint,
 		ipv6Prefix:         cfg.ipv6Prefix,
+		ipv6Disabled:       cfg.ipv6Disabled,
 		tcpHandlerResolver: cfg.tcpHandlerResolver,
 		destroyed:          make(chan struct{}),
 		state:              newState(),
@@ -340,16 +403,14 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		}
 		logger.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.dnsIPv6)
 	} else {
-		// This branch shouldn't be reachable, every caller sets cfg.dnsIPv6.
-		// Added it so the probe handler can return a stable value if a future caller
-		// forgets to set it.
+		// Added it so the probe handler can always return a stable value
 		ns.diagProbeIPv6 = ipv6WithSuffix(cfg.ipv6Prefix, dns.DNSServerSuffix).As16()
 	}
 
 	return ns, nil
 }
 
-func createStack() (*stack.Stack, *channel.Endpoint, error) {
+func createStack(mtu uint32) (*stack.Stack, *channel.Endpoint, error) {
 	netStack := stack.New(stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4network.NewProtocol, ipv6network.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
@@ -707,6 +768,10 @@ func (ns *networkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, 
 
 // ResolveAAAA implements [dns.Resolver.ResolveAAAA].
 func (ns *networkStack) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
+	if ns.ipv6Disabled {
+		// IPv6 is disabled on this host, return no AAAA records.
+		return dns.Result{NoRecord: true}, nil
+	}
 	// Diagnostic probes return the stable IPv6 probe address — the value the diagnostic
 	// check compares against. No handler is allocated.
 	if dns.HasDiagProbePrefix(fqdn) {
@@ -742,6 +807,10 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoi
 }
 
 func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, tun TUNDevice) error {
+	mtu, err := tun.MTU()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device MTU")
+	}
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		packet := linkEndpoint.ReadContext(ctx)
@@ -773,6 +842,10 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 // returning os.ErrClosed from tun.Read.
 func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
+	mtu, err := tun.MTU()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device MTU")
+	}
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {
 		bufs[i] = make([]byte, device.MessageTransportHeaderSize+mtu)

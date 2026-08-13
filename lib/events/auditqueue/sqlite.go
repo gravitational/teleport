@@ -690,8 +690,8 @@ func (q *sqliteQueue) Stats(ctx context.Context) (Stats, error) {
 }
 
 func (q *sqliteQueue) statsLoop() {
-	ticker := time.NewTicker(q.statsInterval)
-	defer ticker.Stop()
+	timer := time.NewTimer(q.statsInterval)
+	defer timer.Stop()
 	for {
 		stats, err := q.Stats(q.ctx)
 		if err != nil {
@@ -713,10 +713,11 @@ func (q *sqliteQueue) statsLoop() {
 				q.onStatsUpdated()
 			}
 		}
+		timer.Reset(q.statsInterval)
 		select {
 		case <-q.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		}
 	}
 }

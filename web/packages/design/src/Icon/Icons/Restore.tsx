@@ -56,6 +56,7 @@ export const Restore = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-restore"
+
       {...otherProps}
       ref={ref}
     >

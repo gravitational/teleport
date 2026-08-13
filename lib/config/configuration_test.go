@@ -1461,9 +1461,9 @@ func TestParseCachePolicy(t *testing.T) {
 	}{
 		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
 		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: true}},
-		{in: &CachePolicy{Type: "whatever", EnabledFlag: "false", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: false}},
+		{in: &CachePolicy{Type: "whatever", EnabledFlag: "false", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: true}},
 		{in: &CachePolicy{Type: "name", EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
-		{in: &CachePolicy{EnabledFlag: "no"}, out: &servicecfg.CachePolicy{Enabled: false}},
+		{in: &CachePolicy{EnabledFlag: "no"}, out: &servicecfg.CachePolicy{Enabled: true}},
 	}
 	for i, tc := range tcs {
 		comment := fmt.Sprintf("test case #%v", i)

@@ -846,7 +846,7 @@ type JoinParams struct {
 	// validator, used to override the validator in tests.
 	CreateBoundKeypairValidator CreateBoundKeypairValidator
 	// GenerateBotCerts is a function that generates bot certificates.
-	GenerateBotCerts func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error)
+	GenerateBotCerts func(ctx context.Context, previousBotInstanceID string, claims *boundkeypair.Claims) (*messages.Certificates, string, error)
 	// GenerateHostCerts is a function that generates host certificates. Unlike
 	// bots, hosts do not maintain an ID lineage and are expected to retain
 	// their host IDs indefinitely (or else start over from a clean slate

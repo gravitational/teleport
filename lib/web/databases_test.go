@@ -829,7 +829,9 @@ func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
 	})
 	require.NoError(t, err)
 
-	webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+	webauthnResBytes, err := json.Marshal(client.MFAChallengeResponse{
+		WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()),
+	})
 	require.NoError(t, err)
 
 	envelopeBytes, err := proto.Marshal(&terminal.Envelope{

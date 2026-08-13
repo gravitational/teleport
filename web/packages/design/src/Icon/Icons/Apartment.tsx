@@ -56,6 +56,7 @@ export const Apartment = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-apartment"
+
       {...otherProps}
       ref={ref}
     >

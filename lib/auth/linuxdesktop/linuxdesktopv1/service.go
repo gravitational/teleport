@@ -127,7 +127,7 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	resources := clientutils.Resources(ctx, s.reader.ListLinuxDesktops)
+	resources := clientutils.RangeResources(ctx, req.GetPageToken(), "", s.reader.ListLinuxDesktops, nil)
 	rsp, nextToken, err := generic.CollectPageAndCursor(
 		iterstream.FilterMap(resources, func(desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, bool) {
 			if err := checkAccess(authCtx, desktop); err == nil {

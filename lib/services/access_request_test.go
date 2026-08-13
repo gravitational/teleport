@@ -3506,6 +3506,65 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 	}
 }
 
+// TestAccessRequestStorageToleratesUnenforceableConstraints verifies the
+// storage codec against a request written by a newer Auth: reads keep
+// working with the unknown constraint content zeroed to nil Details,
+// while writes and creation stay strict.
+func TestAccessRequestStorageToleratesUnenforceableConstraints(t *testing.T) {
+	t.Parallel()
+
+	req, err := types.NewAccessRequestWithResources(
+		uuid.New().String(), "some-user", nil, /* roles */
+		[]types.ResourceAccessID{
+			{
+				Id: types.ResourceID{ClusterName: "root", Kind: types.KindNode, Name: "n1"},
+			},
+			{
+				Id: types.ResourceID{ClusterName: "root", Kind: types.KindApp, Name: "aws-console"},
+				Constraints: &types.ResourceConstraints{
+					Version: "v1",
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123:role/Allowed"}},
+					},
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	stored, err := MarshalAccessRequest(req)
+	require.NoError(t, err)
+
+	// Simulate the same request written by a newer Auth.
+	require.Contains(t, string(stored), `"aws_console"`)
+	fromNewer := []byte(strings.Replace(string(stored), `"aws_console"`, `"some_future_kind"`, 1))
+
+	decoded, err := UnmarshalAccessRequest(fromNewer)
+	require.NoError(t, err)
+	// The unconstrained node is unwrapped into RequestedResourceIDs at
+	// construction; only the constrained entry carries access IDs.
+	accessIDs := decoded.GetRequestedResourceAccessIDs()
+	require.Len(t, accessIDs, 1)
+	rc := accessIDs[0].GetConstraints()
+	require.NotNil(t, rc, "constraints must survive decoding")
+	require.Nil(t, rc.Details)
+	require.Equal(t, "v1", rc.Version)
+
+	// Creation stays strict.
+	require.Error(t, ValidateAccessRequest(decoded))
+
+	// Writes stay strict; re-persisting would overwrite the newer content.
+	_, err = MarshalAccessRequest(decoded)
+	require.Error(t, err)
+
+	// The stored request still reads.
+	roundTripped, err := UnmarshalAccessRequest(fromNewer)
+	require.NoError(t, err)
+	rt := roundTripped.GetRequestedResourceAccessIDs()[0].GetConstraints()
+	require.NotNil(t, rt)
+	require.Nil(t, rt.Details)
+	require.Equal(t, "v1", rt.Version)
+}
+
 func TestValidateAccessRequest_ExpandsUserNameAnnotations(t *testing.T) {
 	ctx := t.Context()
 	clock := clockwork.NewFakeClock()

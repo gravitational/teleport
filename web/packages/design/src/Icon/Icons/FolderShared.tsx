@@ -56,6 +56,7 @@ export const FolderShared = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-foldershared"
+
       {...otherProps}
       ref={ref}
     >
