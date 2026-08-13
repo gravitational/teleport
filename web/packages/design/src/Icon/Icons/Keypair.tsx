@@ -56,6 +56,7 @@ export const Keypair = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-keypair"
+
       {...otherProps}
       ref={ref}
     >

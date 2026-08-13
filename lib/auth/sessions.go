@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -830,39 +829,6 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	a.logger.DebugContext(ctx, "Generated Snowflake web session", "user", req.Username, "ttl", ttl)
 
 	return session, nil
-}
-
-// CreateAppSessionForAppAuth creates a new app session based on app auth
-// config.
-func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthconfigv1.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
-	}
-
-	sess, err := a.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
-		NewWebSessionRequest: sessionreq.NewWebSessionRequest{
-			User:       req.Username,
-			LoginIP:    req.LoginIP,
-			SessionTTL: req.TTL,
-			Roles:      req.Roles,
-			Traits:     req.Traits,
-			// Always attest the web session as sessions from app auth will
-			// always come from proxy, and will only be visible/available to
-			// auth and proxy instances.
-			AttestWebSession: true,
-		},
-		ClusterName:        req.ClusterName,
-		AppName:            req.AppName,
-		AppURI:             req.AppURI,
-		PublicAddr:         req.AppPublicAddr,
-		SuggestedSessionID: req.SuggestedSessionID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
 }
 
 func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {

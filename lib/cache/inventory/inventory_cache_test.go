@@ -220,9 +220,6 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 
 	plugin := local.NewPluginsService(bkWrapper)
 
-	appAuthConfig, err := local.NewAppAuthConfigService(bkWrapper)
-	require.NoError(t, err)
-
 	summaries, err := local.NewSummarizerService(local.SummarizerServiceConfig{
 		Backend: bkWrapper,
 	})
@@ -283,7 +280,6 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		BotInstanceService:      botInstanceService,
 		RecordingEncryption:     recordingEncryption,
 		Plugin:                  plugin,
-		AppAuthConfig:           appAuthConfig,
 		StaticScopedToken:       clusterConfig,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,

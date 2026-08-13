@@ -49,15 +49,15 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 
 	if err := clt.ReportNetworkStackInfo(ctx, vnetv1.NetworkStackInfo_builder{
 		InterfaceName: tunName,
-		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		Ipv6Prefix:    networkStackConfig.getIPv6Prefix(),
 	}.Build()); err != nil {
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
-		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		ipv6Prefix:    networkStackConfig.getIPv6Prefix(),
 		dnsIPv6:       networkStackConfig.dnsIPv6.String(),
 		addDNSAddress: networkStack.addDNSAddress,
 	})

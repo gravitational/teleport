@@ -732,7 +732,9 @@ func (m MFA) Encode() ([]byte, error) {
 	} else if m.MFAAuthenticateResponse != nil {
 		switch t := m.MFAAuthenticateResponse.Response.(type) {
 		case *authproto.MFAAuthenticateResponse_Webauthn:
-			buff, err = json.Marshal(wantypes.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()))
+			buff, err = json.Marshal(mfatypes.MFAChallengeResponse{
+				WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(m.MFAAuthenticateResponse.GetWebauthn()),
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

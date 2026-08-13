@@ -56,6 +56,7 @@ export const Copy = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-copy"
+
       {...otherProps}
       ref={ref}
     >

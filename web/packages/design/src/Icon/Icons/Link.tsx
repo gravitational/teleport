@@ -56,6 +56,7 @@ export const Link = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-link"
+
       {...otherProps}
       ref={ref}
     >

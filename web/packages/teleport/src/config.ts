@@ -1481,7 +1481,7 @@ const cfg = {
   },
 
   getScpUrl({ mfaResponse, ...params }: UrlScpParams) {
-    let path = generateFullPath(cfg.api.scp, {
+    const path = generateFullPath(cfg.api.scp, {
       ...params,
     });
 
@@ -1491,13 +1491,6 @@ const cfg = {
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
-
-    // TODO(Joerger): DELETE IN v19.0.0
-    // We include webauthn for backwards compatibility.
-    path = `${path}&webauthn=${JSON.stringify({
-      webauthnAssertionResponse: mfaResponse.webauthn_response,
-    })}`;
-
     return `${path}&mfaResponse=${JSON.stringify(mfaResponse)}`;
   },
 

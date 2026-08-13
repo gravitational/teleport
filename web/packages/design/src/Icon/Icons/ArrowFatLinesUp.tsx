@@ -56,6 +56,7 @@ export const ArrowFatLinesUp = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-arrowfatlinesup"
+
       {...otherProps}
       ref={ref}
     >

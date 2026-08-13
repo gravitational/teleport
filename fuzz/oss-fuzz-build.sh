@@ -137,6 +137,9 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/scopes \
     FuzzValidateQualifiedName fuzz_validate_qualified_name
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/appresource \
+    FuzzTokenizeNonASCII fuzz_tokenize_non_ascii
+
 }
 
 build_teleport_api_fuzzers() {

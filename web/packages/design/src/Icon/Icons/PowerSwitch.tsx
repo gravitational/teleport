@@ -56,6 +56,7 @@ export const PowerSwitch = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-powerswitch"
+
       {...otherProps}
       ref={ref}
     >

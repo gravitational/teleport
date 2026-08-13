@@ -59,12 +59,22 @@ type UpdatePreparer[T any] interface {
 
 // ResourceType describes a Terraform resource.
 type ResourceType[T any, I Identifier] struct {
+	// NewResourceClient generates a ResoureClient used to alter
+	// the Teleport resource.
 	NewResourceClient func(tfsdk.Provider) ResourceClient[T, I]
-	Kind              string
-	Codec             ResourceCodec[T]
-	Normalizer        ResourceNormalizer[T]
-	ResourceRevision  func(*T) string
-	Identifier        IdentifierPolicy[T, I]
+	// Kind determines the Teleport resource variant.
+	Kind string
+	// Codec converts Teleport resources to/from terraform resources.
+	Codec ResourceCodec[T]
+	// Normalizer prepares a Teleport resource prior to writes.
+	Normalizer ResourceNormalizer[T]
+	// ResourceRevision, optional, indicates whether resources have
+	// support for revisions. If provided the revision is tracked
+	// over time to determine when a change issued by terraform is
+	// effective.
+	ResourceRevision func(*T) string
+	// Identifier represents the way to uniquely identify the Teleport resource.
+	Identifier IdentifierPolicy[T, I]
 }
 
 // GetSchema returns the resource schema.
@@ -167,7 +177,7 @@ func (r Resource[T, I]) Create(ctx context.Context, req tfsdk.CreateResourceRequ
 			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Error reading %q", r.resource.Kind), trace.Wrap(err), r.resource.Kind))
 			return
 		case singletonResource &&
-			resourceBefore != nil &&
+			resourceBefore != nil && r.resource.ResourceRevision != nil &&
 			r.resource.ResourceRevision(resourceBefore) == r.resource.ResourceRevision(retrieved):
 		default:
 			diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
@@ -293,7 +303,7 @@ func (r Resource[T, I]) Update(ctx context.Context, req tfsdk.UpdateResourceRequ
 			return
 		}
 
-		if r.resource.ResourceRevision(resourceBefore) != r.resource.ResourceRevision(retrieved) {
+		if r.resource.ResourceRevision == nil || r.resource.ResourceRevision(resourceBefore) != r.resource.ResourceRevision(retrieved) {
 			diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {

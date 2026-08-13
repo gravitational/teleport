@@ -97,6 +97,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -2745,7 +2746,9 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				webauthnResBytes, err := json.Marshal(client.MFAChallengeResponse{
+					WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()),
+				})
 				require.NoError(t, err)
 
 				envelope := &terminal.Envelope{
@@ -3749,6 +3752,64 @@ func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
 	require.NotContains(t, response, "&gt;")
 	require.NotContains(t, response, "&#39;")
 	require.NotContains(t, response, "&#34;")
+}
+
+// TestInstallerScriptWindowsAuthPackageRendered renders the built-in Windows
+// auth package installer through the endpoint.
+func TestInstallerScriptWindowsAuthPackageRendered(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	const rebootNotice = "A reboot is required to complete installation."
+	const scheduleRestart = `& shutdown.exe /r /t 60`
+
+	for _, tt := range []struct {
+		name                   string
+		restartAfterEnrollment string
+		expectContains         string
+		expectNotContains      string
+	}{
+		{
+			name:                   "restart after enrollment",
+			restartAfterEnrollment: "true",
+			expectContains:         scheduleRestart,
+			expectNotContains:      rebootNotice,
+		},
+		{
+			name:                   "no restart after enrollment",
+			restartAfterEnrollment: "false",
+			expectContains:         rebootNotice,
+			expectNotContains:      scheduleRestart,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := wc.Get(
+				s.ctx,
+				wc.Endpoint("webapi", "scripts", "installer", "default-installer-windows-auth-package"),
+				url.Values{"restart-after-enrollment": []string{tt.restartAfterEnrollment}},
+			)
+			require.NoError(t, err)
+
+			response := string(re.Bytes())
+
+			require.Contains(t, response, `$ErrorActionPreference = 'Stop'`)
+			require.Contains(t, response, `$InstallerName = "teleport-windows-auth-setup-`)
+			// The installstatus exit codes survived the fmt.Sprintf injection.
+			require.Contains(t, response, "exit 200") // WindowsInstallerDownloadFailure
+			require.Contains(t, response, "exit 201") // WindowsInstallerExecutionFailure
+			require.Contains(t, response, "exit 203") // WindowsInstallerChecksumMismatch
+
+			// getWindowsCA rendered a non-empty CA bundle, and no template
+			// directives were left unrendered.
+			require.NotContains(t, response, "{{")
+			require.NotContains(t, response, `$CA = ''`)
+
+			// The RestartAfterEnrollment branch resolved correctly.
+			require.Contains(t, response, tt.expectContains)
+			require.NotContains(t, response, tt.expectNotContains)
+		})
+	}
 }
 
 func TestMultipleConnectors(t *testing.T) {
@@ -5879,7 +5940,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(context.Background(), endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 
@@ -5915,7 +5976,7 @@ func TestAddMFADevice(t *testing.T) {
 	// Obtain a privilege token.
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 	var privilegeToken string
@@ -6010,7 +6071,7 @@ func TestDeleteMFA(t *testing.T) {
 	// Obtain a privilege token.
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 
@@ -7672,7 +7733,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 
 	// Wait for node to show up
 	require.Eventually(t, func() bool {
-		_, err := env.server.Auth().GetNode(ctx, apidefaults.Namespace, nodeName)
+		_, err := env.server.Auth().GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: nodeName}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -9958,6 +10019,17 @@ func (r *testProxy) createUser(ctx context.Context, t *testing.T, user, login, p
 
 func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
 	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	clt, err := client.NewWebClient(r.webURL.String(), opts...)
+	require.NoError(t, err)
+	return &TestWebClient{clt, t}
+}
+
+func (r *testProxy) newClientNoRedirects(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
+	nrClient := client.NewInsecureWebClient()
+	nrClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	opts = append(opts, roundtrip.HTTPClient(nrClient))
 	clt, err := client.NewWebClient(r.webURL.String(), opts...)
 	require.NoError(t, err)
 	return &TestWebClient{clt, t}

@@ -23,14 +23,11 @@ const textToCopy = 'text-to-copy';
 // Text that is pre-populated in the clipboard before the test's copy attempt
 const preCopiedText = 'pre-copied-text';
 
-test.describe('web terminal clipboard mode', () => {
-  // The clipboard-read/clipboard-write permissions and readText() method
-  // needed for this test only work on Chromium, so only run this test for Chromium.
-  test.skip(
-    ({ browserName }) => browserName !== 'chromium',
-    'clipboard permissions and readText() are Chromium-only in Playwright'
-  );
+// The clipboard-read/clipboard-write permissions and readText() method
+// needed for this test only work on Chromium, so only run this test for Chromium.
+test.use({ browsers: ['chromium'] });
 
+test.describe('web terminal clipboard mode', () => {
   test.use({
     fixtures: ['ssh-node'],
     permissions: ['clipboard-read', 'clipboard-write'],

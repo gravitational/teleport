@@ -21,7 +21,8 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 
-import { Shell } from 'teleterm/mainProcess/shell';
+import type { Shell } from 'teleterm/mainProcess/shell';
+import type { TabContextMenuCapabilities } from 'teleterm/mainProcess/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentsRenderer } from 'teleterm/ui/Documents/DocumentsRenderer';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
@@ -104,7 +105,7 @@ export function TabHost({
 
   function handleTabContextMenu(doc: types.Document) {
     ctx.mainProcessClient.openTabContextMenu({
-      document: doc,
+      capabilities: getCapabilities(doc),
       onClose: () => {
         documentsService.close(doc.uri);
       },
@@ -154,6 +155,22 @@ export function TabHost({
       />
     </StyledTabHost>
   );
+}
+
+function getCapabilities(doc: types.Document): TabContextMenuCapabilities {
+  const canDuplicatePty =
+    doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.terminal_tsh_node';
+
+  if (!canDocChangeShell(doc)) {
+    return { canDuplicatePty };
+  }
+
+  return {
+    canDuplicatePty,
+    shellSelector: {
+      activeShellId: doc.shellId,
+    },
+  };
 }
 
 const StyledTabHost = styled.div`

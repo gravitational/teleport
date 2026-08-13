@@ -55,7 +55,6 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
@@ -107,7 +106,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
-	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/clientiprestriction/clientiprestrictionv1"
@@ -2360,7 +2358,8 @@ func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clie
 	role.Version = types.V8
 
 	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
-	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) {
+	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) ||
+		len(role.Spec.Allow.AppResourcesExpressions) > 0 || len(role.Spec.Deny.AppResourcesExpressions) > 0 {
 		if denyDowngradedAppAccess(role) {
 			slog.WarnContext(ctx,
 				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
@@ -2370,6 +2369,8 @@ func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clie
 	}
 	role.Spec.Allow.AppResources = nil
 	role.Spec.Deny.AppResources = nil
+	role.Spec.Allow.AppResourcesExpressions = nil
+	role.Spec.Deny.AppResourcesExpressions = nil
 
 	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
 	if role.Metadata.Labels == nil {
@@ -5408,6 +5409,8 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
+			case installers.InstallerScriptNameWindowsAuthPackage:
+				return installer.DefaultWindowsAuthPackageInstaller, nil
 			}
 		}
 		return nil, trace.Wrap(err)
@@ -5437,8 +5440,9 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 
 	defaultInstallers := map[string]*types.InstallerV1{
-		types.DefaultInstallerScriptName:        defaultInstaller,
-		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+		types.DefaultInstallerScriptName:                 defaultInstaller,
+		installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller,
+		installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller,
 	}
 
 	for _, inst := range res {
@@ -5493,6 +5497,10 @@ func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end stri
 				}
 			}
 			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		if isInRange(installers.InstallerScriptNameWindowsAuthPackage, start, end) {
+			defaultInstallers = append(defaultInstallers, installer.DefaultWindowsAuthPackageInstaller)
 		}
 
 		// Sort in case the names change in the future as the streams must be sorted.
@@ -6818,29 +6826,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	healthcheckconfigv1pb.RegisterHealthCheckConfigServiceServer(server, healthCheckConfigSvc)
-
-	appAuthConfigSvc, err := appauthconfigv1.NewService(appauthconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.AppAuthConfig,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	appauthconfigv1pb.RegisterAppAuthConfigServiceServer(server, appAuthConfigSvc)
-
-	appAuthConfigSessionsSvc, err := appauthconfigv1.NewSessionsService(appauthconfigv1.SessionsServiceConfig{
-		Authorizer:      cfg.Authorizer,
-		Reader:          cfg.AuthServer.Cache,
-		Emitter:         cfg.Emitter,
-		SessionsCreator: cfg.AuthServer,
-		UserGetter:      cfg.AuthServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	appauthconfigv1pb.RegisterAppAuthConfigSessionsServiceServer(server, appAuthConfigSessionsSvc)
 
 	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,

@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -101,6 +102,16 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 	testErr := g.Wait()
 
+	// Nothing ran, so there is no report to merge and the previous run's results are still on disk.
+	// Reporting success here would read as green.
+	if blobs, err := filepath.Glob(filepath.Join(blobBaseDir, "*.zip")); err == nil && len(blobs) == 0 {
+		if testErr != nil {
+			return testErr
+		}
+
+		return fmt.Errorf("no specs ran, every selected spec was restricted to other browsers")
+	}
+
 	slog.InfoContext(ctx, "merging blob reports")
 	mergeArgs := []string{"exec", "playwright", "merge-reports", p.configFlag(), blobBaseDir}
 	mergeEnv := os.Environ()
@@ -125,49 +136,84 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 }
 
 func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, blobBaseDir string, debug bool, extraArgs []string) error {
+	hasConfigs := len(p.config.teleportConfigs) > 0
+	selected := p.config.testFiles
+	if hasConfigs {
+		selected = p.config.defaultTestFiles
+	}
+	defaultFiles := p.filesForProject(inst, selected)
+
+	// An empty list tells Playwright to run everything, so a selection that filtered down to nothing
+	// has to skip the pass rather than widen it.
+	runDefault := len(defaultFiles) > 0 || (!hasConfigs && len(selected) == 0)
+
+	configFiles := make([][]string, len(p.config.teleportConfigs))
+	anyConfigFiles := false
+	for i, cfg := range p.config.teleportConfigs {
+		configFiles[i] = p.filesForProject(inst, cfg.files)
+		anyConfigFiles = anyConfigFiles || len(configFiles[i]) > 0
+	}
+
+	if !runDefault && !anyConfigFiles {
+		inst.log.InfoContext(ctx, "no selected specs run against this browser, skipping")
+		return nil
+	}
+
 	if err := inst.start(ctx); err != nil {
 		return err
 	}
 	defer inst.stop()
 
-	hasConfigs := len(p.config.teleportConfigs) > 0
-	defaultFiles := filesForProject(inst, p.config.testFiles)
-	if hasConfigs {
-		defaultFiles = filesForProject(inst, p.config.defaultTestFiles)
-	}
+	// Every pass runs even after an earlier one fails. Each re-initializes Teleport from the base
+	// config, so they do not depend on each other, and stopping early would report a failing spec as
+	// the only result while silently dropping the coverage of the passes behind it.
+	var errs []error
 
-	// Skip the default pass if this instance has nothing to run against the base config
-	if !hasConfigs || len(defaultFiles) > 0 {
+	if runDefault {
 		blobPath := filepath.Join(blobBaseDir, inst.browser+".zip")
 		if err := p.runInstanceTests(ctx, inst, defaultFiles, blobPath, debug, extraArgs); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
 	baseConfigPath := inst.teleportConfigPath
 	for i, cfg := range p.config.teleportConfigs {
-		files := filesForProject(inst, cfg.files)
+		files := configFiles[i]
 		if len(files) == 0 {
 			continue // no tests for this instance's project
 		}
+		// An interrupted run is the one case worth abandoning, since the remaining passes can only
+		// fail on the dead context.
+		if ctx.Err() != nil {
+			break
+		}
 		if err := p.runTeleportConfig(ctx, inst, baseConfigPath, cfg, files, i, blobBaseDir, debug, extraArgs); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+
+	return errors.Join(errs...)
 }
 
-// filesForProject picks the connect specs or browser specs for a testInstance
-func filesForProject(inst *testInstance, files []string) []string {
+// filesForProject picks the connect specs or browser specs for a testInstance, dropping any spec
+// that restricted itself to other browsers.
+func (p *playwrightRunner) filesForProject(inst *testInstance, files []string) []string {
 	if len(files) == 0 {
 		return files
 	}
 	var out []string
 	for _, f := range files {
 		isConnect := strings.HasPrefix(filepath.ToSlash(f), "tests/connect/")
-		if isConnect == (inst.browser == "connect") {
-			out = append(out, f)
+		if isConnect != (inst.browser == "connect") {
+			continue
 		}
+
+		spec := lineNumberSuffixRe.ReplaceAllString(filepath.ToSlash(f), "")
+		if allowed, ok := p.config.browserRestrictions[spec]; ok && !slices.Contains(allowed, inst.browser) {
+			continue
+		}
+
+		out = append(out, f)
 	}
 	return out
 }
@@ -222,6 +268,7 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 	}
 	inst.teleport.configPath = mergedPath
 	inst.teleportConfigPath = mergedPath
+	inst.teleport.envOverrides = cfg.env
 
 	if err := inst.teleport.start(ctx); err != nil {
 		return fmt.Errorf("re-initializing teleport for %s: %w", inst.browser, err)
@@ -230,8 +277,8 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 		return fmt.Errorf("teleport for %s not ready after config change: %w", inst.browser, err)
 	}
 
-	if inst.node != nil {
-		if err := inst.node.waitJoined(ctx, 30*time.Second); err != nil {
+	for _, node := range inst.nodes {
+		if err := node.waitJoined(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("node for %s failed to rejoin: %w", inst.browser, err)
 		}
 	}
@@ -270,9 +317,8 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 	return p.openWebAuthenticated(ctx, "codegen")
 }
 
-// openWebAuthenticated runs the global setup to generate auth state, then opens
-// a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
-// MFA challenges resolve automatically.
+// openWebAuthenticated opens a Chromium browser logged in as the default user, with a virtual WebAuthn
+// authenticator pre-loaded so that MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
 	if len(p.config.instances) == 0 {
 		return fmt.Errorf("no test instances configured")
@@ -286,11 +332,6 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 
 	env, err := p.startEnv(inst)
 	if err != nil {
-		return err
-	}
-
-	slog.DebugContext(ctx, "running global setup to generate auth state")
-	if err := p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "global-setup.ts")}, env); err != nil {
 		return err
 	}
 
@@ -348,6 +389,10 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
+
+	if p.config.skipEnhancedRecording {
+		env = append(env, "E2E_SKIP_ENHANCED_RECORDING=1")
+	}
 
 	return env, nil
 }

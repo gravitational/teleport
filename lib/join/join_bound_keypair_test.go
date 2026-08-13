@@ -443,6 +443,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundPublicKey)
+
+				bi, err := authServer.BotInstance.GetBotInstance(t.Context(), machineidv1pb.GetBotInstanceRequest_builder{
+					BotName:    "test",
+					InstanceId: v2.Status.BoundKeypair.BoundBotInstanceID,
+				}.Build())
+				require.NoError(t, err)
+				attrs := bi.GetStatus().GetInitialAuthentication().GetJoinAttrs().GetBoundKeypair()
+				require.Equal(t, v2.Status.BoundKeypair.BoundPublicKey, attrs.GetPublicKey())
+				require.Equal(t, boundkeypair.RecoveryModeInsecure, attrs.GetRecoveryMode())
+				require.Equal(t, uint32(1), attrs.GetRecoveryCount())
 			},
 		},
 		{

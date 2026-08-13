@@ -56,6 +56,7 @@ export const AddCircle = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-addcircle"
+
       {...otherProps}
       ref={ref}
     >

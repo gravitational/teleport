@@ -75,20 +75,18 @@ export function EC2() {
   );
 }
 
-EC2.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getIntegrationRulesUrl(integrationName, AwsResource.ec2),
-        () => {
-          return HttpResponse.json({
-            rules: rules,
-            nextKey: '1',
-          });
-        }
-      ),
-    ],
-  },
+EC2.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getIntegrationRulesUrl(integrationName, AwsResource.ec2),
+      () => {
+        return HttpResponse.json({
+          rules: rules,
+          nextKey: '1',
+        });
+      }
+    )
+  );
 };
 
 // Empty eks details table
@@ -117,20 +115,18 @@ export function EKS() {
   );
 }
 
-EKS.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getIntegrationRulesUrl(integrationName, AwsResource.eks),
-        () => {
-          return HttpResponse.json({
-            rules: rules,
-            nextKey: '1',
-          });
-        }
-      ),
-    ],
-  },
+EKS.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getIntegrationRulesUrl(integrationName, AwsResource.eks),
+      () => {
+        return HttpResponse.json({
+          rules: rules,
+          nextKey: '1',
+        });
+      }
+    )
+  );
 };
 
 // Empty rds details table
@@ -159,44 +155,42 @@ export function RDS() {
   );
 }
 
-RDS.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getIntegrationRulesUrl(integrationName, AwsResource.rds),
-        () => {
-          return HttpResponse.json({
-            rules: rules,
-            nextKey: '1',
-          });
-        }
-      ),
-      http.post(
-        cfg.getAwsOidcDatabaseServices(integrationName, AwsResource.rds, []),
-        () => {
-          return HttpResponse.json({
-            services: [
-              {
-                name: 'dev-db',
-                matchingLabels: [{ name: 'region', value: 'us-west-2' }],
-              },
-              {
-                name: 'dev-db',
-                matchingLabels: [
-                  { name: 'region', value: 'us-west-1' },
-                  { name: '*', value: '*' },
-                ],
-              },
-              {
-                name: 'staging-db',
-                matchingLabels: [{ name: '*', value: '*' }],
-              },
-            ],
-          });
-        }
-      ),
-    ],
-  },
+RDS.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getIntegrationRulesUrl(integrationName, AwsResource.rds),
+      () => {
+        return HttpResponse.json({
+          rules: rules,
+          nextKey: '1',
+        });
+      }
+    ),
+    http.post(
+      cfg.getAwsOidcDatabaseServices(integrationName, AwsResource.rds, []),
+      () => {
+        return HttpResponse.json({
+          services: [
+            {
+              name: 'dev-db',
+              matchingLabels: [{ name: 'region', value: 'us-west-2' }],
+            },
+            {
+              name: 'dev-db',
+              matchingLabels: [
+                { name: 'region', value: 'us-west-1' },
+                { name: '*', value: '*' },
+              ],
+            },
+            {
+              name: 'staging-db',
+              matchingLabels: [{ name: '*', value: '*' }],
+            },
+          ],
+        });
+      }
+    )
+  );
 };
 
 function getPath(resource: AwsResource) {

@@ -261,6 +261,9 @@ func newValidatedMFAChallengeWithTargetCluster(name, targetCluster string) *mfav
 			SourceCluster: "root",
 			TargetCluster: targetCluster,
 			Username:      "alice",
+			MfaDevice: mfav2.MFADevice_builder{
+				Id: "device-id",
+			}.Build(),
 		}.Build(),
 	}.Build()
 }

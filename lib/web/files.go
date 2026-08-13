@@ -84,12 +84,6 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		moderatedSessionID:    query.Get("moderatedSessionId"),
 	}
 
-	// Check for old query parameter, uses the same data structure.
-	// TODO(Joerger): DELETE IN v19.0.0
-	if req.mfaResponse == "" {
-		req.mfaResponse = query.Get("webauthn")
-	}
-
 	var mfaResponse *proto.MFAAuthenticateResponse
 	if req.mfaResponse != "" {
 		var err error

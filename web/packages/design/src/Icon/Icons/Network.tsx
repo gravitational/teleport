@@ -56,6 +56,7 @@ export const Network = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-network"
+
       {...otherProps}
       ref={ref}
     >

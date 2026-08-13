@@ -98,8 +98,10 @@ type DownstreamSender interface {
 }
 
 type downstreamHandleOptions struct {
-	metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
-	clock          clockwork.Clock
+	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
+	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
+	clock                  clockwork.Clock
 }
 
 func (options *downstreamHandleOptions) SetDefaults() {
@@ -123,6 +125,18 @@ func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, er
 func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.clock = clock
+	}
+}
+
+func WithAuditQueueStatusGetter(getter func(ctx context.Context) *types.AuditQueueStatus) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.auditQueueStatusGetter = getter
+	}
+}
+
+func WithAuditQueueStatusSignal(signal <-chan struct{}) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.auditQueueStatusSignal = signal
 	}
 }
 
@@ -160,33 +174,38 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	}
 
 	handle := &downstreamHandle{
-		senderC:        make(chan DownstreamSender),
-		pingHandlers:   make(map[uint64]DownstreamPingHandler),
-		closeContext:   ctx,
-		cancel:         cancel,
-		metadataGetter: options.metadataGetter,
-		clock:          options.clock,
-		helloGetter:    cachedHelloGetter,
+		senderC:                make(chan DownstreamSender),
+		pingHandlers:           make(map[uint64]DownstreamPingHandler),
+		closeContext:           ctx,
+		cancel:                 cancel,
+		metadataGetter:         options.metadataGetter,
+		auditQueueStatusGetter: options.auditQueueStatusGetter,
+		auditQueueStatusSignal: options.auditQueueStatusSignal,
+		clock:                  options.clock,
+		helloGetter:            cachedHelloGetter,
 	}
 	go handle.run(fn)
 	go handle.autoEmitMetadata()
 	go handle.autoEmitGoodbye()
+	go handle.autoEmitInstanceStatus()
 	return handle, nil
 }
 
 type downstreamHandle struct {
-	sender            atomic.Pointer[downstreamSender]
-	mu                sync.Mutex
-	handlerNonce      uint64
-	pingHandlers      map[uint64]DownstreamPingHandler
-	senderC           chan DownstreamSender
-	closeContext      context.Context
-	cancel            context.CancelFunc
-	upstreamSSHLabels map[string]string
-	metadataGetter    func(ctx context.Context) (*metadata.Metadata, error)
-	clock             clockwork.Clock
-	helloGetter       HelloGetter
-	goodbye           atomic.Pointer[proto.UpstreamInventoryGoodbye]
+	sender                 atomic.Pointer[downstreamSender]
+	mu                     sync.Mutex
+	handlerNonce           uint64
+	pingHandlers           map[uint64]DownstreamPingHandler
+	senderC                chan DownstreamSender
+	closeContext           context.Context
+	cancel                 context.CancelFunc
+	upstreamSSHLabels      map[string]string
+	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
+	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
+	clock                  clockwork.Clock
+	helloGetter            HelloGetter
+	goodbye                atomic.Pointer[proto.UpstreamInventoryGoodbye]
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -261,6 +280,53 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		case <-sender.Done():
 		case <-h.CloseContext().Done():
 			return
+		}
+	}
+}
+
+func (h *downstreamHandle) autoEmitInstanceStatus() {
+	if h.auditQueueStatusGetter == nil || h.auditQueueStatusSignal == nil {
+		return
+	}
+
+	send := func(sender DownstreamSender) {
+		status := h.auditQueueStatusGetter(h.CloseContext())
+		if status == nil {
+			return
+		}
+		msg := proto.InstanceStatus_builder{AuditQueue: status}.Build()
+		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
+			slog.WarnContext(h.CloseContext(), "Failed to send instance status", "error", err)
+		}
+	}
+
+	for {
+		var sender DownstreamSender
+		select {
+		case sender = <-h.Sender():
+		case <-h.CloseContext().Done():
+			return
+		}
+
+		if !sender.Hello().GetCapabilities().GetInstanceStatus() {
+			select {
+			case <-sender.Done():
+				continue
+			case <-h.CloseContext().Done():
+				return
+			}
+		}
+
+	streamLoop:
+		for {
+			send(sender)
+			select {
+			case <-h.auditQueueStatusSignal:
+			case <-sender.Done():
+				break streamLoop
+			case <-h.CloseContext().Done():
+				return
+			}
 		}
 	}
 }
@@ -636,7 +702,7 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 }
 
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
-func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
+func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.UpstreamInventoryHello, authID string, auditQueueStatus *types.AuditQueueStatus) (types.Instance, error) {
 	var lastMeasurement *types.SystemClockMeasurement
 	if !i.pingResponse.systemClock.IsZero() {
 		lastMeasurement = &types.SystemClockMeasurement{
@@ -661,6 +727,7 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.Upstrea
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
 		LastMeasurement:         lastMeasurement,
 		UpdaterInfo:             hello.GetUpdaterInfo(),
+		AuditQueueStatus:        auditQueueStatus,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -687,8 +754,9 @@ type upstreamHandle struct {
 	hello            *proto.UpstreamInventoryHello
 	registrationTime time.Time
 
-	agentMetadata atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
-	goodbye       atomic.Pointer[proto.UpstreamInventoryGoodbye]
+	agentMetadata    atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
+	auditQueueStatus atomic.Pointer[types.AuditQueueStatus]
+	goodbye          atomic.Pointer[proto.UpstreamInventoryGoodbye]
 
 	pingC chan pingRequest
 
@@ -826,6 +894,18 @@ func (h *upstreamHandle) AgentMetadata() *proto.UpstreamInventoryAgentMetadata {
 // setAgentMetadata sets the agent metadata for the current handler.
 func (h *upstreamHandle) setAgentMetadata(agentMD *proto.UpstreamInventoryAgentMetadata) {
 	h.agentMetadata.Store(agentMD)
+}
+
+// AuditQueueStatus returns the most recent audit-queue depth reported by this
+// instance, or nil if none has been reported.
+func (h *upstreamHandle) AuditQueueStatus() *types.AuditQueueStatus {
+	return h.auditQueueStatus.Load()
+}
+
+// setAuditQueueStatus stores the latest audit-queue depth reported by this
+// instance.
+func (h *upstreamHandle) setAuditQueueStatus(status *types.AuditQueueStatus) {
+	h.auditQueueStatus.Store(status)
 }
 
 // HasService is a helper for checking if a given service is associated with this

@@ -18,6 +18,10 @@
 
 package boundkeypair
 
+import (
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+)
+
 // Claims contains extended claims resulting from bound keypair joining
 type Claims struct {
 	// PublicKey is the verified public key trusted at the end of the joining
@@ -29,4 +33,14 @@ type Claims struct {
 	// RecoveryMode is the recovery mode as configured at the time of the join
 	// attempt.
 	RecoveryMode RecoveryMode `json:"recovery_mode"`
+}
+
+// JoinAttrs returns the protobuf representation of the claims for inclusion
+// in a bot's join attributes.
+func (c *Claims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBoundKeypair {
+	return workloadidentityv1pb.JoinAttrsBoundKeypair_builder{
+		PublicKey:     c.PublicKey,
+		RecoveryMode:  string(c.RecoveryMode),
+		RecoveryCount: c.RecoveryCount,
+	}.Build()
 }

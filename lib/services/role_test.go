@@ -1748,19 +1748,40 @@ func TestValidateRoleAppResources(t *testing.T) {
 	require.NoError(t, err)
 
 	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {}}, nil))
-	require.ErrorContains(t, err, "app_resources[1]: a rule must set allow_all")
+	require.ErrorContains(t, err, "app_resources[1]: this version implements allow_all only")
 
 	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {AllowAll: true}}, nil))
 	require.ErrorContains(t, err, "app_resources: a rule setting allow_all must be the only rule")
 
 	// Unknown proto bytes from a newer client must be rejected. The JSON
 	// marshal into the backend would drop them and widen the rule.
-	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x0a, 0x01, 0x2f}}
+	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}}
 	err = ValidateRole(newV9Role([]types.AppResource{combined}, nil))
 	require.ErrorContains(t, err, "a rule must set allow_all and nothing else")
 
 	err = ValidateRole(newV9Role(nil, []types.AppResource{{AllowAll: true}}))
 	require.ErrorContains(t, err, "app_resources is not allowed under deny")
+
+	// A declared field is rejected at write, so a stored rule is never
+	// wider than the agent honors.
+	for name, rule := range map[string]types.AppResource{
+		"paths":   {AllowAll: true, Paths: []string{"/api/**"}},
+		"methods": {AllowAll: true, Methods: []string{"GET"}},
+		"where":   {AllowAll: true, Where: "true"},
+	} {
+		err := ValidateRole(newV9Role([]types.AppResource{rule}, nil))
+		require.ErrorContains(t, err, "a rule must set allow_all and nothing else", "field %s", name)
+	}
+
+	exprRole := newV9Role([]types.AppResource{{AllowAll: true}}, nil).(*types.RoleV6)
+	exprRole.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+	err = ValidateRole(exprRole)
+	require.ErrorContains(t, err, "app_resources_expressions is not supported")
+
+	denyExprRole := newV9Role(nil, nil).(*types.RoleV6)
+	denyExprRole.Spec.Deny.AppResourcesExpressions = []string{"true"}
+	err = ValidateRole(denyExprRole)
+	require.ErrorContains(t, err, "app_resources_expressions is not allowed under deny")
 }
 
 func TestValidateRoleName(t *testing.T) {
@@ -11224,6 +11245,9 @@ func TestSessionRecordingRBAC(t *testing.T) {
 					NodeLabels: types.Labels{
 						"env": []string{"prod"},
 					},
+					AppLabels: types.Labels{
+						"env": []string{"prod"},
+					},
 					Rules: allowRules,
 				},
 				Deny: types.RoleConditions{
@@ -11246,6 +11270,25 @@ func TestSessionRecordingRBAC(t *testing.T) {
 	})
 
 	serverWithoutAccess := newServer("server-without-access", map[string]string{
+		"env": "dev",
+	})
+
+	newApp := func(name string, labels map[string]string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	appWithAccess := newApp("app-with-access", map[string]string{
+		"env": "prod",
+	})
+
+	appWithoutAccess := newApp("app-without-access", map[string]string{
 		"env": "dev",
 	})
 
@@ -11743,6 +11786,70 @@ func TestSessionRecordingRBAC(t *testing.T) {
 			},
 			errCheck: require.NoError,
 		},
+		{
+			name: "24 - bob can read app session because his group matches with env label for app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.app_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "25 - john can not read app session because his group does not match with env label for app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.app_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "26 - bob can read app session because he has access to the app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "27 - bob can not read app session because he has no access to the app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithoutAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -11841,6 +11948,37 @@ func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
 		},
 		StartTime: startTime,
 		EndTime:   endTime,
+	}
+}
+
+func newAppSessionChunkEvent() *apievents.AppSessionChunk {
+	return &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  "app.session.chunk",
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  "T2008I",
+			Time:  time.Date(2020, 3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName:       "app-with-access",
+			AppURI:        "http://localhost:8080",
+			AppPublicAddr: "app.example.com",
+			AppLabels:     map[string]string{"env": "prod"},
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			Protocol: apievents.EventProtocolApp,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:      "alice",
+			UserRoles: []string{"role1"},
+			UserTraits: map[string][]string{
+				"group": {"prod"},
+				"team":  {"engineering"},
+			},
+		},
+		Participants:   []string{"alice"},
+		SessionChunkID: "cb116fb0-9227-4889-9392-aedd13a914a6",
 	}
 }
 

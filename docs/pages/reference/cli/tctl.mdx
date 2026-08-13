@@ -1717,6 +1717,7 @@ Flags:
 |`--newer-than`|*no default*|Filter for newer teleport versions|
 |`--older-than`|*no default*|Filter for older teleport versions|
 |`--services`|*no default*|Filter output by service (node,kube,proxy,etc)|
+|`--sort`|*no default* (one of: ``, `audit-queue`)|Sort output by column. Supported: audit-queue (largest audit queue backlog first, including dead-letter and corrupt events).|
 |`--update-group`|*no default*|Filter output by update group|
 |`--upgrader`|*no default*|Filter output by upgrader (kube,unit,none)|
 
@@ -2389,6 +2390,29 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |query|*no default* (optional)|Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").|
+
+## tctl recordings summary
+
+View an AI-generated session summary.
+
+Usage:
+
+```code
+$ tctl recordings summary [<flags>] <session-id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Defines the output format for the summary.|
+|`-o`, `--output`|*no default*|Optional file path to write the summary to instead of stdout.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|session-id|*no default* (required)|ID of the session to retrieve the summary for.|
 
 ## tctl requests approve
 

@@ -21,27 +21,15 @@ import "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 // DataSourceTypes returns all legacy Teleport data source types.
 func DataSourceTypes() map[string]tfsdk.DataSourceType {
 	return map[string]tfsdk.DataSourceType{
-		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
-		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
 		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_session_recording_config":   dataSourceTeleportSessionRecordingConfigType{},
-		"teleport_trusted_cluster":            dataSourceTeleportTrustedClusterType{},
-		"teleport_ui_config":                  dataSourceTeleportUIConfigType{},
-		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
-		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
-		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
-		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
-		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
-		"teleport_classifier":                 dataSourceTeleportClassifierType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -57,34 +45,21 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 // ResourceTypes returns all legacy Teleport resource types.
 func ResourceTypes() map[string]tfsdk.ResourceType {
 	return map[string]tfsdk.ResourceType{
-		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
-		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
 		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
-		"teleport_trusted_cluster":            resourceTeleportTrustedClusterType{},
-		"teleport_ui_config":                  resourceTeleportUIConfigType{},
 		"teleport_bot":                        resourceTeleportBotType{},
-		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
-		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
-		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
-		"teleport_server":                     resourceTeleportServerType{},
-		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
 		"teleport_integration":                resourceTeleportIntegrationType{},
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_classifier":                 resourceTeleportClassifierType{},
 		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
 		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
 	}
 }

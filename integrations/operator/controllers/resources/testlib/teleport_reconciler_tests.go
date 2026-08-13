@@ -31,7 +31,6 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	resources "github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
@@ -66,7 +65,7 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)
@@ -192,7 +191,7 @@ func ResourceCreationSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)
@@ -249,7 +248,8 @@ func ResourceCreationSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
 	require.NoError(t, err)
 	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
-	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
+	owned, _ := test.CheckOwnership(tResource, setup.OperatorMetadata())
+	require.True(t, owned)
 
 	// Test cleanup: Delete the resource to avoid leftover state if we were running on a real instance.
 	require.NoError(t, test.DeleteKubernetesResource(ctx, resourceName))
@@ -269,7 +269,7 @@ func ResourceDeletionSynchronousTest[T reconcilers.Resource, K reconcilers.Kuber
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)
@@ -366,7 +366,7 @@ func ResourceDeletionDriftSynchronousTest[T reconcilers.Resource, K reconcilers.
 	test.Init(setup)
 	resourceName := setup.ResourceName
 
-	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := newReconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	err = test.SetupTeleportFixtures(ctx)

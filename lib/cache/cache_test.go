@@ -44,7 +44,6 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -185,7 +184,6 @@ type testPack struct {
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
-	appAuthConfigs          *local.AppAuthConfigService
 	summarizer              *local.SummarizerService
 	subCA                   *local.SubCAService
 	ignoreRangeEndKey       bool
@@ -560,11 +558,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.plugin = local.NewPluginsService(p.backend)
 
-	p.appAuthConfigs, err = local.NewAppAuthConfigService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
 		Backend: p.backend,
 	})
@@ -646,7 +639,6 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -922,7 +914,6 @@ func TestCompletenessInit(t *testing.T) {
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
-			AppAuthConfig:           p.appAuthConfigs,
 			StaticScopedToken:       p.clusterConfigS,
 			Summarizer:              p.summarizer,
 			SubCAService:            p.subCA,
@@ -1017,7 +1008,6 @@ func TestCompletenessReset(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -1188,7 +1178,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -1294,7 +1283,6 @@ func initStrategy(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -2045,7 +2033,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
-		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
 		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
@@ -2127,8 +2114,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:

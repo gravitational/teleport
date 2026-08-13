@@ -200,7 +200,7 @@ func (u *UserLoginState) GetUserType() types.UserType {
 
 // IsBot returns true if the user is a bot.
 func (u *UserLoginState) IsBot() bool {
-	_, ok := u.GetMetadata().Labels[types.BotGenerationLabel]
+	_, ok := u.GetMetadata().Labels[types.BotLabel]
 	return ok
 }
 

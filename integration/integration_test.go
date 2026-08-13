@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -312,7 +313,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest_builder{
+		status, err := clt.GetInventoryStatus(t.Context(), proto.InventoryStatusRequest_builder{
 			Connected: true,
 		}.Build())
 		require.NoError(t, err)
@@ -332,7 +333,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeAddr string
 	// verify node heartbeat was successful, extracting the addr.
 	require.Eventually(t, func() bool {
-		node, err := clt.GetNode(context.Background(), defaults.Namespace, nodeID)
+		node, err := clt.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: nodeID}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}

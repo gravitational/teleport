@@ -121,8 +121,15 @@ type Role interface {
 	SetAppLabels(RoleConditionType, Labels)
 
 	// GetAppResources gets the per-request app access rules this role defines
-	// for the given condition. Only v9+ roles set them, and only under allow.
+	// under the allow or the deny RoleConditions. Only v9 roles set them, and
+	// only under allow.
 	GetAppResources(RoleConditionType) []AppResource
+
+	// GetAppResourcesExpressions gets the per-request app access predicates
+	// this role defines under the allow or the deny RoleConditions. A caller
+	// deciding what a role grants must read these as well as
+	// GetAppResources. Only v9 roles set them, and only under allow.
+	GetAppResourcesExpressions(RoleConditionType) []string
 
 	// GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
 	GetClusterLabels(RoleConditionType) Labels
@@ -852,13 +859,24 @@ func (r *RoleV6) SetAppLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
-// GetAppResources gets the per-request app access rules this role defines for
-// the given condition. Only v9 roles set them, and only under allow.
+// GetAppResources gets the per-request app access rules this role defines
+// under the allow or the deny RoleConditions. Only v9 roles set them, and
+// only under allow.
 func (r *RoleV6) GetAppResources(rct RoleConditionType) []AppResource {
 	if rct == Allow {
 		return r.Spec.Allow.AppResources
 	}
 	return r.Spec.Deny.AppResources
+}
+
+// GetAppResourcesExpressions gets the per-request app access predicates this
+// role defines under the allow or the deny RoleConditions. Only v9 roles set
+// them, and only under allow.
+func (r *RoleV6) GetAppResourcesExpressions(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.AppResourcesExpressions
+	}
+	return r.Spec.Deny.AppResourcesExpressions
 }
 
 // GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
@@ -1609,15 +1627,19 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	return nil
 }
 
-// checkAppResources rejects app_resources on roles below version v9, but
-// accepts any rule content for forward compatibility. Validation on create
-// and update applies the remaining checks.
+// checkAppResources rejects app_resources and app_resources_expressions on
+// roles below version v9, but accepts any rule content for forward
+// compatibility. Validation on create and update applies the remaining
+// checks.
 func (r *RoleV6) checkAppResources() error {
 	if r.Version == V9 {
 		return nil
 	}
 	if len(r.Spec.Allow.AppResources) > 0 || len(r.Spec.Deny.AppResources) > 0 {
 		return trace.BadParameter("app_resources requires role version %q, got %q", V9, r.Version)
+	}
+	if len(r.Spec.Allow.AppResourcesExpressions) > 0 || len(r.Spec.Deny.AppResourcesExpressions) > 0 {
+		return trace.BadParameter("app_resources_expressions requires role version %q, got %q", V9, r.Version)
 	}
 	return nil
 }
