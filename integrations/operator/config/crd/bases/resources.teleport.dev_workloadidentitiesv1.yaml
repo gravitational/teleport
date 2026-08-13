@@ -1,6 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    resources.teleport.dev/scoped: "false"
   name: teleportworkloadidentitiesv1.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -135,10 +137,10 @@ spec:
                     nullable: true
                     properties:
                       extra_claims:
-                        additionalProperties: true
                         description: Additional claims that will be added to the JWT.
                         nullable: true
                         type: object
+                        x-kubernetes-preserve-unknown-fields: true
                       maximum_ttl:
                         description: Control the maximum TTL of JWT-SVIDs issued using
                           this WorkloadIdentity.  If a JWT-SVID is requested with

@@ -12,6 +12,9 @@ Gemini CLI, and others) using Vercel's [`skills`](https://github.com/vercel-labs
 CLI, which discovers and installs skills straight from this repository:
 
 ```bash
+# Access list lifecycle (create, update, delete)
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-lifecycle
+
 # Investigate Identity Security Logs
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
 
@@ -24,6 +27,27 @@ globally or per-project. Review a skill before use — skills run with your agen
 full permissions.
 
 ## Available Skills
+
+### teleport-acl-lifecycle
+
+Helps give users access to specific Teleport resources. Browse available
+servers, databases, applications, Kubernetes clusters, and more, choose which
+ones and how users connect to them, then create, update, or retire the access
+list that grants that access.
+
+Install:
+
+```bash
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-lifecycle
+```
+
+Example invocations:
+
+- Give alice access to the prod apps
+- Create a standing access list for the on-call team
+- Add bob as an owner of the Prod Admins list
+- Remove app access from the junior-dev list
+- Delete the Junior Devs access list
 
 ### teleport-investigate
 

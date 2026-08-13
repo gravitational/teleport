@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,13 +34,13 @@ import (
 func printTestSummary(e2eDir, resultsPath string) {
 	data, err := os.ReadFile(resultsPath)
 	if err != nil {
-		slog.Warn("could not read test results", "path", resultsPath, "error", err)
+		slog.WarnContext(context.Background(), "could not read test results", "path", resultsPath, "error", err)
 		return
 	}
 
 	var report pwReport
 	if err := json.Unmarshal(data, &report); err != nil {
-		slog.Warn("could not parse test results", "error", err)
+		slog.WarnContext(context.Background(), "could not parse test results", "error", err)
 		return
 	}
 

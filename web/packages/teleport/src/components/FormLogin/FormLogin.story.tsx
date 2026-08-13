@@ -274,15 +274,13 @@ export const IdentifierFirstRememberedUser = () => {
   return <FormLogin {...props} authProviders={ssoProviders} key={key} />;
 };
 
-IdentifierFirstRememberedUser.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.authConnectorsPath, async () => {
-        await delay(600); // Simulate loading state
-        return HttpResponse.json([connectorsResp]);
-      }),
-    ],
-  },
+IdentifierFirstRememberedUser.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(cfg.api.authConnectorsPath, async () => {
+      await delay(600); // Simulate loading state
+      return HttpResponse.json([connectorsResp]);
+    })
+  );
 };
 
 const connectorsResp = {

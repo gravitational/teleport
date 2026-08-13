@@ -51,17 +51,27 @@ resource "aws_ecs_task_definition" "teleport_agent" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = one(aws_cloudwatch_log_group.this[*].name)
-          "awslogs-region"        = one(aws_cloudwatch_log_group.this[*].region)
-          "awslogs-stream-prefix" = "${var.ecs_cluster_name}-${var.ecs_service_name}"
+          "awslogs-group"  = one(aws_cloudwatch_log_group.this[*].name)
+          "awslogs-region" = one(aws_cloudwatch_log_group.this[*].region)
+          "awslogs-stream-prefix" = format("%v-%v",
+            one(aws_ecs_cluster.teleport_agent[*].name),
+            var.ecs_service_name,
+          )
         }
       }
       name = "teleport"
     }
   ])
-  cpu                      = var.ecs_task_cpu
-  execution_role_arn       = one(aws_iam_role.ecs_execution[*].arn)
-  family                   = var.ecs_task_name
+  cpu                = var.ecs_task_cpu
+  execution_role_arn = one(aws_iam_role.ecs_execution[*].arn)
+  family = (
+    var.ecs_task_definition_use_name_prefix
+    ? format("%v-%v",
+      var.ecs_task_definition_name,
+      one(random_string.name_suffix[*].result),
+    )
+    : var.ecs_task_definition_name
+  )
   memory                   = var.ecs_task_memory
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]

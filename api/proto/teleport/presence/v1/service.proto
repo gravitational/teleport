@@ -237,6 +237,9 @@ message GetKubeClusterRequest {
   string name = 1;
   // The scope the kube cluster resource belongs to. Can be empty.
   string scope = 2;
+  // If true, include secrets in the response. Requires secret-inclusive read
+  // permission on kubernetes_cluster.
+  bool with_secrets = 3;
 }
 
 // The response for fetching a kube cluster.
@@ -255,6 +258,10 @@ message ListKubeClustersRequest {
 
   // Filters kube clusters by scope.
   teleport.scopes.v1.Filter scope_filter = 3;
+
+  // If true, include secrets in the response. Requires secret-inclusive read
+  // permission on kubernetes_cluster.
+  bool with_secrets = 4;
 }
 
 // The response for listing kube cluster resources within the backend.

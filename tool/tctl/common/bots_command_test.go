@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -131,7 +132,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			require.NoError(t, err)
 
 			cmd := BotsCommand{
-				botName:   botName,
+				botName:   scopes.QualifiedName{Name: botName},
 				addLogins: tt.add,
 				setLogins: tt.set,
 			}
@@ -238,7 +239,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			require.NoError(t, err)
 
 			cmd := BotsCommand{
-				botName:  botName,
+				botName:  scopes.QualifiedName{Name: botName},
 				addRoles: tt.add,
 				botRoles: tt.set,
 			}
@@ -301,7 +302,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	cmd := BotsCommand{
 		stdout:  &buf,
 		format:  teleport.JSON,
-		botName: bot.Metadata.Name,
+		botName: scopes.QualifiedName{Name: bot.GetMetadata().GetName()},
 	}
 	require.NoError(t, cmd.AddBotInstance(ctx, client))
 
@@ -501,7 +502,7 @@ func TestListBotInstances(t *testing.T) {
 		cmd := BotsCommand{
 			stdout:  &buf,
 			format:  teleport.JSON,
-			botName: "test-bot-1",
+			botName: scopes.QualifiedName{Name: "test-bot-1"},
 		}
 
 		require.NoError(t, cmd.ListBotInstances(ctx, client))
@@ -588,6 +589,183 @@ func TestListBotInstances(t *testing.T) {
 	})
 }
 
+// TestBotInstancesScoped exercises "tctl bots instances list/show" against
+// instances of scoped bots, which are addressed by prefixing the bot's name
+// with its scope: <scope>::<bot name>.
+func TestBotInstancesScoped(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	ctx := t.Context()
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	// An unscoped and a scoped bot sharing a name, to prove reads and filters
+	// are scope-strict.
+	unscopedInstance := createBotInstance(t, ctx, process)
+	scopedInstance := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
+		instance.SetScope("/staging")
+	})
+
+	// Give the auth cache a chance to catch-up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, _, err := process.GetAuthServer().ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, res, 2)
+	}, time.Second*10, time.Millisecond*50)
+
+	t.Run("list filter by scope-qualified bot name", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: scopes.QualifiedName{Scope: "/staging", Name: "test-bot-1"},
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, scopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list filter by bare bot name excludes scoped bots", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: scopes.QualifiedName{Name: "test-bot-1"},
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list text output shows scope-qualified id", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout: &buf,
+			format: teleport.Text,
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		out := buf.String()
+		require.Contains(t, out, "/staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
+		require.Contains(t, out, "test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list hides add hint for scoped bot", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.Text,
+			botName: scopes.QualifiedName{Scope: "/staging", Name: "test-bot-1"},
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		require.NotContains(t, buf.String(), "bots instances add")
+	})
+
+	t.Run("list shows add hint for unscoped bot", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.Text,
+			botName: scopes.QualifiedName{Name: "test-bot-1"},
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		require.Contains(t, buf.String(), "bots instances add test-bot-1")
+	})
+
+	t.Run("show scoped instance", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:     &buf,
+			instanceID: "/staging::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		require.NoError(t, cmd.ShowBotInstance(t.Context(), client))
+
+		out := buf.String()
+		require.Contains(t, out, "Scope:  /staging")
+		require.Contains(t, out, "get bot_instance /staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
+		// The slash form can't carry a scope, so it must not be suggested here.
+		require.NotContains(t, out, "get bot_instance/test-bot-1")
+		require.NotContains(t, out, "bots instances add")
+	})
+
+	t.Run("show unscoped instance", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:     &buf,
+			instanceID: "test-bot-1/" + unscopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		require.NoError(t, cmd.ShowBotInstance(t.Context(), client))
+
+		out := buf.String()
+		require.NotContains(t, out, "Scope:")
+		require.Contains(t, out, "bots instances add test-bot-1")
+		// Same two-argument shape as the scoped case.
+		require.Contains(t, out, "get bot_instance test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("show scoped instance without scope is not found", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("show scoped instance with wrong scope is not found", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "/prod::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("show with scope prefix but no separator is rejected", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "/staging/test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+	})
+}
+
 func assertContainsInstance(t *testing.T, res []*machineidv1pb.BotInstance, instanceId string) {
 	assert.True(t, slices.ContainsFunc(res, func(in *machineidv1pb.BotInstance) bool {
 		return in.GetSpec().GetInstanceId() == instanceId
@@ -671,6 +849,19 @@ func TestListBotInstancesFallback(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "fallback not supported for requests with a query")
 	})
+
+	t.Run("fallback not allowed for bot scope", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout: ptr(strings.Builder{}),
+			format: teleport.JSON,
+			// The bot scope filter is only available in ListBotInstancesV2.
+			botName: scopes.QualifiedName{Scope: "/staging", Name: "test-bot-1"},
+		}
+
+		err := cmd.ListBotInstances(ctx, authClient)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "fallback not supported for requests with a bot scope")
+	})
 }
 
 // mockBotInstanceListerClient is a client which returns NotImplemented for
@@ -710,3 +901,134 @@ func (c *mockBotInstanceListV2ErrorClient) ListBotInstancesV2(ctx context.Contex
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// TestBotsScoped covers the scope-qualified name handling on the `tctl bots`
+// subcommands. Bots are namespaced by scope, so a bare name and an SQN address
+// different bots even when the name component matches.
+func TestBotsScoped(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t,
+		withFileConfig(fileConfig),
+		withFileDescriptors(dynAddr.Descriptors),
+		withScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	makeBot := func(t *testing.T, scope, name string) {
+		t.Helper()
+		_, err := client.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
+			Bot: machineidv1pb.Bot_builder{
+				Kind:     types.KindBot,
+				Version:  types.V1,
+				Scope:    scope,
+				Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+				Spec:     machineidv1pb.BotSpec_builder{}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// An unscoped and a scoped bot sharing a name, to prove the subcommands are
+	// scope-strict in both directions.
+	makeBot(t, "", "robot")
+	makeBot(t, "/staging", "robot")
+
+	t.Run("ls renders scoped bots as scope-qualified names", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{stdout: &buf, format: teleport.Text}
+		require.NoError(t, cmd.ListBots(t.Context(), client))
+
+		out := buf.String()
+		require.Contains(t, out, "/staging::robot")
+		// The scoped bot's backing user encodes its scope, which is how the two
+		// same-named bots stay distinct in storage.
+		scopedUser, err := services.BotResourceName(scopes.QualifiedName{Scope: "/staging", Name: "robot"})
+		require.NoError(t, err)
+		require.Contains(t, out, scopedUser)
+		unscopedUser, err := services.BotResourceName(scopes.QualifiedName{Name: "robot"})
+		require.NoError(t, err)
+		require.Contains(t, out, unscopedUser)
+	})
+
+	t.Run("update rejects a scoped bot", func(t *testing.T) {
+		cmd := BotsCommand{stdout: &strings.Builder{}, botName: scopes.QualifiedName{Scope: "/staging", Name: "robot"}, botRoles: "access"}
+		err := cmd.UpdateBot(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+		require.ErrorContains(t, err, "cannot update scoped bot")
+	})
+
+	t.Run("add rejects a scoped bot with a scoped_token hint", func(t *testing.T) {
+		cmd := BotsCommand{stdout: &strings.Builder{}, botName: scopes.QualifiedName{Scope: "/staging", Name: "other"}}
+		err := cmd.AddBot(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+		require.ErrorContains(t, err, "scoped_token")
+		require.ErrorContains(t, err, "spec.usage_mode: bot")
+	})
+
+	t.Run("instances add rejects a scoped bot with a scoped_token hint", func(t *testing.T) {
+		cmd := BotsCommand{stdout: &strings.Builder{}, botName: scopes.QualifiedName{Scope: "/staging", Name: "robot"}}
+		err := cmd.AddBotInstance(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+		require.ErrorContains(t, err, "scoped_token")
+	})
+
+	t.Run("lock targets the scoped bot's backing user", func(t *testing.T) {
+		ctx := t.Context()
+		cmd := BotsCommand{stdout: &strings.Builder{}, botName: scopes.QualifiedName{Scope: "/staging", Name: "robot"}}
+		require.NoError(t, cmd.LockBot(ctx, client))
+
+		scopedUser, err := services.BotResourceName(scopes.QualifiedName{Scope: "/staging", Name: "robot"})
+		require.NoError(t, err)
+		locks, err := client.GetLocks(ctx, false)
+		require.NoError(t, err)
+		require.True(t, slices.ContainsFunc(locks, func(l types.Lock) bool {
+			return l.Target().User == scopedUser
+		}), "expected a lock targeting %q, got %v", scopedUser, locks)
+	})
+
+	t.Run("rm with a bare name deletes only the unscoped bot", func(t *testing.T) {
+		ctx := t.Context()
+		buf := strings.Builder{}
+		cmd := BotsCommand{stdout: &buf, botName: scopes.QualifiedName{Name: "robot"}}
+		require.NoError(t, cmd.RemoveBot(ctx, client))
+		require.Contains(t, buf.String(), `Bot "robot" deleted successfully.`)
+
+		// The scoped bot survives; the unscoped one is gone.
+		_, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+			BotName: "robot",
+		}.Build())
+		require.True(t, trace.IsNotFound(err), "expected NotFound for the unscoped bot, got: %v", err)
+		_, err = client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+			BotName: "robot",
+			Scope:   "/staging",
+		}.Build())
+		require.NoError(t, err)
+	})
+
+	t.Run("rm with a scope-qualified name deletes the scoped bot", func(t *testing.T) {
+		ctx := t.Context()
+		buf := strings.Builder{}
+		cmd := BotsCommand{stdout: &buf, botName: scopes.QualifiedName{Scope: "/staging", Name: "robot"}}
+		require.NoError(t, cmd.RemoveBot(ctx, client))
+		require.Contains(t, buf.String(), `Bot "/staging::robot" deleted successfully.`)
+
+		_, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+			BotName: "robot",
+			Scope:   "/staging",
+		}.Build())
+		require.True(t, trace.IsNotFound(err), "expected NotFound for the scoped bot, got: %v", err)
+	})
+}

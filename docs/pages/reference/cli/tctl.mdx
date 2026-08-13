@@ -1169,7 +1169,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (optional)|The name of the bot from which to list instances. If unset, lists instances from all bots.|
+|name|*no default* (optional)|The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\]. If unset, lists instances from all bots.|
 
 ## tctl bots instances show
 
@@ -1185,7 +1185,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]|
+|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]. For an instance of a scoped bot, prefix the ID with the bot's scope: \[scope\]::\[bot name\]/\[uuid\].|
 
 ## tctl bots ls
 
@@ -1211,7 +1211,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (required)|Name of an existing bot to remove.|
+|name|*no default* (required)|Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\].|
 
 ## tctl bots update
 
@@ -2293,6 +2293,29 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |query|*no default* (optional)|Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").|
+
+## tctl recordings summary
+
+View an AI-generated session summary.
+
+Usage:
+
+```code
+$ tctl recordings summary [<flags>] <session-id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Defines the output format for the summary.|
+|`-o`, `--output`|*no default*|Optional file path to write the summary to instead of stdout.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|session-id|*no default* (required)|ID of the session to retrieve the summary for.|
 
 ## tctl requests approve
 

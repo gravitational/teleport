@@ -111,7 +111,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 
 	if err := clt.ReportNetworkStackInfo(ctx, &vnetv1.NetworkStackInfo{
 		InterfaceName: tunName,
-		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		Ipv6Prefix:    networkStackConfig.getIPv6Prefix(),
 	}); err != nil {
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
@@ -119,7 +119,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
-		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		ipv6Prefix:    networkStackConfig.getIPv6Prefix(),
 		dnsIPv6:       networkStackConfig.dnsIPv6.String(),
 		addDNSAddress: networkStack.addDNSAddress,
 	})

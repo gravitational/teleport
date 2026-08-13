@@ -56,6 +56,7 @@ export const Flag = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-flag"
+
       {...otherProps}
       ref={ref}
     >

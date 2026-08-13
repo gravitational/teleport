@@ -56,6 +56,7 @@ export const Database = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-database"
+
       {...otherProps}
       ref={ref}
     >

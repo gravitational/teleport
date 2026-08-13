@@ -56,6 +56,7 @@ export const PushPinFilled = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-pushpinfilled"
+
       {...otherProps}
       ref={ref}
     >

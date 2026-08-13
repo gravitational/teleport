@@ -130,6 +130,29 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
+	return newImplicitRole(types.CopyRulesSlice(DefaultImplicitRules))
+}
+
+// newScopedImplicitRole is the default implicit role as it applies to scoped identities. It confers
+// the same privileges as [NewImplicitRole], except that secret-inclusive read is replaced with
+// secret-exclusive read.
+func newScopedImplicitRole() types.Role {
+	rules := types.CopyRulesSlice(DefaultImplicitRules)
+	for i, rule := range rules {
+		// CopyRulesSlice is a shallow copy, so build a replacement slice rather than assigning into it.
+		verbs := make([]string, len(rule.Verbs))
+		for j, verb := range rule.Verbs {
+			if verb == types.VerbRead {
+				verb = types.VerbReadNoSecrets
+			}
+			verbs[j] = verb
+		}
+		rules[i].Verbs = verbs
+	}
+	return newImplicitRole(rules)
+}
+
+func newImplicitRole(rules []types.Rule) types.Role {
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
@@ -146,7 +169,7 @@ func NewImplicitRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+				Rules:      rules,
 			},
 		},
 	}
@@ -2114,6 +2137,33 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
+}
+
+// CheckSubmitForUser checks whether the current user is allowed to
+// submit reviews for other users, to be used by plugins.
+func (set RoleSet) CheckSubmitForUser(currentUser, submitForUser types.User) error {
+	for _, role := range set {
+		denyUsers := role.GetSubmitForUsers(types.Deny)
+		anyDenyUser, err := parse.NewAnyMatcher(denyUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyDenyUser.Match(submitForUser.GetName()) {
+			return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+		}
+	}
+
+	for _, role := range set {
+		allowUsers := role.GetSubmitForUsers(types.Allow)
+		anyAllowUser, err := parse.NewAnyMatcher(allowUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyAllowUser.Match(submitForUser.GetName()) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
 }
 
 // LockingMode returns the locking mode to apply with this RoleSet.

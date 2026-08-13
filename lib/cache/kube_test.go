@@ -53,9 +53,9 @@ func TestKubernetes(t *testing.T) {
 				}, types.KubernetesClusterSpecV3{})
 			},
 			create:    p.kubernetes.CreateKubernetesCluster,
-			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
+			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
 			cacheGet:  cacheGetKubeClusterWithScope(p.cache, ""),
-			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
+			cacheList: getAllAdapter(p.cache.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 		}, withSkipPaginationTest())
@@ -97,9 +97,9 @@ func TestKubernetes(t *testing.T) {
 				}, types.KubernetesClusterSpecV3{}, types.KubeClusterWithScope(scope))
 			},
 			create:    p.kubernetes.CreateKubernetesCluster,
-			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
+			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
 			cacheGet:  cacheGetKubeClusterWithScope(p.cache, scope),
-			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
+			cacheList: getAllAdapter(p.cache.GetKubernetesClusters), //nolint:staticcheck // SA1019 test cov of deprecated method
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 		}, withSkipPaginationTest())

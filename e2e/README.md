@@ -42,6 +42,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 |------------------------|------------------|-----------------------------------------------------------------------------------------|
 | `-v`                   | `false`          | Enable debug logging                                                                    |
 | `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
+| `--no-resource-setup`  | `false`          | Skip pre-test resource setup                                                            |
 | `--quiet`              | `false`          | Redirect Teleport logs to file instead of stdout                                        |
 | `--replace-certs`      | `false`          | Generate new self-signed certificates                                                   |
 | `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
@@ -195,6 +196,27 @@ test.describe('custom license', () => {
 Note that the e2e runner will only restart Teleport with the different config and not re-initialize it from fresh, so the data directory
 will remains the same for all tests which means the cluster's identity like cluster name, CA, bootstrapped users, and roles will carry over unchanged.
 
+A declared config can also set process environment variables scoped to just that config's Teleport restart via
+`test.use({ teleport: { env: {...} } })`. These are not inherited by the default config or by other declared configs,
+which avoids a variable meant for one config leaking into unrelated tests:
+
+```ts
+test.describe('cloud license', () => {
+  test.use({
+    teleport: {
+      config: {
+        auth_service: {
+          license_file: '${E2E_DIR}/testdata/licenses/cloud-license.pem',
+        },
+      },
+      env: {
+        TELEPORT_CLOUD_HOSTPORT: 'api.cloud.gravitational.io',
+      },
+    },
+  });
+});
+```
+
 ### Session Recordings
 
 The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
@@ -254,6 +276,9 @@ Connect is built automatically when running `tests/connect` paths or when using 
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
 ./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Skip applying pre-test resources
+./e2e/run.sh --no-build --no-resource-setup e2e/tests/web/authenticated/roles.spec.ts
 
 # Run only Connect tests, skip rebuilding of both Teleport and Connect
 ./e2e/run.sh --no-build e2e/tests/connect

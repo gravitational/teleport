@@ -16,20 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// eventGroupTypes contains a map of events that were grouped under the same
-// event type but have different event codes. This is used to filter out duplicate
-// event types when listing event filters and provide modified description of event.
-export const eventGroupTypes = {
-  'db.session.start': 'Database Session Start',
-  exec: 'Command Execution',
-  port: 'Port Forwarding',
-  scp: 'SCP',
-  sftp: 'SFTP',
-  subsystem: 'Subsystem Request',
-  'user.login': 'User Logins',
-  'spiffe.svid.issued': 'SPIFFE SVID Issuance',
-};
-
 /**
  * eventCodes is a map of event codes.
  *
@@ -37,11 +23,8 @@ export const eventGroupTypes = {
  *  1: Define fields from JSON response in `RawEvents` object (in this file)
  *  2: Define formatter in `makeEvent.ts` file which defines *events types and
  *     defines short and long event definitions
- *  * Some events can have same event "type" but have unique "code".
- *    These duplicated event types needs to be defined in `eventGroupTypes` object
  *  3: Define icons for events under `EventTypeCell.tsx` file
  *  4: Add an actual JSON event to the fixtures file in `src/Audit/fixtures/index.ts`.
- *  5: Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx`
  */
 export const eventCodes = {
   ACCESS_REQUEST_CREATED: 'T5000I',
@@ -2271,6 +2254,8 @@ export type RawEvents = {
     {
       client_ip_restrictions: string[];
       success: boolean;
+      mode?: string;
+      enforcement_expires?: string;
     }
   >;
   [eventCodes.VNET_CONFIG_CREATE]: RawEvent<

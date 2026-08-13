@@ -118,3 +118,7 @@ func (l *LoginRuleResource) GetRevision() string {
 func (l *LoginRuleResource) SetRevision(rev string) {
 	l.LoginRule.Metadata.SetRevision(rev)
 }
+
+func (l *LoginRuleResource) GetKind() string {
+	return types.KindLoginRule
+}

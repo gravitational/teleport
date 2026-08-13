@@ -180,7 +180,7 @@ func (a *App) run(ctx context.Context) error {
 }
 
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
-// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
+// call onPendingRequest, onResolvedRequest and onDeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	switch event.Resource.GetKind() {
 	case types.KindAccessMonitoringRule:

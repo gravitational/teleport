@@ -56,6 +56,7 @@ export const Twitter = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-twitter"
+
       {...otherProps}
       ref={ref}
     >

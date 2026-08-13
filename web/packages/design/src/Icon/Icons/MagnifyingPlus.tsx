@@ -56,6 +56,7 @@ export const MagnifyingPlus = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-magnifyingplus"
+
       {...otherProps}
       ref={ref}
     >

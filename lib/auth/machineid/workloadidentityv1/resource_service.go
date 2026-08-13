@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -128,7 +129,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 	// cluster state backend.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets,
+		&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Read,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,7 +146,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 	ruleCtx.Resource153 = resource
 	if err := authCtx.CheckerContext.Decision(
 		ctx, resource.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Read)
 		},
 	); err != nil {
 		// Return NotFound rather than AccessDenied to avoid leaking the
@@ -189,8 +190,8 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
 		&ruleCtx,
 		types.KindWorkloadIdentity,
-		types.VerbReadNoSecrets,
-		types.VerbList,
+		scopedaccess.Read,
+		scopedaccess.List,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,8 +236,8 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindWorkloadIdentity,
-				types.VerbReadNoSecrets,
-				types.VerbList,
+				scopedaccess.Read,
+				scopedaccess.List,
 			)
 		}); err != nil {
 			return nil, false
@@ -272,7 +273,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbDelete)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Delete)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -325,7 +326,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Create)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -394,7 +395,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbUpdate)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Update)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -463,7 +464,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
 	if err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbCreate, types.VerbUpdate)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Create, scopedaccess.Update)
 		},
 	); err != nil {
 		return nil, trace.Wrap(err)

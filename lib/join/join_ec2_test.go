@@ -492,7 +492,7 @@ func TestJoinEC2(t *testing.T) {
 			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 				Scope: "/test",
 				Metadata: &headerv1.Metadata{
-					Name: "scoped_" + token.GetName(),
+					Name: token.GetName(),
 				},
 				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
@@ -507,7 +507,8 @@ func TestJoinEC2(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_, err := testServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
-					Name: scopedToken.GetMetadata().GetName(),
+					Name:  scopedToken.GetMetadata().GetName(),
+					Scope: scopedToken.GetScope(),
 				})
 				require.NoError(t, err)
 			})
@@ -558,7 +559,8 @@ func TestJoinEC2(t *testing.T) {
 					t.Skip()
 				}
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token: scopedToken.GetMetadata().GetName(),
+					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
 						NodeName: "testnode",

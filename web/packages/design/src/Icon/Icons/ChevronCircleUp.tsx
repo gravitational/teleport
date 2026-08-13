@@ -56,6 +56,7 @@ export const ChevronCircleUp = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-chevroncircleup"
+
       {...otherProps}
       ref={ref}
     >

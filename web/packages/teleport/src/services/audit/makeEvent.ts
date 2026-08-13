@@ -2492,10 +2492,23 @@ export const formatters: Formatters = {
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
-    format: ({ user, client_ip_restrictions, success }) =>
-      success
-        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
-        : `User [${user}] has failed to update  Client IP Restrictions.`,
+    format: ({
+      user,
+      client_ip_restrictions,
+      success,
+      mode,
+      enforcement_expires,
+    }) => {
+      const modeStr = mode ? ` in [${mode}] mode` : '';
+      // The zero timestamp means no enforcement expiry was set.
+      const enforcementStr =
+        enforcement_expires && new Date(enforcement_expires).getFullYear() > 1
+          ? `, with enforcement expiring on [${enforcement_expires}]`
+          : '';
+      return success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}]${modeStr}${enforcementStr}.`
+        : `User [${user}] has failed to update Client IP Restrictions.`;
+    },
   },
   [eventCodes.VNET_CONFIG_CREATE]: {
     type: 'vnet.config.create',

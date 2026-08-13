@@ -38,9 +38,9 @@ type inferenceSecretClient struct {
 }
 
 // Get gets an inference secret with a given name from Teleport.
-func (c inferenceSecretClient) Get(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error) {
+func (c inferenceSecretClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*summarizerv1.InferenceSecret, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceSecret(
-		ctx, &summarizerv1.GetInferenceSecretRequest{Name: name},
+		ctx, &summarizerv1.GetInferenceSecretRequest{Name: key.Name},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -66,9 +66,9 @@ func (c inferenceSecretClient) Update(ctx context.Context, secret *summarizerv1.
 }
 
 // Delete deletes an inference secret with a given name from Teleport.
-func (c inferenceSecretClient) Delete(ctx context.Context, name string) error {
+func (c inferenceSecretClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceSecret(
-		ctx, &summarizerv1.DeleteInferenceSecretRequest{Name: name},
+		ctx, &summarizerv1.DeleteInferenceSecretRequest{Name: key.Name},
 	)
 	return trace.Wrap(err)
 }
@@ -89,7 +89,7 @@ func (c inferenceSecretClient) Mutate(ctx context.Context, new, _ *summarizerv1.
 // NewInferenceSecretReconciler creates a new Kubernetes controller reconciling
 // inference_secret resources.
 func NewInferenceSecretReconciler(
-	client kclient.Client, tClient *client.Client,
+	client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	secretClient := &inferenceSecretClient{
 		teleportClient: tClient,
@@ -101,6 +101,9 @@ func NewInferenceSecretReconciler(
 	](
 		client,
 		secretClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequirePolicy,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)

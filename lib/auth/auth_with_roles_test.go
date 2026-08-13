@@ -2375,6 +2375,32 @@ func TestClusterNetworkingConfigScopedRead(t *testing.T) {
 	require.Empty(t, cmp.Diff(netConfig, nc))
 }
 
+func TestClusterAuditConfigScopedRead(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	auditConfig := types.DefaultClusterAuditConfig()
+	_, err = as.AuthServer.UpsertClusterAuditConfig(ctx, auditConfig)
+	require.NoError(t, err)
+
+	const hostID = "testhost"
+	const scope = "/aa/bb"
+	srv := newScopePinnedTestServerForHost(t, as, hostID, scope, types.RoleNode)
+	ac, err := srv.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(auditConfig, ac))
+}
+
 func TestSessionRecordingConfigRBAC(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -4704,7 +4730,7 @@ func TestKindClusterConfig(t *testing.T) {
 			srv.AuditLog,
 			*authContext,
 		)
-		_, err1 := s.GetClusterAuditConfig(ctx)
+		_, err1 := s.ScopedServerWithRoles().GetClusterAuditConfig(ctx)
 		_, err2 := s.ScopedServerWithRoles().GetClusterNetworkingConfig(ctx)
 		_, err3 := s.ScopedServerWithRoles().GetSessionRecordingConfig(ctx)
 		return []error{err1, err2, err3}
@@ -6337,6 +6363,164 @@ func TestListResources_ScopedApps(t *testing.T) {
 			}
 			if tc.req.NeedTotalCount {
 				require.Equal(t, len(tc.appNamesExpected), res.TotalCount)
+			}
+		})
+	}
+}
+
+func TestListResources_ScopedNodes(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/test"
+	const childScope = "/test/child"
+	const otherScope = "/other"
+
+	createNode := func(t *testing.T, name, scope string, labels map[string]string) {
+		t.Helper()
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+				Labels:    labels,
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: name + "-host",
+			},
+			Scope: scope,
+		}
+		_, err := srv.Auth().UpsertNode(t.Context(), node)
+		require.NoError(t, err)
+	}
+
+	// Create nodes in various scopes with differing labels.
+	createNode(t, "prod-node", scope, map[string]string{"env": "prod"})
+	createNode(t, "dev-node", scope, map[string]string{"env": "dev"})
+	createNode(t, "dev-child-node", childScope, map[string]string{"env": "dev"})
+	createNode(t, "other-scope-node", otherScope, map[string]string{"env": "prod"})
+	createNode(t, "unscoped-node", "", map[string]string{"env": "prod"})
+
+	sshLabels := func(env string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins: []string{"root"},
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{
+					Name:   "env",
+					Values: []string{env},
+				}.Build(),
+			},
+		}.Build()
+	}
+	sshLabelExpression := func(expr string) *scopedaccessv1.ScopedRoleSSH {
+		return scopedaccessv1.ScopedRoleSSH_builder{
+			Logins:          []string{"root"},
+			LabelExpression: expr,
+		}.Build()
+	}
+
+	// scopedSSHUser creates a scope-pinned user whose scoped role grants the given ssh block.
+	scopedSSHUser := func(username, scope string, ssh *scopedaccessv1.ScopedRoleSSH) *auth.ScopedServerWithRoles {
+		return newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, username, scope,
+			scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Ssh:              ssh,
+			}.Build())
+	}
+
+	cases := []struct {
+		name              string
+		server            *auth.ScopedServerWithRoles
+		nodeNamesExpected []string
+		req               proto.ListResourcesRequest
+	}{
+		{
+			name:              "prod labels in scope " + scope,
+			server:            scopedSSHUser("node-test-prod-label", scope, sshLabels("prod")),
+			nodeNamesExpected: []string{"prod-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "dev label in " + scope,
+			server:            scopedSSHUser("node-test-dev-label", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "dev label expression in " + scope,
+			server:            scopedSSHUser("node-test-dev-expression", scope, sshLabelExpression(`contains(labels["env"], "dev")`)),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + scope,
+			server:            scopedSSHUser("node-test-prod-expression", scope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"prod-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + childScope,
+			server:            scopedSSHUser("node-test-child-prod-expr", childScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "prod label expression in " + otherScope,
+			server:            scopedSSHUser("node-other-prod-expression", otherScope, sshLabelExpression(`contains(labels["env"], "prod")`)),
+			nodeNamesExpected: []string{"other-scope-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Limit:        10,
+			},
+		},
+		{
+			name:              "fake pagination path returns nodes",
+			server:            scopedSSHUser("node-test-fake-pagination", scope, sshLabels("dev")),
+			nodeNamesExpected: []string{"dev-node", "dev-child-node"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindNode,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(t.Context(), tc.req)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(res.Resources))
+			for _, r := range res.Resources {
+				names = append(names, r.GetName())
+				require.NotEqual(t, "unscoped-node", r.GetName())
+			}
+
+			require.ElementsMatch(t, tc.nodeNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.nodeNamesExpected), res.TotalCount)
 			}
 		})
 	}

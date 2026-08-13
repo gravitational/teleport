@@ -178,7 +178,7 @@ func TestGetScopedRoleAgentReadsAncestorScope(t *testing.T) {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole},
-						Verbs:     []string{types.VerbReadNoSecrets},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
 					}.Build(),
 				},
 			}.Build(),
@@ -279,10 +279,10 @@ func TestRoleBasics(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -296,10 +296,10 @@ func TestRoleBasics(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -369,10 +369,10 @@ func TestRoleBasics(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -397,10 +397,10 @@ func TestRoleBasics(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -601,10 +601,10 @@ func TestAssignmentBasics(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -618,10 +618,10 @@ func TestAssignmentBasics(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -1253,10 +1253,10 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
+					}.Build(),
 				},
 			},
 		},
@@ -1270,10 +1270,10 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
 				Rules: []*scopedaccessv1.ScopedRule{
-					{
+					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-					},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
+					}.Build(),
 				},
 			},
 		},
@@ -1424,7 +1424,7 @@ func TestListScopedRolesFilterDefaulting(t *testing.T) {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{scopedaccess.KindScopedRole},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 					}.Build(),
 				},
 			}.Build(),

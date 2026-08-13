@@ -1659,6 +1659,12 @@ message AccessRequestCreate {
   // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID RequestedResourceAccessIDs = 18 [(gogoproto.nullable) = false];
+
+  // The Teleport plugin identity that submitted this review request
+  // to the Auth Service on behalf of the review author.
+  // Reviewer remains the actual Teleport user that performed the review.
+  // (only used in the access_request.review event variant).
+  string submitted_by = 19;
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -9835,6 +9841,20 @@ message ClientIPRestrictionsUpdate {
 
   // ClientIPRestrictions is the new Client IP Restrictions allowlist.
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
+
+  // Mode is the new Client IP Restrictions enforcement mode ("draft" or
+  // "enforced"), recorded exactly as accepted by the server. Empty when the
+  // request did not set a mode (treated as enforced), for deletions, and for
+  // updates made through APIs that predate the mode field.
+  string Mode = 7 [(gogoproto.jsontag) = "mode,omitempty"];
+
+  // EnforcementExpires is the time at which the Client IP Restrictions
+  // enforcement lapses. Zero if no expiry is set.
+  google.protobuf.Timestamp EnforcementExpires = 8 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "enforcement_expires,omitempty"
+  ];
 }
 
 // VnetConfigCreate is emitted when a VnetConfig is created.

@@ -55,12 +55,8 @@ export const WithCreateConfig = () => {
     />
   );
 };
-WithCreateConfig.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
-    ],
-  },
+WithCreateConfig.beforeEach = ({ msw }) => {
+  msw.use(http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})));
 };
 
 export const WithCreateConfigFailed = () => {
@@ -71,23 +67,21 @@ export const WithCreateConfigFailed = () => {
     />
   );
 };
-WithCreateConfigFailed.parameters = {
-  msw: {
-    handlers: [
-      http.post(
-        cfg.api.discoveryConfigPath,
-        () =>
-          HttpResponse.json(
-            {
-              message: 'Whoops, creating config error',
-            },
-            { status: 403 }
-          ),
-        { once: true }
-      ),
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
-    ],
-  },
+WithCreateConfigFailed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.post(
+      cfg.api.discoveryConfigPath,
+      () =>
+        HttpResponse.json(
+          {
+            message: 'Whoops, creating config error',
+          },
+          { status: 403 }
+        ),
+      { once: true }
+    ),
+    http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({}))
+  );
 };
 
 const Component = ({

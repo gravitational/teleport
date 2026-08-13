@@ -70,48 +70,40 @@ const successHandler = getBotSuccess({
 });
 
 export const Happy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotSuccess('v1'),
-        editBotSuccess('v2'),
-        editBotSuccess('v3'),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotSuccess('v1'),
+      editBotSuccess('v2'),
+      editBotSuccess('v3')
+    );
   },
 };
 
 export const WithFetchPending: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotForever()],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotForever());
   },
 };
 
 export const WithFetchFailure: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotError(500, 'error message goes here')],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotError(500, 'error message goes here'));
   },
 };
 
 export const WithBotNotFound: Story = {
-  parameters: {
-    msw: {
-      handlers: [getBotError(404, 'not found')],
-    },
+  beforeEach({ msw }) {
+    msw.use(getBotError(404, 'not found'));
   },
 };
 
@@ -119,10 +111,9 @@ export const WithNoBotReadPermission: Story = {
   args: {
     hasBotsRead: false,
   },
-  parameters: {
-    msw: {
-      handlers: [getBotError(500, 'you have permission, congrats 🎉')],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(getBotError(500, 'you have permission, congrats 🎉'));
   },
 };
 
@@ -130,98 +121,91 @@ export const WithNoBotEditPermission: Story = {
   args: {
     hasBotsEdit: false,
   },
-  parameters: {
-    msw: {
-      handlers: [successHandler],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(successHandler);
   },
 };
 
 export const WithSubmitPending: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotForever(),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotForever()
+    );
   },
 };
 
 export const WithSubmitFailure: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotError('v1', 500, 'something went wrong'),
-        editBotError('v2', 500, 'something went wrong'),
-        editBotError('v3', 500, 'something went wrong'),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotError('v1', 500, 'something went wrong'),
+      editBotError('v2', 500, 'something went wrong'),
+      editBotError('v3', 500, 'something went wrong')
+    );
   },
 };
 
 export const WithSubmitOutdatedProxy: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        successHandler,
-        successGetRoles({
-          startKey: '',
-          items: ['access', 'editor', 'terraform-provider'].map(r => ({
-            content: r,
-            id: r,
-            name: r,
-            kind: 'role',
-          })),
-        }),
-        editBotError('v1', 404, 'path not found', {
-          proxyVersion: {
-            major: 19,
-            minor: 0,
-            patch: 0,
-            preRelease: 'dev',
-            string: '18.0.0',
-          },
-        }),
-        editBotError('v2', 404, 'path not found', {
-          proxyVersion: {
-            major: 19,
-            minor: 0,
-            patch: 0,
-            preRelease: 'dev',
-            string: '18.0.0',
-          },
-        }),
-        editBotError('v3', 404, 'path not found', {
-          proxyVersion: {
-            major: 19,
-            minor: 0,
-            patch: 0,
-            preRelease: 'dev',
-            string: '18.0.0',
-          },
-        }),
-      ],
-    },
+  beforeEach({ msw }) {
+    msw.use(
+      successHandler,
+      successGetRoles({
+        startKey: '',
+        items: ['access', 'editor', 'terraform-provider'].map(r => ({
+          content: r,
+          id: r,
+          name: r,
+          kind: 'role',
+        })),
+      }),
+      editBotError('v1', 404, 'path not found', {
+        proxyVersion: {
+          major: 19,
+          minor: 0,
+          patch: 0,
+          preRelease: 'dev',
+          string: '18.0.0',
+        },
+      }),
+      editBotError('v2', 404, 'path not found', {
+        proxyVersion: {
+          major: 19,
+          minor: 0,
+          patch: 0,
+          preRelease: 'dev',
+          string: '18.0.0',
+        },
+      }),
+      editBotError('v3', 404, 'path not found', {
+        proxyVersion: {
+          major: 19,
+          minor: 0,
+          patch: 0,
+          preRelease: 'dev',
+          string: '18.0.0',
+        },
+      })
+    );
   },
 };
 

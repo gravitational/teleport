@@ -148,24 +148,14 @@ OpenAI-compatible proxies.
 | `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
 | `trusted_clusters`                                     | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
 
-## Database Service
+### Kubernetes
 
-| Name                                        | Type      | Component                 | Description                                                            |
-| ------------------------------------------- | --------- | ------------------------- | ---------------------------------------------------------------------- |
-| `teleport_db_messages_from_client_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB client.              |
-| `teleport_db_messages_from_server_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB server.              |
-| `teleport_db_method_call_count_total`       | counter   | Teleport Database Service | Number of times a DB method was called.                                |
-| `teleport_db_method_call_latency_seconds`   | histogram | Teleport Database Service | Call latency for a DB method calls.                                    |
-| `teleport_db_initialized_connections_total` | counter   | Teleport Database Service | Number of initialized DB connections.                                  |
-| `teleport_db_active_connections_total`      | gauge     | Teleport Database Service | Number of active DB connections.                                       |
-| `teleport_db_connection_durations_seconds`  | histogram | Teleport Database Service | Duration of DB connection.                                             |
-| `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
-| `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
+The following tables identify all metrics available in the [Teleport Proxy
+Service](../reference/deployment/config.mdx#proxy-service)
+if at least one Kubernetes cluster is enrolled in your Teleport cluster.
 
-### Kubernetes access
-
-The following tables identify all metrics available in the Teleport Proxy
-Service if at least one Kubernetes cluster is enrolled in your Teleport cluster.
+The same metrics are also reported by the `kubernetes_service`, but apply to the
+agent leg of Kubernetes connections.
 
 #### Client
 
@@ -184,7 +174,8 @@ to upstream servers. In the case of `proxy`, the upstream server can be a
 
 #### Server
 
-The following table identifies all metrics available for incoming connections.
+The following table identifies all metrics available for incoming connections
+from clients (`tsh`, `kubectl`) to a Teleport Proxy.
 
 | Name                                                        | Type      | Component                 | Description                                         |
 | ----------------------------------------------------------- | --------- | ------------------------- | --------------------------------------------------- |
@@ -198,6 +189,23 @@ The following table identifies all metrics available for incoming connections.
 | `teleport_kubernetes_server_portforward_sessions_total`     | counter   | Teleport Kubernetes Proxy | Number of active kubectl portforward sessions.      |
 | `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Proxy | Number of active joining sessions.                  |
 | `teleport_kubernetes_server_join_sessions_total`            | counter   | Teleport Kubernetes Proxy | Total number of joining sessions.                   |
+
+
+
+
+## Database Service
+
+| Name                                        | Type      | Component                 | Description                                                            |
+| ------------------------------------------- | --------- | ------------------------- | ---------------------------------------------------------------------- |
+| `teleport_db_messages_from_client_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB client.              |
+| `teleport_db_messages_from_server_total`    | counter   | Teleport Database Service | Number of messages (packets) received from the DB server.              |
+| `teleport_db_method_call_count_total`       | counter   | Teleport Database Service | Number of times a DB method was called.                                |
+| `teleport_db_method_call_latency_seconds`   | histogram | Teleport Database Service | Call latency for a DB method calls.                                    |
+| `teleport_db_initialized_connections_total` | counter   | Teleport Database Service | Number of initialized DB connections.                                  |
+| `teleport_db_active_connections_total`      | gauge     | Teleport Database Service | Number of active DB connections.                                       |
+| `teleport_db_connection_durations_seconds`  | histogram | Teleport Database Service | Duration of DB connection.                                             |
+| `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
+| `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
 
 
 ## Application Service
@@ -214,20 +222,32 @@ The following table identifies all metrics available for incoming connections.
 
 ## Teleport Kubernetes Service
 
-The following table identifies all metrics available when the service connects
-to upstream servers. In the case of `kubernetes_service`, the upstream server
-is always a Kubernetes cluster.
+These metrics are available when the Teleport process is configured with
+[kubernetes_service](../reference/deployment/config.mdx#kubernetes-service)
+and apply to traffic between the agent and Kubernetes API.
+
+The same metrics are also reported by the Proxy service, but apply to the proxy
+leg of Kubernetes connections.
+
+#### Client {/* Intentionally #### to match Proxy Service/Kubernetes above */}
+
+The following table identifies all metrics available when the
+`kubernetes_service` connects to the API of a Kubernetes cluster.
 
 | Name                                                              | Type      | Component                   | Description                                                                                               |
 | ----------------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `teleport_kubernetes_client_in_flight_requests`                   | gauge     | Teleport Kubernetes Service | In-flight requests waiting for the upstream response. |
 | `teleport_kubernetes_client_requests_total`                       | counter   | Teleport Kubernetes Service | Total number of requests sent to the upstream teleport proxy, kube_service or Kubernetes Cluster servers. |
 | `teleport_kubernetes_client_tls_duration_seconds`                 | histogram | Teleport Kubernetes Service | Latency distribution of TLS handshakes.                                                                   |
-| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Service | Latency distribution of time to dial to the upstream server - using reversetunnel or direct dialer.       |
+| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Service | Latency distribution of time to dial to the upstream server - using reverse tunnel or direct dialer.       |
 | `teleport_kubernetes_client_first_byte_response_duration_seconds` | histogram | Teleport Kubernetes Service | Latency distribution of time to receive the first response byte from the upstream server.                 |
 | `teleport_kubernetes_client_request_duration_seconds`             | histogram | Teleport Kubernetes Service | Latency distribution of the upstream request time.                                                        |
 
-The following table identifies all metrics available for incoming connections.
+
+#### Server {/* Intentionally #### to match Proxy Service/Kubernetes above */}
+
+The following table identifies all metrics available for connections from
+clients/Teleport proxies to the Teleport `kubernetes_service`.
 
 | Name                                                        | Type      | Component                   | Description                                         |
 | ----------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------- |

@@ -689,10 +689,6 @@ const (
 // SCP is Secure Copy.
 const SCP = "scp"
 
-// AdminRoleName is the name of the default admin role for all local users if
-// another role is not explicitly assigned
-const AdminRoleName = "admin"
-
 const (
 	// PresetEditorRoleName is a name of a preset role that allows
 	// editing cluster configuration.
@@ -773,6 +769,10 @@ const (
 	// PresetAccessPluginRoleName is a name of a preset role that includes
 	// permissions required by self-hosted access request plugin.
 	PresetAccessPluginRoleName = "access-plugin"
+
+	// PresetAccessPluginWithReviewRoleName names the preset role that includes
+	// permissions required by self-hosted access request plugins that permit native reviews.
+	PresetAccessPluginWithReviewRoleName = "access-plugin-with-review"
 
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.

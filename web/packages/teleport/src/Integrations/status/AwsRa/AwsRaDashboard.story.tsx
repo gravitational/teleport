@@ -30,17 +30,16 @@ import { IntegrationKind } from 'teleport/services/integrations';
 
 export default {
   title: 'Teleport/Integrations/AwsRa',
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getIntegrationsUrl(), () => {
-          return HttpResponse.json({
-            items: [],
-            nextKey: '',
-          });
-        }),
-      ],
-    },
+
+  beforeEach({ msw }) {
+    msw.use(
+      http.get(cfg.getIntegrationsUrl(), () => {
+        return HttpResponse.json({
+          items: [],
+          nextKey: '',
+        });
+      })
+    );
   },
 };
 
@@ -66,54 +65,52 @@ export function Dashboard() {
     </ContextProvider>
   );
 }
-Dashboard.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json({
-          name: raName,
-          subKind: 'aws-ra',
-          awsra: {
-            trustAnchorARN: trustAnchorArn,
-            profileSyncConfig: {
-              enabled: true,
-              profileArn:
-                'arn:aws:rolesanywhere:us-east-2:111:profile/31a77874-9f41-4c10-aeae-2aa1140e8ca5',
-              roleArn: 'arn:aws:iam::111:role/ra-int',
-              filters: ['*'],
-            },
-          },
-        });
-      }),
-      http.get(cfg.getIntegrationStatsUrl(raName), () => {
-        return HttpResponse.json({
-          name: raName,
-          subKind: 'aws-ra',
-          awsra: {
-            trustAnchorARN: trustAnchorArn,
-            profileSyncConfig: {
-              enabled: true,
-              profileArn:
-                'arn:aws:rolesanywhere:us-east-2:111:profile/31a77874-9f41-4c10-aeae-2aa1140e8ca5',
-              roleArn: 'arn:aws:iam::111:role/ra-int',
-              filters: ['*'],
-            },
-          },
-          unresolvedUserTasks: 0,
-          awsec2: {},
-          awsrds: {},
-          awseks: {},
-          rolesAnywhereProfileSync: {
+Dashboard.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json({
+        name: raName,
+        subKind: 'aws-ra',
+        awsra: {
+          trustAnchorARN: trustAnchorArn,
+          profileSyncConfig: {
             enabled: true,
-            status: 'SUCCESS',
-            syncedProfiles: 3,
-            syncStartTime: '2025-08-25T17:57:29.5993537Z',
-            syncEndTime: '2025-08-25T17:57:30.538177396Z',
+            profileArn:
+              'arn:aws:rolesanywhere:us-east-2:111:profile/31a77874-9f41-4c10-aeae-2aa1140e8ca5',
+            roleArn: 'arn:aws:iam::111:role/ra-int',
+            filters: ['*'],
           },
-        });
-      }),
-    ],
-  },
+        },
+      });
+    }),
+    http.get(cfg.getIntegrationStatsUrl(raName), () => {
+      return HttpResponse.json({
+        name: raName,
+        subKind: 'aws-ra',
+        awsra: {
+          trustAnchorARN: trustAnchorArn,
+          profileSyncConfig: {
+            enabled: true,
+            profileArn:
+              'arn:aws:rolesanywhere:us-east-2:111:profile/31a77874-9f41-4c10-aeae-2aa1140e8ca5',
+            roleArn: 'arn:aws:iam::111:role/ra-int',
+            filters: ['*'],
+          },
+        },
+        unresolvedUserTasks: 0,
+        awsec2: {},
+        awsrds: {},
+        awseks: {},
+        rolesAnywhereProfileSync: {
+          enabled: true,
+          status: 'SUCCESS',
+          syncedProfiles: 3,
+          syncStartTime: '2025-08-25T17:57:29.5993537Z',
+          syncEndTime: '2025-08-25T17:57:30.538177396Z',
+        },
+      });
+    })
+  );
 };
 
 export function Failed() {
@@ -129,27 +126,25 @@ export function Failed() {
     </ContextProvider>
   );
 }
-Failed.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json(
-          {
-            error: { message: 'Generic Bad Request' },
-          },
-          { status: 400 }
-        );
-      }),
-      http.get(cfg.getIntegrationStatsUrl(raName), () => {
-        return HttpResponse.json(
-          {
-            error: { message: 'Generic Bad Request' },
-          },
-          { status: 400 }
-        );
-      }),
-    ],
-  },
+Failed.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Generic Bad Request' },
+        },
+        { status: 400 }
+      );
+    }),
+    http.get(cfg.getIntegrationStatsUrl(raName), () => {
+      return HttpResponse.json(
+        {
+          error: { message: 'Generic Bad Request' },
+        },
+        { status: 400 }
+      );
+    })
+  );
 };
 
 export function NoData() {
@@ -165,38 +160,36 @@ export function NoData() {
     </ContextProvider>
   );
 }
-NoData.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getIntegrationsUrl(raName), () => {
-        return HttpResponse.json({
-          name: raName,
-          subKind: 'aws-ra',
-          awsra: {
-            trustAnchorARN: trustAnchorArn,
-            profileSyncConfig: {
-              enabled: true,
-              profileArn:
-                'arn:aws:rolesanywhere:us-east-2:111:profile/31a77874-9f41-4c10-aeae-2aa1140e8ca5',
-              roleArn: 'arn:aws:iam::111:role/ra-int',
-              filters: ['*'],
-            },
+NoData.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.getIntegrationsUrl(raName), () => {
+      return HttpResponse.json({
+        name: raName,
+        subKind: 'aws-ra',
+        awsra: {
+          trustAnchorARN: trustAnchorArn,
+          profileSyncConfig: {
+            enabled: true,
+            profileArn:
+              'arn:aws:rolesanywhere:us-east-2:111:profile/31a77874-9f41-4c10-aeae-2aa1140e8ca5',
+            roleArn: 'arn:aws:iam::111:role/ra-int',
+            filters: ['*'],
           },
-        });
-      }),
-      http.get(cfg.getIntegrationStatsUrl(raName), () => {
-        return HttpResponse.json({
-          name: raName,
-          subKind: IntegrationKind.AwsRa,
-          unresolvedUserTasks: 0,
-          awsra: {},
-          awsoidc: {},
-          awsec2: {},
-          awsrds: {},
-          awseks: {},
-          rolesAnywhereProfileSync: {},
-        });
-      }),
-    ],
-  },
+        },
+      });
+    }),
+    http.get(cfg.getIntegrationStatsUrl(raName), () => {
+      return HttpResponse.json({
+        name: raName,
+        subKind: IntegrationKind.AwsRa,
+        unresolvedUserTasks: 0,
+        awsra: {},
+        awsoidc: {},
+        awsec2: {},
+        awsrds: {},
+        awseks: {},
+        rolesAnywhereProfileSync: {},
+      });
+    })
+  );
 };

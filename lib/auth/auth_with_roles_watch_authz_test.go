@@ -22,8 +22,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	grpcmetadata "google.golang.org/grpc/metadata"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -197,11 +199,29 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			assertErr: requireAccessDenied,
 		},
 		{
+			// bot_instance is namespaced and carries its scope on delete events, so it is
+			// whitelisted for scope-targeting watch filters.
+			name:      "bot_instance default resolves to EXACT at pin",
+			kind:      types.KindBotInstance,
+			filter:    nil,
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_EXACT,
+			wantScope: pinScope,
+		},
+		{
 			name:      "workload_identity default resolves to EXACT at pin",
 			kind:      types.KindWorkloadIdentity,
 			filter:    nil,
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_EXACT,
+			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance DESCENDANTS at pin",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_DESCENDANTS, pinScope),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
 			wantScope: pinScope,
 		},
 		{
@@ -213,12 +233,26 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			wantScope: pinScope,
 		},
 		{
+			name:      "bot_instance ALL rewritten to DESCENDANTS at pin",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_ALL, ""),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
+			wantScope: pinScope,
+		},
+		{
 			name:      "workload_identity ALL rewritten to DESCENDANTS at pin",
 			kind:      types.KindWorkloadIdentity,
 			filter:    filter(scopesv1.Mode_MODE_ALL, ""),
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
 			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance EXACT at orthogonal scope denied by pin enforcement",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_EXACT, "/bar"),
+			assertErr: requireAccessDenied,
 		},
 		{
 			name:      "workload_identity EXACT at orthogonal scope denied by pin enforcement",
@@ -430,11 +464,25 @@ func TestUnscopedWatchKindAuthz(t *testing.T) {
 			wantMode:  scopesv1.Mode_MODE_EXACT,
 		},
 		{
+			name:      "bot_instance defaults to UNSCOPED for unscoped caller",
+			kind:      types.KindBotInstance,
+			filter:    nil,
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_UNSCOPED,
+		},
+		{
 			name:      "workload_identity defaults to UNSCOPED for unscoped caller",
 			kind:      types.KindWorkloadIdentity,
 			filter:    nil,
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_UNSCOPED,
+		},
+		{
+			name:      "bot_instance EXACT allowed for unscoped caller",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_EXACT, "/foo"),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_EXACT,
 		},
 		{
 			name:      "workload_identity EXACT allowed for unscoped caller",
@@ -474,6 +522,66 @@ func TestUnscopedWatchKindAuthz(t *testing.T) {
 				return
 			}
 			require.Equal(t, tt.wantMode, got.GetMode())
+		})
+	}
+}
+
+// TestApplyLegacyWatchSecretsCompat verifies the version gate that keeps kube cluster event streams
+// secret-inclusive for clients predating minKubeClusterWatchSecretsVersion.
+//
+// TODO(fspmarshall): DELETE IN v21, along with applyLegacyWatchSecretsCompat.
+func TestApplyLegacyWatchSecretsCompat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		kind                string
+		clientVersion       string
+		expectedLoadSecrets bool
+	}{
+		{
+			name:                "outdated client is forced to load kube cluster secrets",
+			kind:                types.KindKubernetesCluster,
+			clientVersion:       "18.11.0",
+			expectedLoadSecrets: true,
+		},
+		{
+			name:          "client at the boundary asks for itself",
+			kind:          types.KindKubernetesCluster,
+			clientVersion: minKubeClusterWatchSecretsVersion.String(),
+		},
+		{
+			name:                "unversioned client is treated as outdated",
+			kind:                types.KindKubernetesCluster,
+			expectedLoadSecrets: true,
+		},
+		{
+			name:                "unparsable version is treated outdated",
+			kind:                types.KindKubernetesCluster,
+			clientVersion:       "not-a-semver",
+			expectedLoadSecrets: true,
+		},
+		{
+			name:          "other kinds are untouched",
+			kind:          types.KindKubeServer,
+			clientVersion: "18.11.0",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			if test.clientVersion != "" {
+				ctx = grpcmetadata.NewIncomingContext(ctx, grpcmetadata.Pairs(
+					metadata.VersionKey, test.clientVersion,
+				))
+			}
+
+			kind := types.WatchKind{Kind: test.kind}
+			applyLegacyWatchSecretsCompat(ctx, &kind)
+			require.Equal(t, test.expectedLoadSecrets, kind.LoadSecrets)
 		})
 	}
 }
