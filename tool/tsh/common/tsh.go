@@ -285,6 +285,8 @@ type CLIConf struct {
 	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
 	// Mainly used for debugging purpose so the flag should be hidden.
 	AppHTTPSTunnel bool
+	// AppForwardProxy enables forward proxy on the app.
+	AppForwardProxy bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -1183,6 +1185,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
+	proxyApp.Flag("forward-proxy", "Start forward proxy.").BoolVar(&cf.AppForwardProxy)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().SetValue(&cf.AppSQN)

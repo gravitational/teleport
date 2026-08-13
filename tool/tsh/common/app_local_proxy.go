@@ -109,6 +109,25 @@ func validateTargetPort(app types.Application, targetPort int) error {
 	return nil
 }
 
+func (a *localProxyApp) GetEnvVars() (map[string]string, error) {
+	if a.localALPNProxy == nil {
+		return nil, trace.NotFound("ALPN proxy is not running")
+	}
+
+	envVars := map[string]string{
+		// Proxy settings.
+		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
+		"https_proxy": "http://" + a.localForwardProxy.GetAddr(),
+
+		"SSL_CERT_FILE": a.profile.AppLocalCAPath(a.tc.SiteName, scopes.QualifiedName{
+			Name:  a.routeToApp.Name,
+			Scope: a.routeToApp.Scope,
+		}),
+	}
+
+	return envVars, nil
+}
+
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	if err := a.startLocalALPNProxy(ctx, a.portMapping, false /*withTLS*/, opts...); err != nil {

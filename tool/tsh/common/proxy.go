@@ -26,6 +26,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -118,8 +120,10 @@ func GetProxySSHRetryerLockfilePath(baseDir, proxy string) string {
 	return keypaths.ProxySSHRetryerLockfilePath(profile.FullProfilePath(baseDir), proxy)
 }
 
-type shouldRetryFunc func(context.Context, *libclient.TeleportClient, error) (bool, error)
-type reloginFunc func(context.Context, *libclient.TeleportClient, ...libclient.RetryWithReloginOption) error
+type (
+	shouldRetryFunc func(context.Context, *libclient.TeleportClient, error) (bool, error)
+	reloginFunc     func(context.Context, *libclient.TeleportClient, ...libclient.RetryWithReloginOption) error
+)
 
 // sshRetryer is a more bespoke of libclient.RetryWithRelogin.
 // It uses a file lock to allow a single tsh process to handle relogin
@@ -665,18 +669,35 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
-		return trace.Wrap(err)
+	if cf.AppForwardProxy {
+		if err := proxyApp.StartLocalProxyWithForwarder(cf.Context, matchAppHost(app), alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	appName := cf.AppSQN.Name
 	if portMapping.TargetPort != 0 {
 		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
-	fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
-	// If target port is not equal to zero, the user must know about the port flag.
-	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
-		fmt.Fprintln(cf.ProxyStatusOutput(), "To avoid port randomization, you can choose the listening port using the --port flag.")
+
+	if cf.AppForwardProxy {
+		envVars, err := proxyApp.GetEnvVars()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := printCloudTemplate(envVars, envVarDefaultFormat(), portMapping.LocalPort == 0, "Okta"); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+		// If target port is not equal to zero, the user must know about the port flag.
+		if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
+			fmt.Fprintln(cf.ProxyStatusOutput(), "To avoid port randomization, you can choose the listening port using the --port flag.")
+		}
 	}
 
 	if cf.AppHTTPSTunnel {
@@ -1191,3 +1212,20 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{envVarCommand $fmt $key $value}}
 {{- end}}
 `))
+
+func matchAppHost(app types.Application) requestMatcher {
+	u, err := url.Parse(app.GetURI())
+	if err != nil {
+		return func(req *http.Request) bool {
+			return false
+		}
+	}
+
+	return func(req *http.Request) bool {
+		host, _, err := net.SplitHostPort(req.Host)
+		if err != nil {
+			host = req.Host
+		}
+		return strings.EqualFold(host, u.Hostname())
+	}
+}
