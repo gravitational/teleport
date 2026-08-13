@@ -2927,6 +2927,41 @@ func TestReasonRequired(t *testing.T) {
 				},
 			},
 		},
+		// The following roles exercise reason.mode="required" when the requestable
+		// roles are expressed as a wildcard, a regexp, or via claims_to_roles rather
+		// than as a literal role name (see issue #54397).
+		"fork-access-requester-with-reason-wildcard": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-*"},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+		"fork-access-requester-with-reason-regexp": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"^fork-.*$"},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+		"fork-access-requester-with-reason-claims": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					ClaimsToRoles: []types.ClaimMapping{
+						{Claim: "logins", Value: "*", Roles: []string{"fork-access"}},
+					},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
 	}
 	for name, spec := range roleDesc {
 		role, err := types.NewRole(name, spec)
@@ -3030,6 +3065,24 @@ func TestReasonRequired(t *testing.T) {
 			name:         "role request: handle wildcard",
 			currentRoles: []string{"fork-access-requester-with-reason"},
 			requestRoles: []string{"*"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: require reason when reason.required role uses a wildcard matcher",
+			currentRoles: []string{"fork-access-requester-with-reason-wildcard"},
+			requestRoles: []string{"fork-access"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: require reason when reason.required role uses a regexp matcher",
+			currentRoles: []string{"fork-access-requester-with-reason-regexp"},
+			requestRoles: []string{"fork-access"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: require reason when reason.required role derives roles from claims_to_roles",
+			currentRoles: []string{"fork-access-requester-with-reason-claims"},
+			requestRoles: []string{"fork-access"},
 			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
 		},
 		{
