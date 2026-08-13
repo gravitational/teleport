@@ -52,8 +52,29 @@ authServer: ""
 # * [Join Methods and Tokens](../../reference/deployment/join-methods.mdx)
 # * [Teleport Config Reference](../../reference/deployment/config.mdx#instance-wide-settings).
 #
-# To create the token, see docs ([Terraform](../../reference/infrastructure-as-code/terraform-provider/resources/provision_token.mdx) or [tctl](../../reference/cli/tctl.mdx#tctl-tokens-add)):
-#       `tctl tokens add --type=proxy ...`
+# To create the token, see docs ([Terraform](../../reference/infrastructure-as-code/terraform-provider/resources/provision_token.mdx)
+# or [tctl](../../reference/cli/tctl.mdx#tctl-create)):
+#
+# ```bash
+# exp="$(date -u -v"+10m" +"%Y-%m-%dT%H:%M:%SZ)"
+# issuer="$(kubectl get --raw /.well-known/openid-configuration | yq -r .issuer)"
+# tctl create <<EOT
+# kind: token
+# version: v2
+# metadata:
+#  expires: "${exp}"
+#  name: my-proxy
+# spec:
+#  roles: [Proxy]
+#  join_method: kubernetes
+#  kubernetes:
+#    type: oidc
+#    oidc:
+#      issuer: "${issuer}"
+#    allow:
+#      - service_account: "my-namespace:my-custom-sa-name-or-helm-release-name"
+# EOT
+# ```
 joinParams:
 
 # joinParams.method(string) -- How to join the cluster.
