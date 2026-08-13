@@ -54,7 +54,7 @@ func (inst *testInstance) start(ctx context.Context) error {
 	}()
 
 	if inst.kube != nil {
-		if err = inst.kube.start(); err != nil {
+		if err = inst.kube.start(ctx); err != nil {
 			return fmt.Errorf("failed to start kube fixture for %s: %w", inst.browser, err)
 		}
 	}

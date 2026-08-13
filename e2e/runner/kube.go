@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -43,7 +44,7 @@ type kubeCluster struct {
 	provider           *kindcluster.Provider
 }
 
-func (k *kubeCluster) start() error {
+func (k *kubeCluster) start(ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Dir(k.kubeconfigPath), 0o755); err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func (k *kubeCluster) start() error {
 		kindcluster.ProviderWithDocker(),
 		kindcluster.ProviderWithLogger(kindSlogLogger{log: k.log}),
 	)
-	k.log.Info("starting kube cluster", "name", k.name)
+	k.log.InfoContext(ctx, "starting kube cluster", "name", k.name)
 
 	if err := k.provider.Delete(k.name, k.kubeconfigPath); err != nil {
 		return fmt.Errorf("failed to delete stale kube cluster %s: %w", k.name, err)
@@ -76,7 +77,7 @@ func (k *kubeCluster) start() error {
 		}
 	}
 
-	k.log.Info("kube cluster is ready", "name", k.name, "kubeconfig", k.kubeconfigPath)
+	k.log.InfoContext(ctx, "kube cluster is ready", "name", k.name, "kubeconfig", k.kubeconfigPath)
 	return nil
 }
 
@@ -118,13 +119,14 @@ func (k *kubeCluster) stop() {
 		return
 	}
 
-	k.log.Info("deleting kube cluster", "name", k.name)
+	ctx := context.Background()
+	k.log.InfoContext(ctx, "deleting kube cluster", "name", k.name)
 	if err := k.provider.Delete(k.name, k.kubeconfigPath); err != nil {
-		k.log.Warn("failed to delete kube cluster", "name", k.name, "error", err)
+		k.log.WarnContext(ctx, "failed to delete kube cluster", "name", k.name, "error", err)
 	}
 
 	if err := os.Remove(k.kubeconfigPath); err != nil && !os.IsNotExist(err) {
-		k.log.Warn("failed to remove kubeconfig", "path", k.kubeconfigPath, "error", err)
+		k.log.WarnContext(ctx, "failed to remove kubeconfig", "path", k.kubeconfigPath, "error", err)
 	}
 }
 
@@ -133,19 +135,23 @@ type kindSlogLogger struct {
 }
 
 func (k kindSlogLogger) Warn(message string) {
-	k.log.Warn(message)
+	//nolint:sloglint // message cannot be constant
+	k.log.WarnContext(context.Background(), message)
 }
 
 func (k kindSlogLogger) Warnf(format string, args ...interface{}) {
-	k.log.Warn(fmt.Sprintf(format, args...))
+	//nolint:sloglint // message cannot be constant
+	k.log.WarnContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
 func (k kindSlogLogger) Error(message string) {
-	k.log.Error(message)
+	//nolint:sloglint // message cannot be constant
+	k.log.ErrorContext(context.Background(), message)
 }
 
 func (k kindSlogLogger) Errorf(format string, args ...interface{}) {
-	k.log.Error(fmt.Sprintf(format, args...))
+	//nolint:sloglint // message cannot be constant
+	k.log.ErrorContext(context.Background(), fmt.Sprintf(format, args...))
 }
 
 func (k kindSlogLogger) V(level kindlog.Level) kindlog.InfoLogger {
@@ -161,11 +167,12 @@ type kindSlogInfoLogger struct {
 }
 
 func (k kindSlogInfoLogger) Enabled() bool {
-	return k.log.Enabled(nil, k.slogLevel())
+	return k.log.Enabled(context.Background(), k.slogLevel())
 }
 
 func (k kindSlogInfoLogger) Info(message string) {
-	k.log.Log(nil, k.slogLevel(), message)
+	//nolint:sloglint // message cannot be constant
+	k.log.Log(context.Background(), k.slogLevel(), message)
 }
 
 func (k kindSlogInfoLogger) Infof(format string, args ...interface{}) {
