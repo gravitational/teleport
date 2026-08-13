@@ -17,6 +17,7 @@
  */
 
 import fs from 'node:fs/promises';
+import type { DisposableTempDir } from 'node:fs/promises';
 import module from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -129,7 +130,7 @@ export interface App {
 // makes those requests itself, so it can't carry the per-test X-Forwarded-For the browser tests use, and every
 // Connect login shares one bucket. Logging in once per user and copying the resulting data dir keeps the count
 // to one regardless of how many specs need a session.
-const snapshots = new Map<string, Promise<string>>();
+const snapshots = new Map<string, Promise<DisposableTempDir>>();
 
 function loggedInSnapshot(username: string, creds: UserCredentials) {
   let snapshot = snapshots.get(username);
@@ -147,13 +148,21 @@ async function createLoggedInSnapshot(
   username: string,
   creds: UserCredentials
 ) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'connect-e2e-snapshot-'));
-  await initializeDataDir(dir, withDefaultAppConfig({}));
+  const dir = await fs.mkdtempDisposable(
+    path.join(os.tmpdir(), 'connect-e2e-snapshot-')
+  );
 
-  // Scoped so the app closes, flushing the tsh profile and app state to disk, before anything copies the dir.
-  {
-    await using app = await launchApp(dir, creds);
-    await login(app.page, username, creds.password);
+  try {
+    await initializeDataDir(dir.path, withDefaultAppConfig({}));
+
+    // Scoped so the app closes, flushing the tsh profile and app state to disk, before anything copies the dir.
+    {
+      await using app = await launchApp(dir.path, creds);
+      await login(app.page, username, creds.password);
+    }
+  } catch (error) {
+    await dir.remove();
+    throw error;
   }
 
   return dir;
@@ -175,9 +184,9 @@ export async function loggedInDataDir(
   );
 
   try {
-    await fs.cp(snapshot, temp.path, { recursive: true });
+    await fs.cp(snapshot.path, temp.path, { recursive: true });
   } catch (error) {
-    temp.remove();
+    await temp.remove();
     throw error;
   }
 
@@ -209,9 +218,7 @@ export const test = fixtureBase.extend<
 
       await Promise.all(
         dirs.map(dir =>
-          dir.status === 'fulfilled'
-            ? fs.rm(dir.value, { recursive: true, force: true })
-            : undefined
+          dir.status === 'fulfilled' ? dir.value.remove() : undefined
         )
       );
     },
