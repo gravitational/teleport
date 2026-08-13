@@ -185,6 +185,7 @@ type ValidatedMFAChallengeSpec struct {
 	xxx_hidden_SourceCluster string                     `protobuf:"bytes,2,opt,name=source_cluster,json=sourceCluster,proto3"`
 	xxx_hidden_TargetCluster string                     `protobuf:"bytes,3,opt,name=target_cluster,json=targetCluster,proto3"`
 	xxx_hidden_Username      string                     `protobuf:"bytes,4,opt,name=username,proto3"`
+	xxx_hidden_MfaDevice     *MFADevice                 `protobuf:"bytes,5,opt,name=mfa_device,json=mfaDevice,proto3"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -242,6 +243,13 @@ func (x *ValidatedMFAChallengeSpec) GetUsername() string {
 	return ""
 }
 
+func (x *ValidatedMFAChallengeSpec) GetMfaDevice() *MFADevice {
+	if x != nil {
+		return x.xxx_hidden_MfaDevice
+	}
+	return nil
+}
+
 func (x *ValidatedMFAChallengeSpec) SetPayload(v *SessionIdentifyingPayload) {
 	x.xxx_hidden_Payload = v
 }
@@ -258,6 +266,10 @@ func (x *ValidatedMFAChallengeSpec) SetUsername(v string) {
 	x.xxx_hidden_Username = v
 }
 
+func (x *ValidatedMFAChallengeSpec) SetMfaDevice(v *MFADevice) {
+	x.xxx_hidden_MfaDevice = v
+}
+
 func (x *ValidatedMFAChallengeSpec) HasPayload() bool {
 	if x == nil {
 		return false
@@ -265,8 +277,19 @@ func (x *ValidatedMFAChallengeSpec) HasPayload() bool {
 	return x.xxx_hidden_Payload != nil
 }
 
+func (x *ValidatedMFAChallengeSpec) HasMfaDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_MfaDevice != nil
+}
+
 func (x *ValidatedMFAChallengeSpec) ClearPayload() {
 	x.xxx_hidden_Payload = nil
+}
+
+func (x *ValidatedMFAChallengeSpec) ClearMfaDevice() {
+	x.xxx_hidden_MfaDevice = nil
 }
 
 type ValidatedMFAChallengeSpec_builder struct {
@@ -281,6 +304,8 @@ type ValidatedMFAChallengeSpec_builder struct {
 	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
 	// login name) and must correspond to a user in the cluster specified to source_cluster.
 	Username string
+	// MFA device that satisfied the challenge, as registered in source_cluster. Replicated verbatim to target_cluster.
+	MfaDevice *MFADevice
 }
 
 func (b0 ValidatedMFAChallengeSpec_builder) Build() *ValidatedMFAChallengeSpec {
@@ -291,6 +316,7 @@ func (b0 ValidatedMFAChallengeSpec_builder) Build() *ValidatedMFAChallengeSpec {
 	x.xxx_hidden_SourceCluster = b.SourceCluster
 	x.xxx_hidden_TargetCluster = b.TargetCluster
 	x.xxx_hidden_Username = b.Username
+	x.xxx_hidden_MfaDevice = b.MfaDevice
 	return m0
 }
 
@@ -473,6 +499,66 @@ func (*sessionIdentifyingPayload_SshSessionId) isSessionIdentifyingPayload_Paylo
 
 func (*sessionIdentifyingPayload_TlsSessionId) isSessionIdentifyingPayload_Payload() {}
 
+// MFADevice references the MFA device that satisfied a challenge.
+type MFADevice struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Id string                 `protobuf:"bytes,1,opt,name=id,proto3"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MFADevice) Reset() {
+	*x = MFADevice{}
+	mi := &file_teleport_mfa_v2_validated_challenge_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MFADevice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MFADevice) ProtoMessage() {}
+
+func (x *MFADevice) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_mfa_v2_validated_challenge_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MFADevice) GetId() string {
+	if x != nil {
+		return x.xxx_hidden_Id
+	}
+	return ""
+}
+
+func (x *MFADevice) SetId(v string) {
+	x.xxx_hidden_Id = v
+}
+
+type MFADevice_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the MFA device, matching the ID of the device registered to the user. For SSO MFA devices this is the auth
+	// connector ID rather than a generated UUID. Used as the LockTarget.MFADevice when authorizing the session.
+	Id string
+}
+
+func (b0 MFADevice_builder) Build() *MFADevice {
+	m0 := &MFADevice{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Id = b.Id
+	return m0
+}
+
 var File_teleport_mfa_v2_validated_challenge_proto protoreflect.FileDescriptor
 
 const file_teleport_mfa_v2_validated_challenge_proto_rawDesc = "" +
@@ -483,33 +569,39 @@ const file_teleport_mfa_v2_validated_challenge_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
-	"\x04spec\x18\x05 \x01(\v2*.teleport.mfa.v2.ValidatedMFAChallengeSpecR\x04spec\"\xcb\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.mfa.v2.ValidatedMFAChallengeSpecR\x04spec\"\x86\x02\n" +
 	"\x19ValidatedMFAChallengeSpec\x12D\n" +
 	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
 	"\x0esource_cluster\x18\x02 \x01(\tR\rsourceCluster\x12%\n" +
 	"\x0etarget_cluster\x18\x03 \x01(\tR\rtargetCluster\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\"v\n" +
+	"\busername\x18\x04 \x01(\tR\busername\x129\n" +
+	"\n" +
+	"mfa_device\x18\x05 \x01(\v2\x1a.teleport.mfa.v2.MFADeviceR\tmfaDevice\"v\n" +
 	"\x19SessionIdentifyingPayload\x12&\n" +
 	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionId\x12&\n" +
 	"\x0etls_session_id\x18\x02 \x01(\fH\x00R\ftlsSessionIdB\t\n" +
-	"\apayloadBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2b\x06proto3"
+	"\apayload\"\x1b\n" +
+	"\tMFADevice\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02idBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2b\x06proto3"
 
-var file_teleport_mfa_v2_validated_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_mfa_v2_validated_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_mfa_v2_validated_challenge_proto_goTypes = []any{
 	(*ValidatedMFAChallenge)(nil),     // 0: teleport.mfa.v2.ValidatedMFAChallenge
 	(*ValidatedMFAChallengeSpec)(nil), // 1: teleport.mfa.v2.ValidatedMFAChallengeSpec
 	(*SessionIdentifyingPayload)(nil), // 2: teleport.mfa.v2.SessionIdentifyingPayload
-	(*v1.Metadata)(nil),               // 3: teleport.header.v1.Metadata
+	(*MFADevice)(nil),                 // 3: teleport.mfa.v2.MFADevice
+	(*v1.Metadata)(nil),               // 4: teleport.header.v1.Metadata
 }
 var file_teleport_mfa_v2_validated_challenge_proto_depIdxs = []int32{
-	3, // 0: teleport.mfa.v2.ValidatedMFAChallenge.metadata:type_name -> teleport.header.v1.Metadata
+	4, // 0: teleport.mfa.v2.ValidatedMFAChallenge.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.mfa.v2.ValidatedMFAChallenge.spec:type_name -> teleport.mfa.v2.ValidatedMFAChallengeSpec
 	2, // 2: teleport.mfa.v2.ValidatedMFAChallengeSpec.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 3: teleport.mfa.v2.ValidatedMFAChallengeSpec.mfa_device:type_name -> teleport.mfa.v2.MFADevice
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_mfa_v2_validated_challenge_proto_init() }
@@ -527,7 +619,7 @@ func file_teleport_mfa_v2_validated_challenge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_mfa_v2_validated_challenge_proto_rawDesc), len(file_teleport_mfa_v2_validated_challenge_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

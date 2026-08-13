@@ -5737,6 +5737,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			RelayServerHeartbeatsCleanup:  true,
 			LinuxDesktopHeartbeats:        true,
 			LinuxDesktopCleanup:           true,
+			InstanceStatus:                true,
 		}.Build(),
 	}.Build()
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {

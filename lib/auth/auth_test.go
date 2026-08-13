@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -3810,10 +3811,10 @@ func TestNewWebSessionScopedTrustedDeviceRequirement(t *testing.T) {
 		Assignment: scopedaccessv1pb.ScopedRoleAssignment_builder{
 			Kind: "scoped_role_assignment",
 			Metadata: headerv1.Metadata_builder{
-				Name: uuid.NewString(),
+				Name: "some-scoped-role-assignment",
 			}.Build(),
 			Scope:   "/foo",
-			SubKind: "dynamic",
+			SubKind: scopedaccess.SubKindDynamic,
 			Spec: scopedaccessv1pb.ScopedRoleAssignmentSpec_builder{
 				User: "test-user",
 				Assignments: []*scopedaccessv1pb.Assignment{
@@ -3828,12 +3829,19 @@ func TestNewWebSessionScopedTrustedDeviceRequirement(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	// Wait for scoped access cache to see the assignment.
-	pin := scopesv1pb.Pin_builder{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/foo/bar"}.Build()
+	// Wait for scoped access cache to see the role and the assignment.
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		err := p.a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, "test-user", pin)
-		assert.NoError(ct, err)
-		assert.NotNil(ct, pin.GetAssignmentTree())
+		_, err := p.a.ScopedAccessCache.GetScopedRole(ctx, scopedaccessv1pb.GetScopedRoleRequest_builder{
+			Name:  "some-scoped-role",
+			Scope: "/foo",
+		}.Build())
+		require.NoError(ct, err)
+		_, err = p.a.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1pb.GetScopedRoleAssignmentRequest_builder{
+			Name:    "some-scoped-role-assignment",
+			Scope:   "/foo",
+			SubKind: scopedaccess.SubKindDynamic,
+		}.Build())
+		require.NoError(ct, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	ws, _, err := p.a.NewWebSession(ctx, auth.NewWebSessionRequest{

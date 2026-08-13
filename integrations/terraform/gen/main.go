@@ -350,68 +350,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	uiConfig = payload{
-		Name:                   "UIConfig",
-		TypeName:               "UIConfigV1",
-		VarName:                "uiConfig",
-		IfaceName:              "UIConfig",
-		GetMethod:              "GetUIConfig",
-		CreateMethod:           "SetUIConfig",
-		UpdateMethod:           "SetUIConfig",
-		DeleteMethod:           "DeleteUIConfig",
-		ID:                     `"ui_config"`,
-		Kind:                   "ui_config",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_ui_config",
-		HasCheckAndSetDefaults: true,
-		GetCanReturnNil:        true,
-	}
-
-	server = payload{
-		Name:                   "Server",
-		TypeName:               "ServerV2",
-		VarName:                "server",
-		GetMethod:              "GetNode",
-		CreateMethod:           "UpsertNode",
-		UpdateMethod:           "UpsertNode",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteNode",
-		ID:                     "server.Metadata.Name",
-		Kind:                   "node",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_server",
-		HasCheckAndSetDefaults: true,
-		Namespaced:             true,
-		ForceSetKind:           "apitypes.KindNode",
-	}
-
-	autoUpdateVersion = payload{
-		Name:                  "AutoUpdateVersion",
-		TypeName:              "AutoUpdateVersion",
-		VarName:               "autoUpdateVersion",
-		GetMethod:             "GetAutoUpdateVersion",
-		CreateMethod:          "CreateAutoUpdateVersion",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertAutoUpdateVersion",
-		DeleteMethod:          "DeleteAutoUpdateVersion",
-		ID:                    "autoUpdateVersion.Metadata.Name",
-		Kind:                  "autoupdate_version",
-		HasStaticID:           false,
-		ProtoPackage:          "autoupdatev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
-		TerraformResourceType: "teleport_autoupdate_version",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAutoUpdateVersion",
-		DefaultName:  "apitypes.MetaNameAutoUpdateVersion",
-	}
-
 	autoUpdateConfig = payload{
 		Name:                  "AutoUpdateConfig",
 		TypeName:              "AutoUpdateConfig",
@@ -727,12 +665,6 @@ func genTFSchema() {
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
-	generateResource(uiConfig, singularResource)
-	generateDataSource(uiConfig, singularDataSource)
-	generateResource(server, pluralResource)
-	generateDataSource(server, pluralDataSource)
-	generateResource(autoUpdateVersion, singularResource)
-	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
 	generateDataSource(autoUpdateConfig, singularDataSource)
 	generateResource(discoveryConfig, pluralResource)

@@ -17,7 +17,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
-import OSLog
+import Logging
 import Security
 
 /// Implements Device Trust using two pieces of device-local storage.
@@ -230,7 +230,9 @@ extension SecureEnclaveCredentialStore {
 			)
 		else {
 			if let error {
-				logger.error("Could not create the Device Trust access-control policy: \(error.takeRetainedValue())")
+				logger.error("Could not create the Device Trust access-control policy", metadata: [
+					"error": "\(error.takeRetainedValue())",
+				])
 			}
 
 			throw DeviceTrustCredentialError.accessControlCreationFailed

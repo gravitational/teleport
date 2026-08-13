@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	libevent "github.com/gravitational/teleport/lib/events"
@@ -41,11 +44,18 @@ import (
 
 type mockSSMClient struct {
 	SSMClient
-	commandOutput          *ssm.SendCommandOutput
-	waiterTimeout          bool
-	commandInvokeOutput    map[string]*ssm.GetCommandInvocationOutput
-	describeOutput         *ssm.DescribeInstanceInformationOutput
-	listCommandInvocations *ssm.ListCommandInvocationsOutput
+	commandOutput                    *ssm.SendCommandOutput
+	waiterTimeout                    bool
+	waiterMaxWaitError               error
+	waitForContext                   bool
+	waitForContextInstance           map[string]bool
+	waiterCompletionDelay            time.Duration
+	waiterStarted                    chan struct{}
+	getCommandWaitForContextInstance map[string]bool
+	commandInvokeOutput              map[string]*ssm.GetCommandInvocationOutput
+	commandInvokeByInstance          map[string]*ssm.GetCommandInvocationOutput
+	describeOutput                   *ssm.DescribeInstanceInformationOutput
+	listCommandInvocations           *ssm.ListCommandInvocationsOutput
 }
 
 func TestTrimToRecentTail(t *testing.T) {
@@ -118,6 +128,46 @@ const docWithoutSSHDConfigPathParam = "ssmdocument-without-sshdConfigPath-param"
 
 const docWithoutEnvParam = "ssmdocument-without-env-param"
 
+func TestGetAWSInstallTimeout(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  time.Duration
+	}{
+		{
+			name: "unset uses default",
+			want: defaultAWSInstallTimeout,
+		},
+		{
+			name:  "valid duration",
+			value: "3m45s",
+			want:  3*time.Minute + 45*time.Second,
+		},
+		{
+			name:  "invalid duration uses default",
+			value: "invalid",
+			want:  defaultAWSInstallTimeout,
+		},
+		{
+			name:  "duration is clamped to minimum",
+			value: "1s",
+			want:  minAWSInstallTimeout,
+		},
+		{
+			name:  "duration is clamped to maximum",
+			value: "2h",
+			want:  maxAWSInstallTimeout,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(awsInstallTimeoutEnvVar, tt.value)
+			require.Equal(t, tt.want, getAWSInstallTimeout())
+		})
+	}
+}
+
 func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 	if _, hasExtraParam := input.Parameters["sshdConfigPath"]; hasExtraParam && aws.ToString(input.DocumentName) == docWithoutSSHDConfigPathParam {
 		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutSSHDConfigPathParam)
@@ -130,7 +180,14 @@ func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandIn
 	return sm.commandOutput, nil
 }
 
-func (sm *mockSSMClient) GetCommandInvocation(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+func (sm *mockSSMClient) GetCommandInvocation(ctx context.Context, input *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+	if sm.getCommandWaitForContextInstance[aws.ToString(input.InstanceId)] {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	if result, found := sm.commandInvokeByInstance[aws.ToString(input.InstanceId)]; found {
+		return result, nil
+	}
 	if stepResult, found := sm.commandInvokeOutput[aws.ToString(input.PluginName)]; found {
 		return stepResult, nil
 	}
@@ -152,6 +209,31 @@ func (sm *mockSSMClient) ListCommandInvocations(_ context.Context, input *ssm.Li
 }
 
 func (sm *mockSSMClient) Wait(ctx context.Context, params *ssm.GetCommandInvocationInput, maxWaitDur time.Duration, optFns ...func(*ssm.CommandExecutedWaiterOptions)) error {
+	if sm.waiterStarted != nil {
+		sm.waiterStarted <- struct{}{}
+	}
+
+	if sm.waiterCompletionDelay > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(sm.waiterCompletionDelay):
+			return nil
+		}
+	}
+
+	if sm.waitForContext || sm.waitForContextInstance[aws.ToString(params.InstanceId)] {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(maxWaitDur):
+			if sm.waiterMaxWaitError != nil {
+				return sm.waiterMaxWaitError
+			}
+			return trace.Errorf(waiterTimedOutErrorMessage)
+		}
+	}
+
 	if sm.waiterTimeout {
 		return trace.Errorf(waiterTimedOutErrorMessage)
 	}
@@ -169,11 +251,375 @@ func (sm *mockSSMClient) Wait(ctx context.Context, params *ssm.GetCommandInvocat
 	return nil
 }
 
+func TestSSMInstallerHungCommandReportsPerInstanceResults(t *testing.T) {
+	const installTimeout = 3*time.Minute + 45*time.Second
+	t.Setenv(awsInstallTimeoutEnvVar, installTimeout.String())
+
+	synctest.Test(t, func(t *testing.T) {
+		client := &mockSSMClient{
+			commandOutput: &ssm.SendCommandOutput{
+				Command: &ssmtypes.Command{
+					CommandId: aws.String("command-id"),
+				},
+			},
+			waitForContextInstance: map[string]bool{
+				"instance-hung": true,
+			},
+			commandInvokeByInstance: map[string]*ssm.GetCommandInvocationOutput{
+				"instance-success": {
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+				"instance-hung": {
+					Status:       ssmtypes.CommandInvocationStatusInProgress,
+					ResponseCode: -1,
+				},
+			},
+		}
+
+		installationResults := &mockInstallationResults{}
+		inst, err := NewSSMInstaller(SSMInstallerConfig{
+			ReportSSMInstallationResultFunc: installationResults.ReportInstallationResult,
+			getWaiter: func(SSMClient) commandWaiter {
+				return client
+			},
+		})
+		require.NoError(t, err)
+
+		err = inst.Run(t.Context(), SSMRunRequest{
+			DocumentName: types.AWSSSMDocumentRunShellScript,
+			SSM:          client,
+			Instances: []EC2Instance{
+				{InstanceID: "instance-success"},
+				{InstanceID: "instance-hung"},
+			},
+		})
+		require.NoError(t, err)
+
+		require.Len(t, installationResults.installations, 2)
+		resultsByInstance := make(map[string]*SSMInstallationResult, 2)
+		for _, result := range installationResults.installations {
+			resultsByInstance[result.SSMRunEvent.InstanceID] = result
+		}
+		require.Equal(t, string(ssmtypes.CommandInvocationStatusSuccess), resultsByInstance["instance-success"].SSMRunEvent.Status)
+		require.Equal(t, libevent.SSMRunSuccessCode, resultsByInstance["instance-success"].SSMRunEvent.Metadata.Code)
+		require.Equal(t, string(ssmtypes.CommandInvocationStatusInProgress), resultsByInstance["instance-hung"].SSMRunEvent.Status)
+		require.Equal(t, libevent.SSMRunFailCode, resultsByInstance["instance-hung"].SSMRunEvent.Metadata.Code)
+	})
+}
+
+func TestSSMInstallerBatchCompletesWithinSingleWaitPeriod(t *testing.T) {
+	const installTimeout = 3*time.Minute + 45*time.Second
+	t.Setenv(awsInstallTimeoutEnvVar, installTimeout.String())
+
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		instances := make([]EC2Instance, 0, awsEC2APIChunkSize)
+		commandInvokeByInstance := make(map[string]*ssm.GetCommandInvocationOutput, awsEC2APIChunkSize)
+		for i := range awsEC2APIChunkSize {
+			instanceID := fmt.Sprintf("instance-%d", i)
+			instances = append(instances, EC2Instance{InstanceID: instanceID})
+			commandInvokeByInstance[instanceID] = &ssm.GetCommandInvocationOutput{
+				Status:       ssmtypes.CommandInvocationStatusInProgress,
+				ResponseCode: -1,
+			}
+		}
+
+		client := &mockSSMClient{
+			commandOutput: &ssm.SendCommandOutput{
+				Command: &ssmtypes.Command{
+					CommandId: aws.String("command-id"),
+				},
+			},
+			waitForContext:          true,
+			commandInvokeByInstance: commandInvokeByInstance,
+		}
+		installationResults := &mockInstallationResults{}
+		inst, err := NewSSMInstaller(SSMInstallerConfig{
+			ReportSSMInstallationResultFunc: installationResults.ReportInstallationResult,
+			getWaiter: func(SSMClient) commandWaiter {
+				return client
+			},
+		})
+		require.NoError(t, err)
+
+		err = inst.Run(t.Context(), SSMRunRequest{
+			DocumentName: types.AWSSSMDocumentRunShellScript,
+			SSM:          client,
+			Instances:    instances,
+		})
+		require.NoError(t, err)
+		require.Equal(t, installTimeout+awsSSMResultGracePeriod, time.Since(start))
+		require.Len(t, installationResults.installations, awsEC2APIChunkSize)
+
+		for _, result := range installationResults.installations {
+			require.Equal(t, string(ssmtypes.CommandInvocationStatusInProgress), result.SSMRunEvent.Status)
+			require.Equal(t, libevent.SSMRunFailCode, result.SSMRunEvent.Metadata.Code)
+		}
+	})
+}
+
+func TestSSMInstallerCollectionTimeoutIsInstanceLocal(t *testing.T) {
+	const installTimeout = 3*time.Minute + 45*time.Second
+	const blockedInstanceID = "instance-blocked"
+	t.Setenv(awsInstallTimeoutEnvVar, installTimeout.String())
+
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		instances := make([]EC2Instance, 0, awsEC2APIChunkSize)
+		commandInvokeByInstance := make(map[string]*ssm.GetCommandInvocationOutput, awsEC2APIChunkSize)
+		for i := range awsEC2APIChunkSize - 1 {
+			instanceID := fmt.Sprintf("instance-%d", i)
+			instances = append(instances, EC2Instance{InstanceID: instanceID})
+			commandInvokeByInstance[instanceID] = &ssm.GetCommandInvocationOutput{
+				Status:       ssmtypes.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			}
+		}
+		instances = append(instances, EC2Instance{InstanceID: blockedInstanceID})
+
+		client := &mockSSMClient{
+			commandOutput: &ssm.SendCommandOutput{
+				Command: &ssmtypes.Command{
+					CommandId: aws.String("command-id"),
+				},
+			},
+			waitForContext: true,
+			getCommandWaitForContextInstance: map[string]bool{
+				blockedInstanceID: true,
+			},
+			commandInvokeByInstance: commandInvokeByInstance,
+		}
+		installationResults := &mockInstallationResults{}
+		inst, err := NewSSMInstaller(SSMInstallerConfig{
+			ReportSSMInstallationResultFunc: installationResults.ReportInstallationResult,
+			getWaiter: func(SSMClient) commandWaiter {
+				return client
+			},
+		})
+		require.NoError(t, err)
+
+		err = inst.Run(t.Context(), SSMRunRequest{
+			DocumentName: types.AWSSSMDocumentRunShellScript,
+			SSM:          client,
+			Instances:    instances,
+		})
+		require.NoError(t, err)
+		require.Equal(t, installTimeout+2*awsSSMResultGracePeriod, time.Since(start))
+
+		require.Len(t, installationResults.installations, awsEC2APIChunkSize)
+		resultsByInstance := make(map[string]*SSMInstallationResult, awsEC2APIChunkSize)
+		for _, result := range installationResults.installations {
+			instanceID := result.SSMRunEvent.InstanceID
+			require.NotContains(t, resultsByInstance, instanceID)
+			resultsByInstance[instanceID] = result
+		}
+
+		for _, instance := range instances {
+			result := resultsByInstance[instance.InstanceID]
+			require.NotNil(t, result)
+			if instance.InstanceID == blockedInstanceID {
+				require.Equal(t, libevent.SSMRunFailCode, result.SSMRunEvent.Metadata.Code)
+				require.Equal(t, int64(-1), result.SSMRunEvent.ExitCode)
+				require.Equal(t, usertasks.AutoDiscoverEC2IssueSSMInvocationFailure, result.IssueType)
+				continue
+			}
+
+			require.Equal(t, libevent.SSMRunSuccessCode, result.SSMRunEvent.Metadata.Code)
+			require.Equal(t, string(ssmtypes.CommandInvocationStatusSuccess), result.SSMRunEvent.Status)
+		}
+	})
+}
+
+func TestSSMInstallerReportErrorIsInstanceLocal(t *testing.T) {
+	client := &mockSSMClient{
+		commandOutput: &ssm.SendCommandOutput{
+			Command: &ssmtypes.Command{
+				CommandId: aws.String("command-id"),
+			},
+		},
+		commandInvokeByInstance: map[string]*ssm.GetCommandInvocationOutput{
+			"instance-report-error": {
+				Status:       ssmtypes.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			},
+			"instance-success": {
+				Status:       ssmtypes.CommandInvocationStatusSuccess,
+				ResponseCode: 0,
+			},
+		},
+	}
+
+	var mu sync.Mutex
+	reportedInstances := make(map[string]int, 2)
+	inst, err := NewSSMInstaller(SSMInstallerConfig{
+		ReportSSMInstallationResultFunc: func(_ context.Context, result *SSMInstallationResult) error {
+			mu.Lock()
+			defer mu.Unlock()
+			reportedInstances[result.SSMRunEvent.InstanceID]++
+			if result.SSMRunEvent.InstanceID == "instance-report-error" {
+				return fmt.Errorf("report failed")
+			}
+			return nil
+		},
+		getWaiter: func(SSMClient) commandWaiter {
+			return client
+		},
+	})
+	require.NoError(t, err)
+
+	err = inst.Run(t.Context(), SSMRunRequest{
+		DocumentName: types.AWSSSMDocumentRunShellScript,
+		SSM:          client,
+		Instances: []EC2Instance{
+			{InstanceID: "instance-report-error"},
+			{InstanceID: "instance-success"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[string]int{
+		"instance-report-error": 1,
+		"instance-success":      1,
+	}, reportedInstances)
+}
+
+func TestSSMInstallerWaitsThroughStatusHeadroom(t *testing.T) {
+	const installTimeout = 3*time.Minute + 45*time.Second
+	const terminalStatusDelay = installTimeout + 30*time.Second
+	t.Setenv(awsInstallTimeoutEnvVar, installTimeout.String())
+
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		client := &mockSSMClient{
+			commandOutput: &ssm.SendCommandOutput{
+				Command: &ssmtypes.Command{
+					CommandId: aws.String("command-id"),
+				},
+			},
+			waiterCompletionDelay: terminalStatusDelay,
+			commandInvokeByInstance: map[string]*ssm.GetCommandInvocationOutput{
+				"instance-id": {
+					Status:       ssmtypes.CommandInvocationStatusTimedOut,
+					ResponseCode: -1,
+				},
+			},
+		}
+		installationResults := &mockInstallationResults{}
+		inst, err := NewSSMInstaller(SSMInstallerConfig{
+			ReportSSMInstallationResultFunc: installationResults.ReportInstallationResult,
+			getWaiter: func(SSMClient) commandWaiter {
+				return client
+			},
+		})
+		require.NoError(t, err)
+
+		err = inst.Run(t.Context(), SSMRunRequest{
+			DocumentName: types.AWSSSMDocumentRunShellScript,
+			SSM:          client,
+			Instances: []EC2Instance{
+				{InstanceID: "instance-id"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, terminalStatusDelay, time.Since(start))
+
+		require.Len(t, installationResults.installations, 1)
+		require.Equal(t, string(ssmtypes.CommandInvocationStatusTimedOut), installationResults.installations[0].SSMRunEvent.Status)
+		require.Equal(t, libevent.SSMRunFailCode, installationResults.installations[0].SSMRunEvent.Metadata.Code)
+	})
+}
+
+func TestSSMInstallerCallerCancellation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		client := &mockSSMClient{
+			commandOutput: &ssm.SendCommandOutput{
+				Command: &ssmtypes.Command{
+					CommandId: aws.String("command-id"),
+				},
+			},
+			waitForContext: true,
+			waiterStarted:  make(chan struct{}, 1),
+		}
+		installationResults := &mockInstallationResults{}
+		inst, err := NewSSMInstaller(SSMInstallerConfig{
+			ReportSSMInstallationResultFunc: installationResults.ReportInstallationResult,
+			getWaiter: func(SSMClient) commandWaiter {
+				return client
+			},
+		})
+		require.NoError(t, err)
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- inst.Run(ctx, SSMRunRequest{
+				DocumentName: types.AWSSSMDocumentRunShellScript,
+				SSM:          client,
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id"},
+				},
+			})
+		}()
+
+		<-client.waiterStarted
+		cancel()
+		require.ErrorIs(t, <-errCh, context.Canceled)
+		require.Empty(t, installationResults.installations)
+	})
+}
+
+func TestSSMInstallerHonorsTimeoutAboveLegacyWaiterLimit(t *testing.T) {
+	t.Setenv(awsInstallTimeoutEnvVar, maxAWSInstallTimeout.String())
+
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		client := &mockSSMClient{
+			commandOutput: &ssm.SendCommandOutput{
+				Command: &ssmtypes.Command{
+					CommandId: aws.String("command-id"),
+				},
+			},
+			waitForContext:     true,
+			waiterMaxWaitError: fmt.Errorf("request canceled while waiting: %w", context.DeadlineExceeded),
+			commandInvokeByInstance: map[string]*ssm.GetCommandInvocationOutput{
+				"instance-id": {
+					Status:       ssmtypes.CommandInvocationStatusInProgress,
+					ResponseCode: -1,
+				},
+			},
+		}
+		installationResults := &mockInstallationResults{}
+		inst, err := NewSSMInstaller(SSMInstallerConfig{
+			ReportSSMInstallationResultFunc: installationResults.ReportInstallationResult,
+			getWaiter: func(SSMClient) commandWaiter {
+				return client
+			},
+		})
+		require.NoError(t, err)
+
+		err = inst.Run(t.Context(), SSMRunRequest{
+			DocumentName: types.AWSSSMDocumentRunShellScript,
+			SSM:          client,
+			Instances: []EC2Instance{
+				{InstanceID: "instance-id"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, maxAWSInstallTimeout+awsSSMResultGracePeriod, time.Since(start))
+
+		require.Len(t, installationResults.installations, 1)
+		require.Equal(t, string(ssmtypes.CommandInvocationStatusInProgress), installationResults.installations[0].SSMRunEvent.Status)
+	})
+}
+
 type mockInstallationResults struct {
+	mu            sync.Mutex
 	installations []*SSMInstallationResult
 }
 
 func (me *mockInstallationResults) ReportInstallationResult(ctx context.Context, result *SSMInstallationResult) error {
+	me.mu.Lock()
+	defer me.mu.Unlock()
 	me.installations = append(me.installations, result)
 	return nil
 }

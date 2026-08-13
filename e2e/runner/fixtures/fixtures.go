@@ -24,6 +24,7 @@ var (
 	SSHNode = register("ssh-node")
 	// SSHNodeBPF runs a second node, docker-node-bpf, with Enhanced Session Recording enabled.
 	SSHNodeBPF = register("ssh-node-bpf")
+	Kube       = register("kube")
 	Connect    = register("connect")
 )
 

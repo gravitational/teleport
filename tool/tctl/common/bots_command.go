@@ -1302,6 +1302,8 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 	table.AddRow([]string{"Authenticated At:", record.GetAuthenticatedAt().AsTime().Format(time.RFC3339)})
 	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.GetJoinMethod())})
 	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.GetJoinToken())})
+	//nolint:staticcheck // fallback for records written before join_attrs
+	// existed. TODO(noah): DELETE IN V20.0.0
 	var meta fmt.Stringer = record.GetMetadata()
 	if attrs := record.GetJoinAttrs(); attrs != nil {
 		meta = attrs

@@ -25,14 +25,9 @@ function username(testInfo: TestInfo) {
   return `testuser-${testInfo.workerIndex}`;
 }
 
-// TODO(ryan): re-enable this test once Firefox flakiness is resolved.
-test.skip('verify that a user can sign up with webauthn and login', async ({
+test('verify that a user can sign up with webauthn and login', async ({
   page,
 }, testInfo) => {
-  // Signing up auto-logs-in and we then log straight back in; that burst can
-  // trip Teleport's challenge-generation rate limiter, so allow time to retry.
-  test.slow();
-
   await signup(page, username(testInfo));
 
   await page.getByRole('button', { name: 'User Menu' }).click();
@@ -43,18 +38,12 @@ test.skip('verify that a user can sign up with webauthn and login', async ({
   await page.getByRole('textbox', { name: 'Username' }).press('Tab');
   await page.getByRole('textbox', { name: 'Password' }).fill('passwordtest123');
 
-  // The web login challenge endpoint is rate limited; signing up then logging
-  // back in immediately can trip it ("rate limit exceeded, try again in Ns").
-  // Retry the sign-in until the limiter lets it through.
-  await expect(async () => {
-    await page
-      .getByTestId('userpassword')
-      .getByRole('button', { name: 'Sign In' })
-      .click();
-    await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible({
-      timeout: 5_000,
-    });
-  }).toPass({ timeout: 30_000, intervals: [3_000] });
+  await page
+    .getByTestId('userpassword')
+    .getByRole('button', { name: 'Sign In' })
+    .click();
+
+  await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
 });
 
 // Clean the user before each attempt (and after) so retries start clean rather

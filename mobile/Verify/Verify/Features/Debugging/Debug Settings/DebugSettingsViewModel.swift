@@ -20,6 +20,7 @@
 	import Foundation
 	import Sharing
 	import SwiftUI
+	import SystemClients
 
 	@Observable @MainActor
 	final class DebugSettingsViewModel {

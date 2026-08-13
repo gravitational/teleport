@@ -14,20 +14,24 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-#if DEBUG
-	import Foundation
+import Foundation
+import Logging
 
-	/// A small utility for generating a fake serial number, mostly to support the debug-only serial number setting.
-	enum FakeSerialNumberGenerator {
-		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-		static func generate() -> String {
-			func chunk() -> String {
-				(0 ..< 4)
-					.compactMap { _ in Self.base.randomElement() }
-					.reduce(into: "") { $0.append($1) }
+extension Logger.Metadata {
+	/// Formats the metadata in a way suitable for appending to the end of a log message.
+	///
+	/// All metadata is joined into key value pairs of the form `\(key)=\(value)` with each pair including a prefix that
+	/// allows the metadata to be easily scanned/parsed by the human eye.
+	var formatted: String {
+		guard !isEmpty else { return "" }
+		let metadataAsStrings = map { key, value in
+			let prefix = if key.lowercased().localizedStandardContains("error") {
+				"❌"
+			} else {
+				"🔸"
 			}
-			return "\(chunk())-\(chunk())"
+			return "\(prefix) \(key)=\(value)"
 		}
+		return metadataAsStrings.joined(separator: " ")
 	}
-#endif
+}

@@ -34,6 +34,8 @@ export type UserCredentials = {
   password: string;
   webauthnPrivateKey: string;
   webauthnCredentialId: string;
+  // Assigned by the runner so each user's login gets its own rate limiter bucket.
+  clientIp: string;
 };
 
 export const users: Record<string, UserCredentials> = JSON.parse(
