@@ -64,5 +64,7 @@ roleRef:
   name: {{ .Release.Name }}-psp
 subjects:
 - kind: ServiceAccount
+  # TODO(adamcarheden): This PSP binding only grants use to .Release.Name, but the chart uses distinct auth/proxy/hook service accounts.
+  # Fix this like teleport-proxy by binding the actual service-account names used by the chart.
   name: {{ .Release.Name }}
 {{- end -}}
