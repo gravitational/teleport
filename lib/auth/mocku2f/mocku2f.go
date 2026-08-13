@@ -71,6 +71,11 @@ type Key struct {
 	// - https://w3c.github.io/webauthn/#authdata-flags-be
 	// - https://w3c.github.io/webauthn/#authdata-flags-bs
 	SetBackupFlags bool
+	// AAGUID is reported in registration responses as the authenticator's make and model, and must be 16
+	// bytes to take effect. Real authenticators either report their model or all zeroes, and the zero
+	// value mimics the latter. A pure U2F authenticator doesn't carry an AAGUID, so a Key that reports
+	// one attests to nothing instead of using the "fido-u2f" attestation format.
+	AAGUID []byte
 	// AllowResidentKey allows creation of resident credentials.
 	// There's no actual change in Key's behavior other than allowing such requests
 	// to proceed.

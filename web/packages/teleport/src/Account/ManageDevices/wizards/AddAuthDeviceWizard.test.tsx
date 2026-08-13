@@ -62,6 +62,7 @@ function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
       <AddAuthDeviceWizard
         usage="passwordless"
         auth2faType="on"
+        existingDeviceNames={[]}
         onClose={() => {}}
         onSuccess={onSuccess}
         {...props}
@@ -93,6 +94,7 @@ describe('flow without reauthentication', () => {
     });
 
     expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Passkey Nickname'));
     await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
     await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
@@ -104,6 +106,27 @@ describe('flow without reauthentication', () => {
       },
     });
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  test('suffixes the suggested nickname when the authenticator is already registered', async () => {
+    // Every credential from a given authenticator suggests the same name, and the server rejects
+    // duplicates, so a second passkey from this device has to land on a free name.
+    render(
+      <TestWizard
+        usage="passwordless"
+        privilegeToken="privilege-token"
+        existingDeviceNames={['Passkey', 'Passkey (2)']}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
+
+    expect(screen.getByLabelText('Passkey Nickname')).toHaveValue(
+      'Passkey (3)'
+    );
   });
 
   test('adds a WebAuthn MFA', async () => {
@@ -122,6 +145,7 @@ describe('flow without reauthentication', () => {
     });
 
     expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('MFA Method Name'));
     await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
     await user.click(
       screen.getByRole('button', { name: 'Save the MFA method' })
@@ -209,6 +233,7 @@ describe('flow with reauthentication', () => {
     });
 
     expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Passkey Nickname'));
     await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
     await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
@@ -248,6 +273,7 @@ describe('flow with reauthentication', () => {
     });
 
     expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Passkey Nickname'));
     await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
     await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({
@@ -283,6 +309,7 @@ describe('flow with reauthentication', () => {
     });
 
     expect(screen.getByTestId('save-step')).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Passkey Nickname'));
     await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
     await user.click(screen.getByRole('button', { name: 'Save the Passkey' }));
     expect(ctx.mfaService.saveNewWebAuthnDevice).toHaveBeenCalledWith({

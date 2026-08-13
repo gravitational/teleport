@@ -2159,6 +2159,12 @@ create-github-release:
 go-mod-tidy-all:
 	find . -type "f" -name "go.mod" -execdir go mod tidy \;
 
+.PHONY: generate-aaguids
+generate-aaguids:
+	./build.assets/generate-aaguids.sh
+	go test ./lib/auth/webauthn/aaguid/
+	pnpm test web/packages/teleport/src/services/mfa/deviceNameLimit.test.ts
+
 .PHONY: dump-preset-roles
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go

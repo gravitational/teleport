@@ -43,6 +43,10 @@ import {
   getMfaRegisterOptions,
   MfaOption,
 } from 'teleport/services/mfa';
+import {
+  composePasskeyName,
+  uniquePasskeyName,
+} from 'teleport/services/mfa/passkeyName';
 import useTeleport from 'teleport/useTeleport';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
@@ -56,6 +60,8 @@ interface AddAuthDeviceWizardProps {
   usage: DeviceUsage;
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
+  /** Names of the devices already registered, used to keep the suggested nickname unique. */
+  existingDeviceNames: string[];
   onClose(): void;
   onSuccess(): void;
 }
@@ -64,6 +70,7 @@ interface AddAuthDeviceWizardProps {
 export function AddAuthDeviceWizard({
   usage,
   auth2faType,
+  existingDeviceNames,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
@@ -134,6 +141,7 @@ export function AddAuthDeviceWizard({
         usage={usage}
         privilegeToken={privilegeToken}
         credential={credential}
+        existingDeviceNames={existingDeviceNames}
         newMfaDeviceType={newMfaDeviceType}
         onClose={onClose}
         onNewMfaDeviceTypeChange={setNewMfaDeviceType}
@@ -329,6 +337,7 @@ interface SaveKeyStepProps {
   privilegeToken: string;
   credential: Credential;
   usage: DeviceUsage;
+  existingDeviceNames: string[];
   newMfaDeviceType: DeviceType;
   onSuccess(): void;
 }
@@ -341,6 +350,7 @@ export function SaveDeviceStep({
   privilegeToken,
   credential,
   usage,
+  existingDeviceNames,
   newMfaDeviceType,
   onSuccess,
 }: AddAuthDeviceWizardStepProps) {
@@ -348,6 +358,20 @@ export function SaveDeviceStep({
   const saveAttempt = useAttempt();
   const [deviceName, setDeviceName] = useState('');
   const [authCode, setAuthCode] = useState('');
+
+  // Pre-fill the editable nickname with a friendly default derived client-side
+  // from the freshly created credential (e.g. "1Password on Chrome").
+  useEffect(() => {
+    if (
+      credential &&
+      (usage === 'passwordless' || newMfaDeviceType === 'webauthn')
+    ) {
+      setDeviceName(
+        uniquePasskeyName(composePasskeyName(credential), existingDeviceNames)
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credential]);
 
   const onSave = (e: FormEvent<HTMLFormElement>, validator: Validator) => {
     e.preventDefault();

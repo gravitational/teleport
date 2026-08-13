@@ -21,6 +21,8 @@ package ui
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -39,6 +41,9 @@ type MFADevice struct {
 	// ResidentKey is true if the device is supports passwordless authentication.
 	// This field is set only for Webauthn devices.
 	ResidentKey bool `json:"residentKey"`
+	// AAGUID is the authenticator model identifier (dashed uuid), empty when
+	// unknown/zeroed. Webauthn devices only; resolved to a name/icon client-side.
+	AAGUID string `json:"aaguid,omitempty"`
 }
 
 // MakeMFADevices creates a UI list of mfa devices.
@@ -55,6 +60,9 @@ func MakeMFADevices(devices []*types.MFADevice) []MFADevice {
 		}
 		if wad := device.GetWebauthn(); wad != nil {
 			uiDevice.ResidentKey = wad.ResidentKey
+			if id, err := uuid.FromBytes(wad.Aaguid); err == nil && id != uuid.Nil {
+				uiDevice.AAGUID = id.String()
+			}
 		}
 		uiList = append(uiList, uiDevice)
 	}

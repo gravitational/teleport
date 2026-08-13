@@ -19,7 +19,8 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Flex, Indicator } from 'design';
+import { Box, Flex, Indicator, Text } from 'design';
+import { AuthenticatorIcon, authenticatorName } from 'design/AuthenticatorIcon';
 import { ButtonWarningBorder } from 'design/Button/Button';
 import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
@@ -29,6 +30,8 @@ import { IconTooltip } from 'design/Tooltip';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { MfaDevice } from 'teleport/services/mfa';
+
+const ICON_SIZE = 24;
 
 export interface AuthDeviceListProps {
   header: React.ReactNode;
@@ -64,35 +67,57 @@ export function AuthDeviceList({
           <StyledTable
             columns={[
               {
-                key: 'description',
-                headerText: 'Device Type',
+                key: 'name',
+                headerText: 'Device',
                 isSortable: true,
+                // Sorting by type is no longer a column of its own, so the merged column groups by
+                // type before ordering by nickname within each group.
+                onSort: (a, b) =>
+                  compareLabels(deviceTypeLabel(a), deviceTypeLabel(b)) ||
+                  compareLabels(a.name, b.name),
                 render: device => {
-                  switch (device.usage) {
-                    case 'mfa':
-                      return <Cell>{device.description}</Cell>;
-                    case 'passwordless':
-                      return (
-                        <Cell>
-                          {passkeysEnabled ? (
-                            device.description
-                          ) : (
-                            <Flex alignItems="center" gap={1}>
-                              {device.description}
-                              <IconTooltip>
-                                This device can be a passkey, but passwordless
-                                authentication is disabled
-                              </IconTooltip>
-                            </Flex>
-                          )}
-                        </Cell>
-                      );
-                    default:
-                      return device.usage;
+                  const isWebauthn = device.type === 'webauthn';
+                  // Nicknames default to the authenticator's own name, so the type below would often
+                  // just repeat the line above it.
+                  const deviceType = deviceTypeLabel(device);
+                  const content = (
+                    <Flex alignItems="center" gap={3}>
+                      {/* TOTP and SSO have no vendor mark, but they still reserve the slot so every
+                          nickname in the column starts at the same offset. */}
+                      <Box width={`${ICON_SIZE}px`} flex="0 0 auto">
+                        {isWebauthn && (
+                          <AuthenticatorIcon
+                            aaguid={device.aaguid}
+                            size={ICON_SIZE}
+                          />
+                        )}
+                      </Box>
+                      <Flex flexDirection="column">
+                        <Text>{device.name}</Text>
+                        {!sameLabel(device.name, deviceType) && (
+                          <Text typography="body3" color="text.slightlyMuted">
+                            {deviceType}
+                          </Text>
+                        )}
+                      </Flex>
+                    </Flex>
+                  );
+                  if (device.usage === 'passwordless' && !passkeysEnabled) {
+                    return (
+                      <Cell>
+                        <Flex alignItems="center" gap={1}>
+                          {content}
+                          <IconTooltip>
+                            This device can be a passkey, but passwordless
+                            authentication is disabled
+                          </IconTooltip>
+                        </Flex>
+                      </Cell>
+                    );
                   }
+                  return <Cell>{content}</Cell>;
                 },
               },
-              { key: 'name', headerText: 'Nickname', isSortable: true },
               {
                 key: 'registeredDate',
                 headerText: 'Added',
@@ -130,6 +155,25 @@ export function AuthDeviceList({
       )}
     </MultiRowBox>
   );
+}
+
+// The authenticator model when the AAGUID identifies one ("YubiKey 5 Series"), otherwise the coarse
+// kind the server reports ("Authenticator App").
+function deviceTypeLabel(device: MfaDevice): string {
+  const name =
+    device.type === 'webauthn' ? authenticatorName(device.aaguid) : undefined;
+
+  return name ?? device.description;
+}
+
+// Both lines of the column are user-facing labels that can end in a model number, so they collate the
+// same way: "YubiKey 9" before "YubiKey 10".
+function compareLabels(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+function sameLabel(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 interface RemoveCellProps {

@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { authenticatorSpec, resolveAuthenticatorName } from './authenticator';
-import type { AuthenticatorSpec } from './authenticatorSpecs';
+import { authenticatorName, resolveAuthenticatorName } from './authenticator';
 
 // The generated spec map pulls in hundreds of image assets. These tests exercise the
 // resolver logic with a hand-built map instead, so stub the generated module out of the
 // graph entirely.
 
-jest.mock('./authenticatorSpecs', () => ({ authenticatorSpecs: {} }));
+jest.mock('./authenticatorIcons', () => ({ authenticatorIcons: {} }));
 
 const ZERO_AAGUID = '00000000-0000-0000-0000-000000000000';
 
@@ -32,9 +31,9 @@ const ZERO_AAGUID = '00000000-0000-0000-0000-000000000000';
 // realistic values.
 const clipped = 'SECORA ID Key S USB by Infineo'; // exactly 30 chars
 
-const specs: Record<string, AuthenticatorSpec> = {
-  'ee882879-721c-4913-9775-3dfcce97072a': { name: 'YubiKey 5 Series' },
-  'aaaaaaaa-0000-0000-0000-000000000000': { name: clipped },
+const specs: Record<string, string> = {
+  'ee882879-721c-4913-9775-3dfcce97072a': 'YubiKey 5 Series',
+  'aaaaaaaa-0000-0000-0000-000000000000': clipped,
 };
 
 describe('resolveAuthenticatorName', () => {
@@ -111,7 +110,7 @@ describe('resolveAuthenticatorName', () => {
         expect(
           resolveAuthenticatorName(ZERO_AAGUID, transports, attachment, {
             ...specs,
-            [ZERO_AAGUID]: { name: 'should be ignored' },
+            [ZERO_AAGUID]: 'should be ignored',
           })
         ).toBe(want);
       }
@@ -144,17 +143,17 @@ describe('resolveAuthenticatorName', () => {
   });
 });
 
-describe('authenticatorSpec', () => {
-  it('returns the spec for a known AAGUID', () => {
+describe('authenticatorName', () => {
+  it('returns the vendor name for a known AAGUID', () => {
     expect(
-      authenticatorSpec('ee882879-721c-4913-9775-3dfcce97072a', specs)
-    ).toEqual({ name: 'YubiKey 5 Series' });
+      authenticatorName('ee882879-721c-4913-9775-3dfcce97072a', specs)
+    ).toBe('YubiKey 5 Series');
   });
 
   it.each(['unknown-aaguid', ZERO_AAGUID, 'constructor', undefined])(
     'returns undefined for %s',
     aaguid => {
-      expect(authenticatorSpec(aaguid, specs)).toBeUndefined();
+      expect(authenticatorName(aaguid, specs)).toBeUndefined();
     }
   );
 });
