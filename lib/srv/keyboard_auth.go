@@ -55,7 +55,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		for _, p := range preconds {
 			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, sourceCluster, id.Username, metadata.SessionID())
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, sourceCluster, id.Username, metadata.SessionID(), perms)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

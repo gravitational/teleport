@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
@@ -48,11 +49,7 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 		}.Build(),
 	}
 
-	inPerms := &ssh.Permissions{
-		Extensions: map[string]string{
-			"foo": "bar",
-		},
-	}
+	inPerms := newPerms(t)
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
 	require.Nil(t, outPerms)
@@ -105,7 +102,7 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.
 		}.Build(),
 	}
 
-	inPerms := &ssh.Permissions{}
+	inPerms := newPerms(t)
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
 	require.Nil(t, outPerms)
@@ -208,6 +205,20 @@ func setupKeyboardInteractiveAuthTestWithVerifier(t *testing.T, verifier mfav2.M
 	return h, id
 }
 
+func newPerms(t *testing.T) *ssh.Permissions {
+	t.Helper()
+
+	permit := decisionpb.SSHAccessPermit_builder{}.Build()
+	permitJSON, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(permit)
+	require.NoError(t, err)
+
+	return &ssh.Permissions{
+		Extensions: map[string]string{
+			utils.ExtIntSSHAccessPermit: string(permitJSON),
+		},
+	}
+}
+
 type mockAccessPoint struct {
 	srv.AccessPoint
 }
@@ -236,7 +247,9 @@ func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, re
 		return nil, m.verifyErr
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		MfaDevice: mfav2.MFADevice_builder{Id: "test-device-id"}.Build(),
+	}.Build(), nil
 }
 
 type mockConnMetadata struct {

@@ -20,19 +20,23 @@ package ssh
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
 // completed MFA.
 type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav2.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav2.VerifyValidatedMFAChallengeResponse, error)
+	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav2pb.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav2pb.VerifyValidatedMFAChallengeResponse, error)
 }
 
 // MFAPromptVerifier is a PromptVerifier that marshals and verifies MFA prompts and responses.
@@ -41,6 +45,7 @@ type MFAPromptVerifier struct {
 	sourceCluster string
 	username      string
 	sessionID     []byte
+	perms         *ssh.Permissions
 }
 
 var _ PromptVerifier = (*MFAPromptVerifier)(nil)
@@ -51,6 +56,7 @@ func NewMFAPromptVerifier(
 	sourceCluster string,
 	username string,
 	sessionID []byte,
+	perms *ssh.Permissions,
 ) (*MFAPromptVerifier, error) {
 	switch {
 	case verifier == nil:
@@ -64,6 +70,9 @@ func NewMFAPromptVerifier(
 
 	case len(sessionID) == 0:
 		return nil, trace.BadParameter("params SessionID must be set and be non-empty")
+
+	case perms == nil:
+		return nil, trace.BadParameter("params Permissions must be set")
 	}
 
 	return &MFAPromptVerifier{
@@ -71,6 +80,7 @@ func NewMFAPromptVerifier(
 		sourceCluster: sourceCluster,
 		username:      username,
 		sessionID:     sessionID,
+		perms:         perms,
 	}, nil
 }
 
@@ -108,17 +118,26 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 			return trace.BadParameter("missing ChallengeName in MFAPromptResponseReference")
 		}
 
-		req := mfav2.VerifyValidatedMFAChallengeRequest_builder{
+		req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
 			Name: challengeName,
-			Payload: mfav2.SessionIdentifyingPayload_builder{
+			Payload: mfav2pb.SessionIdentifyingPayload_builder{
 				SshSessionId: pv.sessionID,
 			}.Build(),
 			SourceCluster: pv.sourceCluster,
 			Username:      pv.username,
 		}.Build()
 
-		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
-		return trace.Wrap(err)
+		verifyResp, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Capture the MFA device in the decisionpb.SSHAccessPermit.LockTargets for downstream lock enforcement.
+		if err := pv.addMFADeviceToPermit(verifyResp.GetMfaDevice()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 
 	case 0:
 		return trace.BadParameter("missing Response in MFAPromptResponse")
@@ -126,4 +145,44 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 	default:
 		return trace.BadParameter("unsupported MFAPromptResponse Response type: %v", resp)
 	}
+}
+
+func (pv *MFAPromptVerifier) addMFADeviceToPermit(device *mfav2pb.MFADevice) error {
+	if device.GetId() == "" {
+		return trace.BadParameter("missing MFA device with non-empty ID (this is a bug)")
+	}
+
+	rawPermit, ok := pv.perms.Extensions[utils.ExtIntSSHAccessPermit]
+	if !ok {
+		return trace.BadParameter("missing SSH access permit (this is a bug)")
+	}
+
+	permit := &decisionpb.SSHAccessPermit{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Add the device only if it's not already in the permit.
+	if !slices.ContainsFunc(
+		permit.GetLockTargets(),
+		func(target *decisionpb.LockTarget) bool {
+			return target.GetMfaDevice() == device.GetId()
+		},
+	) {
+		permit.SetLockTargets(append(
+			permit.GetLockTargets(),
+			decisionpb.LockTarget_builder{
+				MfaDevice: device.GetId(),
+			}.Build(),
+		))
+
+		permitJSON, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(permit)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		pv.perms.Extensions[utils.ExtIntSSHAccessPermit] = string(permitJSON)
+	}
+
+	return nil
 }
