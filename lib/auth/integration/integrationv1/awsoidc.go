@@ -123,7 +123,7 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 		// and deleted if
 		// 1. every matcher and Access Graph sync references this integration
 		// 2. has valid uuid name
-		if !config.HasOtherMatchers(ig.GetName()) {
+		if config.ReferencesOnlyIntegration(ig.GetName()) {
 			_, err := uuid.Parse(config.GetName())
 
 			if err == nil {

@@ -685,7 +685,7 @@ func TestReferencesIntegration(t *testing.T) {
 	})
 }
 
-func TestHasOtherMatchers(t *testing.T) {
+func TestReferencesOnlyIntegration(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		config   *DiscoveryConfig
@@ -694,7 +694,7 @@ func TestHasOtherMatchers(t *testing.T) {
 		{
 			name:     "empty config",
 			config:   &DiscoveryConfig{Spec: Spec{}},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "AWS matchers on the integration",
@@ -706,7 +706,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "one AWS matcher on another integration",
@@ -718,7 +718,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "AWS matcher with no integration",
@@ -727,7 +727,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					AWS: []types.AWSMatcher{{Types: []string{"ec2"}}},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "Azure matcher on another integration",
@@ -737,7 +737,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					Azure: []types.AzureMatcher{{Integration: "integration2"}},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "AccessGraph syncs on the integration",
@@ -750,7 +750,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "AccessGraph AWS sync on another integration",
@@ -762,7 +762,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "AccessGraph Azure sync on another integration",
@@ -774,7 +774,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "nil AccessGraph AWS sync entry",
@@ -785,7 +785,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "nil AccessGraph Azure sync entry",
@@ -796,7 +796,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "GCP matcher",
@@ -806,7 +806,7 @@ func TestHasOtherMatchers(t *testing.T) {
 					GCP: []types.GCPMatcher{{Types: []string{"gce"}}},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "Kube matcher",
@@ -816,11 +816,11 @@ func TestHasOtherMatchers(t *testing.T) {
 					Kube: []types.KubernetesMatcher{{Types: []string{"app"}}},
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, tt.config.HasOtherMatchers("integration1"))
+			require.Equal(t, tt.expected, tt.config.ReferencesOnlyIntegration("integration1"))
 		})
 	}
 }

@@ -253,6 +253,9 @@ func (a *DiscoveryConfig) MatchSearch(values []string) bool {
 }
 
 // IsMatchersEmpty returns true if all matchers are empty.
+//
+// Deprecated: check the Spec matcher fields directly, or use
+// ReferencesOnlyIntegration to check if the config belongs to one integration.
 func (a *DiscoveryConfig) IsMatchersEmpty() bool {
 	return len(a.Spec.AWS) == 0 &&
 		len(a.Spec.Azure) == 0 &&
@@ -296,35 +299,34 @@ func (a *DiscoveryConfig) ReferencesIntegration(integration string) bool {
 	return false
 }
 
-// HasOtherMatchers returns true if any matcher or Access Graph sync does not use
-// the named integration. GCP and Kubernetes matchers cannot name an integration,
-// so each one counts as another.
-func (a *DiscoveryConfig) HasOtherMatchers(integration string) bool {
+// ReferencesOnlyIntegration returns true if every matcher and Access Graph sync
+// uses the named integration. GCP and Kubernetes matchers never do.
+func (a *DiscoveryConfig) ReferencesOnlyIntegration(integration string) bool {
 	for _, matcher := range a.Spec.AWS {
 		if matcher.Integration != integration {
-			return true
+			return false
 		}
 	}
 	for _, matcher := range a.Spec.Azure {
 		if matcher.Integration != integration {
-			return true
+			return false
 		}
 	}
 
 	if a.Spec.AccessGraph != nil {
 		for _, sync := range a.Spec.AccessGraph.AWS {
 			if sync == nil || sync.Integration != integration {
-				return true
+				return false
 			}
 		}
 		for _, sync := range a.Spec.AccessGraph.Azure {
 			if sync == nil || sync.Integration != integration {
-				return true
+				return false
 			}
 		}
 	}
 
-	return len(a.Spec.GCP) > 0 || len(a.Spec.Kube) > 0
+	return len(a.Spec.GCP) == 0 && len(a.Spec.Kube) == 0
 }
 
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.
