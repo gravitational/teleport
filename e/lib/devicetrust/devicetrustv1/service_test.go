@@ -159,6 +159,32 @@ func TestService_authz(t *testing.T) {
 			assertErr: func(err error) bool { return err == nil || trace.IsNotFound(err) },
 		},
 		{
+			name: "ApproveEnrollPairing",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindMobileDevice, verb: types.VerbCreateEnrollToken},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.ApproveEnrollPairing(ctx, &devicepb.ApproveEnrollPairingRequest{})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name: "DenyEnrollPairing",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindMobileDevice, verb: types.VerbCreateEnrollToken},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.DenyEnrollPairing(ctx, &devicepb.DenyEnrollPairingRequest{})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
+		},
+		{
 			name: "DeleteDevice",
 			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
@@ -1880,10 +1906,10 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	const adminUser = "llama"
 	const endUser = "alpaca"
 	const unknownUser = "eve"
-	authorizer := &userAwareAuthorizer{
-		knownUsers:      []string{adminUser, endUser},
-		authorizedUsers: []string{adminUser},
-	}
+	authorizer := newUserAwareAuthorizer(
+		withKnownUsers(adminUser, endUser),
+		withAuthorizedUsers(adminUser),
+	)
 
 	emitter := &eventstest.MockRecorderEmitter{}
 	dt := &types.DeviceTrust{
@@ -2154,10 +2180,10 @@ func TestService_CreateDeviceEnrollToken_autoEnrollAudit(t *testing.T) {
 
 	const adminUser = "llama"
 	const endUser = "alpaca"
-	authorizer := &userAwareAuthorizer{
-		knownUsers:      []string{adminUser, endUser}, // Passes Authorize() calls.
-		authorizedUsers: []string{adminUser},          // Passes CheckAccessToRule() calls.
-	}
+	authorizer := newUserAwareAuthorizer(
+		withKnownUsers(adminUser, endUser), // Passes Authorize() calls.
+		withAuthorizedUsers(adminUser),     // Passes CheckAccessToRule() calls.
+	)
 
 	dt := &types.DeviceTrust{
 		Mode:       constants.DeviceTrustModeOptional,
@@ -2228,10 +2254,10 @@ func TestService_EnrollDevice_autoEnrollE2E(t *testing.T) {
 
 	const adminUser = "llama"
 	const endUser = "alpaca"
-	authorizer := &userAwareAuthorizer{
-		knownUsers:      []string{adminUser, endUser}, // Passes Authorize() calls.
-		authorizedUsers: []string{adminUser},          // Passes CheckAccessToRule() calls.
-	}
+	authorizer := newUserAwareAuthorizer(
+		withKnownUsers(adminUser, endUser), // Passes Authorize() calls.
+		withAuthorizedUsers(adminUser),     // Passes CheckAccessToRule() calls.
+	)
 
 	dt := &types.DeviceTrust{
 		Mode:       constants.DeviceTrustModeRequired,
@@ -2579,10 +2605,10 @@ func TestService_deviceModeOff(t *testing.T) {
 				Mode: constants.DeviceTrustModeOff, // device authn disabled by default
 			},
 		}),
-		testenv.WithAuthorizer(&userAwareAuthorizer{
-			knownUsers:      allUsers,
-			authorizedUsers: allUsers,
-		}),
+		testenv.WithAuthorizer(newUserAwareAuthorizer(
+			withKnownUsers(allUsers...),
+			withAuthorizedUsers(allUsers...),
+		)),
 	)
 
 	devicesClient := env.DevicesClient
@@ -2641,10 +2667,10 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 
 	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.NewUsingT(t,
-		testenv.WithAuthorizer(&userAwareAuthorizer{
-			knownUsers:      allUsers,
-			authorizedUsers: allUsers,
-		}),
+		testenv.WithAuthorizer(newUserAwareAuthorizer(
+			withKnownUsers(allUsers...),
+			withAuthorizedUsers(allUsers...),
+		)),
 		testenv.WithEmitter(emitter),
 	)
 
@@ -2829,10 +2855,10 @@ func TestService_CreateDeviceWebToken_unknownDevices(t *testing.T) {
 	emitter := &keyedEmitter{}
 	env := testenv.NewUsingT(t,
 		testenv.WithAugmentWebFunc(augmentWebFunc.function),
-		testenv.WithAuthorizer(&userAwareAuthorizer{
-			knownUsers:      allUsers,
-			authorizedUsers: allUsers,
-		}),
+		testenv.WithAuthorizer(newUserAwareAuthorizer(
+			withKnownUsers(allUsers...),
+			withAuthorizedUsers(allUsers...),
+		)),
 		testenv.WithEmitter(emitter),
 	)
 
@@ -2924,13 +2950,13 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 	emitter := &keyedEmitter{}
 	env := testenv.NewUsingT(t,
 		testenv.WithAugmentWebFunc(augmentWebFunc.function),
-		testenv.WithAuthorizer(&userAwareAuthorizer{
-			knownUsers:      allUsers,
-			authorizedUsers: allUsers,
-			userToSystemRoles: map[string][]types.SystemRole{
+		testenv.WithAuthorizer(newUserAwareAuthorizer(
+			withKnownUsers(allUsers...),
+			withAuthorizedUsers(allUsers...),
+			withUserToSystemRoles(map[string][]types.SystemRole{
 				userProxy: []types.SystemRole{types.RoleProxy},
-			},
-		}),
+			}),
+		)),
 		testenv.WithEmitter(emitter),
 	)
 

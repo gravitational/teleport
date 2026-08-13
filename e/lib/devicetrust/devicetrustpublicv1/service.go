@@ -207,8 +207,6 @@ func (s *Service) CreatePairedDeviceEnrollToken(
 			if !sameDevice {
 				return nil, errPairingClaimed
 			}
-			// Unreachable until approval is implemented as nothing transitions a
-			// pairing to APPROVED yet.
 			// TODO(ravicious): Consume the pairing through a conditional delete and
 			// return the enrollment token, as described in the Interruptibility
 			// section of RFD 32e.

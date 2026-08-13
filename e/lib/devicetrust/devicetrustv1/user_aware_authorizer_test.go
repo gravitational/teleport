@@ -29,9 +29,57 @@ func contextWithUser(ctx context.Context, user string) context.Context {
 // and [authorizerUserKey]
 // Used by CreateDeviceEnrollToken/auto-enroll tests.
 type userAwareAuthorizer struct {
-	knownUsers        []string
-	authorizedUsers   []string
-	userToSystemRoles map[string][]types.SystemRole
+	knownUsers           []string
+	authorizedUsers      []string
+	userToSystemRoles    map[string][]types.SystemRole
+	adminActionAuthState authz.AdminActionAuthState
+}
+
+// userAwareAuthorizerOpt allows setting options as functional arguments to
+// newUserAwareAuthorizer.
+type userAwareAuthorizerOpt func(*userAwareAuthorizer)
+
+// newUserAwareAuthorizer creates a userAwareAuthorizer configured by opts.
+func newUserAwareAuthorizer(opts ...userAwareAuthorizerOpt) *userAwareAuthorizer {
+	a := &userAwareAuthorizer{
+		// The zero value of AdminActionAuthState is Unauthorized, so default
+		// to the state of a cluster that requires no MFA for admin actions.
+		adminActionAuthState: authz.AdminActionAuthNotRequired,
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
+}
+
+// withKnownUsers sets the users that pass Authorize calls.
+func withKnownUsers(users ...string) userAwareAuthorizerOpt {
+	return func(a *userAwareAuthorizer) {
+		a.knownUsers = users
+	}
+}
+
+// withAuthorizedUsers sets the users that pass CheckAccessToRule calls.
+func withAuthorizedUsers(users ...string) userAwareAuthorizerOpt {
+	return func(a *userAwareAuthorizer) {
+		a.authorizedUsers = users
+	}
+}
+
+// withUserToSystemRoles makes the given users authorize as builtin roles
+// instead of local users.
+func withUserToSystemRoles(userToSystemRoles map[string][]types.SystemRole) userAwareAuthorizerOpt {
+	return func(a *userAwareAuthorizer) {
+		a.userToSystemRoles = userToSystemRoles
+	}
+}
+
+// withAdminActionAuthState sets the admin action state reported by Authorize,
+// mimicking a cluster that enforces MFA for admin actions.
+func withAdminActionAuthState(state authz.AdminActionAuthState) userAwareAuthorizerOpt {
+	return func(a *userAwareAuthorizer) {
+		a.adminActionAuthState = state
+	}
 }
 
 func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
@@ -84,7 +132,7 @@ func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, er
 			identity:        identity,
 		},
 		Identity:             identity,
-		AdminActionAuthState: authz.AdminActionAuthNotRequired,
+		AdminActionAuthState: a.adminActionAuthState,
 	}, nil
 }
 

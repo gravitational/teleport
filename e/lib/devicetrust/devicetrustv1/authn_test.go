@@ -695,10 +695,10 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 	allUsers := []string{userLlama, userAlpaca}
 	emitter := &keyedEmitter{}
 	env := testenv.NewUsingT(t,
-		testenv.WithAuthorizer(&userAwareAuthorizer{
-			knownUsers:      allUsers,
-			authorizedUsers: allUsers,
-		}),
+		testenv.WithAuthorizer(newUserAwareAuthorizer(
+			withKnownUsers(allUsers...),
+			withAuthorizedUsers(allUsers...),
+		)),
 		testenv.WithEmitter(emitter),
 	)
 
