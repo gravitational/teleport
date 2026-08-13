@@ -44,6 +44,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -52,7 +53,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (p *kubeTestPack) testProxyKube(t *testing.T) {
@@ -418,4 +422,61 @@ func TestKubeProxyCertReissuerReloginOverCachedConn(t *testing.T) {
 	restored, err := kubeconfig.Load(path)
 	require.NoError(t, err)
 	require.Equal(t, "test-context", restored.CurrentContext)
+}
+
+// testSharedKubeCert covers the shared unrouted cert end to end against live clusters.
+// The clusters without per-session MFA are served by one cert per Teleport cluster,
+// and the proxy path-routes it to each of them, including across the trust boundary into a leaf.
+func (p *kubeTestPack) testSharedKubeCert(t *testing.T) {
+	// A fresh profile, so no kube certs are cached from earlier subtests.
+	// The shared cert covers only the clusters missing from the key store.
+	mustLoginSetEnvLegacy(t, p.suite)
+	t.Setenv(proxyKubeConfigEnvVar, filepath.Join(t.TempDir(), "config"))
+
+	cf := &CLIConf{
+		Context:            t.Context(),
+		HomePath:           os.Getenv(types.HomeEnvVar),
+		InsecureSkipVerify: true,
+	}
+	tc, err := makeClient(cf)
+	require.NoError(t, err)
+
+	clusters := kubeconfig.LocalProxyClusters{
+		{TeleportCluster: p.rootClusterName, KubeCluster: p.rootKubeCluster1},
+		{TeleportCluster: p.rootClusterName, KubeCluster: p.rootKubeCluster2},
+		{TeleportCluster: p.leafClusterName, KubeCluster: p.leafKubeCluster},
+	}
+
+	certs, err := newKubeCertIssuer(tc).LoadOrIssueCerts(t.Context(), clusters)
+	require.NoError(t, err)
+
+	// Three kube clusters over two Teleport clusters yield two certs, each keyed by its Teleport cluster alone.
+	require.Len(t, certs, 2)
+	for _, teleportCluster := range []string{p.rootClusterName, p.leafClusterName} {
+		key := alpnproxy.KubeClusterKey{TeleportCluster: teleportCluster, KubeCluster: ""}
+		require.Contains(t, certs, key)
+
+		cert := certs[key]
+		leaf, err := utils.TLSCertLeaf(cert)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(leaf.Subject, leaf.NotAfter)
+		require.NoError(t, err)
+
+		require.Empty(t, identity.KubernetesCluster, "the shared cert must carry no Kubernetes cluster route")
+		require.Equal(t, teleportCluster, identity.RouteToCluster)
+		require.Empty(t, identity.MFAVerified, "the shared cert must carry no MFA state")
+		require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+	}
+
+	kubeProxy, err := makeKubeLocalProxy(cf, tc, clusters, clientcmdapi.NewConfig(), "0",
+		kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}"))
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeProxy.Close() })
+	require.NoError(t, kubeProxy.WriteKubeConfig())
+	go kubeProxy.Start(t.Context())
+
+	// The leaf request is the one that crosses the trust boundary with an unrouted cert.
+	for _, cluster := range clusters {
+		sendRequestToKubeLocalProxy(t, kubeProxy.kubeconfig, cluster.TeleportCluster, cluster.KubeCluster)
+	}
 }
