@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // serverBase holds the fields common to [ServerWithRoles] and [ScopedServerWithRoles].
@@ -1688,13 +1689,10 @@ func (l *unifiedResourceLister) getLogins(withGranted bool, resource services.Ac
 // makeResourcePrincipalSet builds a principal set for one dimension of a
 // resource, splitting the full list into granted and requestable subsets.
 func makeResourcePrincipalSet(principalType string, all, granted []string) *proto.ResourcePrincipalSet {
-	grantedSet := make(map[string]struct{}, len(granted))
-	for _, v := range granted {
-		grantedSet[v] = struct{}{}
-	}
+	grantedSet := set.New(granted...)
 	var requestable []string
 	for _, v := range all {
-		if _, ok := grantedSet[v]; !ok {
+		if !grantedSet.Contains(v) {
 			requestable = append(requestable, v)
 		}
 	}
@@ -1924,6 +1922,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			if err != nil {
 				a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
 					"error", err,
+					"kind", checkable.GetKind(),
 					"resource", checkable.GetName(),
 				)
 				continue

@@ -26,7 +26,10 @@ import (
 )
 
 // PrincipalSet holds the visible (granted + requestable) and granted-only
-// principals for a single dimension of access (e.g., SSH logins, AWS role ARNs).
+// principals for a single dimension of access, for the dimensions the Proxy
+// computes locally as a flat split (SSH logins, AWS role ARNs). Dimensions
+// that need per-role attribution (e.g., database users and names) arrive
+// precomputed from Auth and flow through [ResourcePrincipalSet] directly.
 type PrincipalSet struct {
 	// All contains both granted and requestable principals.
 	All set.Set[string]
