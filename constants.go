@@ -247,9 +247,6 @@ const (
 	// ComponentTerraformProvider is the Teleport Terraform provider.
 	ComponentTerraformProvider = "terraform-provider"
 
-	// ComponentKubeOperator is the Teleport Kubernetes operator.
-	ComponentKubeOperator = "kube-operator"
-
 	// ComponentKubeClient is the Kubernetes client.
 	ComponentKubeClient = "client:kube"
 

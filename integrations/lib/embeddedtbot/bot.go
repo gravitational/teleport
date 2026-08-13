@@ -27,10 +27,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -211,27 +209,14 @@ func (b *EmbeddedBot) StartAndWaitForCredentials(ctx context.Context, deadline t
 	return creds, trace.Wrap(err)
 }
 
-// The auth server reads the user agent to attribute a change to the caller.
-var botKindComponents = map[bot.Kind]string{
-	bot.KindTbot:               teleport.ComponentTBot,
-	bot.KindTerraformProvider:  teleport.ComponentTerraformProvider,
-	bot.KindKubernetesOperator: teleport.ComponentKubeOperator,
-	bot.KindTctl:               teleport.ComponentTCTL,
-}
-
 // buildClient reads tbot's memory disttination, retrieves the certificates
 // and builds a new Teleport client using those certs.
 func (b *EmbeddedBot) buildClient(ctx context.Context) (*client.Client, error) {
 	slog.InfoContext(ctx, "Building a new client to connect to cluster", "auth_server_address", b.cfg.Connection.Address)
-	cfg := client.Config{
+	c, err := client.New(ctx, client.Config{
 		Addrs:                    []string{b.cfg.Connection.Address},
 		Credentials:              []client.Credentials{b.credential},
 		InsecureAddressDiscovery: b.cfg.Connection.Insecure,
-	}
-	if component, ok := botKindComponents[b.cfg.Kind]; ok {
-		cfg.DialOpts = append(cfg.DialOpts, metadata.WithUserAgentFromTeleportComponent(component))
-	}
-
-	c, err := client.New(ctx, cfg)
+	})
 	return c, trace.Wrap(err)
 }
