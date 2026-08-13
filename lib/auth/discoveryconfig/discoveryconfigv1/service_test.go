@@ -26,14 +26,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	grpcmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	convert "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -548,7 +551,7 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		Backend:       localResourceService,
 		Authorizer:    authorizer,
 		Emitter:       emitter,
-		UsageReporter: usagereporter.DiscardUsageReporter{},
+		UsageReporter: &mockUsageReporter{},
 	})
 	require.NoError(t, err)
 
@@ -561,6 +564,128 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		IdentityService:        userSvc,
 		DiscoveryConfigService: localResourceService,
 	}, resourceSvc
+}
+
+type mockUsageReporter struct {
+	changedEvents []*usagereporter.DiscoveryConfigChangedEvent
+}
+
+func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	for _, e := range events {
+		if changed, ok := e.(*usagereporter.DiscoveryConfigChangedEvent); ok {
+			m.changedEvents = append(m.changedEvents, changed)
+		}
+	}
+}
+
+func TestDiscoveryConfigChangedEvents(t *testing.T) {
+	clusterName := "test-cluster"
+	ctx, localClient, resourceSvc := initSvc(t, clusterName)
+	reporter := resourceSvc.usageReporter.(*mockUsageReporter)
+
+	userCtx := authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+		Allow: types.RoleConditions{Rules: []types.Rule{{
+			Resources: []string{types.KindDiscoveryConfig},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+		}}},
+	}, localClient)
+	userCtx = grpcmetadata.NewIncomingContext(userCtx,
+		grpcmetadata.Pairs("user-agent", teleport.ComponentWeb+"/19.0.0"))
+
+	// Each call varies the matcher type so an event built from the wrong version
+	// of the config is visible.
+	sampleDiscoveryConfig := func(name, matcherType string) *discoveryconfigpb.DiscoveryConfig {
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: name},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "some-group",
+				AWS: []types.AWSMatcher{{
+					Types:       []string{matcherType},
+					Regions:     []string{"us-west-2"},
+					Integration: "some-integration",
+					Params: &types.InstallerParams{
+						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					},
+				}},
+			},
+		)
+		require.NoError(t, err)
+		return convert.ToProto(dc)
+	}
+
+	drain := func() []*usagereporter.DiscoveryConfigChangedEvent {
+		emitted := reporter.changedEvents
+		reporter.changedEvents = nil
+		return emitted
+	}
+
+	requireEvent := func(action prehogv1a.DiscoveryConfigChangeAction, name string, matcherType prehogv1a.DiscoveryMatcherType) {
+		t.Helper()
+		emitted := drain()
+		require.Len(t, emitted, 1)
+		require.Equal(t, action, emitted[0].Action)
+		require.Equal(t, name, emitted[0].DiscoveryConfigName)
+		require.Equal(t, prehogv1a.ClientKind_CLIENT_KIND_WEB_UI, emitted[0].ClientKind)
+		require.Equal(t, []prehogv1a.DiscoveryMatcherType{matcherType}, emitted[0].MatcherTypes)
+		require.Equal(t, []string{"some-integration"}, emitted[0].IntegrationNames)
+	}
+
+	dcName := uuid.NewString()
+
+	_, err := resourceSvc.CreateDiscoveryConfig(userCtx, discoveryconfigpb.CreateDiscoveryConfigRequest_builder{
+		DiscoveryConfig: sampleDiscoveryConfig(dcName, "ec2"),
+	}.Build())
+	require.NoError(t, err)
+	requireEvent(prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_CREATE, dcName,
+		prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_EC2)
+
+	_, err = resourceSvc.UpdateDiscoveryConfig(userCtx, discoveryconfigpb.UpdateDiscoveryConfigRequest_builder{
+		DiscoveryConfig: sampleDiscoveryConfig(dcName, "eks"),
+	}.Build())
+	require.NoError(t, err)
+	requireEvent(prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_UPDATE, dcName,
+		prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_EKS)
+
+	_, err = resourceSvc.UpsertDiscoveryConfig(userCtx, discoveryconfigpb.UpsertDiscoveryConfigRequest_builder{
+		DiscoveryConfig: sampleDiscoveryConfig(dcName, "rds"),
+	}.Build())
+	require.NoError(t, err)
+	requireEvent(prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_UPSERT, dcName,
+		prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_RDS)
+
+	_, err = resourceSvc.DeleteDiscoveryConfig(userCtx,
+		discoveryconfigpb.DeleteDiscoveryConfigRequest_builder{Name: dcName}.Build())
+	require.NoError(t, err)
+	requireEvent(prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE, dcName,
+		prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_RDS)
+
+	_, err = resourceSvc.DeleteDiscoveryConfig(userCtx,
+		discoveryconfigpb.DeleteDiscoveryConfigRequest_builder{Name: uuid.NewString()}.Build())
+	require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+	require.Empty(t, drain(), "deleting a missing config reported a change")
+
+	var deleteAllNames []string
+	for range 2 {
+		name := uuid.NewString()
+		deleteAllNames = append(deleteAllNames, name)
+
+		_, err = resourceSvc.CreateDiscoveryConfig(userCtx, discoveryconfigpb.CreateDiscoveryConfigRequest_builder{
+			DiscoveryConfig: sampleDiscoveryConfig(name, "ec2"),
+		}.Build())
+		require.NoError(t, err)
+	}
+	drain()
+
+	_, err = resourceSvc.DeleteAllDiscoveryConfigs(userCtx, &discoveryconfigpb.DeleteAllDiscoveryConfigsRequest{})
+	require.NoError(t, err)
+
+	var deleted []string
+	for _, e := range drain() {
+		require.Equal(t, prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE, e.Action)
+		require.Equal(t, []prehogv1a.DiscoveryMatcherType{prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_EC2}, e.MatcherTypes)
+		deleted = append(deleted, e.DiscoveryConfigName)
+	}
+	require.ElementsMatch(t, deleteAllNames, deleted)
 }
 
 func TestExtractDiscoveryConfigMetadata(t *testing.T) {

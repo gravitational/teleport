@@ -6538,6 +6538,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:         cfg.Emitter,
 		Modules:         cfg.AuthServer.modules,
 		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
+		UsageReporter:   cfg.AuthServer.UsageReporter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
