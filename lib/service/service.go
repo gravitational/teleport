@@ -3603,12 +3603,9 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatche
 		asyncCfg,
 	)
 	if err != nil {
-<<<<<<< HEAD
 		if sealer != nil {
 			_ = sealer.Close()
 		}
-=======
->>>>>>> kylekloberdanz/audit-event-batch
 		return nil, trace.Wrap(err)
 	}
 	process.registerEmitter(emitter)
