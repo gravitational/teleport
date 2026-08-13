@@ -1340,6 +1340,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// MWI IaC Wizards
 	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
+
+	h.GET("/webapi/oauthproxy/:integration/authorize", h.WithSession(h.oauthProxyAuthorize))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2795,7 +2797,6 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		h.logger.DebugContext(r.Context(), "Failed writing installer script response", "error", err)
 	}
 	return nil, nil
-
 }
 
 // AuthParams are used to construct redirect URL containing auth

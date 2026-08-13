@@ -154,6 +154,15 @@ func (s *Service) maybeUpdateStaticCredentials(ctx context.Context, newIg types.
 	}
 
 	switch newIg.GetSubKind() {
+	case types.IntegrationSubKindOAuthProxy:
+		oauthAccessToken := newIg.GetCredentials().GetOauth2AccessToken()
+		switch {
+		case oauthAccessToken == nil:
+			return trace.BadParameter("OAuthProxy requires OAuth credential")
+		case oauthAccessToken.AccessToken == "":
+			return trace.BadParameter("OAuth credential requires access token")
+		}
+
 	case types.IntegrationSubKindGitHub:
 		oauthIdSecret := newIg.GetCredentials().GetIdSecret()
 		switch {
