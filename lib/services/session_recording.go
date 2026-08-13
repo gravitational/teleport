@@ -106,6 +106,23 @@ func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resour
 				Domain: sEnd.Domain,
 			},
 		}
+	case *apievents.AppSessionChunk:
+		if sEnd == nil {
+			return nil
+		}
+		return &types.AppV3{
+			Kind:    types.KindApp,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      sEnd.AppName,
+				Namespace: apidefaults.Namespace,
+				Labels:    sEnd.AppLabels,
+			},
+			Spec: types.AppSpecV3{
+				URI:        sEnd.AppURI,
+				PublicAddr: sEnd.AppPublicAddr,
+			},
+		}
 	case *apievents.DatabaseSessionEnd:
 		if sEnd == nil {
 			return nil

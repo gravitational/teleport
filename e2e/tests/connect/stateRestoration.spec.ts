@@ -24,6 +24,7 @@ import {
   expect,
   initializeDataDir,
   launchApp,
+  loggedInDataDir,
   login,
   test,
   withDefaultAppConfig,
@@ -33,47 +34,9 @@ import { startUrl } from '@gravitational/e2e/helpers/env';
 // These tests manage the app lifecycle manually (multiple launches/closes), so they do not use the
 // `app` fixture.
 test.describe('state restoration from disk', () => {
-  // Run all tests in this block sequentially in a single worker so that beforeAll runs exactly
-  // once, not once per test (which fullyParallel would otherwise cause).
+  // Run all tests in this block sequentially in a single worker, since fullyParallel would otherwise
+  // give each its own worker and its own login.
   test.describe.configure({ mode: 'serial' });
-
-  // A snapshot of a data dir with a logged-in session, created once in beforeAll. Tests that need
-  // logged-in state copy this snapshot instead of calling login again, keeping total login calls to
-  // a minimum (important to avoid rate-limiting when running full Connect suite).
-  let loggedInSnapshotPath: string;
-
-  test.beforeAll(async () => {
-    loggedInSnapshotPath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'connect-e2e-state-snapshot-')
-    );
-    await initializeDataDir(loggedInSnapshotPath, withDefaultAppConfig({}));
-
-    // Login once to populate the data dir with session state.
-    {
-      await using app = await launchApp(loggedInSnapshotPath);
-      await login(app.page);
-    }
-  });
-
-  test.afterAll(async () => {
-    await fs.rm(loggedInSnapshotPath, { recursive: true, force: true });
-  });
-
-  /**
-   * Creates a fresh disposable temp dir pre-populated with the logged-in snapshot.
-   */
-  async function loggedInDataDir() {
-    const temp = await fs.mkdtempDisposable(
-      path.join(os.tmpdir(), 'connect-e2e-state-')
-    );
-    try {
-      await fs.cp(loggedInSnapshotPath, temp.path, { recursive: true });
-    } catch (error) {
-      temp.remove();
-      throw error;
-    }
-    return temp;
-  }
 
   test('relaunch restores tabs', async () => {
     await using temp = await loggedInDataDir();

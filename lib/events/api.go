@@ -60,6 +60,8 @@ const (
 	EventProtocolTDP = apievents.EventProtocolTDP
 	// EventProtocolDB specifies database as a type of captured protocol
 	EventProtocolDB = apievents.EventProtocolDB
+	// EventProtocolApp specifies app as a type of captured protocol
+	EventProtocolApp = apievents.EventProtocolApp
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address

@@ -20,6 +20,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -555,5 +556,49 @@ func TestWriteCredentialsFile(t *testing.T) {
 
 	if entry.WebauthnCredentialId != "cid-1" {
 		t.Errorf("webauthnCredentialId = %q, want %q", entry.WebauthnCredentialId, "cid-1")
+	}
+}
+
+func TestAssignClientIP(t *testing.T) {
+	tests := []struct {
+		name  string
+		index int
+		want  string
+	}{
+		{name: "first", index: 0, want: "fd00:e2e:1:0::0"},
+		{name: "last of group", index: 0xffff, want: "fd00:e2e:1:0::ffff"},
+		{name: "rolls into next group", index: 0x10000, want: "fd00:e2e:1:1::0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := assignClientIP(tt.index)
+			if got != tt.want {
+				t.Errorf("assignClientIP(%d) = %q, want %q", tt.index, got, tt.want)
+			}
+		})
+	}
+}
+
+// A malformed address makes the proxy reject the request outright rather than bucketing it, so every generated
+// address has to parse as IPv6.
+func TestAssignClientIPIsUniqueIPv6(t *testing.T) {
+	seen := make(map[string]int, 1000)
+
+	for i := range 1000 {
+		got := assignClientIP(i)
+
+		addr, err := netip.ParseAddr(got)
+		if err != nil {
+			t.Fatalf("assignClientIP(%d) = %q, not a valid address: %v", i, got, err)
+		}
+		if addr.Is4() {
+			t.Fatalf("assignClientIP(%d) = %q, want IPv6", i, got)
+		}
+
+		if prev, ok := seen[got]; ok {
+			t.Fatalf("assignClientIP(%d) = %q, already assigned to index %d", i, got, prev)
+		}
+		seen[got] = i
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -45,6 +46,18 @@ import (
 )
 
 const (
+	// awsInstallTimeoutEnvVar configures how long an AWS SSM installation
+	// attempt may execute before timing out.
+	awsInstallTimeoutEnvVar = "TELEPORT_UNSTABLE_AWS_INSTALL_TIMEOUT"
+
+	defaultAWSInstallTimeout = 5 * time.Minute
+	minAWSInstallTimeout     = 10 * time.Second
+	maxAWSInstallTimeout     = 90 * time.Minute
+	// awsSSMResultGracePeriod gives SSM time to publish the terminal command
+	// status and Teleport time to collect the final result after installation
+	// timeout. It is applied once for each phase.
+	awsSSMResultGracePeriod = time.Minute
+
 	// waiterTimedOutErrorMessage is the error message returned by the AWS SDK command
 	// executed waiter when it times out.
 	waiterTimedOutErrorMessage = "exceeded max wait time for CommandExecuted waiter"
@@ -53,25 +66,20 @@ const (
 	//nolint:misspell // ignore Cancelled and Cancelling
 	// executed waiter when the command state transitions to one of Cancelled, TimedOut, Failed or Cancelling.
 	waiterTransitionedToFailureErrorMessage = "waiter state transitioned to Failure"
-	// waitTimeoutPad is extra waiter headroom beyond the installer's join-failure timeout.
-	// The installer decides success/failure based on whether join completes in time.
-	// This pad avoids reporting a temporary "still running" SSM state as the final outcome.
-	// Tradeoff: EC2 install handling is still synchronous in discovery, so a wedged
-	// SSM invocation can delay later groups until waitTimeout elapses.
-	//
-	// TODO(carlisia): Decouple SSM result waiting from synchronous discovery
-	// iterations so a wedged invocation does not stall later EC2 groups.
-	waitTimeoutPad = 10 * time.Minute
-
-	// waitTimeout is how long we wait for AWS to report a terminal command state
-	// for the installer result.
-	waitTimeout = installer.JoinFailureTimeout + waitTimeoutPad
 
 	// maxSSMRunOutputChars limits stdout/stderr size while preserving the most recent diagnostics.
 	// 24_000 matches the documented per-field cap for SSMRun stdout/stderr in the event schema,
 	// and also leaves room for the rest of the event under the 64KB stream message limit.
 	maxSSMRunOutputChars = 24_000
 )
+
+func getAWSInstallTimeout() time.Duration {
+	if timeout, err := time.ParseDuration(os.Getenv(awsInstallTimeoutEnvVar)); err == nil {
+		// Keep the timeout bounds consistent with Azure VM installation timeouts.
+		return min(maxAWSInstallTimeout, max(minAWSInstallTimeout, timeout))
+	}
+	return defaultAWSInstallTimeout
+}
 
 // SSMClient is the subset of the AWS SSM API required for EC2 discovery.
 type SSMClient interface {
@@ -231,8 +239,21 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		return nil
 	}
 
+	installTimeout := getAWSInstallTimeout()
+	waiterMaxWait := installTimeout + awsSSMResultGracePeriod
+	// EC2 install handling remains synchronous in discovery, so a wedged SSM
+	// invocation can delay later groups until the configured timeout and SSM
+	// status headroom elapse.
+	// TODO(carlisia): Decouple SSM result waiting from synchronous discovery
+	// iterations so a wedged invocation does not stall later EC2 groups.
+	// Give SSM time to publish a terminal state after the install timeout, then
+	// keep the context alive beyond the waiter so Teleport can collect and
+	// report that state.
+	installCtx, cancel := context.WithTimeout(ctx, waiterMaxWait+awsSSMResultGracePeriod)
+	defer cancel()
+
 	validInstanceIDs := instanceIDsFrom(validInstances)
-	output, err := req.SSM.SendCommand(ctx, &ssm.SendCommandInput{
+	output, err := req.SSM.SendCommand(installCtx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
 		InstanceIds:  validInstanceIDs,
 		Parameters:   params,
@@ -260,7 +281,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		// As a best effort, we try to call ssm.SendCommand again but this time without the "sshdConfigPath" param
 		// We must not remove the Param "sshdConfigPath" beforehand because customers might be using custom SSM Documents for ec2 auto discovery.
 		delete(params, ParamSSHDConfigPath)
-		output, err = req.SSM.SendCommand(ctx, &ssm.SendCommandInput{
+		output, err = req.SSM.SendCommand(installCtx, &ssm.SendCommandInput{
 			DocumentName: aws.String(req.DocumentName),
 			InstanceIds:  validInstanceIDs,
 			Parameters:   params,
@@ -270,8 +291,11 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		}
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(10)
+	installDeadline, _ := installCtx.Deadline()
+	g, groupCtx := errgroup.WithContext(ctx)
+	// SendCommand accepts at most awsEC2APIChunkSize instances. Start every
+	// waiter in the batch so the configured timeout bounds the whole batch.
+	g.SetLimit(awsEC2APIChunkSize)
 	for instanceID, instanceName := range validInstances {
 		instanceID := instanceID
 		instanceName := instanceName
@@ -285,7 +309,40 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 			}
 		}
 		g.Go(func() error {
-			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, metadata))
+			log := si.Logger.With(
+				"command_id", aws.ToString(output.Command.CommandId),
+				"instance_id", metadata.InstanceID,
+			)
+			// Give every instance an independent context with the same absolute
+			// deadline. A local waiter or collection failure must not cancel the
+			// other instances in this SendCommand batch.
+			instanceCtx, cancel := context.WithDeadline(groupCtx, installDeadline)
+			defer cancel()
+
+			result, err := si.checkCommand(instanceCtx, req, output.Command.CommandId, metadata, waiterMaxWait)
+			if err != nil {
+				// Preserve caller cancellation as a Run error. Once SendCommand has
+				// succeeded, all other errors describe this instance only.
+				if ctxErr := groupCtx.Err(); ctxErr != nil {
+					return trace.Wrap(ctxErr)
+				}
+
+				log.WarnContext(ctx,
+					"Failed to collect SSM installation result",
+					"error", err,
+				)
+				result = failedSSMCommandInstallationResult(req, output.Command.CommandId, metadata)
+			}
+
+			if err := si.ReportSSMInstallationResultFunc(groupCtx, result); err != nil {
+				// Reporting is also instance-local. Returning this error would cause
+				// discovery to mark every instance in the batch as failed again.
+				log.ErrorContext(ctx,
+					"Failed to report SSM installation result",
+					"error", err,
+				)
+			}
+			return nil
 		})
 	}
 	return trace.Wrap(g.Wait())
@@ -323,6 +380,17 @@ func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceMetadata in
 		InstallerScript:     req.InstallerScriptName(),
 		InstanceName:        instanceMetadata.InstanceName,
 	}
+}
+
+func failedSSMCommandInstallationResult(req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) *SSMInstallationResult {
+	result := invalidSSMInstanceInstallationResult(
+		req,
+		instanceMetadata,
+		"Failed to collect the SSM command result.",
+		usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+	)
+	result.SSMRunEvent.CommandID = aws.ToString(commandID)
+	return result
 }
 
 func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
@@ -454,11 +522,11 @@ func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunReq
 	return ret, nil
 }
 
-func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) error {
+func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata, waiterMaxWait time.Duration) (*SSMInstallationResult, error) {
 	err := si.getWaiter(req.SSM).Wait(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: aws.String(instanceMetadata.InstanceID),
-	}, waitTimeout)
+	}, waiterMaxWait)
 	switch {
 	case err == nil:
 		// Command executed successfully.
@@ -474,9 +542,14 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		// The command might still be Pending or InProgress.
 		// Ignoring this error allows us to report that status back to the user.
 
+	case errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil:
+		// The waiter can return a wrapped context deadline error when its
+		// internal timeout expires. The outer context remains available for
+		// collecting and reporting this instance's current invocation state.
+
 	default:
 		// For every other unknown error, return the error.
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	invocationSteps, err := si.getInvocationSteps(ctx, req, commandID, aws.String(instanceMetadata.InstanceID))
@@ -493,7 +566,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		invocationSteps = awslib.EC2DiscoverySSMDocumentSteps
 
 	case err != nil:
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	for i, step := range invocationSteps {
@@ -506,22 +579,22 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				// If that's the case, emit an event with the overall invocation result (ignoring specific steps' stdout and stderr).
 				outcome, err = si.getCommandStepOutcome(ctx, "" /*no step*/, req, commandID, instanceMetadata)
 				if err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
-				return trace.Wrap(si.reportCommandStepOutcome(ctx, req, instanceMetadata, outcome))
+				return commandStepInstallationResult(req, instanceMetadata, outcome), nil
 			}
 
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Emit an event for the first failed step or for the latest step.
 		lastStep := i+1 == len(invocationSteps)
 		if outcome.SSMRunEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
-			return trace.Wrap(si.reportCommandStepOutcome(ctx, req, instanceMetadata, outcome))
+			return commandStepInstallationResult(req, instanceMetadata, outcome), nil
 		}
 	}
 
-	return nil
+	return nil, trace.BadParameter("no command invocation steps were found")
 }
 
 func (si *SSMInstaller) getInvocationSteps(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) ([]string, error) {
@@ -581,8 +654,8 @@ type commandStepOutcome struct {
 	IssueType   string
 }
 
-func (si *SSMInstaller) reportCommandStepOutcome(ctx context.Context, req SSMRunRequest, instanceMetadata instanceMetadata, outcome commandStepOutcome) error {
-	return si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
+func commandStepInstallationResult(req SSMRunRequest, instanceMetadata instanceMetadata, outcome commandStepOutcome) *SSMInstallationResult {
+	return &SSMInstallationResult{
 		SSMRunEvent:         outcome.SSMRunEvent,
 		IntegrationName:     req.IntegrationName,
 		DiscoveryConfigName: req.DiscoveryConfigName,
@@ -590,7 +663,7 @@ func (si *SSMInstaller) reportCommandStepOutcome(ctx context.Context, req SSMRun
 		SSMDocumentName:     req.DocumentName,
 		InstallerScript:     req.InstallerScriptName(),
 		InstanceName:        instanceMetadata.InstanceName,
-	})
+	}
 }
 
 func (si *SSMInstaller) getCommandStepOutcome(ctx context.Context, step string, req SSMRunRequest, commandID *string, instanceMetadata instanceMetadata) (commandStepOutcome, error) {
