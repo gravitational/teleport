@@ -56,8 +56,12 @@ func getKubeFixture(t *testing.T, key kubeFixtureKey) *suite {
 	kubeFixtureMu.Lock()
 	defer kubeFixtureMu.Unlock()
 	if s, ok := kubeFixtures[key]; ok {
+		if s == nil {
+			t.Fatalf("shared kube fixture %+v failed to build earlier in this run", key)
+		}
 		return s
 	}
+	kubeFixtures[key] = nil // Prevent later -count iterations from rebuilding.
 
 	rootLabels := map[string]string{
 		"label1": "val1",
