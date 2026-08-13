@@ -217,6 +217,8 @@ func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 		return trace.BadParameter("target_cluster must be set")
 	case chal.GetSpec().GetUsername() == "":
 		return trace.BadParameter("username must be set")
+	case chal.GetSpec().GetMfaDevice().GetId() == "":
+		return trace.BadParameter("mfa_device.id must be set")
 	}
 
 	switch chal.GetSpec().GetPayload().WhichPayload() {
