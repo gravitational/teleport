@@ -271,9 +271,8 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 	return p.openWebAuthenticated(ctx, "codegen")
 }
 
-// openWebAuthenticated runs the global setup to generate auth state, then opens
-// a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
-// MFA challenges resolve automatically.
+// openWebAuthenticated opens a Chromium browser logged in as the default user, with a virtual WebAuthn
+// authenticator pre-loaded so that MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
 	if len(p.config.instances) == 0 {
 		return fmt.Errorf("no test instances configured")
@@ -287,11 +286,6 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 
 	env, err := p.startEnv(inst)
 	if err != nil {
-		return err
-	}
-
-	slog.DebugContext(ctx, "running global setup to generate auth state")
-	if err := p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "global-setup.ts")}, env); err != nil {
 		return err
 	}
 

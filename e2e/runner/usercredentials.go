@@ -38,6 +38,19 @@ type credentials struct {
 	credentialIDBase64    string
 	publicKeyCBORBase64   string
 	privateKeyPKCS8Base64 string
+
+	// clientIP is the X-Forwarded-For this user's setup login claims, giving it its own rate limiter bucket.
+	clientIP string
+}
+
+// Addresses have to be IPv6: the proxy signs a PROXY header pairing this source with the destination of the
+// browser's own connection, which is ::1 because the tests reach the proxy over localhost, and signing rejects
+// a version mismatch. Playwright claims fd00:e2e:2:: for per-test addresses.
+const userIPPrefix = "fd00:e2e:1"
+
+// assignClientIP maps a bootstrap list position to a unique address.
+func assignClientIP(index int) string {
+	return fmt.Sprintf("%s:%x::%x", userIPPrefix, index/0x10000, index%0x10000)
 }
 
 // generateUserCredentials creates a fresh password, bcrypt hash, and ECDSA key pair
