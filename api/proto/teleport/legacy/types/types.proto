@@ -9772,6 +9772,17 @@ message InstallerParams {
   // HTTPProxySettings defines HTTP proxy settings for making HTTP requests.
   // When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.
   HTTPProxySettings HTTPProxySettings = 11 [(gogoproto.jsontag) = "http_proxy_settings,omitempty"];
+  // windows_script_name is the name of the teleport installer script resource
+  // for the cloud instance to execute on Windows.
+  string windows_script_name = 12;
+  // restart_after_enrollment indicates whether the node should be restarted
+  // after enrollment. This currently only applies to Windows machines which
+  // require a restart for the installed agent to function properly.
+  bool restart_after_enrollment = 13;
+  // skip_installation indicates whether the installation should be skipped.
+  // This is useful for cases where the node is already running Teleport or the
+  // Windows auth package and we just want to enroll it into the cluster.
+  bool skip_installation = 14;
 }
 
 // HTTPProxySettings defines HTTP proxy settings for making HTTP and HTTPS requests.
