@@ -63,6 +63,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -1968,16 +1969,11 @@ func TestScopedBotApp(t *testing.T) {
 
 	// Wait for the scoped app to be visible.
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		servers, err := rootClient.GetApplicationServers(ctx, "default")
-		if !assert.NoError(ct, err) {
-			return
-		}
+		servers, err := rootClient.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(ct, err)
 		for _, s := range servers {
-			if s.GetApp().GetName() == appName {
-				return
-			}
+			require.Equal(ct, appName, s.GetApp().GetName())
 		}
-		assert.Fail(ct, "scoped app not yet visible")
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// Configure and run tbot with an application output.
