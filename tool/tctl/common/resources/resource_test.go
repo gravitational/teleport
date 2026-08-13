@@ -77,7 +77,7 @@ func TestHandlers(t *testing.T) {
 				})
 				return ig
 			},
-			checkMFARequired: require.False,
+			checkMFARequired: require.True,
 		},
 	}
 
