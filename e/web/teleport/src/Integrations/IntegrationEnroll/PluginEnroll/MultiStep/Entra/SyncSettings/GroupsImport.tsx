@@ -4,7 +4,10 @@ import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSe
 import { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { useUserOptions } from 'e-teleport/AccessListManagement/Shared/hooks';
+import {
+  useUserOptions,
+  useUsersNoOptionsMessage,
+} from 'e-teleport/AccessListManagement/Shared/hooks';
 import {
   CreateFilters,
   FilterOption,
@@ -72,12 +75,15 @@ function DefaultOwners({
   onOptionChange: (UserOption) => void;
   disabled: boolean;
 }) {
-  const { loadOptions } = useUserOptions<UserOption>((user: User[]) => {
-    return user.map(user => ({
-      label: user.name,
-      value: user.name,
-    }));
-  });
+  const { loadOptions, canListUsers } = useUserOptions<UserOption>(
+    (user: User[]) => {
+      return user.map(user => ({
+        label: user.name,
+        value: user.name,
+      }));
+    }
+  );
+  const noOptionsMessage = useUsersNoOptionsMessage(canListUsers);
   return (
     <Box maxWidth="600px">
       <Text typography="subtitle2" mb={1}>
@@ -99,7 +105,7 @@ function DefaultOwners({
         loadOptions={loadOptions}
         value={selectedOptions}
         onChange={(opts: UserOption[]) => onOptionChange(opts)}
-        noOptionsMessage={() => 'Type a username and press enter'}
+        noOptionsMessage={noOptionsMessage}
         label="Add Default Owners"
         rule={requiredField('At least 1 default owner is required')}
         isDisabled={disabled}

@@ -38,7 +38,8 @@ const awsIdentityCenterPlugin = pluginMap[
 
 export const ImportResources = () => {
   const ctx = createTeleportContextE();
-  ctx.userService.fetchUsers = () => Promise.resolve<User[]>(users);
+  ctx.userService.fetchUsersV2 = () =>
+    Promise.resolve({ items: users as User[], startKey: '' });
   ctx.pluginsService.getAwsIcAccounts = () => Promise.resolve(accounts);
   ctx.pluginsService.getAwsIcGroupsWithPermissionAssignments = () =>
     Promise.resolve(groupsWithPermissionAssignment);
@@ -131,6 +132,9 @@ const AccountsLoading = () => {
   );
 };
 
+const mockLoadOptions = async () =>
+  users.map(u => ({ value: u, label: u.name }));
+
 export const GroupsWithAssignment = () => {
   const [showTable, setShowTable] = useState(false);
   const [selectedOwners, setSelectedOwners] = useState([]);
@@ -139,11 +143,7 @@ export const GroupsWithAssignment = () => {
     showTable: showTable,
     setShowTable: setShowTable,
     loading: false,
-    fetchUsersAttempt: {
-      status: 'success' as any,
-      data: users.map(u => ({ value: u, label: u.name })),
-      statusText: '',
-    },
+    loadOptions: mockLoadOptions,
     selectedOwners: selectedOwners,
     setSelectedOwners: setSelectedOwners,
   };
@@ -233,7 +233,7 @@ const GroupsWithDefaultOwnerLoading = props => {
         {...props}
         showTable={showTable}
         setShowTable={setShowTable}
-        fetchUsersAttempt={{ status: 'processing', data: null, statusText: '' }}
+        loadOptions={() => new Promise(() => {})}
         loading={false}
       />
     </Validation>
@@ -248,11 +248,7 @@ const GroupsWithDefaultOwnerError = props => {
         {...props}
         showTable={showTable}
         setShowTable={setShowTable}
-        fetchUsersAttempt={{
-          status: 'error',
-          data: null,
-          statusText: 'Failed to fetch users',
-        }}
+        loadOptions={() => Promise.reject('Failed to fetch users')}
         loading={false}
       />
     </Validation>

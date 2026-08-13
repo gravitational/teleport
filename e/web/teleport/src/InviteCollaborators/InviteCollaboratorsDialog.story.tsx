@@ -17,16 +17,19 @@ export default {
 export const Dialog: StoryObj = {
   beforeEach({ msw }) {
     msw.use(
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([
-          { name: 'apple' },
-          { name: 'banana' },
-          {
-            name: 'carrot',
-            roles: ['reviewer', 'auditor'],
-            allTraits: { fruit: ['carrot'] },
-          },
-        ]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [
+            { name: 'apple' },
+            { name: 'banana' },
+            {
+              name: 'carrot',
+              roles: ['reviewer', 'auditor'],
+              allTraits: { fruit: ['carrot'] },
+            },
+          ],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json({
@@ -61,7 +64,7 @@ export const Dialog: StoryObj = {
 export const DialogError: StoryObj = {
   beforeEach({ msw }) {
     msw.use(
-      http.get(cfg.oss.getUsersUrl(), () => {
+      http.get(cfg.oss.getUsersUrlV2(), () => {
         return HttpResponse.json(
           {
             message: 'testing error for getUsers()',
@@ -100,7 +103,7 @@ export const DialogSpinner = () => {
   const ctx = createTeleportContext() as any;
   ctx.cloudService = { sendTeleportInvite: () => Promise.resolve([]) };
   ctx.userService = {
-    fetchUsers: () => new Promise(() => {}),
+    fetchAllUsers: () => new Promise(() => {}),
   };
   ctx.resourceService = {
     fetchRoles: () => new Promise(() => {}),

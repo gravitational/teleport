@@ -190,16 +190,19 @@ export const ViewingAsAdmin: StoryObj = {
           })
         );
       }),
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([
-          { name: 'apple' },
-          { name: 'banana' },
-          {
-            name: 'carrot',
-            roles: ['reviewer', 'auditor'],
-            allTraits: { fruit: ['carrot'] },
-          },
-        ]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [
+            { name: 'apple' },
+            { name: 'banana' },
+            {
+              name: 'carrot',
+              roles: ['reviewer', 'auditor'],
+              allTraits: { fruit: ['carrot'] },
+            },
+          ],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json([
@@ -265,13 +268,16 @@ export const ViewingAsAdminOktaList: StoryObj = {
           })
         );
       }),
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([
-          { name: 'apple' },
-          {
-            name: 'carrot',
-          },
-        ]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json([]);
@@ -334,13 +340,16 @@ export const ViewingAsAdminStaticList: StoryObj = {
           })
         );
       }),
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([
-          { name: 'apple' },
-          {
-            name: 'carrot',
-          },
-        ]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json([]);
@@ -402,13 +411,16 @@ export const ViewingAsAdminScimList: StoryObj = {
           })
         );
       }),
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([
-          { name: 'apple' },
-          {
-            name: 'carrot',
-          },
-        ]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json([]);
@@ -470,13 +482,16 @@ export const ViewingAsAdminEntraIDList: StoryObj = {
           })
         );
       }),
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([
-          { name: 'apple' },
-          {
-            name: 'carrot',
-          },
-        ]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json([]);
@@ -531,8 +546,11 @@ export const ViewingAsAdminEmptyList: StoryObj = {
           })
         );
       }),
-      http.get(cfg.oss.getUsersUrl(), () => {
-        return HttpResponse.json([]);
+      http.get(cfg.oss.getUsersUrlV2(), () => {
+        return HttpResponse.json({
+          items: [],
+          startKey: '',
+        });
       }),
       http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
         return HttpResponse.json([]);

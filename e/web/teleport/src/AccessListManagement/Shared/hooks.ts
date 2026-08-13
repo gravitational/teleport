@@ -15,8 +15,15 @@ import useTeleport from 'teleport/useTeleport';
 export function useUserOptions<T>(collector: (user: User[]) => T[]) {
   const ctx = useTeleport();
 
+  const usersAccess = ctx.storeUser.getUserAccess();
+  const canListUsers = usersAccess.list && usersAccess.read;
+
   const fetchUsersOptions = useCallback(
     async (input: string) => {
+      if (!canListUsers) {
+        return [];
+      }
+
       const usersResult = await ctx.userService.fetchUsersV2({
         search: input,
         limit: 50,
@@ -24,7 +31,7 @@ export function useUserOptions<T>(collector: (user: User[]) => T[]) {
 
       return collector(usersResult.items);
     },
-    [ctx.userService]
+    [ctx.userService, canListUsers]
   );
 
   const debouncedFn = useMemo(
@@ -61,5 +68,20 @@ export function useUserOptions<T>(collector: (user: User[]) => T[]) {
 
   return {
     loadOptions,
+    canListUsers,
   };
+}
+
+/**
+ * useUsersNoOptionsMessage returns the message a user select shows when it has
+ * no options to offer.
+ */
+export function useUsersNoOptionsMessage(canListUsers = true) {
+  return useCallback(
+    () =>
+      canListUsers
+        ? 'Type a username and press enter'
+        : 'You do not have permission to list users',
+    [canListUsers]
+  );
 }

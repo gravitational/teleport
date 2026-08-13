@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
 
 import {
@@ -9,16 +9,19 @@ import {
   ButtonSecondary,
   Flex,
   H2,
-  Indicator,
   Text,
   Toggle,
 } from 'design';
-import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import type { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import {
+  useUserOptions,
+  useUsersNoOptionsMessage,
+} from 'e-teleport/AccessListManagement/Shared/hooks';
 import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import {
@@ -44,9 +47,8 @@ import { pluginsService } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';
 import { ApiError } from 'teleport/services/api/parseError';
-import userService, { User } from 'teleport/services/user';
+import { User } from 'teleport/services/user';
 import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/services/version/unsupported';
-import useTeleport from 'teleport/useTeleport';
 
 export const SetUpAppGroupSync = () => {
   const { completedStepTypes, getPreviousStep, plugin, startFrom } =
@@ -72,9 +74,6 @@ export const AppGroupSyncForm = ({
   previousStepType,
 }: OktaIntegrationStepFormProps) => {
   const queryClient = useQueryClient();
-  const ctx = useTeleport();
-  const userAccess = ctx.storeUser.getUserAccess();
-  const canReadListUsers = userAccess.list && userAccess.read;
 
   const [appFilters, setAppFilters] = useState<FilterOption[]>(
     (plugin?.status?.details?.accessListsSyncDetails?.appFilters || []).map(
@@ -117,30 +116,20 @@ export const AppGroupSyncForm = ({
     syncAllGroups,
   ]);
 
-  const [selectedOwners, setSelectedOwners] = useState<UserOption[]>([]);
-
-  const users = useQuery({
-    queryKey: ['users', 'fetch'],
-    queryFn: async () => {
-      const users = await userService.fetchUsers();
-
-      return users.map(u => ({
-        value: u,
-        label: u.name,
+  const [selectedOwners, setSelectedOwners] = useState<UserOption[]>(() => {
+    if (plugin?.spec?.defaultOwners?.length) {
+      return plugin.spec.defaultOwners.map(name => ({
+        value: { name, roles: [] } as User,
+        label: name,
       }));
-    },
-    enabled: canReadListUsers,
+    }
+    return [];
   });
 
-  useEffect(() => {
-    if (users.isSuccess && plugin?.spec?.defaultOwners?.length) {
-      const selectedOwners = plugin.spec.defaultOwners
-        .map(o => users.data.find(u => u.label === o))
-        .filter(Boolean);
-
-      setSelectedOwners(selectedOwners);
-    }
-  }, [plugin.spec.defaultOwners, users.data, users.isSuccess]);
+  const { loadOptions, canListUsers } = useUserOptions<UserOption>(
+    (users: User[]) => users.map(u => ({ value: u, label: u.name }))
+  );
+  const noOptionsMessage = useUsersNoOptionsMessage(canListUsers);
 
   const formData = getFetchAppsGroupsFormData();
 
@@ -332,39 +321,24 @@ export const AppGroupSyncForm = ({
                 default owner to your imported access lists. You can edit owners
                 on individual lists, later.
               </Text>
-              {users.isError && (
-                <Alert
-                  kind="danger"
-                  primaryAction={{
-                    content: 'Retry',
-                    onClick: () => void users.refetch(),
-                  }}
-                >
-                  {getErrMessage(users.error)}
-                </Alert>
-              )}
-              {!users.isPending ? (
-                <Box width="540px">
-                  <FieldSelectCreatable
-                    autoFocus={true}
-                    placeholder="Type a username and press enter"
-                    isMulti
-                    isClearable
-                    isSearchable
-                    options={users.data ?? []}
-                    isDisabled={updatePlugin.isPending}
-                    onChange={(opts: Option<User>[]) => setSelectedOwners(opts)}
-                    value={selectedOwners || []}
-                    noOptionsMessage={() => 'Type a username and press enter'}
-                    label="Add Default List Owner(s)"
-                    rule={requiredField('At least 1 default owner is required')}
-                  />
-                </Box>
-              ) : (
-                <Box textAlign="center">
-                  <Indicator delay="none" />
-                </Box>
-              )}
+              <Box width="540px">
+                <FieldSelectCreatableAsync
+                  autoFocus={true}
+                  placeholder="Type a username and press enter"
+                  isMulti
+                  isClearable
+                  isSearchable
+                  defaultOptions={true}
+                  loadOptions={loadOptions}
+                  getOptionValue={opt => opt.label}
+                  isDisabled={updatePlugin.isPending}
+                  onChange={(opts: Option<User>[]) => setSelectedOwners(opts)}
+                  value={selectedOwners || []}
+                  noOptionsMessage={noOptionsMessage}
+                  label="Add Default List Owner(s)"
+                  rule={requiredField('At least 1 default owner is required')}
+                />
+              </Box>
             </StyledBox>
             <StyledBox
               header={

@@ -71,8 +71,8 @@ beforeEach(() => {
     .mockResolvedValue(false);
 
   jest
-    .spyOn(userService, 'fetchUsers')
-    .mockResolvedValue([{ name: 'alice', roles: [] }]);
+    .spyOn(userService, 'fetchUsersV2')
+    .mockResolvedValue({ items: [{ name: 'alice', roles: [] }], startKey: '' });
 });
 
 afterEach(() => {

@@ -75,7 +75,6 @@ describe('upsell links', () => {
       .spyOn(accessManagementService, 'fetchAccessListsV2')
       .mockResolvedValue({ agents: [mockAccessLists[0]] });
 
-    jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
     jest
       .spyOn(userService, 'fetchUsersV2')
       .mockResolvedValue({ startKey: '', items: [] });

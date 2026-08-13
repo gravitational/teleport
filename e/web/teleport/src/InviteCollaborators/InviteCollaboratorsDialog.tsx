@@ -52,10 +52,11 @@ export function InviteCollaboratorsDialog({
     useAttemptNext('');
 
   useEffect(() => {
+    // TODO(rudream): Refactor this logic to not require fetching all users up front
     function fetchUsers(): Promise<Set<string>> {
       if (ctx.getFeatureFlags().users) {
         return ctx.userService
-          .fetchUsers()
+          .fetchAllUsers()
           .then(users => new Set(users.map(u => u.name.toLowerCase())));
       }
 

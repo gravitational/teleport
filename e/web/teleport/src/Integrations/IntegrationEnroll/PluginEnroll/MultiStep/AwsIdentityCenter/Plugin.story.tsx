@@ -24,7 +24,8 @@ export default {
 
 export const Enroll = () => {
   const ctx = createTeleportContextE();
-  ctx.userService.fetchUsers = () => Promise.resolve<User[]>(users);
+  ctx.userService.fetchUsersV2 = () =>
+    Promise.resolve({ items: users as User[], startKey: '' });
   ctx.pluginsService.getAwsIcAccounts = () => Promise.resolve(accounts);
   ctx.pluginsService.getAwsIcGroupsWithPermissionAssignments = () =>
     Promise.resolve(groupsWithPermissionAssignment);

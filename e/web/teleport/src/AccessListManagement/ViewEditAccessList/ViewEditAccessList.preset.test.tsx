@@ -85,8 +85,6 @@ beforeEach(() => {
     .spyOn(ResourceService.prototype, 'fetchRolesV2')
     .mockResolvedValue({ items: [], startKey: '' });
 
-  jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
-
   jest
     .spyOn(userService, 'fetchUsersV2')
     .mockResolvedValue({ items: [], startKey: '' });

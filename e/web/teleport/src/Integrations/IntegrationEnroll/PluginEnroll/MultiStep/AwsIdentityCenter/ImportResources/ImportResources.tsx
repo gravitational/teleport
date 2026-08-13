@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import {
   Box,
@@ -6,17 +6,19 @@ import {
   ButtonSecondary,
   ButtonText,
   Flex,
-  Indicator,
   Text,
 } from 'design';
-import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
-import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 
+import {
+  useUserOptions,
+  useUsersNoOptionsMessage,
+} from 'e-teleport/AccessListManagement/Shared/hooks';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { pluginsService } from 'e-teleport/services/plugins';
@@ -28,12 +30,11 @@ import {
   type AwsIcPermissionSets,
 } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
-import userService, { User } from 'teleport/services/user';
+import { User } from 'teleport/services/user';
 import {
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
 } from 'teleport/services/userEvent';
-import useTeleport from 'teleport/useTeleport';
 
 import { emitEvent } from '../events';
 import {
@@ -43,9 +44,6 @@ import {
 } from './ResourceTable';
 
 export function AwsIcImportResources() {
-  const ctx = useTeleport();
-  const userAccess = ctx.storeUser.getUserAccess();
-  const canReadListUsers = userAccess.list && userAccess.read;
   const { formData, nextStep, prevStep, eventId } = usePlugin();
   const integrationName = formData
     .get(PluginConfigAwsIc.OidcIntegrationName)
@@ -62,17 +60,9 @@ export function AwsIcImportResources() {
   const [showTable, setShowTable] = useState<tableType>(defaultTableStates);
   const [selectedOwners, setSelectedOwners] = useState<userOption[]>([]);
 
-  const [fetchUsersAttempt, runFetchUsers] = useAsync(
-    useCallback(async () => {
-      const resp = await userService.fetchUsers();
-      return resp.map(u => ({ value: u, label: u.name }));
-    }, [])
+  const { loadOptions, canListUsers } = useUserOptions<userOption>(
+    (users: User[]) => users.map(u => ({ value: u, label: u.name }))
   );
-  useEffect(() => {
-    if (canReadListUsers && fetchUsersAttempt.status === '') {
-      runFetchUsers();
-    }
-  }, [runFetchUsers, fetchUsersAttempt, canReadListUsers]);
 
   function handleNext(v: Validator) {
     if (!v.validate()) {
@@ -125,7 +115,8 @@ export function AwsIcImportResources() {
                 }}
                 selectedOwners={selectedOwners}
                 setSelectedOwners={setSelectedOwners}
-                fetchUsersAttempt={fetchUsersAttempt}
+                loadOptions={loadOptions}
+                canListUsers={canListUsers}
                 loading={
                   fetchGroupsWithPermAssignmentsAttempt.status === 'processing'
                 }
@@ -243,7 +234,8 @@ export const GroupsWithAssignment = ({
   groupsWithPermissionAssignment,
   showTable,
   setShowTable,
-  fetchUsersAttempt,
+  loadOptions,
+  canListUsers,
   selectedOwners,
   setSelectedOwners,
   loading,
@@ -251,71 +243,65 @@ export const GroupsWithAssignment = ({
   groupsWithPermissionAssignment: AwsIcGroupsWithAssignment[];
   showTable: boolean;
   setShowTable: (boolean) => void;
-  fetchUsersAttempt: Attempt<Option<User>[]>;
+  loadOptions: (input: string) => Promise<userOption[]>;
+  canListUsers?: boolean;
   selectedOwners: userOption[];
   setSelectedOwners: (string) => void;
   loading: boolean;
-}) => (
-  <StyledBox>
-    <Flex justifyContent="space-between" alignItems="center">
-      <Flex
-        flexDirection={'column'}
-        justifyContent="flex-start"
-        alignItems="flext-start"
-        maxWidth={'520px'}
-      >
-        <GroupDescription />
+}) => {
+  const noOptionsMessage = useUsersNoOptionsMessage(canListUsers);
+
+  return (
+    <StyledBox>
+      <Flex justifyContent="space-between" alignItems="center">
+        <Flex
+          flexDirection={'column'}
+          justifyContent="flex-start"
+          alignItems="flext-start"
+          maxWidth={'520px'}
+        >
+          <GroupDescription />
+        </Flex>
+
+        <ButtonText $inputAlignment onClick={() => setShowTable(!showTable)}>
+          {showTable ? 'Hide' : 'Show'} Groups
+          {showTable ? (
+            <Icons.ChevronUp ml={2} size={'small'} />
+          ) : (
+            <Icons.ChevronDown ml={2} size={'small'} />
+          )}
+        </ButtonText>
       </Flex>
 
-      <ButtonText $inputAlignment onClick={() => setShowTable(!showTable)}>
-        {showTable ? 'Hide' : 'Show'} Groups
-        {showTable ? (
-          <Icons.ChevronUp ml={2} size={'small'} />
-        ) : (
-          <Icons.ChevronDown ml={2} size={'small'} />
-        )}
-      </ButtonText>
-    </Flex>
-
-    {showTable && (
-      <GroupsWithAssignmentTable
-        userGroups={groupsWithPermissionAssignment}
-        loading={loading}
-      />
-    )}
-
-    <Box mt={4}>
-      <AccessListDescription />
-      {fetchUsersAttempt.status === 'error' && (
-        <Box mt={2}>
-          <Danger>{fetchUsersAttempt.statusText}</Danger>
-        </Box>
+      {showTable && (
+        <GroupsWithAssignmentTable
+          userGroups={groupsWithPermissionAssignment}
+          loading={loading}
+        />
       )}
-      {fetchUsersAttempt.status === 'processing' ? (
-        <Box m={4} textAlign="center">
-          <Indicator delay="none" />
-        </Box>
-      ) : (
+
+      <Box mt={4}>
+        <AccessListDescription />
         <Box width="540px" mt={2}>
-          <FieldSelectCreatable
+          <FieldSelectCreatableAsync
             autoFocus={true}
             placeholder="Type a username and press enter"
             isMulti
             isClearable
             isSearchable
-            options={fetchUsersAttempt.data}
+            defaultOptions={true}
+            loadOptions={loadOptions}
             onChange={(opts: Option<User>[]) => setSelectedOwners(opts)}
             value={selectedOwners || []}
-            noOptionsMessage={() => 'Type a username and press enter'}
+            noOptionsMessage={noOptionsMessage}
             label="Access List Owner(s)*"
             rule={requiredField('At least 1 default owner is required')}
-            isDisabled={fetchUsersAttempt.status === 'error'}
           />
         </Box>
-      )}
-    </Box>
-  </StyledBox>
-);
+      </Box>
+    </StyledBox>
+  );
+};
 
 const PermisionSetDescription = () => (
   <>

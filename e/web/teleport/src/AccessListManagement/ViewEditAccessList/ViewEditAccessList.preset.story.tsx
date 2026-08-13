@@ -122,8 +122,11 @@ const accessListWithUnknownRoles = {
 };
 
 const commonHandlers = [
-  http.get(cfg.oss.getUsersUrl(), () => {
-    return HttpResponse.json([{ name: 'apple' }, { name: 'banana' }]);
+  http.get(cfg.oss.getUsersUrlV2(), () => {
+    return HttpResponse.json({
+      items: [{ name: 'apple' }, { name: 'banana' }],
+      startKey: '',
+    });
   }),
   http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
     return HttpResponse.json([{ name: 'admin' }, { name: 'access' }]);

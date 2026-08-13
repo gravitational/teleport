@@ -136,9 +136,10 @@ describe('okta PluginEnroll.tsx', () => {
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
       .mockImplementation();
 
-    jest
-      .spyOn(userService, 'fetchUsers')
-      .mockResolvedValue([{ name: 'apple', roles: [] }]);
+    jest.spyOn(userService, 'fetchUsersV2').mockResolvedValue({
+      items: [{ name: 'apple', roles: [] }],
+      startKey: '',
+    });
 
     server.use(
       http.get('/v1/enterprise/plugin/okta', () => HttpResponse.json({})),
