@@ -644,7 +644,6 @@ func TestShutdown(t *testing.T) {
 						return
 					}
 				}, 10*time.Second, 100*time.Millisecond)
-
 			}
 		})
 	}
@@ -1037,7 +1036,6 @@ func TestRewriteJWT(t *testing.T) {
 			})
 		})
 	}
-
 }
 
 // TestAuthorize verifies that only authorized requests are handled.
@@ -1293,7 +1291,12 @@ func TestRequestAuditEvents(t *testing.T) {
 						AppURI:        app.Spec.URI,
 						AppPublicAddr: app.Spec.PublicAddr,
 						AppName:       app.Metadata.Name,
+						AppLabels: map[string]string{
+							"bar": "baz",
+							"qux": "4",
+						},
 					},
+					Participants: []string{"foo"},
 				}
 				require.Empty(t, gocmp.Diff(
 					expectedEvent,
@@ -1370,7 +1373,12 @@ func TestRequestAuditEvents(t *testing.T) {
 			AppURI:        app.Spec.URI,
 			AppPublicAddr: app.Spec.PublicAddr,
 			AppName:       app.Metadata.Name,
+			AppLabels: map[string]string{
+				"bar": "baz",
+				"qux": "4",
+			},
 		},
+		Participants: []string{"foo"},
 	}
 	require.Empty(t, gocmp.Diff(
 		expectedEvent,
