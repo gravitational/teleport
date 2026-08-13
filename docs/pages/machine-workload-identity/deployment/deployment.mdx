@@ -118,6 +118,11 @@ and [Architecture](../../reference/architecture/machine-id-architecture.mdx) to 
       icon: <Icon name="lock" size="xl" />,
       to: "../../reference/machine-workload-identity/bound-keypair/getting-started",
       name: "Bound Keypair Joining",
+    },
+    {
+      icon: <Icon name="integrations" size="xl" />,
+      to: "./generic-oidc",
+      name: "Generic OIDC",
     }
   ]}
 />
@@ -173,6 +178,11 @@ and continuous deployment platform.
       icon: <Icon name="lock" size="xl" />,
       to: "../../reference/machine-workload-identity/bound-keypair/static-keys",
       name: "Bound Keypair static keys (Generic)",
+    },
+    {
+      icon: <Icon name="integrations" size="xl" />,
+      to: "./generic-oidc",
+      name: "Generic OIDC",
     }
   ]}
 />
@@ -181,7 +191,11 @@ and continuous deployment platform.
 
 <Admonition type="tip" title="Unsupported Provider?">
 If your CI/CD provider does not have a dedicated join method listed above,
-consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+consider using the [Generic OIDC join method](./generic-oidc.mdx) if it can
+issue workflows OIDC identities, or consider using
+[Bound Keypair static keys][bound-keypair-static] as a fallback if it cannot.
+
+
 </Admonition>
 
 [bound-keypair-static]: ../../reference/machine-workload-identity/bound-keypair/static-keys.mdx

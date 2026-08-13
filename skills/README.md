@@ -30,11 +30,10 @@ full permissions.
 
 ### teleport-acl-lifecycle
 
-Helps create, update, and delete Teleport access lists with `tctl` — listing
-available resources before choosing grant targets, drafting standing,
-request-based (Access Request), or custom lists, updating owners, members,
-and grants on existing lists, and safely retiring lists (including detaching
-blocking parent nesting before delete).
+Helps give users access to specific Teleport resources. Browse available
+servers, databases, applications, Kubernetes clusters, and more, choose which
+ones and how users connect to them, then create, update, or retire the access
+list that grants that access.
 
 Install:
 
