@@ -20,6 +20,8 @@ package app
 
 import (
 	"cmp"
+	"context"
+	"errors"
 	"maps"
 	"slices"
 	"testing"
@@ -29,7 +31,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -89,6 +94,46 @@ func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
+}
+
+func TestWatcherDeleteLastDynamicAppAfterHeartbeatFailure(t *testing.T) {
+	ctx := t.Context()
+
+	reconcileCh := make(chan types.Apps, 8)
+	heartbeatCh := make(chan error, 8)
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		DisableDefaultApps: true,
+		InventoryHandle:    newFailingInventoryHandle(),
+		ResourceMatchers: []services.ResourceMatcher{
+			{Labels: types.Labels{
+				"group": []string{"a"},
+			}},
+		},
+		OnReconcile: func(a types.Apps) {
+			reconcileCh <- a
+		},
+		OnHeartbeat: func(err error) {
+			heartbeatCh <- err
+		},
+	})
+
+	requireReconciledAppNames(t, reconcileCh)
+	requireHeartbeatResult(t, heartbeatCh, false)
+
+	app, err := makeDynamicApp("app1", map[string]string{"group": "a"})
+	require.NoError(t, err)
+	require.NoError(t, s.authServer.AuthServer.CreateApp(ctx, app))
+	requireReconciledAppNames(t, reconcileCh, app.GetName())
+	requireHeartbeatResult(t, heartbeatCh, true)
+	drainHeartbeatResults(heartbeatCh)
+
+	require.NoError(t, s.authServer.AuthServer.DeleteApp(ctx, app.GetName()))
+	requireReconciledAppNames(t, reconcileCh)
+	require.Eventually(t, func() bool {
+		appServers, err := s.authServer.AuthServer.GetApplicationServers(ctx, defaults.Namespace)
+		return err == nil && len(appServers) == 0
+	}, 10*time.Second, 100*time.Millisecond, "waiting for dynamic app heartbeat record to be absent")
+	requireHeartbeatResult(t, heartbeatCh, false)
 }
 
 // TestWatcher verifies that app agent properly detects and applies
@@ -305,4 +350,106 @@ func makeApp(name string, labels map[string]string, additionalLabels map[string]
 	}, types.AppSpecV3{
 		URI: "localhost",
 	})
+}
+
+func requireReconciledAppNames(t *testing.T, reconcileCh <-chan types.Apps, wantNames ...string) {
+	t.Helper()
+
+	select {
+	case apps := <-reconcileCh:
+		gotNames := make([]string, 0, len(apps))
+		for _, app := range apps {
+			gotNames = append(gotNames, app.GetName())
+		}
+		require.ElementsMatch(t, wantNames, gotNames)
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for reconciled apps %v", wantNames)
+	}
+}
+
+func requireHeartbeatResult(t *testing.T, heartbeatCh <-chan error, wantErr bool) {
+	t.Helper()
+
+	select {
+	case err := <-heartbeatCh:
+		if wantErr {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out waiting for app heartbeat")
+	}
+}
+
+func drainHeartbeatResults(heartbeatCh <-chan error) {
+	for {
+		select {
+		case <-heartbeatCh:
+		default:
+			return
+		}
+	}
+}
+
+func newFailingInventoryHandle() inventory.DownstreamHandle {
+	ctx, cancel := context.WithCancel(context.Background())
+	senderC := make(chan inventory.DownstreamSender, 1)
+	senderC <- failingInventorySender{done: ctx.Done()}
+	return &failingInventoryHandle{
+		senderC:      senderC,
+		closeContext: ctx,
+		cancel:       cancel,
+	}
+}
+
+type failingInventoryHandle struct {
+	senderC      chan inventory.DownstreamSender
+	closeContext context.Context
+	cancel       context.CancelFunc
+}
+
+func (h *failingInventoryHandle) Sender() <-chan inventory.DownstreamSender {
+	return h.senderC
+}
+
+func (h *failingInventoryHandle) GetSender() (inventory.DownstreamSender, bool) {
+	return failingInventorySender{done: h.closeContext.Done()}, true
+}
+
+func (h *failingInventoryHandle) RegisterPingHandler(inventory.DownstreamPingHandler) func() {
+	return func() {}
+}
+
+func (h *failingInventoryHandle) CloseContext() context.Context {
+	return h.closeContext
+}
+
+func (h *failingInventoryHandle) Close() error {
+	h.cancel()
+	return nil
+}
+
+func (h *failingInventoryHandle) SetAndSendGoodbye(context.Context, bool, bool) error {
+	return nil
+}
+
+func (h *failingInventoryHandle) GetUpstreamLabels(proto.LabelUpdateKind) map[string]string {
+	return nil
+}
+
+type failingInventorySender struct {
+	done <-chan struct{}
+}
+
+func (s failingInventorySender) Send(context.Context, proto.UpstreamInventoryMessage) error {
+	return errors.New("inventory heartbeat failed")
+}
+
+func (s failingInventorySender) Hello() *proto.DownstreamInventoryHello {
+	return proto.DownstreamInventoryHello_builder{}.Build()
+}
+
+func (s failingInventorySender) Done() <-chan struct{} {
+	return s.done
 }

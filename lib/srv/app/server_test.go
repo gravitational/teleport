@@ -144,8 +144,15 @@ type suiteConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile sets app resource reconciliation callback.
 	OnReconcile func(types.Apps)
+	// OnHeartbeat receives app resource heartbeat results.
+	OnHeartbeat func(error)
+	// InventoryHandle is used to send app heartbeats.
+	InventoryHandle inventory.DownstreamHandle
 	// Apps are the apps to configure.
 	Apps types.Apps
+	// DisableDefaultApps prevents the test suite from configuring its default
+	// static apps.
+	DisableDefaultApps bool
 	// ServerStreamer is the auth server session events streamer.
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
@@ -387,8 +394,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 
 	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
+	if config.DisableDefaultApps {
+		apps = nil
+	}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
+	}
+
+	onHeartbeat := config.OnHeartbeat
+	if onHeartbeat == nil {
+		onHeartbeat = func(error) {}
 	}
 
 	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
@@ -414,16 +429,19 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 	require.NoError(t, err)
 
-	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
-		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello_builder{
-				ServerID: s.hostUUID,
-				Version:  teleport.Version,
-				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
-				Hostname: "test",
-			}.Build(), nil
-		})
-	require.NoError(t, err)
+	inventoryHandle := config.InventoryHandle
+	if inventoryHandle == nil {
+		inventoryHandle, err = inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
+			func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+				return proto.UpstreamInventoryHello_builder{
+					ServerID: s.hostUUID,
+					Version:  teleport.Version,
+					Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+					Hostname: "test",
+				}.Build(), nil
+			})
+		require.NoError(t, err)
+	}
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
@@ -434,7 +452,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Hostname:             "test",
 		GetRotation:          testRotationGetter,
 		Apps:                 apps,
-		OnHeartbeat:          func(err error) {},
+		OnHeartbeat:          onHeartbeat,
 		ResourceMatchers:     config.ResourceMatchers,
 		OnReconcile:          config.OnReconcile,
 		CloudLabels:          config.CloudImporter,
