@@ -79,6 +79,14 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		tcpPorts = append(tcpPorts, api.PortRange_builder{Port: portRange.Port, EndPort: portRange.EndPort}.Build())
 	}
 
+	// For LLM inference endpoints, surface the inference API format and provider
+	// so Connect can render provider-specific instructions.
+	var llmFormat, llmProvider string
+	if llm := app.GetLLM(); llm != nil {
+		llmFormat = llm.Format
+		llmProvider = llm.Provider
+	}
+
 	return api.App_builder{
 		Uri:            clusterApp.URI.String(),
 		EndpointUri:    app.GetURI(),
@@ -94,6 +102,8 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		TcpPorts:       tcpPorts,
 		SubKind:        app.GetSubKind(),
 		PermissionSets: permissionSets,
+		LlmFormat:      llmFormat,
+		LlmProvider:    llmProvider,
 	}.Build()
 }
 

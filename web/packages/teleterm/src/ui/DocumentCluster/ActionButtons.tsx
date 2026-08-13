@@ -182,6 +182,8 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
       telemetry: { origin: 'resource_table' },
       targetPort,
       targetProtocol: getAppProtocol(props.app.endpointUri),
+      llmFormat: props.app.llmFormat,
+      llmProvider: props.app.llmProvider,
     });
   }
 

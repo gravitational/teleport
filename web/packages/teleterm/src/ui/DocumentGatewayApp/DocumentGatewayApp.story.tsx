@@ -113,25 +113,23 @@ export function Story(props: StoryProps) {
   if (props.appType === 'mcp') {
     gateway.protocol = 'MCP';
   }
+
+  let llmDetails: { llmFormat: string; llmProvider: string } | undefined;
   if (props.appType === 'llm-anthropic') {
     gateway.protocol = 'LLM';
-    gateway.llmFormat = 'anthropic';
-    gateway.llmProvider = 'anthropic';
+    llmDetails = { llmFormat: 'anthropic', llmProvider: 'anthropic' };
   }
   if (props.appType === 'llm-anthropic-bedrock') {
     gateway.protocol = 'LLM';
-    gateway.llmFormat = 'anthropic';
-    gateway.llmProvider = 'bedrock';
+    llmDetails = { llmFormat: 'anthropic', llmProvider: 'bedrock' };
   }
   if (props.appType === 'llm-openai') {
     gateway.protocol = 'LLM';
-    gateway.llmFormat = 'openai';
-    gateway.llmProvider = 'openai';
+    llmDetails = { llmFormat: 'openai', llmProvider: 'openai' };
   }
   if (props.appType === 'llm-openai-bedrock') {
     gateway.protocol = 'LLM';
-    gateway.llmFormat = 'openai';
-    gateway.llmProvider = 'bedrock';
+    llmDetails = { llmFormat: 'openai', llmProvider: 'bedrock' };
   }
   const documentGateway: types.DocumentGateway = {
     kind: 'doc.gateway',
@@ -151,6 +149,10 @@ export function Story(props: StoryProps) {
   }
   if (props.appType === 'tcp-multi-port') {
     documentGateway.targetSubresourceName = '4242';
+  }
+  if (llmDetails) {
+    documentGateway.llmFormat = llmDetails.llmFormat;
+    documentGateway.llmProvider = llmDetails.llmProvider;
   }
 
   const infinitePromise = usePromiseRejectedOnUnmount();

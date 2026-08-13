@@ -126,6 +126,8 @@ export async function connectToApp(
     await setUpAppGateway(ctx, target.uri, {
       telemetry,
       targetProtocol: getAppProtocol(target.endpointUri),
+      llmFormat: target.llmFormat,
+      llmProvider: target.llmProvider,
     });
     return;
   }
@@ -169,6 +171,12 @@ export async function setUpAppGateway(
      * targetProtocol is the protocol of the resource proxied by the gateway.
      */
     targetProtocol?: string;
+    /**
+     * llmFormat and llmProvider carry the LLM details from the app resource so
+     * the gateway view can render instructions without fetching the app.
+     */
+    llmFormat?: string;
+    llmProvider?: string;
   }
 ) {
   const rootClusterUri = routing.ensureRootClusterUri(targetUri);
@@ -182,6 +190,8 @@ export async function setUpAppGateway(
     targetUser: '',
     targetSubresourceName: options.targetPort?.toString(),
     targetProtocol: options.targetProtocol,
+    llmFormat: options.llmFormat || undefined,
+    llmProvider: options.llmProvider || undefined,
     autoUserProvisioning: undefined,
   });
 

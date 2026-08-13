@@ -36,6 +36,7 @@ import {
   disappear,
   Flex,
   H1,
+  Indicator,
   LabelInput,
   Link,
   rotate360,
@@ -47,7 +48,12 @@ import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation from 'shared/components/Validation';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeSuccessAttempt,
+  mapAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import {
@@ -64,6 +70,8 @@ import { getLlmSpec, LlmInstructions } from './LlmInstructions';
 
 export function AppGateway(props: {
   gateway: Gateway;
+  llmFormat?: string;
+  llmProvider?: string;
   disconnectAttempt: Attempt<void>;
   changeLocalPort(port: string): void;
   changeLocalPortAttempt: Attempt<void>;
@@ -91,10 +99,8 @@ export function AppGateway(props: {
   const handleTargetPortChange =
     useDebouncedPortChangeHandler(changeTargetPort);
 
-  const content = getGatewayContent(gateway);
-
-  // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
-  // app is multi-port or not in some other way.
+  // AppGateway doesn't have synchronous access to the app resource, so it has to decide whether
+  // the app is multi-port or not in some other way.
   // For multi-port apps, DocumentGateway comes with targetSubresourceName prefilled to the first
   // port number found in TCP ports. Single-port apps have this field empty.
   // So, if targetSubresourceName is present, then the app must be multi-port. In this case, the
@@ -104,27 +110,47 @@ export function AppGateway(props: {
     gateway.protocol === 'TCP' && gateway.targetSubresourceName;
   const targetPortRef = useRef<HTMLInputElement>(null);
 
-  const [tcpPortsAttempt, getTcpPorts] = useAsync(
+  const [appAttempt, fetchApp] = useAsync(
     useCallback(
       () =>
         retryWithRelogin(ctx, targetUri, () =>
           tshd
             .getApp({ appUri: targetUri })
-            .then(({ response }) => response.app.tcpPorts)
+            .then(({ response }) => response.app)
         ),
       [ctx, targetUri, tshd]
     )
   );
+
+  const isLlm = gateway.protocol === 'LLM';
+  const hasLlmDetailsFromDoc = !!props.llmFormat;
+  useEffect(() => {
+    if (isLlm && !hasLlmDetailsFromDoc && appAttempt.status === '') {
+      void fetchApp();
+    }
+  }, [isLlm, hasLlmDetailsFromDoc, appAttempt.status, fetchApp]);
+
+  const llmDetailsAttempt: Attempt<LlmDetails> = hasLlmDetailsFromDoc
+    ? makeSuccessAttempt({
+        llmFormat: props.llmFormat,
+        llmProvider: props.llmProvider || '',
+      })
+    : mapAttempt(appAttempt, app => ({
+        llmFormat: app.llmFormat,
+        llmProvider: app.llmProvider,
+      }));
+
+  const content = getGatewayContent(gateway, llmDetailsAttempt);
   const currentTargetPort = parseInt(gateway.targetSubresourceName);
   const getTcpPortsForMenuLogin: () => Promise<LoginItem[]> =
     useCallback(async () => {
-      const [tcpPorts, error] = await getTcpPorts();
+      const [app, error] = await fetchApp();
 
       if (error) {
         throw error;
       }
 
-      return tcpPorts
+      return app.tcpPorts
         .filter(
           portRange =>
             // Filter out single-port port ranges that are equal to the current port.
@@ -134,7 +160,7 @@ export function AppGateway(props: {
           login: formatPortRange(portRange),
           url: '',
         }));
-    }, [getTcpPorts, currentTargetPort]);
+    }, [fetchApp, currentTargetPort]);
 
   const onPortRangeSelect = (_, formattedPortRange: string) => {
     const firstPort = formattedPortRange.split(portRangeSeparator)[0];
@@ -236,8 +262,8 @@ export function AppGateway(props: {
           </Alert>
         )}
 
-        {tcpPortsAttempt.status === 'error' && (
-          <Alert kind="warning" details={tcpPortsAttempt.statusText} m={0}>
+        {!isLlm && appAttempt.status === 'error' && (
+          <Alert kind="warning" details={appAttempt.statusText} m={0}>
             Could not fetch available target ports
           </Alert>
         )}
@@ -248,12 +274,20 @@ export function AppGateway(props: {
   );
 }
 
+type LlmDetails = {
+  llmFormat: string;
+  llmProvider: string;
+};
+
 /**
  * getGatewayContent is a central place that branches on the kind of app the
  * gateway proxies. It returns the parts of the view that differ per kind,
  * rendered by AppGateway into the shared structure.
  */
-function getGatewayContent(gateway: Gateway): {
+function getGatewayContent(
+  gateway: Gateway,
+  llmDetailsAttempt: Attempt<LlmDetails>
+): {
   title: string;
   body: ReactNode;
   footer?: ReactNode;
@@ -275,15 +309,37 @@ function getGatewayContent(gateway: Gateway): {
         footer: <AuthenticatedProxyNote />,
       };
     case 'LLM': {
-      const spec = getLlmSpec(
-        gateway.llmFormat,
-        gateway.llmProvider,
-        `http://${address}`
-      );
-      return {
-        title: `${spec.name} Inference Endpoint Connection`,
-        body: <LlmInstructions spec={spec} />,
-      };
+      switch (llmDetailsAttempt.status) {
+        case 'success': {
+          const spec = getLlmSpec(
+            llmDetailsAttempt.data.llmFormat,
+            llmDetailsAttempt.data.llmProvider,
+            `http://${address}`
+          );
+          return {
+            title: `${spec.name} Inference Endpoint Connection`,
+            body: <LlmInstructions spec={spec} />,
+          };
+        }
+        case 'error':
+          return {
+            title: 'Inference Endpoint Connection',
+            body: (
+              <Alert details={llmDetailsAttempt.statusText} m={0}>
+                Could not fetch the app details
+              </Alert>
+            ),
+          };
+        default:
+          return {
+            title: 'Inference Endpoint Connection',
+            body: (
+              <Box textAlign="center">
+                <Indicator />
+              </Box>
+            ),
+          };
+      }
     }
     case 'HTTP':
       return {

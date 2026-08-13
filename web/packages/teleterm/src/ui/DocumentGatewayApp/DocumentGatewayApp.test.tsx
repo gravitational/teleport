@@ -23,6 +23,7 @@ import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
+  makeApp,
   makeAppGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
@@ -232,8 +233,6 @@ describe('LLM inference endpoint gateway', () => {
       const cluster = makeRootCluster();
       const gateway = makeAppGateway({
         protocol: 'LLM',
-        llmFormat: format,
-        llmProvider: provider,
         targetSubresourceName: undefined,
       });
       const doc: docs.DocumentGateway = {
@@ -254,6 +253,11 @@ describe('LLM inference endpoint gateway', () => {
       jest
         .spyOn(appContext.tshd, 'createGateway')
         .mockReturnValueOnce(new MockedUnaryCall(gateway));
+      jest.spyOn(appContext.tshd, 'getApp').mockReturnValue(
+        new MockedUnaryCall({
+          app: makeApp({ llmFormat: format, llmProvider: provider }),
+        })
+      );
 
       render(
         <MockAppContextProvider appContext={appContext}>
