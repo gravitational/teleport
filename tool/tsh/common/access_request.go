@@ -757,7 +757,7 @@ func printRequestableResources[T resourceRow](cf *CLIConf, rows []T, resourceIDs
 		}
 
 		if len(resourceIDs) > 0 {
-			fmt.Fprint(cf.Stdout(), "\nhint: use 'tsh request preview <resource-id>' to view granted & requestable principals\n")
+			fmt.Fprint(cf.Stdout(), "\nhint: use 'tsh request show-principals <resource-id>' to view granted & requestable principals\n")
 
 			resourcesStr := strings.Join(resourceIDs, " --resource ")
 			fmt.Fprintf(cf.Stdout(), `
@@ -866,8 +866,8 @@ func formatAccessSummary(splits map[string]principalSplit) string {
 	return strings.Join(parts, ", ")
 }
 
-// principalHeading is the human heading for a principal dimension in preview
-// output. A dimension this build does not recognize (a newer cluster's) falls
+// principalHeading is the human heading for a principal dimension in
+// show-principals output. A dimension this build does not recognize (a newer cluster's) falls
 // back to its raw key, which still names it usefully.
 func principalHeading(kind string) string {
 	switch kind {
@@ -917,11 +917,12 @@ func hostnameOf(r types.ResourceWithLabels) string {
 	return ""
 }
 
-// resourcePreviewJSON is the structured output of `tsh request preview
-// --format json`: the full granted and requestable split for every principal
-// dimension of a single resource, keyed by the dimension's inline constraint
-// key, so an agent can construct a constrained request in one call.
-type resourcePreviewJSON struct {
+// resourcePrincipalsJSON is the structured output of `tsh request
+// show-principals --format json`: the full granted and requestable split for
+// every principal dimension of a single resource, keyed by the dimension's
+// inline constraint key, so an agent can construct a constrained request in
+// one call.
+type resourcePrincipalsJSON struct {
 	ResourceID string                        `json:"resource_id"`
 	Kind       string                        `json:"kind"`
 	Name       string                        `json:"name"`
@@ -986,25 +987,26 @@ func printCreatedRequest(cf *CLIConf, req types.AccessRequest) error {
 	return trace.Wrap(utils.WriteJSON(cf.Stdout(), payload))
 }
 
-// previewTargetCluster returns the cluster whose presence serves a preview
-// query: the ResourceID's cluster when set, else the connected cluster.
-func previewTargetCluster(currentCluster string, id types.ResourceID) string {
+// principalsTargetCluster returns the cluster whose presence serves a
+// show-principals query: the ResourceID's cluster when set, else the connected
+// cluster.
+func principalsTargetCluster(currentCluster string, id types.ResourceID) string {
 	if id.ClusterName != "" {
 		return id.ClusterName
 	}
 	return currentCluster
 }
 
-// onRequestPreview shows the granted vs. requestable principals for a single
-// resource, identified by its resource ID (e.g. /cluster/node/web-1), so a user
-// or agent can decide which principals to scope a request to.
-func onRequestPreview(cf *CLIConf) error {
+// onRequestShowPrincipals shows the granted vs. requestable principals for a
+// single resource, identified by its resource ID (e.g. /cluster/node/web-1),
+// so a user or agent can decide which principals to scope a request to.
+func onRequestShowPrincipals(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	id, err := types.ResourceIDFromString(cf.RequestPreviewResourceID)
+	id, err := types.ResourceIDFromString(cf.RequestShowPrincipalsResourceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1015,10 +1017,11 @@ func onRequestPreview(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
-	// Route the query to the resource's own cluster: a preview of a leaf
-	// resource must read the leaf's presence, not the connected cluster's.
+	// Route the query to the resource's own cluster: principals of a leaf
+	// resource must be read from the leaf's presence, not the connected
+	// cluster's.
 	authClient := clusterClient.CurrentCluster()
-	if target := previewTargetCluster(clusterClient.ClusterName(), id); target != clusterClient.ClusterName() {
+	if target := principalsTargetCluster(clusterClient.ClusterName(), id); target != clusterClient.ClusterName() {
 		leafClient, err := clusterClient.ConnectToCluster(cf.Context, target)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1044,18 +1047,18 @@ func onRequestPreview(cf *CLIConf) error {
 			continue
 		}
 		if leaf.GetName() == id.Name {
-			return trace.Wrap(printResourcePreview(cf, id, leaf, principalSplits(er)))
+			return trace.Wrap(printResourcePrincipals(cf, id, leaf, principalSplits(er)))
 		}
 	}
-	return trace.NotFound("resource %q was not found or is not requestable", cf.RequestPreviewResourceID)
+	return trace.NotFound("resource %q was not found or is not requestable", cf.RequestShowPrincipalsResourceID)
 }
 
-func printResourcePreview(cf *CLIConf, id types.ResourceID, leaf types.ResourceWithLabels, splits map[string]principalSplit) error {
+func printResourcePrincipals(cf *CLIConf, id types.ResourceID, leaf types.ResourceWithLabels, splits map[string]principalSplit) error {
 	idStr := types.ResourceIDToString(id)
 
 	switch strings.ToLower(cf.Format) {
 	case teleport.JSON, teleport.YAML:
-		payload := resourcePreviewJSON{
+		payload := resourcePrincipalsJSON{
 			ResourceID: idStr,
 			Kind:       id.Kind,
 			Name:       leaf.GetName(),

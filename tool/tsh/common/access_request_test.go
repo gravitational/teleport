@@ -1059,20 +1059,20 @@ func TestFormatAccessSummary(t *testing.T) {
 	}
 }
 
-// TestPreviewTargetCluster pins the preview routing rule: the query goes to
-// the ResourceID's cluster, not the connected cluster.
-func TestPreviewTargetCluster(t *testing.T) {
+// TestPrincipalsTargetCluster pins the show-principals routing rule: the
+// query goes to the ResourceID's cluster, not the connected cluster.
+func TestPrincipalsTargetCluster(t *testing.T) {
 	t.Parallel()
 
 	id := func(cluster string) types.ResourceID {
 		return types.ResourceID{ClusterName: cluster, Kind: types.KindNode, Name: "web-1"}
 	}
-	require.Equal(t, "leaf", previewTargetCluster("root", id("leaf")))
-	require.Equal(t, "root", previewTargetCluster("root", id("root")))
-	require.Equal(t, "root", previewTargetCluster("root", id("")))
+	require.Equal(t, "leaf", principalsTargetCluster("root", id("leaf")))
+	require.Equal(t, "root", principalsTargetCluster("root", id("root")))
+	require.Equal(t, "root", principalsTargetCluster("root", id("")))
 }
 
-func TestPrintResourcePreview(t *testing.T) {
+func TestPrintResourcePrincipals(t *testing.T) {
 	server, err := types.NewServer("web-1", types.KindNode, types.ServerSpecV2{Hostname: "web-1.dc1"})
 	require.NoError(t, err)
 	server.SetStaticLabels(map[string]string{"env": "prod"})
@@ -1084,7 +1084,7 @@ func TestPrintResourcePreview(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		var buf bytes.Buffer
 		cf := &CLIConf{OverrideStdout: &buf}
-		require.NoError(t, printResourcePreview(cf, id, server, splits))
+		require.NoError(t, printResourcePrincipals(cf, id, server, splits))
 		out := buf.String()
 		require.Contains(t, out, "Resource:  /main/node/web-1")
 		require.Contains(t, out, "Hostname:  web-1.dc1")
@@ -1099,7 +1099,7 @@ func TestPrintResourcePreview(t *testing.T) {
 	t.Run("json", func(t *testing.T) {
 		var buf bytes.Buffer
 		cf := &CLIConf{OverrideStdout: &buf, Format: "json"}
-		require.NoError(t, printResourcePreview(cf, id, server, splits))
+		require.NoError(t, printResourcePrincipals(cf, id, server, splits))
 		require.JSONEq(t, `{
 			"resource_id": "/main/node/web-1",
 			"kind": "node",
@@ -1119,7 +1119,7 @@ func TestPrintResourcePreview(t *testing.T) {
 			types.PrincipalTypeLogins: {requestable: []string{"root"}},
 			"future_kind":             {granted: []string{"x"}, requestable: []string{"y"}},
 		}
-		require.NoError(t, printResourcePreview(cf, id, server, multi))
+		require.NoError(t, printResourcePrincipals(cf, id, server, multi))
 		out := buf.String()
 		// Dimensions render sorted, unknown kinds fall back to their raw key.
 		require.Contains(t, out, "future_kind:")
@@ -1132,7 +1132,7 @@ func TestPrintResourcePreview(t *testing.T) {
 	t.Run("no principals", func(t *testing.T) {
 		var buf bytes.Buffer
 		cf := &CLIConf{OverrideStdout: &buf}
-		require.NoError(t, printResourcePreview(cf, id, server, nil))
+		require.NoError(t, printResourcePrincipals(cf, id, server, nil))
 		require.Contains(t, buf.String(), "No selectable principals")
 	})
 }
@@ -1163,7 +1163,7 @@ func TestPrintRequestableResourcesAccess(t *testing.T) {
 		require.Contains(t, out, "1 granted")
 		require.Contains(t, out, "Resource ID")
 		require.Contains(t, out, "/main/node/web-1")
-		require.Contains(t, out, "tsh request preview")
+		require.Contains(t, out, "tsh request show-principals")
 	})
 
 	t.Run("json carries principal splits and resource id", func(t *testing.T) {
