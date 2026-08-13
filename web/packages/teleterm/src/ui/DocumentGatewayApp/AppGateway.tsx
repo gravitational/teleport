@@ -56,6 +56,7 @@ import {
 } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import {
   formatPortRange,
   portRangeSeparator,
@@ -82,6 +83,7 @@ export function AppGateway(props: {
   const { gateway } = props;
   const ctx = useAppContext();
   const { tshd } = ctx;
+  const { platform } = ctx.mainProcessClient.getRuntimeSettings();
   const { targetUri } = gateway;
   const logger = useLogger('AppGateway');
 
@@ -140,7 +142,7 @@ export function AppGateway(props: {
         llmProvider: app.llmProvider,
       }));
 
-  const content = getGatewayContent(gateway, llmDetailsAttempt);
+  const content = getGatewayContent(gateway, llmDetailsAttempt, platform);
   const currentTargetPort = parseInt(gateway.targetSubresourceName);
   const getTcpPortsForMenuLogin: () => Promise<LoginItem[]> =
     useCallback(async () => {
@@ -286,7 +288,8 @@ type LlmDetails = {
  */
 function getGatewayContent(
   gateway: Gateway,
-  llmDetailsAttempt: Attempt<LlmDetails>
+  llmDetailsAttempt: Attempt<LlmDetails>,
+  platform: RuntimeSettings['platform']
 ): {
   title: string;
   body: ReactNode;
@@ -314,7 +317,8 @@ function getGatewayContent(
           const spec = getLlmSpec(
             llmDetailsAttempt.data.llmFormat,
             llmDetailsAttempt.data.llmProvider,
-            `http://${address}`
+            `http://${address}`,
+            platform
           );
           return {
             title: `${spec.name} Inference Endpoint Connection`,

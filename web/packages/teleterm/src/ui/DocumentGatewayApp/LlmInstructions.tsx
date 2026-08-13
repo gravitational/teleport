@@ -19,6 +19,8 @@
 import { Flex, Text } from 'design';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
+
 type LlmEnvLine = { text: string; comment?: string };
 
 export type LlmSpec = {
@@ -46,8 +48,16 @@ export type LlmSpec = {
 export function getLlmSpec(
   llmFormat: string,
   llmProvider: string,
-  address: string
+  address: string,
+  platform: RuntimeSettings['platform']
 ): LlmSpec {
+  // On Windows, Teleport Connect uses PowerShell by default, where `export`
+  // is not a valid command.
+  const exportEnv = (name: string, value: string) =>
+    platform === 'win32'
+      ? `$env:${name} = "${value}"`
+      : `export ${name}=${value}`;
+
   if (llmFormat === 'openai') {
     if (llmProvider === 'bedrock') {
       return {
@@ -65,8 +75,8 @@ export function getLlmSpec(
       name: 'OpenAI',
       clientLabel: 'OpenAI client',
       envLines: [
-        { text: `export OPENAI_BASE_URL=${address}/v1` },
-        { text: 'export OPENAI_API_KEY=teleport' },
+        { text: exportEnv('OPENAI_BASE_URL', `${address}/v1`) },
+        { text: exportEnv('OPENAI_API_KEY', 'teleport') },
       ],
       runNote:
         'Codex ignores the base-URL variable, so pass the address inline:',
@@ -75,18 +85,18 @@ export function getLlmSpec(
   }
 
   const envLines: LlmEnvLine[] = [
-    { text: `export ANTHROPIC_BASE_URL=${address}` },
-    { text: 'export ANTHROPIC_API_KEY=teleport' },
+    { text: exportEnv('ANTHROPIC_BASE_URL', address) },
+    { text: exportEnv('ANTHROPIC_API_KEY', 'teleport') },
   ];
   if (llmProvider === 'bedrock') {
     envLines.push(
       {
-        text: 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1',
+        text: exportEnv('CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS', '1'),
         comment: 'Required when the endpoint is served by Amazon Bedrock.',
       },
-      { text: 'export CLAUDE_CODE_USE_MANTLE=1' },
-      { text: 'export CLAUDE_CODE_SKIP_MANTLE_AUTH=1' },
-      { text: `export ANTHROPIC_BEDROCK_MANTLE_BASE_URL=${address}` }
+      { text: exportEnv('CLAUDE_CODE_USE_MANTLE', '1') },
+      { text: exportEnv('CLAUDE_CODE_SKIP_MANTLE_AUTH', '1') },
+      { text: exportEnv('ANTHROPIC_BEDROCK_MANTLE_BASE_URL', address) }
     );
   }
   return {
