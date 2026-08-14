@@ -79,7 +79,6 @@ func TestBeamsSCPCommandRun(t *testing.T) {
 		},
 	}
 
-	// Additional test for ownership validation
 	t.Run("access denied when user does not own beam", func(t *testing.T) {
 		cf := &CLIConf{
 			Context:        context.Background(),

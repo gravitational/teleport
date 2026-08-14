@@ -339,12 +339,14 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 		return c, nil
 	}
 
+	prevInfo := c.Checker.AccessInfo()
 	accessInfo := &services.AccessInfo{
 		Username:                 c.User.GetName(),
 		Roles:                    newRoleNames,
 		Traits:                   c.User.GetTraits(),
 		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
 		DelegationSessionID:      c.Checker.DelegationSessionID(),
+		Impersonator:             prevInfo.Impersonator,
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {

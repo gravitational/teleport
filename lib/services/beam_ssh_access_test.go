@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -47,17 +48,41 @@ func TestCheckBeamSSHOwnership(t *testing.T) {
 	require.NoError(t, err)
 	regularNode.SetStaticLabels(map[string]string{"env": "prod"})
 
+	dynamicOverrideNode := newBeamNode(t, "beam-dyn", "alice").(*types.ServerV2)
+	dynamicOverrideNode.Spec.CmdLabels = map[string]types.CommandLabelV2{
+		types.BeamOwnerLabel: {Result: "mallory"},
+	}
+
+	partialNode, err := types.NewServer("partial", types.KindNode, types.ServerSpecV2{Hostname: "partial"})
+	require.NoError(t, err)
+	partialNode.SetStaticLabels(map[string]string{
+		types.BeamOwnerLabel: "alice", // owner present but no beam ID
+	})
+
 	tests := []struct {
-		name              string
-		username          string
-		fromRemoteCluster bool
-		target            types.Server
-		wantErr           string
+		name         string
+		username     string
+		impersonator string
+		target       types.Server
+		wantErr      string
 	}{
 		{
 			name:     "owner can access own beam",
 			username: "alice",
 			target:   beamNode,
+		},
+		{
+			name:         "owner via self role-impersonation is allowed",
+			username:     "alice",
+			impersonator: "alice",
+			target:       beamNode,
+		},
+		{
+			name:         "impersonated owner identity is denied",
+			username:     "alice",
+			impersonator: "mallory",
+			target:       beamNode,
+			wantErr:      "impersonated identities cannot access beams",
 		},
 		{
 			name:     "non-owner cannot access beam",
@@ -72,17 +97,27 @@ func TestCheckBeamSSHOwnership(t *testing.T) {
 			wantErr:  `owned by "alice"`,
 		},
 		{
-			name:              "remote cluster identity with owner's username is denied",
-			username:          "alice",
-			fromRemoteCluster: true,
-			target:            beamNode,
-			wantErr:           "cross-cluster",
-		},
-		{
 			name:     "beam without owner label is denied",
 			username: "alice",
 			target:   newBeamNode(t, "beam-456", ""),
 			wantErr:  "missing owner label",
+		},
+		{
+			name:     "dynamic label cannot override the owner",
+			username: "mallory",
+			target:   types.Server(dynamicOverrideNode),
+			wantErr:  `owned by "alice"`,
+		},
+		{
+			name:     "dynamic override does not lock out the real owner",
+			username: "alice",
+			target:   types.Server(dynamicOverrideNode),
+		},
+		{
+			name:     "partially marked node fails closed",
+			username: "alice",
+			target:   partialNode,
+			wantErr:  "inconsistently marked",
 		},
 		{
 			name:     "regular node is not affected",
@@ -90,10 +125,10 @@ func TestCheckBeamSSHOwnership(t *testing.T) {
 			target:   regularNode,
 		},
 		{
-			name:              "regular node is not affected for remote identities",
-			username:          "anyone",
-			fromRemoteCluster: true,
-			target:            regularNode,
+			name:         "regular node is not affected for impersonated identities",
+			username:     "anyone",
+			impersonator: "mallory",
+			target:       regularNode,
 		},
 		{
 			name:     "nil target is allowed (re-checked with concrete target)",
@@ -104,7 +139,7 @@ func TestCheckBeamSSHOwnership(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := CheckBeamSSHOwnership(tt.username, tt.fromRemoteCluster, tt.target)
+			err := CheckBeamSSHOwnership(tt.username, tt.impersonator, tt.target)
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return
@@ -116,10 +151,65 @@ func TestCheckBeamSSHOwnership(t *testing.T) {
 	}
 }
 
-// TestBeamOwnershipViaCheckAccess verifies that the beam ownership check is
-// enforced by the accessChecker's CheckAccess funnel, which every SSH access
-// evaluation (node, proxying, scoped, PDP, listing) routes through, even when
-// the user's roles would otherwise grant access to every node.
+func TestCheckBeamSSHLogin(t *testing.T) {
+	beamNode := newBeamNode(t, "beam-123", "alice")
+
+	regularNode, err := types.NewServer("regular", types.KindNode, types.ServerSpecV2{Hostname: "server1"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		osUser  string
+		target  types.Server
+		wantErr bool
+	}{
+		{
+			name:   "beams login allowed on beam",
+			osUser: types.BeamsLogin,
+			target: beamNode,
+		},
+		{
+			name:   "session join principal allowed on beam",
+			osUser: teleport.SSHSessionJoinPrincipal,
+			target: beamNode,
+		},
+		{
+			name:    "root denied on beam even for the owner's connection",
+			osUser:  "root",
+			target:  beamNode,
+			wantErr: true,
+		},
+		{
+			name:    "arbitrary login denied on beam",
+			osUser:  "ubuntu",
+			target:  beamNode,
+			wantErr: true,
+		},
+		{
+			name:   "any login allowed on regular node",
+			osUser: "root",
+			target: regularNode,
+		},
+		{
+			name:   "nil target allowed",
+			osUser: "root",
+			target: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := CheckBeamSSHLogin(tt.osUser, tt.target)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+		})
+	}
+}
+
 func TestBeamOwnershipViaCheckAccess(t *testing.T) {
 	beamNode := newBeamNode(t, "beam-123", "alice")
 
@@ -133,51 +223,37 @@ func TestBeamOwnershipViaCheckAccess(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	newChecker := func(username string, fromRemoteCluster bool) AccessChecker {
-		return NewAccessCheckerWithRoleSet(
-			&AccessInfo{
-				Username:          username,
-				Roles:             []string{broadRole.GetName()},
-				FromRemoteCluster: fromRemoteCluster,
-			},
-			"localhost",
-			NewRoleSet(broadRole),
-		)
+	newChecker := func(info *AccessInfo) AccessChecker {
+		info.Roles = []string{broadRole.GetName()}
+		return NewAccessCheckerWithRoleSet(info, "localhost", NewRoleSet(broadRole))
 	}
 
 	t.Run("owner allowed", func(t *testing.T) {
-		err := newChecker("alice", false).CheckAccess(beamNode, AccessState{MFAVerified: true}, NewLoginMatcher(types.BeamsLogin))
-		require.NoError(t, err)
+		checker := newChecker(&AccessInfo{Username: "alice"})
+		require.NoError(t, checker.CheckAccess(beamNode, AccessState{MFAVerified: true}, NewLoginMatcher(types.BeamsLogin)))
 	})
 
 	t.Run("non-owner denied despite wildcard node access", func(t *testing.T) {
-		err := newChecker("bob", false).CheckAccess(beamNode, AccessState{MFAVerified: true}, NewLoginMatcher(types.BeamsLogin))
+		checker := newChecker(&AccessInfo{Username: "bob"})
+		err := checker.CheckAccess(beamNode, AccessState{MFAVerified: true}, NewLoginMatcher(types.BeamsLogin))
 		require.True(t, trace.IsAccessDenied(err), err)
 		require.ErrorContains(t, err, `owned by "alice"`)
 	})
 
-	t.Run("remote identity with owner's username denied", func(t *testing.T) {
-		err := newChecker("alice", true).CheckAccess(beamNode, AccessState{MFAVerified: true}, NewLoginMatcher(types.BeamsLogin))
+	t.Run("impersonated owner denied", func(t *testing.T) {
+		checker := newChecker(&AccessInfo{Username: "alice", Impersonator: "mallory"})
+		err := checker.CheckAccess(beamNode, AccessState{MFAVerified: true}, NewLoginMatcher(types.BeamsLogin))
 		require.True(t, trace.IsAccessDenied(err), err)
-		require.ErrorContains(t, err, "cross-cluster")
+		require.ErrorContains(t, err, "impersonated identities")
 	})
 
 	t.Run("listing filters other users' beams but not the owner's", func(t *testing.T) {
-		// CanAccessSSHServer-style listing check: MFA verified, no login matcher.
-		require.NoError(t, newChecker("alice", false).CheckAccess(beamNode, AccessState{MFAVerified: true}))
-		err := newChecker("bob", false).CheckAccess(beamNode, AccessState{MFAVerified: true})
+		require.NoError(t, newChecker(&AccessInfo{Username: "alice"}).CheckAccess(beamNode, AccessState{MFAVerified: true}))
+		err := newChecker(&AccessInfo{Username: "bob"}).CheckAccess(beamNode, AccessState{MFAVerified: true})
 		require.True(t, trace.IsAccessDenied(err), err)
 	})
 }
 
-// TestBeamOwnershipOrderingWithSessionMFA verifies that role-derived signals
-// such as ErrSessionMFARequired surface before the beam ownership check. The
-// IsMFARequired RPC probes node access and only reacts to
-// ErrSessionMFARequired: if the beam check ran first, a non-owner probe would
-// mask the MFA requirement. For the owner the ordering is irrelevant (the
-// beam check passes), but keeping role signals first keeps probes accurate
-// for every caller. Ordering does not weaken enforcement: access requires
-// both the role evaluation and the beam ownership check to pass.
 func TestBeamOwnershipOrderingWithSessionMFA(t *testing.T) {
 	beamNode := newBeamNode(t, "beam-123", "alice")
 

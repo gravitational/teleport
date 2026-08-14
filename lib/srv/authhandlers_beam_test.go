@@ -36,11 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-// TestEvaluateSSHAccessBeamOwnership exercises beam ownership enforcement on
-// the exact evaluation path taken by connections to beam nodes: beam nodes
-// are agentless OpenSSH nodes, so the proxy's forwarding server authorizes
-// them via evaluateSSHAccess. A check anywhere else can be bypassed; this
-// test pins the enforcement to the real path.
 func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 	t.Parallel()
 
@@ -70,7 +65,6 @@ func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 	}
 
 	userCA, userCASigner := newUserCA(t, clusterName)
-	leafCA, leafCASigner := newUserCA(t, "leaf")
 
 	server := newMockServer(t)
 	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
@@ -83,7 +77,7 @@ func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 	accessPoint := &mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
 		cas: map[types.CertAuthType][]types.CertAuthority{
-			types.UserCA: {userCA, leafCA},
+			types.UserCA: {userCA},
 		},
 	}
 	accessPoint.authPref, err = types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -99,9 +93,6 @@ func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// A deliberately over-broad role: wildcard node access with the beams
-	// login. This is exactly the role that made the vulnerability exploitable;
-	// the ownership check must hold in spite of it.
 	role, err := types.NewRole("access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{types.BeamsLogin, "alice", "bob"},
@@ -134,7 +125,7 @@ func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	issue := func(t *testing.T, signer ssh.Signer, username string) *sshca.Identity {
+	issue := func(t *testing.T, signer ssh.Signer, username, impersonator string) *sshca.Identity {
 		t.Helper()
 		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		require.NoError(t, err)
@@ -143,9 +134,10 @@ func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 			PublicUserKey:     privateKey.MarshalSSHPublicKey(),
 			CertificateFormat: constants.CertificateFormatStandard,
 			Identity: sshca.Identity{
-				Username:   username,
-				Principals: []string{username, types.BeamsLogin},
-				Roles:      []string{role.GetName()},
+				Username:     username,
+				Impersonator: impersonator,
+				Principals:   []string{username, types.BeamsLogin},
+				Roles:        []string{role.GetName()},
 				Traits: wrappers.Traits{
 					teleport.TraitInternalPrefix: []string{""},
 				},
@@ -160,38 +152,47 @@ func TestEvaluateSSHAccessBeamOwnership(t *testing.T) {
 	}
 
 	t.Run("owner allowed on own beam", func(t *testing.T) {
-		ident := issue(t, userCASigner, "alice")
+		ident := issue(t, userCASigner, "alice", "")
 		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, beamNode, types.BeamsLogin)
 		require.NoError(t, err)
 	})
 
 	t.Run("non-owner denied despite wildcard node access", func(t *testing.T) {
-		ident := issue(t, userCASigner, "bob")
+		ident := issue(t, userCASigner, "bob", "")
 		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, beamNode, types.BeamsLogin)
 		require.True(t, trace.IsAccessDenied(err), err)
 		require.ErrorContains(t, err, `owned by "alice"`)
 	})
 
+	t.Run("impersonated owner identity denied", func(t *testing.T) {
+		ident := issue(t, userCASigner, "alice", "mallory")
+		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, beamNode, types.BeamsLogin)
+		require.True(t, trace.IsAccessDenied(err), err)
+		require.ErrorContains(t, err, "impersonated identities")
+	})
+
+	t.Run("owner via self role-impersonation allowed", func(t *testing.T) {
+		ident := issue(t, userCASigner, "alice", "alice")
+		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, beamNode, types.BeamsLogin)
+		require.NoError(t, err)
+	})
+
+	t.Run("owner denied non-beams login", func(t *testing.T) {
+		ident := issue(t, userCASigner, "alice", "")
+		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, beamNode, "root")
+		require.True(t, trace.IsAccessDenied(err), err)
+		require.ErrorContains(t, err, `only be accessed as the "beams" login`)
+	})
+
 	t.Run("non-owner cannot bypass via session join principal", func(t *testing.T) {
-		// The moderated-session join path skips node access checks entirely;
-		// the ownership check must run before that bypass.
-		ident := issue(t, userCASigner, "bob")
+		ident := issue(t, userCASigner, "bob", "")
 		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, beamNode, teleport.SSHSessionJoinPrincipal)
 		require.True(t, trace.IsAccessDenied(err), err)
 		require.ErrorContains(t, err, `owned by "alice"`)
 	})
 
-	t.Run("cross-cluster identity with owner's username denied", func(t *testing.T) {
-		// A leaf-cluster user who happens to share the owner's username must
-		// not match: usernames are not unique across clusters.
-		ident := issue(t, leafCASigner, "alice")
-		_, err := ah.evaluateSSHAccess(ident, leafCA, clusterName, beamNode, types.BeamsLogin)
-		require.True(t, trace.IsAccessDenied(err), err)
-		require.ErrorContains(t, err, "cross-cluster")
-	})
-
 	t.Run("regular node unaffected", func(t *testing.T) {
-		ident := issue(t, userCASigner, "bob")
+		ident := issue(t, userCASigner, "bob", "")
 		_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, regularNode, "bob")
 		require.NoError(t, err)
 	})

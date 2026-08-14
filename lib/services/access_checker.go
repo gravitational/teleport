@@ -339,11 +339,9 @@ type AccessInfo struct {
 	DelegationSessionID string
 	// Username is the Teleport username.
 	Username string
-	// FromRemoteCluster indicates that this identity was issued by another
-	// cluster and its roles were mapped through a trusted-cluster role
-	// mapping. Beam ownership is matched by username, which is not unique
-	// across clusters, so beam access checks deny remote identities outright.
-	FromRemoteCluster bool
+	// Impersonator is the name of the user who requested this identity on
+	// behalf of Username, if any.
+	Impersonator string
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -454,8 +452,9 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}
 
 	remoteAccessInfo := &AccessInfo{
-		Username: remoteUser.GetName(),
-		Traits:   remoteUser.GetTraits(),
+		Username:     remoteUser.GetName(),
+		Impersonator: localAccessInfo.Impersonator,
+		Traits:       remoteUser.GetTraits(),
 		// Will fill this in with the names of the remote/mapped roles we got
 		// from GetCurrentUserRoles.
 		Roles: make([]string, 0, len(remoteRoles)),
@@ -707,23 +706,13 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 		return nil, trace.Wrap(err)
 	}
 
-	// Enforce beam ownership: only a beam's owner may access its SSH server,
-	// regardless of role permissions. Both CheckAccess and
-	// CheckConditionalAccess funnel through here, so every SSH access
-	// evaluation (node, proxying, scoped, PDP, listing) inherits this check.
-	//
-	// It intentionally runs after the role checks so that role-derived signals
-	// such as ErrSessionMFARequired surface to callers that probe access (e.g.
-	// the IsMFARequired RPC). Ordering does not weaken the check: access
-	// requires both the role evaluation above and this check to pass.
 	if server, ok := r.(types.Server); ok {
-		var username string
-		var fromRemoteCluster bool
+		var username, impersonator string
 		if a.info != nil {
 			username = a.info.Username
-			fromRemoteCluster = a.info.FromRemoteCluster
+			impersonator = a.info.Impersonator
 		}
-		if err := CheckBeamSSHOwnership(username, fromRemoteCluster, server); err != nil {
+		if err := CheckBeamSSHOwnership(username, impersonator, server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1570,6 +1559,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 	return &AccessInfo{
 		Username:                 ident.Username,
+		Impersonator:             ident.Impersonator,
 		ScopePin:                 ident.ScopePin,
 		Roles:                    ident.Roles,
 		Traits:                   ident.Traits,
@@ -1613,11 +1603,11 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 
 	return &AccessInfo{
 		Username:                 unmappedIdentity.Username,
+		Impersonator:             unmappedIdentity.Impersonator,
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
 		DelegationSessionID:      unmappedIdentity.DelegationSessionID,
-		FromRemoteCluster:        true,
 	}, nil
 }
 
@@ -1631,6 +1621,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 
 	return &AccessInfo{
 		Username:                 identity.Username,
+		Impersonator:             identity.Impersonator,
 		ScopePin:                 identity.ScopePin,
 		Roles:                    identity.Groups,
 		Traits:                   identity.Traits,
@@ -1690,11 +1681,11 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 
 	return &AccessInfo{
 		Username:                 identity.Username,
+		Impersonator:             identity.Impersonator,
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 		DelegationSessionID:      identity.DelegationSessionID,
-		FromRemoteCluster:        true,
 	}, nil
 }
 

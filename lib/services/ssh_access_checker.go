@@ -38,9 +38,11 @@ type SSHAccessChecker struct {
 }
 
 // CheckAccessToSSHServer checks access to an SSH server for the given OS user.
-// Beam ownership is enforced by the underlying CheckAccess call (see
-// [CheckBeamSSHOwnership]): only a beam's owner can access its SSH server.
 func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
+	if err := CheckBeamSSHLogin(osUser, target); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAccess(target, state, NewLoginMatcher(osUser))
 	}
@@ -49,8 +51,6 @@ func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state Acc
 
 // CanAccessSSHServer checks whether read access to the specified SSH server is possible without
 // regard to a specific OS user or MFA state. Used for listing/filtering.
-// Beam ownership is enforced by the underlying CheckAccess call (see
-// [CheckBeamSSHOwnership]), so other users' beams are filtered out of listings.
 func (c *SSHAccessChecker) CanAccessSSHServer(target types.Server) error {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAccess(target, AccessState{MFAVerified: true})

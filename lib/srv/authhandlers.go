@@ -1255,12 +1255,13 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 
 	// Enforce beam ownership before any role evaluation and, critically,
 	// before the session-join bypass below, which skips node access checks
-	// entirely for moderated session joins. Beams hold a delegation of their
-	// owner's identity, so only the owner may connect (or join sessions),
-	// regardless of role permissions. Cross-cluster identities are denied
-	// because beam ownership is matched by username, which is not unique
-	// across clusters.
-	if err := services.CheckBeamSSHOwnership(ident.Username, ca.GetClusterName() != clusterName, target); err != nil {
+	// entirely for moderated session joins.
+	if err := services.CheckBeamSSHOwnership(ident.Username, ident.Impersonator, target); err != nil {
+		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+	}
+
+	if err := services.CheckBeamSSHLogin(osUser, target); err != nil {
 		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}
