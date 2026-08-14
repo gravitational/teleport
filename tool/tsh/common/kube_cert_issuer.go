@@ -174,6 +174,45 @@ func (issuer *kubeCertIssuer) issueCertOverConn(ctx context.Context, cc kubeCert
 	return issuer.issueMFAGatedCert(ctx, cc, params)
 }
 
+// ReissueSharedCert reissues the shared unrouted cert on behalf of the cluster whose request needs it,
+// and reports the kube cluster to store the result under.
+//
+// A shared cert only serves clusters whose per-session MFA is off, and that can change while the proxy runs.
+// So the reissue rechecks the requesting cluster: if MFA is now required, that cluster gets a cert routed to itself,
+// since a shared cert can carry no MFA state. The rest of the fleet keeps using the shared one.
+func (issuer *kubeCertIssuer) ReissueSharedCert(ctx context.Context, teleportCluster, requestedKubeCluster string) (*tls.Certificate, string, error) {
+	cc, release, err := issuer.conn.Acquire(ctx)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer release()
+
+	authClient, err := cc.ConnectToCluster(ctx, teleportCluster)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	check, err := authClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: requestedKubeCluster},
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if check.GetRequired() {
+		logger.DebugContext(ctx, "Cluster now requires per-session MFA, giving it a routed cert",
+			"teleport_cluster", teleportCluster,
+			"kube_cluster", requestedKubeCluster,
+		)
+		cert, err := issuer.IssueCert(ctx, teleportCluster, requestedKubeCluster, check)
+		return cert, requestedKubeCluster, trace.Wrap(err)
+	}
+
+	// The cluster can still use the shared cert, so reissue it.
+	cert, err := issuer.IssueCert(ctx, teleportCluster, "" /*kubeCluster*/, nil /*mfaCheck*/)
+	return cert, "", trace.Wrap(err)
+}
+
 // AcquireConn holds the shared cluster connection until the returned release is called.
 // Dialing it performs a relogin if the base session is expired.
 func (issuer *kubeCertIssuer) AcquireConn(ctx context.Context) (func(), error) {

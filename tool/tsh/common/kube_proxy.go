@@ -387,6 +387,8 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		Logger:       logger,
 		CloseContext: cf.Context,
 		Relay:        tc.RelayAddr != "",
+
+		SharedCertReissuer: kubeProxy.getSharedCertReissuer(),
 	})
 
 	if tc.RelayAddr != "" {
@@ -527,39 +529,64 @@ func (k *kubeLocalProxy) WriteKubeConfig() error {
 // getCertReissuer returns a function that reissues the user certificate for a Kubernetes cluster,
 // used by the local proxy middleware when a cert it serves expires.
 // The issuer performs a relogin if required.
-func (k *kubeLocalProxy) getCertReissuer() func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+func (k *kubeLocalProxy) getCertReissuer() alpnproxy.KubeCertReissuer {
 	return func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		k.reissueMu.Lock()
-		defer k.reissueMu.Unlock()
-
-		// We save user's current context in case there is a relogin, which
-		// will delete our ephemeral kubeconfig and we'll need to recreate it.
-		cfg, err := kubeconfig.Load(k.KubeConfigPath())
-		if err != nil {
-			return tls.Certificate{}, trace.Wrap(err, "could not load ephemeral kubeconfig at %q", k.KubeConfigPath())
-		}
-		currentContext := cfg.CurrentContext
-
-		// Hold the cluster connection across the reissue so the relogin can only happen here,
-		// before the kubeconfig is recreated below.
-		release, err := k.certIssuer.AcquireConn(ctx)
-		if err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-		defer release()
-
-		// We recreate ephemeral kubeconfig to make sure it's there even after relogin.
-		k.kubeconfig.CurrentContext = currentContext
-		if err := k.WriteKubeConfig(); err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-
-		cert, err := k.certIssuer.IssueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
-		if err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-		return *cert, nil
+		cert, _, err := k.reissue(ctx, teleportCluster, kubeCluster, kubeCluster)
+		return cert, trace.Wrap(err)
 	}
+}
+
+// getSharedCertReissuer returns a function that reissues the shared unrouted cert,
+// which serves every cluster whose per-session MFA is off.
+func (k *kubeLocalProxy) getSharedCertReissuer() alpnproxy.KubeSharedCertReissuer {
+	return func(ctx context.Context, teleportCluster, requestedKubeCluster string) (tls.Certificate, string, error) {
+		return k.reissue(ctx, teleportCluster, "" /*kubeCluster*/, requestedKubeCluster)
+	}
+}
+
+// reissue issues one cert with the ephemeral kubeconfig preserved across a possible relogin,
+// and reports the kube cluster to store it under.
+// An empty kubeCluster reissues the shared unrouted cert on behalf of requestedKubeCluster.
+func (k *kubeLocalProxy) reissue(ctx context.Context, teleportCluster, kubeCluster, requestedKubeCluster string) (tls.Certificate, string, error) {
+	// reissueMu serializes the reissues, which are not safe for concurrent use, and the ephemeral kubeconfig load and rewrite.
+	k.reissueMu.Lock()
+	defer k.reissueMu.Unlock()
+
+	// We save user's current context in case there is a relogin,
+	// which will delete our ephemeral kubeconfig and we'll need to recreate it.
+	cfg, err := kubeconfig.Load(k.KubeConfigPath())
+	if err != nil {
+		return tls.Certificate{}, "", trace.Wrap(err, "could not load ephemeral kubeconfig at %q", k.KubeConfigPath())
+	}
+	currentContext := cfg.CurrentContext
+
+	// Hold the cluster connection across the reissue so the relogin can only happen here,
+	// before the kubeconfig is recreated below.
+	release, err := k.certIssuer.AcquireConn(ctx)
+	if err != nil {
+		return tls.Certificate{}, "", trace.Wrap(err)
+	}
+	defer release()
+
+	// We recreate ephemeral kubeconfig to make sure it's there even after relogin.
+	k.kubeconfig.CurrentContext = currentContext
+	if err := k.WriteKubeConfig(); err != nil {
+		return tls.Certificate{}, "", trace.Wrap(err)
+	}
+
+	if kubeCluster == "" {
+		cert, storeUnder, err := k.certIssuer.ReissueSharedCert(ctx, teleportCluster, requestedKubeCluster)
+		if err != nil {
+			return tls.Certificate{}, "", trace.Wrap(err)
+		}
+		return *cert, storeUnder, nil
+	}
+
+	cert, err := k.certIssuer.IssueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
+	if err != nil {
+		return tls.Certificate{}, "", trace.Wrap(err)
+	}
+	return *cert, kubeCluster, nil
 }
 
 // checkMultipleClusterSelections takes a map of name selectors to matched

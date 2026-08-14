@@ -480,3 +480,71 @@ func (p *kubeTestPack) testSharedKubeCert(t *testing.T) {
 		sendRequestToKubeLocalProxy(t, kubeProxy.kubeconfig, cluster.TeleportCluster, cluster.KubeCluster)
 	}
 }
+
+// TestKubeLocalProxyReissueDispatch covers which issuance a reissue runs.
+// An empty kubeCluster means the expired cert was the shared one,
+// which has to go through the shared path so a cluster that has since turned on per-session MFA is moved off it.
+// A named kubeCluster reissues that cluster's own cert and stays where it is.
+func TestKubeLocalProxyReissueDispatch(t *testing.T) {
+	t.Parallel()
+
+	clusters := kubeconfig.LocalProxyClusters{{TeleportCluster: "root", KubeCluster: "kube-0"}}
+
+	for _, tt := range []struct {
+		name string
+		// kubeCluster is the cluster the expired cert was held under.
+		kubeCluster string
+		// mfaNowRequired is whether the requesting cluster has since turned on per-session MFA.
+		mfaNowRequired bool
+		wantIssuedFor  string
+		wantStoreUnder string
+	}{
+		{
+			name:           "shared cert stays shared while MFA is off",
+			kubeCluster:    "",
+			wantIssuedFor:  "",
+			wantStoreUnder: "",
+		},
+		{
+			name:           "shared cert moves off when MFA is now required",
+			kubeCluster:    "",
+			mfaNowRequired: true,
+			wantIssuedFor:  "kube-0",
+			wantStoreUnder: "kube-0",
+		},
+		{
+			name:           "routed cert reissues in place",
+			kubeCluster:    "kube-0",
+			wantIssuedFor:  "kube-0",
+			wantStoreUnder: "kube-0",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			keyRing := newTestKubeKeyRing(t, clusters)
+			var issuedFor string
+			cc := &fakeKubeCertClient{mfaRequired: tt.mfaNowRequired}
+			cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+				issuedFor = params.KubernetesCluster
+				mfaState := proto.MFARequired_MFA_REQUIRED_NO
+				if params.KubernetesCluster != "" && tt.mfaNowRequired {
+					mfaState = proto.MFARequired_MFA_REQUIRED_YES
+				}
+				return &client.IssueUserCertsWithMFAResult{KeyRing: keyRing, MFARequired: mfaState}, nil
+			}
+
+			kubeProxy := &kubeLocalProxy{
+				certIssuer:     newTestKubeCertIssuer(cc),
+				kubeconfig:     clientcmdapi.NewConfig(),
+				kubeConfigPath: filepath.Join(t.TempDir(), "config"),
+			}
+			require.NoError(t, kubeProxy.WriteKubeConfig())
+
+			_, storeUnder, err := kubeProxy.reissue(t.Context(), "root", tt.kubeCluster, "kube-0")
+			require.NoError(t, err)
+			require.Equal(t, tt.wantIssuedFor, issuedFor, "unexpected cluster issued for")
+			require.Equal(t, tt.wantStoreUnder, storeUnder, "unexpected key to store under")
+		})
+	}
+}

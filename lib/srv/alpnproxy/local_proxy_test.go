@@ -825,9 +825,10 @@ func TestKubeMiddlewareSharedCert(t *testing.T) {
 	fresh := clockwork.NewFakeClockAt(now)
 	stale := clockwork.NewFakeClockAt(now.Add(-24 * time.Hour)) // Issued in the past, so considered as expired.
 	var (
-		sharedCert   = genCert(sharedKey, fresh)
-		mfaCert      = genCert("kube-mfa", fresh)
-		reissuedCert = genCert("reissued", fresh)
+		sharedCert      = genCert(sharedKey, fresh)
+		staleSharedCert = genCert(sharedKey, stale)
+		mfaCert         = genCert("kube-mfa", fresh)
+		reissuedCert    = genCert("reissued", fresh)
 	)
 
 	requestFor := func(t *testing.T, kubeCluster string) *http.Request {
@@ -840,6 +841,7 @@ func TestKubeMiddlewareSharedCert(t *testing.T) {
 		name            string
 		seed            map[string]tls.Certificate
 		requests        []string
+		sharedReissue   bool
 		wantReissuedFor []string
 		wantCerts       map[string]tls.Certificate
 	}{
@@ -857,24 +859,40 @@ func TestKubeMiddlewareSharedCert(t *testing.T) {
 		},
 		{
 			name:            "expired shared cert is reissued against the shared key",
-			seed:            map[string]tls.Certificate{sharedKey: genCert(sharedKey, stale)},
+			seed:            map[string]tls.Certificate{sharedKey: staleSharedCert},
 			requests:        []string{"kube-a"},
-			wantReissuedFor: []string{sharedKey},
+			wantReissuedFor: []string{"routed:" + sharedKey},
 			wantCerts:       map[string]tls.Certificate{"kube-a": reissuedCert, "kube-b": reissuedCert},
 		},
 		{
 			name:            "expired per-cluster cert is reissued against its own key",
 			seed:            map[string]tls.Certificate{sharedKey: sharedCert, "kube-mfa": genCert("kube-mfa", stale)},
 			requests:        []string{"kube-mfa"},
-			wantReissuedFor: []string{"kube-mfa"},
+			wantReissuedFor: []string{"routed:kube-mfa"},
 			wantCerts:       map[string]tls.Certificate{"kube-mfa": reissuedCert, "kube-a": sharedCert},
 		},
 		{
 			name:            "reissue stays per-cluster when no shared cert exists",
 			seed:            map[string]tls.Certificate{},
 			requests:        []string{"kube-a"},
-			wantReissuedFor: []string{"kube-a"},
+			wantReissuedFor: []string{"routed:kube-a"},
 			wantCerts:       map[string]tls.Certificate{"kube-a": reissuedCert},
+		},
+		{
+			name:            "shared reissue can move one cluster onto its own key",
+			seed:            map[string]tls.Certificate{sharedKey: staleSharedCert},
+			requests:        []string{"kube-a"},
+			sharedReissue:   true,
+			wantReissuedFor: []string{"shared:kube-a"},
+			wantCerts:       map[string]tls.Certificate{"kube-a": reissuedCert, "kube-b": staleSharedCert},
+		},
+		{
+			name:            "cluster with its own cert reissues through the routed reissuer",
+			seed:            map[string]tls.Certificate{sharedKey: sharedCert, "kube-mfa": genCert("kube-mfa", stale)},
+			requests:        []string{"kube-mfa"},
+			sharedReissue:   true,
+			wantReissuedFor: []string{"routed:kube-mfa"},
+			wantCerts:       map[string]tls.Certificate{"kube-mfa": reissuedCert, "kube-a": sharedCert},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -887,18 +905,27 @@ func TestKubeMiddlewareSharedCert(t *testing.T) {
 
 				var mu sync.Mutex
 				var reissuedFor []string
-				km := NewKubeMiddleware(KubeMiddlewareConfig{
+				cfg := KubeMiddlewareConfig{
 					Certs: certs,
 					CertReissuer: func(_ context.Context, _, kubeCluster string) (tls.Certificate, error) {
 						mu.Lock()
 						defer mu.Unlock()
-						reissuedFor = append(reissuedFor, kubeCluster)
+						reissuedFor = append(reissuedFor, "routed:"+kubeCluster)
 						return reissuedCert, nil
 					},
 					Logger:       logtest.NewLogger(),
 					Clock:        clockwork.NewFakeClockAt(now),
 					CloseContext: context.Background(),
-				})
+				}
+				if tt.sharedReissue {
+					cfg.SharedCertReissuer = func(_ context.Context, _, requestedKubeCluster string) (tls.Certificate, string, error) {
+						mu.Lock()
+						defer mu.Unlock()
+						reissuedFor = append(reissuedFor, "shared:"+requestedKubeCluster)
+						return reissuedCert, requestedKubeCluster, nil
+					}
+				}
+				km := NewKubeMiddleware(cfg)
 				require.NoError(t, km.CheckAndSetDefaults())
 
 				for _, kubeCluster := range tt.requests {
