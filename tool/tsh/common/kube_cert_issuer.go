@@ -181,12 +181,22 @@ func (issuer *kubeCertIssuer) issueCertOverConn(ctx context.Context, cc kubeCert
 // So the reissue rechecks the requesting cluster: if MFA is now required, that cluster gets a cert routed to itself,
 // since a shared cert can carry no MFA state. The rest of the fleet keeps using the shared one.
 func (issuer *kubeCertIssuer) ReissueSharedCert(ctx context.Context, teleportCluster, requestedKubeCluster string) (*tls.Certificate, string, error) {
+	// Hold one connection across the recheck and the issuance below.
 	cc, release, err := issuer.conn.Acquire(ctx)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	defer release()
 
+	cert, storeUnder, err := issuer.reissueSharedCertOverConn(ctx, cc, teleportCluster, requestedKubeCluster)
+	if err != nil && client.IsErrorResolvableWithRelogin(err) {
+		issuer.conn.invalidate(ctx)
+	}
+	return cert, storeUnder, trace.Wrap(err)
+}
+
+// reissueSharedCertOverConn reissues the shared unrouted cert over the given connection.
+func (issuer *kubeCertIssuer) reissueSharedCertOverConn(ctx context.Context, cc kubeCertClient, teleportCluster, requestedKubeCluster string) (*tls.Certificate, string, error) {
 	authClient, err := cc.ConnectToCluster(ctx, teleportCluster)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -204,12 +214,12 @@ func (issuer *kubeCertIssuer) ReissueSharedCert(ctx context.Context, teleportClu
 			"teleport_cluster", teleportCluster,
 			"kube_cluster", requestedKubeCluster,
 		)
-		cert, err := issuer.IssueCert(ctx, teleportCluster, requestedKubeCluster, check)
+		cert, err := issuer.issueCertOverConn(ctx, cc, teleportCluster, requestedKubeCluster, check)
 		return cert, requestedKubeCluster, trace.Wrap(err)
 	}
 
 	// The cluster can still use the shared cert, so reissue it.
-	cert, err := issuer.IssueCert(ctx, teleportCluster, "" /*kubeCluster*/, nil /*mfaCheck*/)
+	cert, err := issuer.issueCertOverConn(ctx, cc, teleportCluster, "" /*kubeCluster*/, nil /*mfaCheck*/)
 	return cert, "", trace.Wrap(err)
 }
 

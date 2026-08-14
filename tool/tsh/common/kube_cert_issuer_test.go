@@ -961,9 +961,14 @@ type fakeMFAAuthClient struct {
 	required bool
 	// requiredFor overrides required per Kubernetes cluster when set.
 	requiredFor func(kubeCluster string) bool
+	// err fails the check instead of answering it, when set.
+	err error
 }
 
 func (f *fakeMFAAuthClient) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	required := f.required
 	if f.requiredFor != nil {
 		required = f.requiredFor(req.GetKubernetesCluster())
@@ -990,6 +995,8 @@ type fakeKubeCertClient struct {
 	// mfaRequiredFor overrides mfaRequired per Kubernetes cluster, for fleets
 	// where only some clusters are MFA-gated.
 	mfaRequiredFor func(kubeCluster string) bool
+	// mfaCheckErr fails the MFA requirement check instead of answering it, when set.
+	mfaCheckErr error
 
 	mu       sync.Mutex
 	connects []string
@@ -1044,5 +1051,5 @@ func (f *fakeKubeCertClient) ConnectToCluster(ctx context.Context, clusterName s
 	f.mu.Lock()
 	f.connects = append(f.connects, clusterName)
 	f.mu.Unlock()
-	return &fakeMFAAuthClient{required: f.mfaRequired, requiredFor: f.mfaRequiredFor}, nil
+	return &fakeMFAAuthClient{required: f.mfaRequired, requiredFor: f.mfaRequiredFor, err: f.mfaCheckErr}, nil
 }

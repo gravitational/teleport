@@ -424,6 +424,63 @@ func TestKubeProxyCertReissuerReloginOverCachedConn(t *testing.T) {
 	require.Equal(t, "test-context", restored.CurrentContext)
 }
 
+// TestKubeProxySharedCertReissuerReloginOverCachedConn verifies that
+// the shared cert reissuer recovers when the cached cluster connection is dead.
+// Its MFA recheck runs before any issuance, so it has to drop the connection itself.
+// Steady kubectl traffic keeps the connection from ever expiring on its own.
+func TestKubeProxySharedCertReissuerReloginOverCachedConn(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	cfg := clientcmdapi.NewConfig()
+	cfg.CurrentContext = "test-context"
+	require.NoError(t, kubeconfig.Save(path, *cfg))
+
+	clusters := newTestKubeClusters(1)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	// The dead connection fails the MFA recheck, which the shared reissue runs first.
+	deadCC := &fakeKubeCertClient{
+		mfaCheckErr: trace.Wrap(&interceptors.RemoteError{Err: apiclient.ErrClientCredentialsHaveExpired}),
+	}
+
+	freshCC := &fakeKubeCertClient{mfaRequired: false}
+	freshCC.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+		return &client.IssueUserCertsWithMFAResult{
+			KeyRing:     keyRing,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
+	}
+
+	issuer := newTestKubeCertIssuer(freshCC)
+	issuer.conn = &clusterConn{dialer: reloginClusterDialer{path: path, cc: freshCC}, conn: deadCC}
+
+	kubeProxy := &kubeLocalProxy{
+		kubeConfigPath: path,
+		kubeconfig:     cfg,
+		certIssuer:     issuer,
+	}
+	reissue := kubeProxy.getSharedCertReissuer()
+
+	// The recheck over the dead connection fails and kubectl gets an error for this request,
+	// but the issuer detects that a relogin can resolve the error and drops the connection
+	// instead of leaving it lingering for the next request.
+	_, _, err := reissue(t.Context(), clusters[0].TeleportCluster, clusters[0].KubeCluster)
+	require.ErrorIs(t, err, apiclient.ErrClientCredentialsHaveExpired)
+	require.Equal(t, 1, deadCC.closes, "the dead connection must be dropped so the next reissue dials afresh")
+
+	// Steady traffic delivers the next request.
+	cert, storeUnder, err := reissue(t.Context(), clusters[0].TeleportCluster, clusters[0].KubeCluster)
+	require.NoError(t, err, "the reissue must recover once the relogin ran on the fresh dial")
+	require.NotNil(t, cert.PrivateKey)
+	require.Empty(t, storeUnder, "the cluster still has no per-session MFA, so it keeps the shared cert")
+
+	// The ephemeral kubeconfig deleted by the relogin was recreated before the issuance.
+	restored, err := kubeconfig.Load(path)
+	require.NoError(t, err)
+	require.Equal(t, "test-context", restored.CurrentContext)
+}
+
 // testSharedKubeCert covers the shared unrouted cert end to end against live clusters.
 // The clusters without per-session MFA are served by one cert per Teleport cluster,
 // and the proxy path-routes it to each of them, including across the trust boundary into a leaf.
