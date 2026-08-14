@@ -128,9 +128,9 @@ const colors: ThemeColors = {
         'rgba(204, 134, 4, 0.25)',
       ],
       informational: [
-        'rgba(134, 74, 224, 0.1)',
-        'rgba(134, 74, 224, 0.18)',
-        'rgba(134, 74, 224, 0.25)',
+        'rgba(29, 105, 204, 0.1)',
+        'rgba(29, 105, 204, 0.18)',
+        'rgba(29, 105, 204, 0.25)',
       ],
       neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
