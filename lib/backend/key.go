@@ -27,8 +27,9 @@ import (
 type Key struct {
 	s          string
 	components []string
-	exactKey   bool
-	noEnd      bool
+	// exactKey is true if the key ends in a [Separator] and will only
+	// match child paths.
+	exactKey bool
 }
 
 const (
@@ -78,7 +79,6 @@ func KeyFromString(s string) Key {
 		components: components,
 		s:          s,
 		exactKey:   s == SeparatorString || (s != "" && s[len(s)-1] == Separator),
-		noEnd:      s == noEnd,
 	}
 }
 
@@ -101,10 +101,6 @@ func (k Key) ExactKey() Key {
 // String returns the textual representation of the key with
 // each component concatenated together via the [Separator].
 func (k Key) String() string {
-	if k.noEnd {
-		return noEnd
-	}
-
 	return k.s
 }
 

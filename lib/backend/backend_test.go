@@ -65,6 +65,15 @@ func TestRangeEnd(t *testing.T) {
 			key:      NewKey("\xFF\xFF\xFF"),
 			expected: Key{s: "0", components: []string{"0"}},
 		},
+		// KeyFromString does not add any separators
+		{
+			key:      KeyFromString("\xFF"),
+			expected: Key{},
+		},
+		{
+			key:      KeyFromString("\xFF\xFF\xFF"),
+			expected: Key{},
+		},
 	} {
 		t.Run(test.key.String(), func(t *testing.T) {
 			end := RangeEnd(test.key)
