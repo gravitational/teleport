@@ -44,7 +44,7 @@ function install_teleport() {
     local teleport_version="$1"
 
     local zypper_teleport_version
-    zypper_teleport_version="$(echo "${teleport_version}" | sed 's/-/_/g')-1"
+    zypper_teleport_version="${teleport_version//-/_}-1"
     zypper "${ZYPPER_FLAGS[@]}" install "teleport-ent-${zypper_teleport_version}"
     verify_teleport "${teleport_version}"
     echo "successfully installed teleport-ent ${teleport_version}"
@@ -56,7 +56,7 @@ function install_updater() {
     local updater_version="$1"
 
     local zypper_updater_version
-    zypper_updater_version="$(echo "${updater_version}" | sed 's/-/_/g')-1"
+    zypper_updater_version="${updater_version//-/_}-1"
     zypper "${ZYPPER_FLAGS[@]}" install "teleport-ent-updater-${zypper_updater_version}"
     verify_updater "${updater_version}"
     echo "successfully installed teleport-ent-updater ${updater_version}"

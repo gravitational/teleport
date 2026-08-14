@@ -89,8 +89,7 @@ kres=$(kubectl auth can-i patch tenant/$tenant -n $ns --context $KUBE_TENANT_CON
 fail_on_exit_code "Insufficient k8s API permissions on cluster \"$KUBE_TENANT_CLUSTER\" - cannot patch tenant \"$tenant\""
 
 echo "Checking rollout monitoring target in auth cluster... (deployment=\"teleport-auth\", namespace=\"$ns\")"
-kubectl get deployment teleport-auth -n "$ns" --context "$KUBE_AUTH_CONTEXT" >/dev/null
-if [[ $? -ne 0 ]]; then
+if ! kubectl get deployment teleport-auth -n "$ns" --context "$KUBE_AUTH_CONTEXT" >/dev/null; then
     error "Unable to reach rollout monitoring target \"deployment/teleport-auth\" on context \"$KUBE_AUTH_CONTEXT\"."
     echo "Regenerate Teleport/Kubernetes contexts and retry:"
     if [[ -n "$KUBECONFIG" ]]; then

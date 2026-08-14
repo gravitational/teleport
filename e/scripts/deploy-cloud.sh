@@ -130,11 +130,11 @@ fi
 if (TELEPORT_HOME=$TELEPORT_HOME tc tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
     (TELEPORT_HOME=$TELEPORT_HOME tc tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
     if [[ -z "$CLOUD_SKIP_AGENT_IMMEDIATE_UPDATE" ]]; then
-      (TELEPORT_HOME=$TELEPORT_HOME tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"clientServices": [{"type":"Agent", "version":"$target_image_tag", "lastVersion":"$target_image_tag", "updateSchedule":"Immediate"}]}')
+      (TELEPORT_HOME=$TELEPORT_HOME tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json "{\"clientServices\": [{\"type\":\"Agent\", \"version\":\"$target_image_tag\", \"lastVersion\":\"$target_image_tag\", \"updateSchedule\":\"Immediate\"}]}")
     fi
 else
 	echo "Failed to patch tenant \"$TENANT\" using tc..."
-	tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
+	kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT >/dev/null
 	fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\""
 	error "Unable to patch tenant \"$TENANT\" in namespace \"$NAMESPACE\" using tc. Please ensure tc is installed and configured correctly."
     echo "Refer to https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md#tc for more information on setting up \`tc\`."

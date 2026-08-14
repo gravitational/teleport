@@ -7,7 +7,6 @@ function echo_color() {
     echo -n "${@:2}"
     echo -e $reset
 }
-green=32
 red=31
 
 function error() {

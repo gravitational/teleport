@@ -150,7 +150,7 @@ function build_target_image_tag() {
     if (( tenant_max_length > 0 )); then
         tenant_segment="${tenant_segment:0:tenant_max_length}"
         tenant_segment=$(trim_trailing_hyphens "${tenant_segment}")
-        echo "$(join_image_tag_parts "${prefix_base}" "${tenant_segment}" "${suffix}")"
+        join_image_tag_parts "${prefix_base}" "${tenant_segment}" "${suffix}"
         return
     fi
 

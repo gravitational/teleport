@@ -50,7 +50,7 @@ function install_teleport() {
     local teleport_version="$1"
 
     local yum_teleport_version
-    yum_teleport_version="$(echo "${teleport_version}" | sed 's/-/_/g')"
+    yum_teleport_version="${teleport_version//-/_}"
     yum "${YUM_FLAGS[@]}" install "teleport-ent-${yum_teleport_version}"
     verify_teleport "${teleport_version}"
     echo "successfully installed teleport-ent ${teleport_version}"
@@ -62,7 +62,7 @@ function install_updater() {
     local updater_version="$1"
 
     local yum_updater_version
-    yum_updater_version="$(echo "${updater_version}" | sed 's/-/_/g')"
+    yum_updater_version="${updater_version//-/_}"
     yum "${YUM_FLAGS[@]}" install "teleport-ent-updater-${yum_updater_version}"
     verify_updater "${updater_version}"
     echo "successfully installed teleport-ent-updater ${updater_version}"
