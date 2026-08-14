@@ -49,6 +49,28 @@ account to discover GKE clusters and manage access from Teleport users. In this
 step, you will create a service account and download a credentials file for the
 Teleport Discovery Service.
 
+### Discover your Google Cloud project and zones
+
+Before creating resources, identify the project ID and available zones where
+your GKE clusters run:
+
+```code
+$ gcloud config get-value project
+$ gcloud container clusters list --format="table(name,location,status)"
+```
+
+If you have not set a default project, list available projects:
+
+```code
+$ gcloud projects list --format="table(projectId,name)"
+```
+
+To list available zones:
+
+```code
+$ gcloud compute zones list --format="table(name,region,status)"
+```
+
 ### Create an IAM role for the Discovery Service
 
 The Teleport Discovery Service needs permissions to retrieve GKE clusters
@@ -171,7 +193,9 @@ Kubernetes Service and Discovery Service on Google Cloud or some other way
 (e.g., via Amazon EC2 or on a local network).
 
 <Tabs>
-<TabItem label="Google Cloud">
+<TabItem label="Google Cloud (VM service account)">
+
+This approach requires stopping the VM to attach the service account.
 
 Stop your VM so you can attach your service account to it:
 
@@ -180,7 +204,7 @@ $ gcloud compute instances stop <Var name="vm-name" /> --zone=<Var name="google-
 ```
 
 Attach your service account to the instance, assigning the name of your VM to <Var name="vm-name" />
-and the name of your Google Cloud region to <Var name="google-cloud-region" />:
+and the name of your Google Cloud zone to <Var name="google-cloud-region" />:
 
 ```code
 $ gcloud compute instances set-service-account <Var name="vm-name" /> \
@@ -231,6 +255,40 @@ Once you have attached the service account, restart your VM:
 $ gcloud compute instances start <Var name="vm-name" /> --zone <Var name="google-cloud-region" />
 ```
 </TabItem>
+<TabItem label="Google Cloud (Workload Identity - GKE-hosted)">
+
+If the Discovery Service runs inside a GKE cluster, use GKE Workload Identity
+instead of attaching a service account to a VM. This avoids the need to stop
+and restart a VM.
+
+Create a Kubernetes service account for the Teleport pod:
+
+```code
+$ kubectl create serviceaccount teleport-discovery -n teleport
+```
+
+Bind the Kubernetes service account to the Google Cloud service account:
+
+```code
+$ PROJECT_ID=<Var name="google-cloud-project" />
+$ gcloud iam service-accounts add-iam-policy-binding \
+   teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --role roles/iam.workloadIdentityUser \
+   --member "serviceAccount:${PROJECT_ID?}.svc.id.goog[teleport/teleport-discovery]"
+```
+
+Annotate the Kubernetes service account:
+
+```code
+$ kubectl annotate serviceaccount teleport-discovery \
+   -n teleport \
+   iam.gke.io/gcp-service-account=teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com
+```
+
+When deploying Teleport, configure the pod to use the `teleport-discovery`
+Kubernetes service account. No credentials file is needed with this approach.
+
+</TabItem>
 <TabItem label="Other Platform">
 
 Download a credentials file for the service account used by the Discovery
@@ -274,6 +332,37 @@ guide.
 
 </TabItem>
 </Tabs>
+
+<Checkpoint>
+Verify that the service account has been attached and has the correct roles.
+
+For VM-based deployments, confirm the service account is attached:
+
+```code
+$ gcloud compute instances describe <Var name="vm-name" /> \
+   --zone <Var name="google-cloud-region" /> \
+   --format="yaml(serviceAccounts)"
+```
+
+The output should show `teleport-discovery-kubernetes@<project>.iam.gserviceaccount.com`.
+
+For credential-file-based deployments, confirm the file exists:
+
+```code
+$ ls -la /var/lib/teleport/google-cloud-credentials.json
+```
+
+Verify the service account roles are bound correctly:
+
+```code
+$ gcloud projects get-iam-policy ${PROJECT_ID?} \
+   --flatten="bindings[].members" \
+   --filter="bindings.members:teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com" \
+   --format="table(bindings.role)"
+```
+
+You should see both `GKEKubernetesAutoDisc` and `GKEAccessManager` roles listed.
+</Checkpoint>
 
 ## Step 2/3. Configure Teleport to discover GKE clusters
 
@@ -468,6 +557,12 @@ value, `gke`.
 
 In your matcher, replace `myproject` with the ID of your Google Cloud project.
 
+You can discover your project ID by running:
+
+```code
+$ gcloud config get-value project
+```
+
 Ensure that the `project_ids` field follows these rules:
 - It must include at least one value.
 - It must not combine the wildcard character (`*`) with other values.
@@ -485,6 +580,12 @@ Ensure that the `project_ids` field follows these rules:
 Each matcher's `locations` field contains an array of Google Cloud region or
 zone names that the matcher will search for GKE clusters. The wildcard
 character, `*`, configures the matcher to search all locations.
+
+To discover what locations your GKE clusters are running in:
+
+```code
+$ gcloud container clusters list --format="value(location)" | sort -u
+```
 
 #### `discovery_service.gcp[0].tags`
 
@@ -607,9 +708,34 @@ $ kubectl config use-context CONTEXT_NAME
 Switched to context CONTEXT_NAME
 ```
 
+You can also fetch GKE credentials directly:
+
+```code
+$ gcloud container clusters get-credentials <Var name="cluster-name" /> \
+   --zone <Var name="google-cloud-region" /> \
+   --project <Var name="google-cloud-project" />
+```
+
 </details>
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
+
+<Admonition type="tip">
+
+If you have multiple discovered clusters and want to apply RBAC to all of them,
+use the following script to loop over every GKE cluster in your project:
+
+```code
+$ for CLUSTER in $(gcloud container clusters list --format="value(name)"); do
+   LOCATION=$(gcloud container clusters list --filter="name=$CLUSTER" --format="value(location)")
+   gcloud container clusters get-credentials $CLUSTER --zone $LOCATION --project ${PROJECT_ID?}
+   kubectl apply -f crb.yaml
+done
+```
+
+Replace `crb.yaml` with the path to your `ClusterRoleBinding` manifest.
+
+</Admonition>
 
 ### Access your cluster
 
@@ -652,6 +778,31 @@ you listed previously:
 $ tsh kube login mycluster-gke
 Logged into kubernetes cluster "mycluster-gke". Try 'kubectl version' to test the connection.
 ```
+
+<Checkpoint>
+Verify end-to-end discovery and access are working.
+
+Confirm that the Discovery Service found and registered your cluster:
+
+```code
+$ tctl get kube_clusters --format=json | jq '.[].metadata.name'
+```
+
+The output should include your GKE cluster name(s).
+
+Confirm that you can run kubectl commands through the Teleport proxy:
+
+```code
+$ kubectl version
+$ kubectl get namespaces
+```
+
+If the cluster does not appear, check the Discovery Service logs:
+
+```code
+$ sudo journalctl -u teleport --grep "discovery" --since "10 minutes ago"
+```
+</Checkpoint>
 
 As you can see, Teleport GKE Auto-Discovery enabled you to access a GKE cluster
 in your Google Cloud account without requiring you to register that cluster
