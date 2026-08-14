@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 
 import isMatch, { MatchCallback } from 'design/utils/match';
 
@@ -128,6 +128,20 @@ export default function useTable<T>(props: TableProps<T>) {
       updateData(state.sort, state.searchValue);
     }
   }
+
+  // Hand the current page's rows to a caller that asked for them. Turning a
+  // page, re-sorting, searching, and new data each replace this array, so
+  // watching it reports all of them. The callback is held in a ref so a caller
+  // passing it inline does not make this fire on every render.
+  const currentPageRows =
+    state.pagination?.paginatedData[state.pagination.currentPage];
+  const onPageChangeRef = useRef(pagination?.onPageChange);
+  onPageChangeRef.current = pagination?.onPageChange;
+  useEffect(() => {
+    if (currentPageRows) {
+      onPageChangeRef.current?.(currentPageRows);
+    }
+  }, [currentPageRows]);
 
   function onSort(column: TableColumn<T>) {
     if (customSort) {

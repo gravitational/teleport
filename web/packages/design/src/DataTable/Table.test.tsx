@@ -399,3 +399,54 @@ test('navigate to next and previous pages', async () => {
   expect(rows[0]).toHaveTextContent(data[0].hostname);
   expect(rows[1]).toHaveTextContent(data[1].hostname);
 });
+
+describe('pagination onPageChange', () => {
+  const renderWithOnPageChange = (
+    onPageChange: (rows: (typeof data)[number][]) => void
+  ) =>
+    render(
+      <Table
+        data={data}
+        columns={[
+          {
+            key: 'hostname',
+            headerText: 'Hostname',
+          },
+        ]}
+        emptyText=""
+        isSearchable
+        pagination={{ pageSize: 2, onPageChange }}
+      />
+    );
+
+  test('reports the rows on the first page', () => {
+    const onPageChange = jest.fn();
+    renderWithOnPageChange(onPageChange);
+
+    expect(onPageChange).toHaveBeenLastCalledWith([data[0], data[1]]);
+  });
+
+  test('reports the rows again when the page turns', async () => {
+    const onPageChange = jest.fn();
+    renderWithOnPageChange(onPageChange);
+
+    await userEvent.click(screen.getByTitle('Next page'));
+
+    expect(onPageChange).toHaveBeenLastCalledWith([data[2], data[3]]);
+  });
+
+  test('reports the rows a search narrowed the page to', async () => {
+    const onPageChange = jest.fn();
+    renderWithOnPageChange(onPageChange);
+
+    // A caller fetching per visible row needs to hear about a search too: the
+    // page now holds rows it may never have reported. The search applies on
+    // submit, so the enter is what makes it take.
+    await userEvent.type(
+      screen.getByPlaceholderText('Search...'),
+      'host-3{enter}'
+    );
+
+    expect(onPageChange).toHaveBeenLastCalledWith([data[4]]);
+  });
+});

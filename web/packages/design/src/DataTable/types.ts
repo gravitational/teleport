@@ -134,6 +134,13 @@ export type PaginationConfig<T> = {
    */
   pagerPosition?: PagerPosition;
   CustomTable?: (p: PagedTableProps<T>) => JSX.Element;
+  /**
+   * onPageChange is called with the rows the table is currently showing, and
+   * again whenever that set changes: a page turn, a re-sort, a new search, or
+   * new data. Use it when a row needs something fetched for it, so the fetch
+   * can cover the current page rather than the whole data set.
+   */
+  onPageChange?(rows: T[]): void;
 };
 
 /**
