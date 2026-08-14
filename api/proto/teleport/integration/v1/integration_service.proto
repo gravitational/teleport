@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.integration.v1;
 
+import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -61,6 +62,25 @@ service IntegrationService {
 
   // CompleteOAuthProxyExchange
   rpc CompleteOAuthProxyExchange(CompleteOAuthProxyExchangeRequest) returns (CompleteOAuthProxyExchangeResponse);
+
+  // GetOAuthProxyCredentials
+  rpc GetOAuthProxyCredentials(GetOAuthProxyCredentialsRequest) returns (GetOAuthProxyCredentialsResponse);
+}
+
+// GetOAuthProxyCredentialsRequest
+message GetOAuthProxyCredentialsRequest {
+  string name = 1;
+}
+
+// GetOAuthProxyCredentialsResponse
+message GetOAuthProxyCredentialsResponse {
+  string access_token = 1;
+  google.protobuf.Timestamp expires = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "started,omitempty"
+  ];
+  string token_type = 3;
 }
 
 // CompleteOAuthProxyExchangeRequest
@@ -73,7 +93,11 @@ message CompleteOAuthProxyExchangeRequest {
 
 // CompleteOAuthProxyExchangeResponse
 message CompleteOAuthProxyExchangeResponse {
-  google.protobuf.Timestamp expires = 1;
+  google.protobuf.Timestamp expires = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "started,omitempty"
+  ];
 }
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.

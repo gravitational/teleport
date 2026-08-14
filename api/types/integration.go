@@ -17,14 +17,14 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -598,7 +598,8 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	integration.Status = d.Status
 	if len(d.Spec.Credentials) != 0 {
 		var credentials PluginCredentialsV1
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
+
+		if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(d.Spec.Credentials), &credentials); err != nil {
 			return trace.Wrap(err)
 		}
 		integration.Spec.Credentials = &credentials
@@ -693,11 +694,11 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d.ResourceHeader = ig.ResourceHeader
 	d.Status = ig.Status
 	if ig.Spec.Credentials != nil {
-		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
+		data, err := (&jsonpb.Marshaler{}).MarshalToString(ig.Spec.Credentials)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		d.Spec.Credentials = json.RawMessage(data)
+		d.Spec.Credentials = json.RawMessage([]byte(data))
 	}
 
 	switch ig.SubKind {

@@ -5835,6 +5835,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.RegisterCriticalFunc("proxy.web", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting web proxy service.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.WebAddr.Addr)
 			defer webHandler.Close()
+
+			// Reconcile apps when the proxy starts.
+			// TODO: We probably want a watcher to create/destroy apps when integration is created/removed.
+			if err := reconcileOAuthProxyApps(process.ExitContext(), conn.Client, conn.HostUUID(), process.proxyPublicAddr().Addr); err != nil {
+				logger.WarnContext(process.ExitContext(), "Failed to reconcile OAuthProxy apps", "error", err)
+			}
 			process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: webHandler})
 			if err := webServer.Serve(listeners.web); err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
 				logger.WarnContext(process.ExitContext(), "Error while serving web requests", "error", err)

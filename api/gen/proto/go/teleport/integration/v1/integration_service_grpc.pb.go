@@ -47,6 +47,7 @@ const (
 	IntegrationService_ExportIntegrationCertAuthorities_FullMethodName = "/teleport.integration.v1.IntegrationService/ExportIntegrationCertAuthorities"
 	IntegrationService_GenerateAWSRACredentials_FullMethodName         = "/teleport.integration.v1.IntegrationService/GenerateAWSRACredentials"
 	IntegrationService_CompleteOAuthProxyExchange_FullMethodName       = "/teleport.integration.v1.IntegrationService/CompleteOAuthProxyExchange"
+	IntegrationService_GetOAuthProxyCredentials_FullMethodName         = "/teleport.integration.v1.IntegrationService/GetOAuthProxyCredentials"
 )
 
 // IntegrationServiceClient is the client API for IntegrationService service.
@@ -80,6 +81,8 @@ type IntegrationServiceClient interface {
 	GenerateAWSRACredentials(ctx context.Context, in *GenerateAWSRACredentialsRequest, opts ...grpc.CallOption) (*GenerateAWSRACredentialsResponse, error)
 	// CompleteOAuthProxyExchange
 	CompleteOAuthProxyExchange(ctx context.Context, in *CompleteOAuthProxyExchangeRequest, opts ...grpc.CallOption) (*CompleteOAuthProxyExchangeResponse, error)
+	// GetOAuthProxyCredentials
+	GetOAuthProxyCredentials(ctx context.Context, in *GetOAuthProxyCredentialsRequest, opts ...grpc.CallOption) (*GetOAuthProxyCredentialsResponse, error)
 }
 
 type integrationServiceClient struct {
@@ -210,6 +213,16 @@ func (c *integrationServiceClient) CompleteOAuthProxyExchange(ctx context.Contex
 	return out, nil
 }
 
+func (c *integrationServiceClient) GetOAuthProxyCredentials(ctx context.Context, in *GetOAuthProxyCredentialsRequest, opts ...grpc.CallOption) (*GetOAuthProxyCredentialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOAuthProxyCredentialsResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_GetOAuthProxyCredentials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IntegrationServiceServer is the server API for IntegrationService service.
 // All implementations must embed UnimplementedIntegrationServiceServer
 // for forward compatibility.
@@ -241,6 +254,8 @@ type IntegrationServiceServer interface {
 	GenerateAWSRACredentials(context.Context, *GenerateAWSRACredentialsRequest) (*GenerateAWSRACredentialsResponse, error)
 	// CompleteOAuthProxyExchange
 	CompleteOAuthProxyExchange(context.Context, *CompleteOAuthProxyExchangeRequest) (*CompleteOAuthProxyExchangeResponse, error)
+	// GetOAuthProxyCredentials
+	GetOAuthProxyCredentials(context.Context, *GetOAuthProxyCredentialsRequest) (*GetOAuthProxyCredentialsResponse, error)
 	mustEmbedUnimplementedIntegrationServiceServer()
 }
 
@@ -286,6 +301,9 @@ func (UnimplementedIntegrationServiceServer) GenerateAWSRACredentials(context.Co
 }
 func (UnimplementedIntegrationServiceServer) CompleteOAuthProxyExchange(context.Context, *CompleteOAuthProxyExchangeRequest) (*CompleteOAuthProxyExchangeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteOAuthProxyExchange not implemented")
+}
+func (UnimplementedIntegrationServiceServer) GetOAuthProxyCredentials(context.Context, *GetOAuthProxyCredentialsRequest) (*GetOAuthProxyCredentialsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOAuthProxyCredentials not implemented")
 }
 func (UnimplementedIntegrationServiceServer) mustEmbedUnimplementedIntegrationServiceServer() {}
 func (UnimplementedIntegrationServiceServer) testEmbeddedByValue()                            {}
@@ -524,6 +542,24 @@ func _IntegrationService_CompleteOAuthProxyExchange_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IntegrationService_GetOAuthProxyCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOAuthProxyCredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).GetOAuthProxyCredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_GetOAuthProxyCredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).GetOAuthProxyCredentials(ctx, req.(*GetOAuthProxyCredentialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IntegrationService_ServiceDesc is the grpc.ServiceDesc for IntegrationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -578,6 +614,10 @@ var IntegrationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteOAuthProxyExchange",
 			Handler:    _IntegrationService_CompleteOAuthProxyExchange_Handler,
+		},
+		{
+			MethodName: "GetOAuthProxyCredentials",
+			Handler:    _IntegrationService_GetOAuthProxyCredentials_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

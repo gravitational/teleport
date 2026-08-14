@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -320,6 +321,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		Clock:           c.cfg.Clock,
 		CleanupInterval: time.Second,
 		OnExpiry:        c.onSessionExpired,
+		ReloadOnErr:     true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -373,7 +375,8 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 // SetApplicationsProvider sets the internal state for the monitored applications.
 // This method must be called before the ConnectionsHandler is able to handle connections.
 func (c *ConnectionsHandler) SetApplicationsProvider(
-	fn func(context.Context, string, string) (types.Application, error)) {
+	fn func(context.Context, string, string) (types.Application, error),
+) {
 	c.resolveApp = fn
 }
 
@@ -463,6 +466,27 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 		return trace.Wrap(err)
 	}
 	defer session.release()
+
+	if app.GetIntegration() != "" &&
+		// Hardcoded this, but it's dependent on the name of the created app resource being "okta-oauth-proxy".
+		// TODO: What we really want to do it get the subkind of the integration (not the app) and filter on that.
+		app.GetName() == "okta-oauth-proxy" {
+		// TODO: Don't really want to be using htis cache - expiry, type, etc... are all wrong, but somehow it works :D
+		accessToken, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, app.GetIntegration(), ttl, func(ctx context.Context) (string, error) {
+			creds, err := c.cfg.AuthClient.IntegrationsClient().GetOAuthProxyCredentials(r.Context(), &integrationv1.GetOAuthProxyCredentialsRequest{
+				Name: app.GetIntegration(),
+			})
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			return creds.AccessToken, nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		r.Header.Set("Authorization", "Bearer "+accessToken)
+	}
 
 	// Create session context.
 	sessionCtx := &common.SessionContext{

@@ -15,6 +15,7 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
 )
 
@@ -122,5 +123,39 @@ func (s *Service) CompleteOAuthProxyExchange(ctx context.Context, req *integrati
 
 	return &integrationpb.CompleteOAuthProxyExchangeResponse{
 		Expires: timestamppb.New(ig.GetCredentials().GetOauth2AccessToken().Expires),
+	}, nil
+}
+
+func (s *Service) GetOAuthProxyCredentials(ctx context.Context, req *integrationpb.GetOAuthProxyCredentialsRequest) (*integrationpb.GetOAuthProxyCredentialsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// It's the proxy that calls this. Assuming others don't also have proxy role.
+	if !authz.HasBuiltinRole(*authCtx, types.RoleProxy.String()) {
+		return nil, trace.AccessDenied("not authorized")
+	}
+
+	ig, err := s.backend.GetIntegration(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	creds := ig.GetCredentials().GetOauth2AccessToken()
+	if creds == nil {
+		return nil, trace.NotFound("no auth token")
+	}
+
+	now := s.clock.Now()
+	if s.clock.Now().After(creds.Expires) {
+		// TODO: Somehow prompt to re-auth?
+		s.logger.ErrorContext(ctx, "Auth token expired", "now", now, "expires", creds.Expires)
+		return nil, trace.Errorf("Auth token expired")
+	}
+
+	return &integrationpb.GetOAuthProxyCredentialsResponse{
+		AccessToken: creds.AccessToken,
+		Expires:     timestamppb.New(creds.Expires),
 	}, nil
 }

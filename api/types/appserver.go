@@ -133,6 +133,29 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 	})
 }
 
+func NewAppServerForOAuthProxyIntegration(integrationName, hostID, publicAddr, upstreamURL string, labels map[string]string) (*AppServerV3, error) {
+	return NewAppServerV3(
+		Metadata{
+			Name:   integrationName,
+			Labels: labels,
+		},
+		AppServerSpecV3{
+			HostID: hostID,
+			App: &AppV3{
+				Metadata: Metadata{
+					Name:   integrationName,
+					Labels: labels,
+				},
+				Spec: AppSpecV3{
+					URI:         upstreamURL,
+					Integration: integrationName,
+					PublicAddr:  publicAddr,
+				},
+			},
+		},
+	)
+}
+
 func (s *AppServerV3) IsEqual(other AppServer) bool {
 	otherv3, ok := other.(*AppServerV3)
 	if !ok {
